@@ -644,15 +644,6 @@ class WorkspaceController(object):
         last_channel_to_data_item_dict.clear()
         last_channel_to_data_item_dict.update(channel_to_data_item_dict)
 
-        complete = len(channels_data) > 0 and all([channel_data.state == "complete" for channel_data in channels_data])
-
-        # let listeners know too (if there are data_elements).
-        if complete:
-            if acquisition_task.is_continuous:
-                hardware_source.viewed_data_elements_available_event.fire(data_elements)
-            else:
-                hardware_source.recorded_data_elements_available_event.fire(data_elements)
-
     def __hardware_source_added(self, hardware_source):
         channels_data_updated_event_listener = hardware_source.channels_data_updated_event.listen(functools.partial(self.__channels_data_updated, hardware_source))
         self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id] = channels_data_updated_event_listener

@@ -263,6 +263,9 @@ class AcquisitionTask(object):
         elapsed = time.time() - self.__last_acquire_time
         time.sleep(max(0.0, self.__minimum_period - elapsed))
 
+        if self.__hardware_source._test_acquire_hook:
+            self.__hardware_source._test_acquire_hook()
+
         data_elements = self._acquire_data_elements()
 
         # update frame_index if not supplied
@@ -284,6 +287,13 @@ class AcquisitionTask(object):
             if not (sub_area is None or state == "complete"):
                 complete = False
                 break
+
+        # let listeners know too (if there are data_elements).
+        if complete:
+            if self.is_continuous:
+                self.__hardware_source.viewed_data_elements_available_event.fire(data_elements)
+            else:
+                self.__hardware_source.recorded_data_elements_available_event.fire(data_elements)
 
         if complete:
             self.__frame_index += 1
@@ -326,6 +336,7 @@ class HardwareSource(object):
         self.features = dict()
         self.viewed_data_elements_available_event = Observable.Event()
         self.recorded_data_elements_available_event = Observable.Event()
+        self.abort_event = Observable.Event()
         self.playing_state_changed_event = Observable.Event()
         self.recording_state_changed_event = Observable.Event()
         self.data_item_states_changed_event = Observable.Event()
@@ -344,6 +355,7 @@ class HardwareSource(object):
         self.__acquire_thread.start()
         self._test_handle_record_exception = None
         self._test_handle_view_exception = None
+        self._test_acquire_hook = None
 
     def close(self):
         # when overriding hardware source close, the acquisition loop may still be running
@@ -361,6 +373,7 @@ class HardwareSource(object):
             if self.__record_task:
                 if acquire_thread_break:
                     self.__record_task.abort()
+                    self.abort_event.fire()
                     break
                 try:
                     if self.__view_task and not self.__view_task_suspended:
@@ -369,6 +382,7 @@ class HardwareSource(object):
                     self.__record_task.execute()
                 except Exception as e:
                     self.__record_task.abort()
+                    self.abort_event.fire()
                     if self._test_handle_record_exception:
                         self._test_handle_record_exception(e)
                     else:
@@ -384,6 +398,7 @@ class HardwareSource(object):
             elif self.__view_task:
                 if acquire_thread_break:
                     self.__view_task.abort()
+                    self.abort_event.fire()
                     break
                 try:
                     if self.__view_task_suspended:
@@ -392,6 +407,7 @@ class HardwareSource(object):
                     self.__view_task.execute()
                 except Exception as e:
                     self.__view_task.abort()
+                    self.abort_event.fire()
                     if self._test_handle_view_exception:
                         self._test_handle_view_exception(e)
                     else:
@@ -570,13 +586,17 @@ class HardwareSource(object):
             new_data_elements[:] = data_elements
             new_data_event.set()
 
+        def abort():
+            new_data_event.set()
+
         with contextlib.closing(self.viewed_data_elements_available_event.listen(receive_new_data_elements)):
             with contextlib.closing(self.recorded_data_elements_available_event.listen(receive_new_data_elements)):
-                # wait for the current frame to finish
-                if not new_data_event.wait(timeout):
-                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
+                with contextlib.closing(self.abort_event.listen(abort)):
+                    # wait for the current frame to finish
+                    if not new_data_event.wait(timeout):
+                        raise Exception("Could not start data_source " + str(self.hardware_source_id))
 
-                return new_data_elements
+                    return new_data_elements
 
     def get_next_data_elements_to_start(self, timeout=10.0):
         new_data_event = threading.Event()
@@ -586,16 +606,22 @@ class HardwareSource(object):
             new_data_elements[:] = data_elements
             new_data_event.set()
 
+        def abort():
+            new_data_event.set()
+
         with contextlib.closing(self.viewed_data_elements_available_event.listen(receive_new_data_elements)):
             with contextlib.closing(self.recorded_data_elements_available_event.listen(receive_new_data_elements)):
-                # wait for the current frame to finish
-                if not new_data_event.wait(timeout):
-                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
+                with contextlib.closing(self.abort_event.listen(abort)):
+                    # wait for the current frame to finish
+                    if not new_data_event.wait(timeout):
+                        raise Exception("Could not start data_source " + str(self.hardware_source_id))
 
-                new_data_event.clear()
-                new_data_event.wait(timeout)
+                    new_data_event.clear()
 
-                return new_data_elements
+                    if len(new_data_elements) > 0:
+                        new_data_event.wait(timeout)
+
+                    return new_data_elements
 
     @contextmanager
     def get_data_element_generator(self, sync=True, timeout=10.0):

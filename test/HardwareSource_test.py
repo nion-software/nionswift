@@ -276,12 +276,68 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
 
 def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    data_element = hardware_source.get_next_data_elements_to_finish()[0]
+    hardware_source.get_next_data_elements_to_finish()
     hardware_source.abort_playing()
-    testcase.assertNotEqual(data_element["data"][0, 0], 0)
-    testcase.assertNotEqual(data_element["data"][-1, -1], 0)
-    testcase.assertIsNone(data_element.get("sub_area"))
+    document_controller.periodic()
+    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[0, 0], 0)
+    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[-1, -1], 0)
     hardware_source.close()
+
+def _test_exception_during_view_halts_playback(testcase, hardware_source, exposure):
+    enabled = [False]
+    def raise_exception():
+        if enabled[0]:
+            raise Exception("Error during acquisition")
+    hardware_source._test_acquire_hook = raise_exception
+    hardware_source._test_handle_view_exception = lambda *args: None
+    hardware_source.start_playing()
+    try:
+        hardware_source.get_next_data_elements_to_finish()
+    finally:
+        pass
+    testcase.assertTrue(hardware_source.is_playing)
+    enabled[0] = True
+    hardware_source.get_next_data_elements_to_finish()
+    time.sleep(exposure * 0.5)
+    testcase.assertFalse(hardware_source.is_playing)
+
+def _test_exception_during_record_halts_playback(testcase, hardware_source, exposure):
+    enabled = [False]
+    def raise_exception():
+        if enabled[0]:
+            raise Exception("Error during acquisition")
+    hardware_source._test_acquire_hook = raise_exception
+    hardware_source._test_handle_record_exception = lambda *args: None
+    # first make sure that record works as expected
+    hardware_source.start_recording()
+    time.sleep(exposure * 0.5)
+    testcase.assertTrue(hardware_source.is_recording)
+    time.sleep(exposure * 4.0)
+    testcase.assertFalse(hardware_source.is_recording)
+    # now raise an exception
+    enabled[0] = True
+    hardware_source.start_recording()
+    time.sleep(exposure * 1.5)
+    testcase.assertFalse(hardware_source.is_recording)
+
+def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposure):
+    enabled = [False]
+    def raise_exception():
+        if enabled[0]:
+            raise Exception("Error during acquisition")
+    hardware_source._test_acquire_hook = raise_exception
+    hardware_source._test_handle_view_exception = lambda *args: None
+    hardware_source.start_playing()
+    hardware_source.get_next_data_elements_to_finish()
+    testcase.assertTrue(hardware_source.is_playing)
+    enabled[0] = True
+    hardware_source.get_next_data_elements_to_finish()
+    time.sleep(exposure * 0.5)
+    testcase.assertFalse(hardware_source.is_playing)
+    enabled[0] = False
+    hardware_source.start_playing()
+    hardware_source.get_next_data_elements_to_finish()
+    hardware_source.get_next_data_elements_to_finish()
 
 
 class TestHardwareSourceClass(unittest.TestCase):
@@ -402,6 +458,30 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_get_next_data_elements_to_finish_returns_full_frames(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
+
+    def test_exception_during_view_halts_playback(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
+
+    def test_exception_during_record_halts_playback(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
+
+    def test_able_to_restart_view_after_exception(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
+
+    def test_exception_during_view_halts_scan(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
+
+    def test_exception_during_record_halts_scan(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
+
+    def test_able_to_restart_scan_after_exception_scan(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
 
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
