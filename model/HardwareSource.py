@@ -543,6 +543,7 @@ class HardwareSource(object):
         acquire_thread_view = self.active_view_task
         if acquire_thread_view:
             acquire_thread_view.abort()
+            self.abort_event.fire()
 
     # call this to stop acquisition gracefully
     # not thread safe
@@ -570,6 +571,7 @@ class HardwareSource(object):
         acquire_thread_record = self.active_record_task
         if acquire_thread_record:
             acquire_thread_record.abort()
+            self.abort_event.fire()
 
     # call this to stop acquisition gracefully
     # not thread safe
@@ -578,7 +580,7 @@ class HardwareSource(object):
         if acquire_thread_record:
             acquire_thread_record.stop()
 
-    def get_next_data_elements_to_finish(self, timeout=10.0):
+    def get_next_data_elements_to_finish(self, timeout=None):
         new_data_event = threading.Event()
         new_data_elements = list()
 
@@ -598,7 +600,7 @@ class HardwareSource(object):
 
                     return new_data_elements
 
-    def get_next_data_elements_to_start(self, timeout=10.0):
+    def get_next_data_elements_to_start(self, timeout=None):
         new_data_event = threading.Event()
         new_data_elements = list()
 
@@ -624,7 +626,7 @@ class HardwareSource(object):
                     return new_data_elements
 
     @contextmanager
-    def get_data_element_generator(self, sync=True, timeout=10.0):
+    def get_data_element_generator(self, sync=True, timeout=None):
         """
             Return a generator for data elements.
 
@@ -655,7 +657,7 @@ class HardwareSource(object):
         return HardwareSourceFacade()
 
 
-def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=10.0):
+def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=None):
     hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
     return hardware_source.get_data_element_generator(sync, timeout)
 

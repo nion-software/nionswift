@@ -433,7 +433,7 @@ class FacadeRecordTask(object):
         return self.__data_and_metadata_list
 
     def cancel(self):
-        pass
+        self.__hardware_source.abort_recording()
 
 
 class FacadeViewTask(object):
@@ -514,6 +514,9 @@ class FacadeHardwareSource(object):
 
     def get_default_frame_parameters(self):
         return self.__hardware_source.get_default_frame_parameters()
+
+    def get_frame_parameters_for_profile_by_index(self, profile_index):
+        return self.__hardware_source.get_frame_parameters(profile_index)
 
     def start_playing(self, frame_parameters=None, channels_enabled=None, mode=None):
         if mode:
