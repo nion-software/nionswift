@@ -423,6 +423,27 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(data_item_dup.operation.data_sources[0].buffered_data_source_uuid, data_item.operation.data_sources[0].buffered_data_source_uuid)
         self.assertEqual(data_item_dup.operation.data_sources[0].source_data_item, data_item.operation.data_sources[0].source_data_item)
 
+    def test_fixing_display_limits_works_for_all_data_types(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_size = (8, 8)
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.int16)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.int32)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.int64)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.uint16)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.uint32)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.uint64)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.float32)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.float64)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.complex64)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.complex128)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size + (3,), numpy.uint8)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size + (4,), numpy.uint8)))
+        for data_item in document_model.data_items:
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_controller.fix_display_limits(display_specifier)
+            self.assertEqual(len(display_specifier.display.display_limits), 2)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

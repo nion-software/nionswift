@@ -1064,6 +1064,16 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertAlmostEqual(region.end[0], 0.2)
         self.assertAlmostEqual(region.end[1], 0.25)
 
+    def test_enter_to_resets_display_limits(self):
+        # test preliminary assumptions (no display limits)
+        self.assertIsNone(self.display_specifier.display.display_limits)
+        # focus on the display panel, then press the enter key
+        modifiers = Test.KeyboardModifiers()
+        self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
+        # confirm that display limits were set
+        self.assertIsNotNone(self.display_specifier.display.display_limits)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

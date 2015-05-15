@@ -671,10 +671,7 @@ class DataDisplayPanel(BaseDisplayPanel):
 
                 def enter_key_pressed(self):
                     if display_type == "image":
-                        buffered_data_source = self.__display_panel.display_specifier.buffered_data_source
-                        display = self.__display_panel.display_specifier.display
-                        if display:
-                            display.display_limits = buffered_data_source.data_range
+                        self.__display_panel.document_controller.fix_display_limits(self.__display_panel.display_specifier)
                         return True
                     return False
 

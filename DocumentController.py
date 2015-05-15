@@ -1018,6 +1018,12 @@ class DocumentController(Observable.Broadcaster):
         display_specifier = self.selected_display_specifier
         return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "convert-to-scalar-operation", suffix=_(" Gray"))
 
+    def fix_display_limits(self, display_specifier):
+        buffered_data_source = display_specifier.buffered_data_source
+        display = display_specifier.display
+        if display:
+            display.display_limits = buffered_data_source.data_range
+
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:
             self.__last_display_filter = self.display_filter
