@@ -404,6 +404,13 @@ class TestWorkspaceClass(unittest.TestCase):
         # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
         document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_drag((12, 12), (480, 240))
 
+    def test_creating_invalid_workspace_fails_gracefully(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_bad = document_controller.workspace_controller.new_workspace(layout={"type": "bad_component_type"})
+        document_controller.workspace_controller.change_workspace(workspace_bad)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        self.assertEqual(document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0]), {'selected': True, 'type': 'image'})
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

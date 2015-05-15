@@ -288,6 +288,7 @@ class WorkspaceController(object):
         # save the current workspace
         if self.__workspace:
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
+            self.__workspace = None
         # remove existing layout and canvas item
         display_panels = copy.copy(self.display_panels)
         self.display_panels = []
@@ -298,17 +299,33 @@ class WorkspaceController(object):
         if self.__canvas_item:
             self.__canvas_item.close()
             self.__canvas_item = None
-        # store the new workspace
-        self.__workspace = workspace
         # create new layout and canvas item
         self.__canvas_item = CanvasItem.RootCanvasItem(self.ui)
         self.__canvas_item.focusable = True
-        display_panels = list()  # to be populated by _construct
+        # now construct the workspace
         document_model = self.document_controller.document_model
-        canvas_item, selected_display_panel = self._construct(self.__workspace.layout, display_panels, document_model.get_data_item_by_uuid)
-        self.display_panels.extend(display_panels)
-        self.__canvas_item.add_canvas_item(canvas_item)
-        self.image_row.add(self.__canvas_item.canvas_widget)
+        try:
+            display_panels = list()  # to be populated by _construct
+            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
+            # store the new workspace
+            if canvas_item:
+                self.__workspace = workspace
+                self.display_panels.extend(display_panels)
+                self.__canvas_item.add_canvas_item(canvas_item)
+                self.image_row.add(self.__canvas_item.canvas_widget)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+        if self.__workspace == None:
+            workspace = self.new_workspace()
+            display_panels = list()  # to be populated by _construct
+            canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
+            # store the new workspace
+            self.__workspace = workspace
+            self.display_panels.extend(display_panels)
+            self.__canvas_item.add_canvas_item(canvas_item)
+            self.image_row.add(self.__canvas_item.canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
         document_model.workspace_uuid = workspace.uuid
 
