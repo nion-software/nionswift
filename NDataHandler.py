@@ -16,6 +16,7 @@ import time
 import uuid
 
 from nion.ui import Geometry
+from nion.swift.model import Utility
 
 # http://en.wikipedia.org/wiki/Zip_(file_format)
 # http://www.pkware.com/documents/casestudies/APPNOTE.TXT
@@ -439,7 +440,7 @@ class NDataHandler(object):
         make_directory_if_needed(os.path.dirname(absolute_file_path))
         exists = os.path.exists(absolute_file_path)
         if exists:
-            rewrite_zip(absolute_file_path, properties)
+            rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
         else:
             write_zip(absolute_file_path, None, properties)
         # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.

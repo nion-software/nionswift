@@ -1455,6 +1455,20 @@ class TestStorageClass(unittest.TestCase):
         suspendable_storage_cache.spill_cache()
         self.assertIsNone(storage_cache.cache.get(data_item.uuid, dict()).get("key"))
 
+    def test_writing_properties_with_numpy_float32_succeeds(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Storage.db_make_directory_if_needed(workspace_dir)
+        data_reference_handler = Application.DataReferenceHandler(workspace_dir)
+        try:
+            document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_item.maybe_data_source.displays[0].display_limits = (numpy.float32(1.0), numpy.float32(1.0))
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
