@@ -604,12 +604,12 @@ class WorkspaceController(object):
                 channel_key = hardware_source_id + "_" + view_id
             self.__channel_data_items[channel_key] = data_item
 
-    def __channels_data_updated(self, hardware_source, acquisition_task, channels_data):
+    def __channels_data_updated(self, hardware_source, view_id, is_recording, channels_data):
 
         # sync to data items
         hardware_source_id = hardware_source.hardware_source_id
         display_name = hardware_source.display_name
-        channel_to_data_item_dict = self.__sync_channels_to_data_items(channels_data, hardware_source_id, acquisition_task.view_id, display_name, not acquisition_task.is_continuous)
+        channel_to_data_item_dict = self.__sync_channels_to_data_items(channels_data, hardware_source_id, view_id, display_name, is_recording)
 
         # these items are now live if we're playing right now. mark as such.
         for data_item in channel_to_data_item_dict.values():
@@ -643,7 +643,7 @@ class WorkspaceController(object):
         hardware_source.data_item_states_changed_event.fire(data_item_states)
         hardware_source.data_item_states_changed(data_item_states)
 
-        last_channel_to_data_item_dict = self.__last_channel_to_data_item_dicts.setdefault(hardware_source.hardware_source_id + str(acquisition_task.is_continuous), dict())
+        last_channel_to_data_item_dict = self.__last_channel_to_data_item_dicts.setdefault(hardware_source.hardware_source_id + str(is_recording), dict())
 
         # these items are no longer live. mark live_data as False.
         for data_item in last_channel_to_data_item_dict.values():

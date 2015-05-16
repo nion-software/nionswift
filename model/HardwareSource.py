@@ -204,7 +204,7 @@ class AcquisitionTask(object):
                     self.__mark_as_finished()
                 # otherwise execute the task
                 else:
-                    complete = self.__execute()
+                    complete = self.__execute_acquire_data_elements()
                     # logging.debug("%s executed %s", self, complete)
                     if complete and (self.__stopped or not self.__continuous):
                         # logging.debug("%s finished", self)
@@ -257,7 +257,7 @@ class AcquisitionTask(object):
         self._start_acquisition()
         self.__last_acquire_time = time.time() - self.__minimum_period
 
-    def __execute(self):
+    def __execute_acquire_data_elements(self):
         # with Utility.trace(): # (min_elapsed=0.0005, discard="anaconda"):
         # impose maximum frame rate so that acquire_data_elements can't starve main thread
         elapsed = time.time() - self.__last_acquire_time
@@ -266,18 +266,43 @@ class AcquisitionTask(object):
         if self.__hardware_source._test_acquire_hook:
             self.__hardware_source._test_acquire_hook()
 
-        data_elements = self._acquire_data_elements()
+        partial_data_elements = self._acquire_data_elements()
+        assert partial_data_elements is not None  # data_elements should never be empty
 
         # update frame_index if not supplied
-        for data_element in data_elements:
+        for data_element in partial_data_elements:
             data_element.setdefault("properties", dict()).setdefault("frame_index", self.__frame_index)
+
+        # merge the data if necessary
+        data_elements = self.__data_elements
+        if not data_elements:
+            data_elements = copy.copy(partial_data_elements)
+        else:
+            for partial_data_element, data_element in zip(partial_data_elements, data_elements):
+                existing_sub_area = data_element.get("sub_area", ((0, 0), data_element["data"].shape))
+                new_sub_area = partial_data_element.get("sub_area", ((0, 0), partial_data_element.get("data").shape))
+                existing_top = existing_sub_area[0][0]
+                existing_height = existing_sub_area[1][0]
+                existing_left = existing_sub_area[0][1]
+                existing_width = existing_sub_area[1][1]
+                existing_bottom = existing_top + existing_height
+                existing_right = existing_left + existing_width
+                new_top = new_sub_area[0][0]
+                new_bottom = new_top + new_sub_area[1][0]
+                new_width = new_sub_area[1][1]
+                assert new_top <= existing_bottom  # don't skip sub-areas
+                if new_top > 0:
+                    assert new_width == existing_width  # only support full width sub-areas
+                if new_top > 0:
+                    y_slice = slice(existing_top, new_top)
+                    x_slice = slice(existing_left, existing_right)
+                    sub_area_slice = y_slice, x_slice
+                    partial_data_element["data"][sub_area_slice] = data_element["data"][sub_area_slice]
+                    partial_data_element["sub_area"] = (existing_top, existing_left), (new_bottom - existing_top, existing_width)
+                data_elements = partial_data_elements
 
         # record the last acquisition time
         self.__last_acquire_time = time.time()
-
-        # data_elements should never be empty
-        assert data_elements is not None
-        self.data_elements_changed_event.fire(data_elements)
 
         # figure out whether all data elements are complete
         complete = True
@@ -288,6 +313,9 @@ class AcquisitionTask(object):
                 complete = False
                 break
 
+        # notify that data elements have changed
+        self.data_elements_changed_event.fire(data_elements)
+
         # let listeners know too (if there are data_elements).
         if complete:
             if self.is_continuous:
@@ -295,8 +323,9 @@ class AcquisitionTask(object):
             else:
                 self.__hardware_source.recorded_data_elements_available_event.fire(data_elements)
 
-        if complete:
             self.__frame_index += 1
+        else:
+            self.__data_elements = data_elements
 
         return complete
 
@@ -304,21 +333,26 @@ class AcquisitionTask(object):
     # call back to the hardware source.
 
     def _start_acquisition(self):
+        self.__data_elements = None
         self.__hardware_source.start_acquisition()
 
     def _abort_acquisition(self):
+        self.__data_elements = None
         self.__hardware_source.abort_acquisition()
 
     def _suspend_acquisition(self):
+        self.__data_elements = None
         self.__hardware_source.suspend_acquisition()
 
     def _resume_acquisition(self):
+        self.__data_elements = None
         self.__hardware_source.resume_acquisition()
 
     def _mark_acquisition(self):
         self.__hardware_source.mark_acquisition()
 
     def _stop_acquisition(self):
+        self.__data_elements = None
         self.__hardware_source.stop_acquisition()
 
     def _acquire_data_elements(self):
@@ -522,7 +556,7 @@ class HardwareSource(object):
             channels_data.append(ChannelData(channel_id=channel_id, index=channel_index, name=channel_name,
                                         data_and_calibration=data_and_calibration, state=channel_state,
                                         sub_area=sub_area))
-        self.channels_data_updated_event.fire(acquisition_task, channels_data)
+        self.channels_data_updated_event.fire(acquisition_task.view_id, not acquisition_task.is_continuous, channels_data)
 
     # return whether acquisition is running
     @property

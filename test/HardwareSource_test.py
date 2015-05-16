@@ -94,12 +94,12 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
                     data_element["sub_area"] = sub_area
                     data_element["properties"]["complete"] = False
                     data_element["properties"]["frame_index"] = self.frame_index
-                    self.frame_index += 1
                 else:
                     data_element["state"] = "complete"
                     data_element["sub_area"] = sub_area
                     data_element["properties"]["complete"] = True
                     data_element["properties"]["frame_index"] = self.frame_index
+                    self.frame_index += 1
                 data_elements.append(data_element)
         self.top = not self.top
         return data_elements
@@ -275,6 +275,15 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     hardware_source.close()
 
 def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardware_source, document_controller):
+    hardware_source.start_playing()
+    data_elements = hardware_source.get_next_data_elements_to_finish()
+    hardware_source.abort_playing()
+    document_controller.periodic()
+    testcase.assertNotEqual(data_elements[0]["data"][0, 0], 0)
+    testcase.assertNotEqual(data_elements[0]["data"][-1, -1], 0)
+    hardware_source.close()
+
+def _test_get_next_data_elements_to_finish_produces_data_item_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
     hardware_source.get_next_data_elements_to_finish()
     hardware_source.abort_playing()
@@ -458,6 +467,10 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_get_next_data_elements_to_finish_returns_full_frames(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
+
+    def test_get_next_data_elements_to_finish_produces_data_item_full_frames(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        _test_get_next_data_elements_to_finish_produces_data_item_full_frames(self, hardware_source, document_controller)
 
     def test_exception_during_view_halts_playback(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
