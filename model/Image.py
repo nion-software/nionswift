@@ -293,11 +293,16 @@ def create_rgba_image_from_array(array, normalize=True, data_range=None, display
                 nmin = data_range[0] if data_range else numpy.amin(array)
                 nmax = data_range[1] if data_range else numpy.amax(array)
                 # scalar data assigned to each component of rgb view
-                m = 255.0 / (nmax - nmin) if nmax != nmin else 1
+                m = 255.0 / (nmax - nmin) if nmax != nmin else 1.0
                 if lookup is not None:
                     get_rgb_view(rgba_image)[:] = lookup[(m * (array - nmin)).astype(int)]
                 else:
-                    get_rgb_view(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)
+                    # get_rgb_view(rgba_image)[:] = m * (array[..., numpy.newaxis] - nmin)
+                    # optimized version below
+                    r0 = numpy.empty(array.shape, numpy.uint8)
+                    r0[:] = (m * (array - nmin))
+                    rgb_view = rgba_image.view(numpy.uint8).reshape(rgba_image.shape + (-1, ))[..., :3]
+                    rgb_view[..., 0] = rgb_view[..., 1] = rgb_view[..., 2] = r0
                 if overlimit:
                     rgba_image = numpy.where(numpy.less(array - nmin, (nmax - nmin) * overlimit), rgba_image, 0xFFFF0000)
                 if underlimit:
