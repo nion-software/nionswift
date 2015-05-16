@@ -439,6 +439,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size, numpy.complex128)))
         document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size + (3,), numpy.uint8)))
         document_model.append_data_item(DataItem.DataItem(numpy.ones(data_size + (4,), numpy.uint8)))
+        document_model.append_data_item(DataItem.DataItem(numpy.ones((2, ) + data_size, numpy.float32)))
         for data_item in document_model.data_items:
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_controller.fix_display_limits(display_specifier)
