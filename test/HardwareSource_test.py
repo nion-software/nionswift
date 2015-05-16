@@ -309,6 +309,7 @@ def _test_exception_during_view_halts_playback(testcase, hardware_source, exposu
     hardware_source.get_next_data_elements_to_finish()
     time.sleep(exposure * 0.5)
     testcase.assertFalse(hardware_source.is_playing)
+    hardware_source.close()
 
 def _test_exception_during_record_halts_playback(testcase, hardware_source, exposure):
     enabled = [False]
@@ -328,6 +329,7 @@ def _test_exception_during_record_halts_playback(testcase, hardware_source, expo
     hardware_source.start_recording()
     time.sleep(exposure * 1.5)
     testcase.assertFalse(hardware_source.is_recording)
+    hardware_source.close()
 
 def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposure):
     enabled = [False]
@@ -347,6 +349,7 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     hardware_source.start_playing()
     hardware_source.get_next_data_elements_to_finish()
     hardware_source.get_next_data_elements_to_finish()
+    hardware_source.close()
 
 
 class TestHardwareSourceClass(unittest.TestCase):
