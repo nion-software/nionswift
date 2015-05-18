@@ -1170,9 +1170,9 @@ class DocumentController(Observable.Broadcaster):
     def create_selected_display_binding(self):
         return SelectedDisplayBinding(self)
 
-    def show_context_menu_for_data_item(self, container, data_item, gx, gy):
+    def create_context_menu_for_data_item(self, container, data_item):
+        menu = self.ui.create_context_menu(self.document_window)
         if data_item:
-            menu = self.ui.create_context_menu(self.document_window)
             def delete():
                 if container and data_item in container.data_items:
                     container.remove_data_item(data_item)
@@ -1192,7 +1192,7 @@ class DocumentController(Observable.Broadcaster):
                     def show_dependent_data_item(data_item):
                         self.select_data_item_in_data_panel(data_item)
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title), functools.partial(show_dependent_data_item, dependent_data_item))
-            menu.popup(gx, gy)
+        return menu
 
 
 class SelectedDisplayBinding(Observable.Broadcaster):

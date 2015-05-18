@@ -199,7 +199,7 @@ class DataListController(object):
                 self.__data_list_controller.selection.set_multiple(indexes)
 
             def on_context_menu_event(self, index, x, y, gx, gy):
-                self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
+                return self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
 
             def on_delete_pressed(self):
                 self.__data_list_controller._delete_pressed()
@@ -280,8 +280,9 @@ class DataListController(object):
 
     def context_menu_event(self, index, x, y, gx, gy):
         if self.on_context_menu_event:
-            display_item = self.__display_items[index]
-            self.on_context_menu_event(display_item, x, y, gx, gy)
+            display_item = self.__display_items[index] if index is not None else None
+            return self.on_context_menu_event(display_item, x, y, gx, gy)
+        return False
 
     def drag_started(self, index, x, y, modifiers):
         mime_data, thumbnail_data = self.__display_items[index].drag_started(x, y, modifiers)
@@ -399,7 +400,7 @@ class DataGridController(object):
                 self.__data_grid_controller.selection.set_multiple(indexes)
 
             def on_context_menu_event(self, index, x, y, gx, gy):
-                self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
+                return self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
 
             def on_delete_pressed(self):
                 self.__data_grid_controller._delete_pressed()
@@ -477,8 +478,9 @@ class DataGridController(object):
 
     def context_menu_event(self, index, x, y, gx, gy):
         if self.on_context_menu_event:
-            display_item = self.__display_items[index]
-            self.on_context_menu_event(display_item, x, y, gx, gy)
+            display_item = self.__display_items[index] if index is not None else None
+            return self.on_context_menu_event(display_item, x, y, gx, gy)
+        return False
 
     def drag_started(self, index, x, y, modifiers):
         mime_data, thumbnail_data = self.__display_items[index].drag_started(x, y, modifiers)
@@ -632,11 +634,14 @@ class DataBrowserController(object):
 
         self.__selected_display_items = copy.copy(display_items)
 
-    def data_grid_context_menu_event(self, display_item, x, y, gx, gy):
-        data_item = display_item.data_item
-        container = self.document_controller.data_items_binding.container
-        container = DataGroup.get_data_item_container(container, data_item)
-        self.document_controller.show_context_menu_for_data_item(container, data_item, gx, gy)
+    def create_display_item_context_menu(self, display_item):
+        if display_item is not None:
+            data_item = display_item.data_item
+            container = self.document_controller.data_items_binding.container
+            container = DataGroup.get_data_item_container(container, data_item)
+            return self.document_controller.create_context_menu_for_data_item(container, data_item)
+        else:
+            return self.document_controller.ui.create_context_menu(self.document_controller.document_window)
 
     def display_item_double_clicked(self, display_item):
         data_item = display_item.data_item
@@ -1027,16 +1032,21 @@ class DataPanel(Panel.Panel):
         master_widget.add(collections_section_widget)
         master_widget.add_stretch()
 
+        def show_context_menu(display_item, x, y, gx, gy):
+            menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
+            menu.popup(gx, gy)
+            return True
+
         self.data_list_controller = DataListController(document_controller.ui, self.__data_browser_controller.selection)
         self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
-        self.data_list_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
         self.data_grid_controller = DataGridController(document_controller.ui, self.__data_browser_controller.selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
-        self.data_grid_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items

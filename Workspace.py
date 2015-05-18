@@ -539,6 +539,7 @@ class WorkspaceController(object):
         return "ignore"
 
     def insert_display_panel(self, display_panel, region, data_item=None):
+        assert isinstance(display_panel, DisplayPanel.DisplayPanel)
         orientation = "vertical" if region == "right" or region == "left" else "horizontal"
         container = display_panel.canvas_item.container
         if isinstance(container, CanvasItem.SplitterCanvasItem):

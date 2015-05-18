@@ -246,7 +246,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return super(DisplayPanelOverlayCanvasItem, self).key_pressed(key)
 
 
-class BaseDisplayPanel(object):
+class BaseDisplayPanelContent(object):
 
     def __init__(self, document_controller):
 
@@ -278,6 +278,7 @@ class BaseDisplayPanel(object):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_show_context_menu = None
 
         def drag_enter(mime_data):
             if self.on_drag_enter:
@@ -427,12 +428,17 @@ class BaseDisplayPanel(object):
     def perform_action(self, fn, *args, **keywords):
         pass
 
+    def show_context_menu(self, menu, gx, gy):
+        if self.on_show_context_menu:
+            return self.on_show_context_menu(menu, gx, gy)
+        return False
 
-class DataDisplayPanel(BaseDisplayPanel):
+
+class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
 
-        super(DataDisplayPanel, self).__init__(document_controller)
+        super(DataDisplayPanelContent, self).__init__(document_controller)
 
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__display_changed_event_listener = None
@@ -459,7 +465,7 @@ class DataDisplayPanel(BaseDisplayPanel):
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
         self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
-        super(DataDisplayPanel, self).close()
+        super(DataDisplayPanelContent, self).close()
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
@@ -478,7 +484,7 @@ class DataDisplayPanel(BaseDisplayPanel):
     # save and restore the contents of the image panel
 
     def save_contents(self):
-        d = super(DataDisplayPanel, self).save_contents()
+        d = super(DataDisplayPanelContent, self).save_contents()
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
@@ -488,7 +494,7 @@ class DataDisplayPanel(BaseDisplayPanel):
         return d
 
     def restore_contents(self, d):
-        super(DataDisplayPanel, self).restore_contents(d)
+        super(DataDisplayPanelContent, self).restore_contents(d)
         controller_type = d.get("controller_type")
         self.__display_panel_controller = DisplayPanelManager().make_display_panel_controller(controller_type, self, d)
         if not self.__display_panel_controller:
@@ -604,28 +610,28 @@ class DataDisplayPanel(BaseDisplayPanel):
 
             class DisplayCanvasItemDelegate(object):
 
-                def __init__(self, display_panel):
-                    self.__display_panel = display_panel
+                def __init__(self, display_panel_content):
+                    self.__display_panel_content = display_panel_content
 
                 def add_index_to_selection(self, index):
-                    self.__display_panel.display_specifier.display.graphic_selection.add(index)
+                    self.__display_panel_content.display_specifier.display.graphic_selection.add(index)
 
                 def remove_index_from_selection(self, index):
-                    self.__display_panel.display_specifier.display.graphic_selection.remove(index)
+                    self.__display_panel_content.display_specifier.display.graphic_selection.remove(index)
 
                 def set_selection(self, index):
-                    self.__display_panel.display_specifier.display.graphic_selection.set(index)
+                    self.__display_panel_content.display_specifier.display.graphic_selection.set(index)
 
                 def clear_selection(self):
-                    self.__display_panel.display_specifier.display.graphic_selection.clear()
+                    self.__display_panel_content.display_specifier.display.graphic_selection.clear()
 
                 def add_and_select_region(self, region):
-                    self.__display_panel.display_specifier.buffered_data_source.add_region(region)  # this will also make a drawn graphic
+                    self.__display_panel_content.display_specifier.buffered_data_source.add_region(region)  # this will also make a drawn graphic
                     # hack to select it. it will be the last item.
-                    self.__display_panel.display_specifier.display.graphic_selection.set(len(self.__display_panel.display_specifier.display.drawn_graphics) - 1)
+                    self.__display_panel_content.display_specifier.display.graphic_selection.set(len(self.__display_panel_content.display_specifier.display.drawn_graphics) - 1)
 
                 def nudge_selected_graphics(self, mapping, delta):
-                    display = self.__display_panel.display_specifier.display
+                    display = self.__display_panel_content.display_specifier.display
                     if display:
                         all_graphics = display.drawn_graphics
                         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
@@ -633,63 +639,64 @@ class DataDisplayPanel(BaseDisplayPanel):
                             graphic.nudge(mapping, delta)
 
                 def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
-                    with self.__display_panel.display_specifier.data_item.data_item_changes():
+                    with self.__display_panel_content.display_specifier.data_item.data_item_changes():
                         for graphic in graphic_drag_items:
-                            index = self.__display_panel.display_specifier.display.drawn_graphics.index(graphic)
+                            index = self.__display_panel_content.display_specifier.display.drawn_graphics.index(graphic)
                             part_data = (graphic_drag_part, ) + graphic_part_data[index]
                             graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
 
                 @property
                 def tool_mode(self):
-                    return self.__display_panel.document_controller.tool_mode
+                    return self.__display_panel_content.document_controller.tool_mode
 
                 @tool_mode.setter
                 def tool_mode(self, value):
-                    self.__display_panel.document_controller.tool_mode = value
+                    self.__display_panel_content.document_controller.tool_mode = value
 
                 def show_context_menu(self, gx, gy):
-                    self.__display_panel.document_controller.show_context_menu_for_data_item(self.__display_panel.document_controller.document_model, self.__display_panel.display_specifier.data_item, gx, gy)
+                    menu = self.__display_panel_content.document_controller.create_context_menu_for_data_item(self.__display_panel_content.document_controller.document_model, self.__display_panel_content.display_specifier.data_item)
+                    return self.__display_panel_content.show_context_menu(menu, gx, gy)
 
                 def begin_mouse_tracking(self):
-                    self.__display_panel.document_controller.document_model.begin_data_item_transaction(
-                        self.__display_panel.display_specifier.data_item)
+                    self.__display_panel_content.document_controller.document_model.begin_data_item_transaction(
+                        self.__display_panel_content.display_specifier.data_item)
 
                 def end_mouse_tracking(self):
-                    data_item = self.__display_panel.display_specifier.data_item
-                    display = self.__display_panel.display_specifier.display
+                    data_item = self.__display_panel_content.display_specifier.data_item
+                    display = self.__display_panel_content.display_specifier.display
                     if display:
-                        self.__display_panel.document_controller.document_model.end_data_item_transaction(data_item)
+                        self.__display_panel_content.document_controller.document_model.end_data_item_transaction(data_item)
 
                 def mouse_clicked(self, image_position, modifiers):
-                    return self.__display_panel.image_panel_mouse_clicked(image_position, modifiers)
+                    return self.__display_panel_content.image_panel_mouse_clicked(image_position, modifiers)
 
                 def delete_key_pressed(self):
-                    if self.__display_panel.document_controller.remove_graphic():
+                    if self.__display_panel_content.document_controller.remove_graphic():
                         return True
-                    self.__display_panel.set_displayed_data_item(None)
+                    self.__display_panel_content.set_displayed_data_item(None)
                     return False
 
                 def enter_key_pressed(self):
                     if display_type == "image":
-                        self.__display_panel.document_controller.fix_display_limits(self.__display_panel.display_specifier)
+                        self.__display_panel_content.document_controller.fix_display_limits(self.__display_panel_content.display_specifier)
                         return True
                     return False
 
                 def cursor_changed(self, source, pos):
-                    display = self.__display_panel.display_specifier.display
+                    display = self.__display_panel_content.display_specifier.display
                     data_and_calibration = display.data_and_calibration if display else None
                     display_calibrated_values = display.display_calibrated_values if display else False
                     if data_and_calibration and data_and_calibration.is_data_3d and pos is not None:
                         pos = (display.slice_center, ) + pos
-                    self.__display_panel.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
+                    self.__display_panel_content.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
                 def update_display_properties(self, display_properties):
                     for key, value in display_properties.iteritems():
-                        setattr(self.__display_panel.display_specifier.display, key, value)
+                        setattr(self.__display_panel_content.display_specifier.display, key, value)
 
                 def create_rectangle(self, pos):
                     bounds = tuple(pos), (0, 0)
-                    display = self.__display_panel.display_specifier.display
+                    display = self.__display_panel_content.display_specifier.display
                     buffered_data_source = display_specifier.buffered_data_source
                     if display and buffered_data_source:
                         display.graphic_selection.clear()
@@ -703,7 +710,7 @@ class DataDisplayPanel(BaseDisplayPanel):
 
                 def create_ellipse(self, pos):
                     bounds = tuple(pos), (0, 0)
-                    display = self.__display_panel.display_specifier.display
+                    display = self.__display_panel_content.display_specifier.display
                     buffered_data_source = display_specifier.buffered_data_source
                     if display and buffered_data_source:
                         display.graphic_selection.clear()
@@ -717,7 +724,7 @@ class DataDisplayPanel(BaseDisplayPanel):
 
                 def create_line(self, pos):
                     pos = tuple(pos)
-                    display = self.__display_panel.display_specifier.display
+                    display = self.__display_panel_content.display_specifier.display
                     buffered_data_source = display_specifier.buffered_data_source
                     if display and buffered_data_source:
                         display.graphic_selection.clear()
@@ -732,7 +739,7 @@ class DataDisplayPanel(BaseDisplayPanel):
 
                 def create_point(self, pos):
                     pos = tuple(pos)
-                    display = self.__display_panel.display_specifier.display
+                    display = self.__display_panel_content.display_specifier.display
                     buffered_data_source = display_specifier.buffered_data_source
                     if display and buffered_data_source:
                         display.graphic_selection.clear()
@@ -746,14 +753,14 @@ class DataDisplayPanel(BaseDisplayPanel):
 
                 def create_line_profile(self, pos):
                     pos = tuple(pos)
-                    display = self.__display_panel.display_specifier.display
+                    display = self.__display_panel_content.display_specifier.display
                     if display:
                         display.graphic_selection.clear()
                         operation = Operation.OperationItem("line-profile-operation")
                         operation.set_property("start", pos)  # requires a tuple
                         operation.set_property("end", pos)  # requires a tuple
                         region = operation.establish_associated_region("line", display_specifier.buffered_data_source)  # after setting operation properties
-                        self.__display_panel.document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
+                        self.__display_panel_content.document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
                         region.start = pos
                         region.end = pos
                         return region.graphic
@@ -800,7 +807,7 @@ class DataDisplayPanel(BaseDisplayPanel):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
-        return super(DataDisplayPanel, self)._handle_key_pressed(key)
+        return super(DataDisplayPanelContent, self)._handle_key_pressed(key)
 
     def perform_action(self, fn, *args, **keywords):
         target = self.display_canvas_item
@@ -808,21 +815,31 @@ class DataDisplayPanel(BaseDisplayPanel):
             getattr(target, fn)(*args, **keywords)
 
 
-class EmptyDisplayPanel(BaseDisplayPanel):
+class EmptyDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
-        super(EmptyDisplayPanel, self).__init__(document_controller)
+        super(EmptyDisplayPanelContent, self).__init__(document_controller)
+
+        enclosing_self = self
+
+        class ContextMenuCanvasItem(CanvasItem.EmptyCanvasItem):
+            def context_menu_event(self, x, y, gx, gy):
+                menu = document_controller.ui.create_context_menu(document_controller.document_window)
+                return enclosing_self.show_context_menu(menu, gx, gy)
+
+        empty_canvas_item = ContextMenuCanvasItem()
+        self.content_canvas_item.add_canvas_item(empty_canvas_item)
 
     def save_contents(self):
-        d = super(EmptyDisplayPanel, self).save_contents()
+        d = super(EmptyDisplayPanelContent, self).save_contents()
         d["display-panel-type"] = "empty-display-panel"
         return d
 
 
-class BrowserDisplayPanel(BaseDisplayPanel):
+class BrowserDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
-        super(BrowserDisplayPanel, self).__init__(document_controller)
+        super(BrowserDisplayPanelContent, self).__init__(document_controller)
 
         self.header_canvas_item.end_header_color = "#FDFD96"
         self.content_canvas_item.focused_style = None
@@ -831,9 +848,13 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         self.__data_browser_controller = document_controller.data_browser_controller
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
 
+        def context_menu_event(display_item, x, y, gx, gy):
+            menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
+            return self.show_context_menu(menu, gx, gy)
+
         self.data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__data_browser_controller.selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
-        self.data_grid_controller.on_context_menu_event = self.__data_browser_controller.data_grid_context_menu_event
+        self.data_grid_controller.on_context_menu_event = context_menu_event
         self.data_grid_controller.on_display_item_double_clicked = None  # replace current display?
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
@@ -862,6 +883,16 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         for index, data_item in enumerate(self.__binding.data_items):
             data_item_inserted(data_item, index)
 
+        enclosing_self = self
+
+        class ContextMenuCanvasItem(CanvasItem.EmptyCanvasItem):
+            def context_menu_event(self, x, y, gx, gy):
+                menu = document_controller.ui.create_context_menu(document_controller.document_window)
+                return enclosing_self.show_context_menu(menu, gx, gy)
+
+        empty_canvas_item = ContextMenuCanvasItem()
+
+        self.content_canvas_item.add_canvas_item(empty_canvas_item)  # fall back for context menu handling
         self.content_canvas_item.add_canvas_item(self.data_grid_controller.canvas_item)
 
     def close(self):
@@ -874,15 +905,15 @@ class BrowserDisplayPanel(BaseDisplayPanel):
         self.__display_items = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
-        super(BrowserDisplayPanel, self).close()
+        super(BrowserDisplayPanelContent, self).close()
 
     def save_contents(self):
-        d = super(BrowserDisplayPanel, self).save_contents()
+        d = super(BrowserDisplayPanelContent, self).save_contents()
         d["display-panel-type"] = "browser-display-panel"
         return d
 
     def periodic(self):
-        super(BrowserDisplayPanel, self).periodic()
+        super(BrowserDisplayPanelContent, self).periodic()
         if self.data_grid_controller:
             self.data_grid_controller.periodic()
 
@@ -904,20 +935,20 @@ class DisplayPanel(object):
     def __init__(self, document_controller, d):
         self.__weak_document_controller = weakref.ref(document_controller)
         document_controller.register_display_panel(self)
-        self.__data_display_panel = None
+        self.__display_panel_content = None
         self.__canvas_item = CanvasItem.CanvasItemComposition()
         # self.__canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__canvas_item.wants_mouse_events = True
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
-        self.__data_display_panel.close()
-        self.__data_display_panel = None
+        self.__display_panel_content.close()
+        self.__display_panel_content = None
         self.__document_controller.unregister_display_panel(self)
         self.__weak_document_controller = None
 
     def periodic(self):
-        self.__data_display_panel.periodic()
+        self.__display_panel_content.periodic()
 
     @property
     def __document_controller(self):
@@ -931,15 +962,15 @@ class DisplayPanel(object):
         is_selected = False
         is_focused = False
 
-        if self.__data_display_panel:
+        if self.__display_panel_content:
             is_selected = self._is_selected()
             is_focused = self._is_focused()
-            canvas_item = self.__data_display_panel.canvas_item
-            self.__data_display_panel.close()
+            canvas_item = self.__display_panel_content.canvas_item
+            self.__display_panel_content.close()
             self.__canvas_item.remove_canvas_item(canvas_item)
 
-        self.__data_display_panel = DisplayPanelManager().make_display_panel(document_controller, d)
-        self.__canvas_item.insert_canvas_item(0, self.__data_display_panel.canvas_item)
+        self.__display_panel_content = DisplayPanelManager().make_display_panel_content(document_controller, d)
+        self.__canvas_item.insert_canvas_item(0, self.__display_panel_content.canvas_item)
         self.__canvas_item.refresh_layout(True)
 
         workspace_controller = document_controller.workspace_controller
@@ -978,21 +1009,39 @@ class DisplayPanel(object):
             document_controller.selected_display_panel = self  # MARK
             document_controller.notify_selected_display_specifier_changed(self.display_specifier)
 
-        self.__data_display_panel.on_key_pressed = key_pressed
-        self.__data_display_panel.on_mouse_clicked = mouse_clicked
-        self.__data_display_panel.on_drag_enter = drag_enter
-        self.__data_display_panel.on_drag_leave = drag_leave
-        self.__data_display_panel.on_drag_move = drag_move
-        self.__data_display_panel.on_drop = drop
-        self.__data_display_panel.on_focused = focused
-        self.__data_display_panel.on_close = close
+        def show_context_menu(menu, gx, gy):
+            def split_horizontal():
+                if workspace_controller:
+                    return workspace_controller.insert_display_panel(self, "right")
+            def split_vertical():
+                if workspace_controller:
+                    return workspace_controller.insert_display_panel(self, "bottom")
+            menu.add_separator()
+            menu.add_menu_item(_("Split Horizontally"), split_horizontal)
+            menu.add_menu_item(_("Split Vertically"), split_vertical)
 
-        self.__data_display_panel.restore_contents(d)
+            menu.add_separator()
+            DisplayPanelManager().build_menu(menu, self)
 
-        self.__data_display_panel.set_selected(is_selected)
+            menu.popup(gx, gy)
+            return True
+
+        self.__display_panel_content.on_key_pressed = key_pressed
+        self.__display_panel_content.on_mouse_clicked = mouse_clicked
+        self.__display_panel_content.on_show_context_menu = show_context_menu
+        self.__display_panel_content.on_drag_enter = drag_enter
+        self.__display_panel_content.on_drag_leave = drag_leave
+        self.__display_panel_content.on_drag_move = drag_move
+        self.__display_panel_content.on_drop = drop
+        self.__display_panel_content.on_focused = focused
+        self.__display_panel_content.on_close = close
+
+        self.__display_panel_content.restore_contents(d)
+
+        self.__display_panel_content.set_selected(is_selected)
 
         if is_focused:
-            self.__data_display_panel.canvas_item.request_focus()
+            self.__display_panel_content.canvas_item.request_focus()
 
     @property
     def canvas_item(self):
@@ -1000,35 +1049,35 @@ class DisplayPanel(object):
 
     @property
     def display_canvas_item(self):
-        return self.__data_display_panel.display_canvas_item
+        return self.__display_panel_content.display_canvas_item
 
     @property
     def _content_for_test(self):
         """Used for testing."""
-        return self.__data_display_panel
+        return self.__display_panel_content
 
     @property
     def display_panel_id(self):
-        return self.__data_display_panel.display_panel_id
+        return self.__display_panel_content.display_panel_id
 
     @property
     def display_specifier(self):
-        return self.__data_display_panel.display_specifier
+        return self.__display_panel_content.display_specifier
 
     def save_contents(self):
-        return self.__data_display_panel.save_contents()
+        return self.__display_panel_content.save_contents()
 
     def set_selected(self, selected):
-        self.__data_display_panel.set_selected(selected)
+        self.__display_panel_content.set_selected(selected)
 
     def _is_selected(self):
-        return self.__data_display_panel._is_selected()
+        return self.__display_panel_content._is_selected()
 
     def set_focused(self, focused):
-        self.__data_display_panel.set_focused(focused)
+        self.__display_panel_content.set_focused(focused)
 
     def _is_focused(self):
-        return self.__data_display_panel._is_focused()
+        return self.__display_panel_content._is_focused()
 
     def set_displayed_data_item(self, data_item):
         if data_item is not None:
@@ -1038,8 +1087,8 @@ class DisplayPanel(object):
         self.change_display_panel_content(d)
 
     def perform_action(self, fn, *args, **keywords):
-        if self.__data_display_panel:
-            self.__data_display_panel.perform_action(fn, *args, **keywords)
+        if self.__display_panel_content:
+            self.__display_panel_content.perform_action(fn, *args, **keywords)
 
 
 # image panel manager acts as a broker for significant events occurring
@@ -1073,7 +1122,7 @@ class DisplayPanelManager(Observable.Broadcaster):
         assert factory_id in self.__display_panel_factories
         del self.__display_panel_factories[factory_id]
 
-    def make_display_panel(self, document_controller, d):
+    def make_display_panel_content(self, document_controller, d):
         display_panel_type = d.get("display-panel-type", "data-display-panel")
         if not display_panel_type in self.__display_panel_factories:
             display_panel_type = "data-display-panel"
@@ -1113,6 +1162,6 @@ class DisplayPanelManager(Observable.Broadcaster):
         return dynamic_live_actions
 
 
-DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanel)
-DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanel)
-DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanel)
+DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanelContent)
+DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanelContent)
+DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanelContent)

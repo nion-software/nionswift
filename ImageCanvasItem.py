@@ -667,8 +667,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return True
 
     def context_menu_event(self, x, y, gx, gy):
-        self.delegate.show_context_menu(gx, gy)
-        return True
+        return self.delegate.show_context_menu(gx, gy)
 
     # ths message comes from the widget
     def key_pressed(self, key):

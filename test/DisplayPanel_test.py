@@ -1074,6 +1074,47 @@ class TestDisplayPanelClass(unittest.TestCase):
         # confirm that display limits were set
         self.assertIsNotNone(self.display_specifier.display.display_limits)
 
+    def test_image_display_panel_produces_context_menu_with_correct_item_count(self):
+        self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
+        # show, delete, sep, split h, split v, sep, none, sep, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 10)
+
+    def test_empty_display_panel_produces_context_menu_with_correct_item_count(self):
+        d = {"type": "image", "display-panel-type": "empty-display-panel"}
+        self.display_panel.change_display_panel_content(d)
+        self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
+        # sep, split h, split v, sep, none, sep, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 8)
+
+    def test_browser_display_panel_produces_context_menu_with_correct_item_count_over_data_item(self):
+        d = {"type": "image", "display-panel-type": "browser-display-panel"}
+        self.display_panel.change_display_panel_content(d)
+        self.document_controller.periodic()
+        self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
+        # show, delete, sep, split h, split v, sep, none, sep, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 10)
+
+    def test_browser_display_panel_produces_context_menu_with_correct_item_count_over_area_to_right_of_data_item(self):
+        d = {"type": "image", "display-panel-type": "browser-display-panel"}
+        self.display_panel.change_display_panel_content(d)
+        self.document_controller.periodic()
+        self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(300, 40, 300, 40)
+        # sep, split h, split v, sep, none, sep, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 8)
+
+    def test_browser_display_panel_produces_context_menu_with_correct_item_count_below_last_data_item(self):
+        d = {"type": "image", "display-panel-type": "browser-display-panel"}
+        self.display_panel.change_display_panel_content(d)
+        self.document_controller.periodic()
+        self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(300, 300, 300, 300)
+        # sep, split h, split v, sep, none, sep, browser, sep
+        self.assertEqual(len(self.document_controller.ui.popup.items), 8)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
