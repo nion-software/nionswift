@@ -379,6 +379,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             image_canvas_size = dimensional_shape
             image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
             self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_update)
+        elif self.__image_canvas_mode == "2:1":
+            image_canvas_size = (dimensional_shape[0] * 0.5, dimensional_shape[1] * 0.5)
+            image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
+            self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_update)
         else:
             c = self.__last_image_norm_center
             dimensional_shape = dimensional_shape
@@ -723,6 +727,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             if key.text == "1":
                 self.set_one_to_one_mode()
                 return True
+            if key.text == "2":
+                self.set_two_to_one_mode()
+                return True
             if key.text == "0":
                 self.set_fit_mode()
                 return True
@@ -847,6 +854,13 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         #logging.debug("---------> 1:1")
         self.__image_canvas_mode = "1:1"
         self.__last_image_zoom = 1.0
+        self.__last_image_norm_center = (0.5, 0.5)
+        self.__update_image_canvas_size()
+
+    def set_two_to_one_mode(self):
+        #logging.debug("---------> 2:1")
+        self.__image_canvas_mode = "2:1"
+        self.__last_image_zoom = 0.5
         self.__last_image_norm_center = (0.5, 0.5)
         self.__update_image_canvas_size()
 

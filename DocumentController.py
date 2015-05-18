@@ -272,7 +272,11 @@ class DocumentController(Observable.Broadcaster):
         def one_to_one_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_one_to_one_mode")
+        def two_to_one_view():
+            if self.selected_display_panel is not None:
+                self.selected_display_panel.perform_action("set_two_to_one_mode")
         self.one_to_one_view_action = self.view_menu.add_menu_item(_("1:1 View"), lambda: one_to_one_view(), key_sequence="1")
+        self.two_to_one_view_action = self.view_menu.add_menu_item(_("2:1 View"), lambda: two_to_one_view(), key_sequence="2")
         self.view_menu.add_separator()
         self.toggle_filter_action = self.view_menu.add_menu_item(_("Filter"), lambda: self.toggle_filter(), key_sequence="Ctrl+\\")
         self.view_menu.add_separator()
