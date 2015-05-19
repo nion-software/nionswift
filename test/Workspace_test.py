@@ -412,6 +412,30 @@ class TestWorkspaceClass(unittest.TestCase):
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
         self.assertEqual(document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0]), {'selected': True, 'type': 'image'})
 
+    def test_dropping_on_unfocused_display_panel_focuses(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        display_panel0 = document_controller.workspace_controller.display_panels[0]
+        display_panel0.set_displayed_data_item(None)
+        display_panel1 = document_controller.workspace_controller.display_panels[1]
+        display_panel1.set_displayed_data_item(None)
+        display_panel1.request_focus()
+        # check assumptions
+        self.assertFalse(display_panel0._content_for_test.content_canvas_item.focused)
+        self.assertTrue(display_panel1._content_for_test.content_canvas_item.focused)
+        # do drop
+        mime_data = MimeData(data_item)
+        document_controller.workspace_controller.handle_drop(display_panel0, mime_data, "middle", 160, 240)
+        # check focus
+        self.assertTrue(display_panel0._content_for_test.content_canvas_item.focused)
+        self.assertFalse(display_panel1._content_for_test.content_canvas_item.focused)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

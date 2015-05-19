@@ -499,6 +499,7 @@ class WorkspaceController(object):
         """ Used in drag/drop support. """
         self.document_controller.replaced_display_panel_content = display_panel.save_contents()
         display_panel.set_displayed_data_item(data_item)
+        display_panel.request_focus()
 
     def handle_drag_enter(self, display_panel, mime_data):
         if mime_data.has_format("text/data_item_uuid"):

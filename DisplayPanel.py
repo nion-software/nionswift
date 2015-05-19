@@ -1083,6 +1083,10 @@ class DisplayPanel(object):
     def _is_focused(self):
         return self.__display_panel_content._is_focused()
 
+    def request_focus(self):
+        if self.__display_panel_content:
+            self.__display_panel_content.content_canvas_item.request_focus()
+
     def set_displayed_data_item(self, data_item):
         if data_item is not None:
             d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
