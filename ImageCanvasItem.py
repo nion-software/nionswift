@@ -144,16 +144,16 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def set_data_and_calibration(self, data_and_calibration):
         needs_update = False
-        dimensional_shape = data_and_calibration.dimensional_shape
+        dimensional_shape = data_and_calibration.dimensional_shape if data_and_calibration else None
         if self.__dimensional_shape is None or dimensional_shape != self.__dimensional_shape:
             self.__dimensional_shape = dimensional_shape
             needs_update = True
-        dimensional_calibrations = data_and_calibration.dimensional_calibrations
+        dimensional_calibrations = data_and_calibration.dimensional_calibrations if data_and_calibration else None
         if self.__dimensional_calibrations is None or dimensional_calibrations != self.__dimensional_calibrations:
             self.__dimensional_calibrations = dimensional_calibrations
             needs_update = True
         info_items = list()
-        metadata = data_and_calibration.metadata
+        metadata = data_and_calibration.metadata if data_and_calibration else dict()
         hardware_source_metadata = metadata.get("hardware_source", dict())
         voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
         if voltage:
@@ -318,6 +318,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__info_overlay_canvas_item.set_data_and_calibration(None)
         # update the cursor info
         self.__update_cursor_info()
+        # layout. this makes sure that the info overlay gets updated too.
+        self.__update_image_canvas_size()
         # trigger updates
         self.__bitmap_canvas_item.update()
 
