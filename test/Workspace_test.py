@@ -436,6 +436,29 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertTrue(display_panel0._content_for_test.content_canvas_item.focused)
         self.assertFalse(display_panel1._content_for_test.content_canvas_item.focused)
 
+    def test_browser_does_not_reset_selected_display_specifier_when_root_loses_focus(self):
+        # make sure the inspector doesn't disappear when focus changes to one of its fields
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        d = {"type": "image", "display-panel-type": "browser-display-panel"}
+        display_panel.change_display_panel_content(d)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        document_controller.periodic()
+        display_binding = document_controller.create_selected_display_binding()
+        self.assertIsNone(display_binding.display_specifier.data_item)
+        modifiers = Test.KeyboardModifiers()
+        display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(True)
+        display_panel.canvas_item.root_container.canvas_widget.on_mouse_entered()
+        display_panel.canvas_item.root_container.canvas_widget.on_mouse_pressed(40, 40, modifiers)
+        display_panel.canvas_item.root_container.canvas_widget.on_mouse_released(40, 40, modifiers)
+        self.assertIsNotNone(display_binding.display_specifier.data_item)
+        display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(False)
+        self.assertIsNotNone(display_binding.display_specifier.data_item)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

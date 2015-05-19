@@ -576,8 +576,6 @@ class DataBrowserController(object):
     def focused(self, focused):
         if focused:
             self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__data_item))
-        else:
-            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
         self.__focused = focused
 
     def set_data_browser_selection(self, data_group=None, data_item=None, filter_id=None):
