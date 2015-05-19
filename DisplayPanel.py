@@ -1140,9 +1140,9 @@ class DisplayPanelManager(Observable.Broadcaster):
         assert factory_id in self.__display_controller_factories
         del self.__display_controller_factories[factory_id]
 
-    def make_display_panel_controller(self, controller_type, display_panel, d):
+    def make_display_panel_controller(self, controller_type, display_panel_content, d):
         for factory in self.__display_controller_factories.values():
-            display_panel_controller = factory.make_new(controller_type, display_panel, d)
+            display_panel_controller = factory.make_new(controller_type, display_panel_content, d)
             if display_panel_controller:
                 return display_panel_controller
         return None
