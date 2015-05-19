@@ -106,6 +106,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__selected = False
         self.__selected_style = "#CCC"  # TODO: platform dependent
         self.__focused_style = "#3876D6"  # TODO: platform dependent
+        self.on_context_menu_event = None
         self.on_drag_enter = None
         self.on_drag_leave = None
         self.on_drag_move = None
@@ -113,6 +114,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_key_pressed = None
 
     def close(self):
+        self.on_context_menu_event = None
         self.on_drag_enter = None
         self.on_drag_leave = None
         self.on_drag_move = None
@@ -198,6 +200,13 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                     drawing_context.line_width = 4.0
                     drawing_context.stroke()
 
+    def context_menu_event(self, x, y, gx, gy):
+        if super(DisplayPanelOverlayCanvasItem, self).context_menu_event(x, y, gx, gy):
+            return True
+        if self.on_context_menu_event:
+            self.on_context_menu_event(x, y, gx, gy)
+        return False
+
     def drag_enter(self, mime_data):
         self.__dropping = True
         self.__set_drop_region("none")
@@ -257,10 +266,15 @@ class BaseDisplayPanelContent(object):
         self.canvas_item = CanvasItem.CanvasItemComposition()
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
 
+        def handle_context_menu_event(x, y, gx, gy):
+            menu = document_controller.ui.create_context_menu(document_controller.document_window)
+            return self.show_context_menu(menu, gx, gy)
+
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
+        self.__content_canvas_item.on_context_menu_event = handle_context_menu_event
         self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True, display_close_control=True)
         self.__footer_canvas_item = CanvasItem.LayerCanvasItem()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -883,16 +897,6 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         for index, data_item in enumerate(self.__binding.data_items):
             data_item_inserted(data_item, index)
 
-        enclosing_self = self
-
-        class ContextMenuCanvasItem(CanvasItem.EmptyCanvasItem):
-            def context_menu_event(self, x, y, gx, gy):
-                menu = document_controller.ui.create_context_menu(document_controller.document_window)
-                return enclosing_self.show_context_menu(menu, gx, gy)
-
-        empty_canvas_item = ContextMenuCanvasItem()
-
-        self.content_canvas_item.add_canvas_item(empty_canvas_item)  # fall back for context menu handling
         self.content_canvas_item.add_canvas_item(self.data_grid_controller.canvas_item)
 
     def close(self):
