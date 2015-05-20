@@ -575,6 +575,7 @@ class DocumentController(Observable.Broadcaster):
              + ")" for writer in writers])
         filter += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
+        export_dir = os.path.join(export_dir, data_item.title)
         path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter)
         self.ui.set_persistent_string("export_directory", selected_directory)
         if path:
@@ -1185,6 +1186,7 @@ class DocumentController(Observable.Broadcaster):
                 # TODO: show_source should handle multiple data sources
                 menu.add_menu_item(_("Go to Source"), show_source)
             menu.add_menu_item(_("Delete"), delete)
+            menu.add_menu_item(_("Export..."), self.export_files)
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
