@@ -884,10 +884,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return self.__image_canvas_mode
 
     def zoom_in(self):
-        self.__update_image_canvas_zoom(self.__last_image_zoom * 1.05)
+        self.__update_image_canvas_zoom(self.__last_image_zoom * 1.25)
 
     def zoom_out(self):
-        self.__update_image_canvas_zoom(self.__last_image_zoom / 1.05)
+        self.__update_image_canvas_zoom(self.__last_image_zoom / 1.25)
 
     def move_left(self, amount=10.0):
         self.__update_image_canvas_position((0.0, amount))
