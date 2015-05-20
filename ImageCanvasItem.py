@@ -641,6 +641,20 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         if super(ImageCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
+        if self.delegate.tool_mode == "pointer":
+            self.cursor_shape = "arrow"
+        elif self.delegate.tool_mode == "line":
+            self.cursor_shape = "cross"
+        elif self.delegate.tool_mode == "rectangle":
+            self.cursor_shape = "cross"
+        elif self.delegate.tool_mode == "ellipse":
+            self.cursor_shape = "cross"
+        elif self.delegate.tool_mode == "point":
+            self.cursor_shape = "cross"
+        elif self.delegate.tool_mode == "line-profile":
+            self.cursor_shape = "cross"
+        elif self.delegate.tool_mode == "hand":
+            self.cursor_shape = "hand"
         # x,y already have transform applied
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()

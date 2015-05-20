@@ -347,6 +347,23 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
+        if self.delegate.tool_mode == "pointer":
+            if self.__data_and_calibration:
+                pos = Geometry.IntPoint(x=x, y=y)
+                if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
+                    if modifiers.control:
+                        self.cursor_shape = "split_horizontal"
+                    else:
+                        self.cursor_shape = "hand"
+                elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
+                    if modifiers.control:
+                        self.cursor_shape = "split_vertical"
+                    else:
+                        self.cursor_shape = "hand"
+                else:
+                    self.cursor_shape = "arrow"
+        elif self.delegate.tool_mode == "interval":
+            self.cursor_shape = "cross"
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         new_rescale = modifiers.control
