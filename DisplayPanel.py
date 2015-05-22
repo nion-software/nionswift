@@ -937,6 +937,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
 class DisplayPanel(object):
 
     def __init__(self, document_controller, d):
+        self.uuid = uuid.uuid4()
         self.__weak_document_controller = weakref.ref(document_controller)
         document_controller.register_display_panel(self)
         self.__display_panel_content = None

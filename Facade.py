@@ -11,6 +11,7 @@
 # standard libraries
 import datetime
 import gettext
+import itertools
 import threading
 import uuid
 
@@ -58,6 +59,15 @@ class ObjectSpecifier(object):
             return FacadeApplication(Application.app)
         elif object_type == "library":
             return FacadeLibrary(document_model)
+        elif object_type == "document_controller":
+            document_controller = next(itertools.ifilter(lambda x: x.uuid == object_uuid, Application.app.document_controllers), None)
+            return FacadeDocumentController(document_controller) if document_controller else None
+        elif object_type == "display_panel":
+            for document_controller in Application.app.document_controllers:
+                display_panel = next(itertools.ifilter(lambda x: x.uuid == object_uuid, document_controller.workspace_controller.display_panels), None)
+                if display_panel:
+                    return FacadeDisplayPanel(display_panel)
+            return None
         elif object_type == "data_item":
             return FacadeDataItem(document_model.get_data_item_by_uuid(uuid.UUID(object_uuid_str)))
         elif object_type == "data_group":
@@ -443,12 +453,26 @@ class FacadeDataItem(object):
 
 class FacadeDisplayPanel(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, display_panel):
+        self.__display_panel = display_panel
 
     @property
-    def display(self):
-        raise AttributeError()
+    def specifier(self):
+        return ObjectSpecifier("display_panel", self.__display_panel.uuid)
+
+    @property
+    def data_item(self):
+        """Return the data item, if any, associated with this display panel.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        display_panel = self.__display_panel
+        if not display_panel:
+            return None
+        data_item = display_panel.display_specifier.data_item
+        return FacadeDataItem(data_item) if data_item else None
 
 
 class FacadeDisplay(object):
@@ -900,6 +924,10 @@ class FacadeDocumentController(object):
         self.__document_controller = document_controller
 
     @property
+    def specifier(self):
+        return ObjectSpecifier("document_controller", self.__document_controller.uuid)
+
+    @property
     def _document_controller(self):
         return self.__document_controller
 
@@ -912,6 +940,16 @@ class FacadeDocumentController(object):
         Scriptable: Yes
         """
         return FacadeLibrary(self.__document_controller.document_model)
+
+    @property
+    def all_display_panels(self):
+        """Return the list of display panels currently visible.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return [FacadeDisplayPanel(display_panel) for display_panel in self.__document_controller.workspace_controller.display_panels]
 
     @property
     def target_display_panel(self):
@@ -1015,6 +1053,16 @@ class FacadeApplication(object):
         Scriptable: Yes
         """
         return FacadeLibrary(self.__application.document_controllers[0].document_model)
+
+    @property
+    def document_controllers(self):
+        """Return the document controllers.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return [FacadeDocumentController(document_controller) for document_controller in self.__application.document_controllers]
 
 
 class DataAndMetadataIOHandlerInterface(object):

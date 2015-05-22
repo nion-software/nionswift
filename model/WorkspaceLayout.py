@@ -8,7 +8,7 @@
 from nion.ui import Observable
 
 
-class Workspace(Observable.ManagedObject):
+class WorkspaceLayout(Observable.ManagedObject):
     """
         Represents a specific layout available in the workspace.
 
@@ -16,7 +16,7 @@ class Workspace(Observable.ManagedObject):
         content of each of those panels.
     """
     def __init__(self):
-        super(Workspace, self).__init__()
+        super(WorkspaceLayout, self).__init__()
         self.define_type("workspace")
         self.define_property("name")
         self.define_property("layout")
@@ -24,4 +24,4 @@ class Workspace(Observable.ManagedObject):
 
 
 def factory(lookup_id):
-    return Workspace()
+    return WorkspaceLayout()

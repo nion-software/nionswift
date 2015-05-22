@@ -8,6 +8,7 @@ import os.path
 import random
 import threading
 import traceback
+import uuid
 import weakref
 
 # third party libraries
@@ -59,6 +60,7 @@ class DocumentController(Observable.Broadcaster):
         super(DocumentController, self).__init__()
 
         self.ui = ui
+        self.uuid = uuid.uuid4()
 
         self.task_created_event = Observable.Event()
         self.selected_display_specifier_changed_event = Observable.Event()
@@ -103,7 +105,7 @@ class DocumentController(Observable.Broadcaster):
         self.console = None
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
-            self.__workspace_controller = Workspace.WorkspaceController(self, workspace_id)
+            self.__workspace_controller = Workspace.Workspace(self, workspace_id)
             self.__workspace_controller.restore(self.document_model.workspace_uuid)
 
     def close(self):

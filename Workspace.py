@@ -25,7 +25,7 @@ from nion.ui import CanvasItem
 _ = gettext.gettext
 
 
-class WorkspaceController(object):
+class Workspace(object):
     """
         The Workspace object keeps the overall layout of the window. It contains
         root item which contains tab groups arranged into boxes (rows and columns).
@@ -357,7 +357,7 @@ class WorkspaceController(object):
 
     def new_workspace(self, name=None, layout=None, workspace_id=None):
         """ Create a new workspace, insert into document_model, and return it. """
-        workspace = WorkspaceLayout.Workspace()
+        workspace = WorkspaceLayout.WorkspaceLayout()
         self.document_controller.document_model.append_workspace(workspace)
         workspace.layout = layout if layout is not None else { "type": "image", "selected": True }
         workspace.name = name if name is not None else _("Workspace")

@@ -599,7 +599,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__data_items = list()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
-        self.define_relationship("workspaces", WorkspaceLayout.factory)
+        self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
         self.define_property("workspace_uuid", converter=UuidToStringConverter())
         self.__buffered_data_source_set = set()
         self.__buffered_data_source_set_changed_event = Observable.Event()
