@@ -51,15 +51,23 @@ class ObjectSpecifier(object):
         if d is None:
             return get_api("1", "1")
         object_type = d.get("object_type")
-        object_uuid = d.get("object_uuid")
+        object_uuid_str = d.get("object_uuid")
+        object_uuid = uuid.UUID(object_uuid_str) if object_uuid_str else None
+        document_model = Application.app.document_controllers[0].document_model
         if object_type == "application":
             return FacadeApplication(Application.app)
         elif object_type == "library":
-            return FacadeLibrary(Application.app.document_controllers[0].document_model)
+            return FacadeLibrary(document_model)
         elif object_type == "data_item":
-            return FacadeDataItem(Application.app.document_controllers[0].document_model.get_data_item_by_uuid(uuid.UUID(object_uuid)))
+            return FacadeDataItem(document_model.get_data_item_by_uuid(uuid.UUID(object_uuid_str)))
         elif object_type == "data_group":
-            return FacadeDataGroup(Application.app.document_controllers[0].document_model.get_data_group_by_uuid(uuid.UUID(object_uuid)))
+            return FacadeDataGroup(document_model.get_data_group_by_uuid(uuid.UUID(object_uuid_str)))
+        elif object_type == "region":
+            for data_item in document_model.data_items:
+                for data_source in data_item.data_sources:
+                    for region in data_source.regions:
+                        if region.uuid == object_uuid:
+                            return region
         return None
 
 
@@ -270,6 +278,10 @@ class FacadeRegion(object):
         return self.__region
 
     @property
+    def specifier(self):
+        return ObjectSpecifier("region", self.__region.uuid)
+
+    @property
     def type(self):
         return self.__region.type
 
@@ -316,6 +328,16 @@ class FacadeDataItem(object):
         return [FacadeRegion(region) for region in self.__data_item.maybe_data_source.regions]
 
     def add_point_region(self, y, x):
+        """Add a point region to the data item.
+
+        :param x: The x coordinate, in relative units [0.0, 1.0]
+        :param y: The y coordinate, in relative units [0.0, 1.0]
+        :return: The :py:class:`nion.swift.Facade.FacadeRegion` object that was added.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         region = Region.PointRegion()
         region.position = Geometry.FloatPoint(y, x)
         self.__data_item.maybe_data_source.add_region(region)
@@ -387,6 +409,14 @@ class FacadeDataGroup(object):
         return ObjectSpecifier("data_group", self.__data_group.uuid)
 
     def add_data_item(self, data_item):
+        """Add a data item to the group.
+
+        :param data_item: The :py:class:`nion.swift.Facade.FacadeDataItem` object to add.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         self.__data_group.append_data_item(data_item._data_item)
 
     def remove_data_item(self, data_item):
@@ -649,10 +679,26 @@ class FacadeLibrary(object):
 
     @property
     def data_item_count(self):
+        """Return the data item count.
+
+        :return: The number of data items.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return len(self.__document_model.data_items)
 
     @property
     def data_items(self):
+        """Return the list of data items.
+
+        :return: The list of :py:class:`nion.swift.Facade.FacadeDataItem` objects.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return [FacadeDataItem(data_item) for data_item in self.__document_model.data_items]
 
     def create_data_item(self, title=None):
@@ -663,6 +709,8 @@ class FacadeLibrary(object):
         :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
 
         .. versionadded:: 1.0
+
+        Scriptable: Yes
         """
         data_item = DataItem.DataItem()
         data_item.append_data_source(DataItem.BufferedDataSource())
@@ -688,6 +736,8 @@ class FacadeLibrary(object):
         :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
 
         .. versionadded:: 1.0
+
+        Scriptable: Yes
         """
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         intensity_calibration = Calibration.Calibration()
@@ -696,13 +746,13 @@ class FacadeLibrary(object):
             dimensional_calibrations.append(Calibration.Calibration())
         metadata = dict()
         timestamp = datetime.datetime.utcnow()
-        data_and_calibration = Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
-        return self.create_data_item_from_data_and_metadata(data_and_calibration, title)
+        data_and_metadata = Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+        return self.create_data_item_from_data_and_metadata(data_and_metadata, title)
 
-    def create_data_item_from_data_and_metadata(self, data_and_calibration, title=None):
+    def create_data_item_from_data_and_metadata(self, data_and_metadata, title=None):
         """Create a data item in the library from a data and metadata object.
 
-        For efficiency, this method will directly use the data within the data_and_calibration object without copying
+        For efficiency, this method will directly use the data within the data_and_metadata object without copying
         it. This means that the data should be considered to be owned by the library once this call is made. Changing
         the data outside of this API will result in undefined behavior.
 
@@ -710,21 +760,23 @@ class FacadeLibrary(object):
         writing to disk and keep using the data, create an empty data item and use the data item methods to modify
         the data.
 
-        :param data_and_calibration: The data and calibration.
+        :param data_and_metadata: The data and metadata.
         :param title: The title of the data item (optional).
         :return: The new :py:class:`nion.swift.Facade.FacadeDataItem` object.
         :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
 
         .. versionadded:: 1.0
+
+        Scriptable: Yes
         """
         data_item = DataItem.DataItem()
         if title is not None:
             data_item.title = title
-        buffered_data_source = DataItem.BufferedDataSource(data_and_calibration.data)
-        buffered_data_source.set_metadata(data_and_calibration.metadata)
-        buffered_data_source.set_intensity_calibration(data_and_calibration.intensity_calibration)
-        buffered_data_source.set_dimensional_calibrations(data_and_calibration.dimensional_calibrations)
-        buffered_data_source.created = data_and_calibration.timestamp
+        buffered_data_source = DataItem.BufferedDataSource(data_and_metadata.data)
+        buffered_data_source.set_metadata(data_and_metadata.metadata)
+        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+        buffered_data_source.created = data_and_metadata.timestamp
         data_item.append_data_source(buffered_data_source)
         self.__document_model.append_data_item(data_item)
         return FacadeDataItem(data_item)
@@ -737,6 +789,8 @@ class FacadeLibrary(object):
         :rtype: :py:class:`nion.swift.Facade.FacadeDataGroup`
 
         .. versionadded:: 1.0
+
+        Scriptable: Yes
         """
         return FacadeDataGroup(self.__document_model.get_or_create_data_group(title))
 
@@ -785,6 +839,12 @@ class FacadeDocumentController(object):
 
     @property
     def library(self):
+        """Return the library object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return FacadeLibrary(self.__document_controller.document_model)
 
     @property
@@ -811,6 +871,8 @@ class FacadeDocumentController(object):
         .. versionadded:: 1.0
         .. deprecated:: 2.0
            Use :py:meth:`nion.swift.Facade.FacadeLibrary.create_data_item_from_data` instead.
+
+        Scriptable: No
         """
         return self.create_data_item_from_data(data, title)
 
@@ -820,24 +882,28 @@ class FacadeDocumentController(object):
         .. versionadded:: 1.0
         .. deprecated:: 2.0
            Use library.create_data_item_from_data instead.
+
+        Scriptable: No
         """
         return FacadeDataItem(self.__document_controller.add_data(data, title))
 
-    def create_data_item_from_data_and_metadata(self, data_and_calibration, title=None):
+    def create_data_item_from_data_and_metadata(self, data_and_metadata, title=None):
         """Create a data item in the library from the data and metadata.
 
         .. versionadded:: 1.0
         .. deprecated:: 2.0
            Use library.create_data_item_from_data_and_metadata instead.
+
+        Scriptable: No
         """
         data_item = DataItem.DataItem()
         if title is not None:
             data_item.title = title
-        buffered_data_source = DataItem.BufferedDataSource(data_and_calibration.data)
-        buffered_data_source.set_metadata(data_and_calibration.metadata)
-        buffered_data_source.set_intensity_calibration(data_and_calibration.intensity_calibration)
-        buffered_data_source.set_dimensional_calibrations(data_and_calibration.dimensional_calibrations)
-        buffered_data_source.created = data_and_calibration.timestamp
+        buffered_data_source = DataItem.BufferedDataSource(data_and_metadata.data)
+        buffered_data_source.set_metadata(data_and_metadata.metadata)
+        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+        buffered_data_source.created = data_and_metadata.timestamp
         data_item.append_data_source(buffered_data_source)
         self.__document_controller.document_model.append_data_item(data_item)
         return FacadeDataItem(data_item)
@@ -848,6 +914,8 @@ class FacadeDocumentController(object):
         .. versionadded:: 1.0
         .. deprecated:: 2.0
            Use library.create_data_item_from_data instead.
+
+        Scriptable: No
         """
         return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
 
@@ -874,6 +942,12 @@ class FacadeApplication(object):
 
     @property
     def library(self):
+        """Return the library object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return FacadeLibrary(self.__application.document_controllers[0].document_model)
 
 
@@ -939,7 +1013,7 @@ class DataAndMetadataIOHandlerInterface(object):
         """
         raise NotImplementedError()
 
-    def write_data_and_metadata(self, data_and_calibration, file_path, extension):
+    def write_data_and_metadata(self, data_and_metadata, file_path, extension):
         """Write the data_and_metadata to the file_path with the given extension.
 
         .. versionadded:: 1.0
@@ -981,12 +1055,14 @@ class API_1(object):
     def create_calibration(self, offset=None, scale=None, units=None):
         """Create a calibration object with offset, scale, and units.
 
-        .. versionadded:: 1.0
-
         :param offset: The offset of the calibration.
         :param scale: The scale of the calibration.
         :param units: The units of the calibration as a string.
         :return: The calibration object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
 
         Calibrated units and uncalibrated units have the following relationship:
             :samp:`calibrated_value = offset + value * scale`
@@ -1003,6 +1079,8 @@ class API_1(object):
         :param timestamp: A datetime object.
 
         .. versionadded:: 1.0
+
+        Scriptable: Yes
         """
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         if intensity_calibration is None:
@@ -1019,35 +1097,37 @@ class API_1(object):
     def create_data_and_metadata_io_handler(self, io_handler_delegate):
         """Create an I/O handler that reads and writes a single data_and_metadata.
 
+        :param io_handler_delegate: A delegate object :py:class:`DataAndMetadataIOHandlerInterface`
+
         .. versionadded:: 1.0
 
-        :param io_handler_delegate: A delegate object :py:class:`DataAndMetadataIOHandlerInterface`
+        Scriptable: No
         """
         class DelegateIOHandler(ImportExportManager.ImportExportHandler):
             def __init__(self):
                 super(DelegateIOHandler, self).__init__(io_handler_delegate.io_handler_id, io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
 
             def read_data_elements(self, ui, extension, file_path):
-                data_and_calibration = io_handler_delegate.read_data_and_metadata(extension, file_path)
+                data_and_metadata = io_handler_delegate.read_data_and_metadata(extension, file_path)
                 data_element = dict()
-                data_element["data"] = data_and_calibration.data
+                data_element["data"] = data_and_metadata.data
                 dimensional_calibrations = list()
-                for calibration in data_and_calibration.dimensional_calibrations:
+                for calibration in data_and_metadata.dimensional_calibrations:
                     dimensional_calibrations.append({ "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units })
                 data_element["spatial_calibrations"] = dimensional_calibrations
-                calibration = data_and_calibration.intensity_calibration
+                calibration = data_and_metadata.intensity_calibration
                 data_element["intensity_calibration"] = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
-                data_element["properties"] = data_and_calibration.metadata.get("hardware_source", dict())
+                data_element["properties"] = data_and_metadata.metadata.get("hardware_source", dict())
                 return [data_element]
 
-            def can_write(self, data_and_calibration, extension):
-                return io_handler_delegate.can_write_data_and_metadata(data_and_calibration, extension)
+            def can_write(self, data_and_metadata, extension):
+                return io_handler_delegate.can_write_data_and_metadata(data_and_metadata, extension)
 
             def write(self, ui, data_item, file_path, extension):
-                data_and_calibration = data_item.maybe_data_source.data_and_calibration
-                data = data_and_calibration.data
+                data_and_metadata = data_item.maybe_data_source.data_and_calibration
+                data = data_and_metadata.data
                 if data is not None:
-                    io_handler_delegate.write_data_and_metadata(data_and_calibration, file_path, extension)
+                    io_handler_delegate.write_data_and_metadata(data_and_metadata, file_path, extension)
 
         class IOHandlerReference(object):
 
@@ -1123,10 +1203,10 @@ class API_1(object):
                 hardware_source_delegate.start_acquisition()
 
             def acquire_data_elements(self):
-                data_and_calibration = hardware_source_delegate.acquire_data_and_metadata()
+                data_and_metadata = hardware_source_delegate.acquire_data_and_metadata()
                 data_element = {
                     "version": 1,
-                    "data": data_and_calibration.data,
+                    "data": data_and_metadata.data,
                     "properties": {
                         "hardware_source_name": hardware_source_delegate.hardware_source_name,
                         "hardware_source_id": hardware_source_delegate.hardware_source_id,
@@ -1161,6 +1241,8 @@ class API_1(object):
         """Create a utility panel that can be attached to a window.
 
         .. versionadded:: 1.0
+
+        Scriptable: No
 
          The panel_delegate should respond to the following:
             (property, read-only) panel_id
@@ -1219,9 +1301,9 @@ class API_1(object):
                         for from_key, to_key in binding.iteritems():
                             self.region_bindings[operation_region_id] = [Operation.RegionBinding(from_key, to_key)]
 
-            def get_processed_data_and_calibration(self, data_and_calibrations, values):
+            def get_processed_data_and_calibration(self, data_and_metadatas, values):
                 # doesn't do any bounds checking
-                return unary_operation_delegate.get_processed_data_and_metadata(data_and_calibrations[0], values)
+                return unary_operation_delegate.get_processed_data_and_metadata(data_and_metadatas[0], values)
 
         def apply_operation(document_controller):
             display_specifier = document_controller.selected_display_specifier
@@ -1275,10 +1357,22 @@ class API_1(object):
 
     @property
     def application(self):
+        """Return the application object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return FacadeApplication(Application.app)
 
     @property
     def library(self):
+        """Return the library object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return FacadeLibrary(Application.app.document_controllers[0].document_model)
 
     def resolve_object_specifier(self, d):
