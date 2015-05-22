@@ -58,6 +58,8 @@ class ObjectSpecifier(object):
             return FacadeLibrary(Application.app.document_controllers[0].document_model)
         elif object_type == "data_item":
             return FacadeDataItem(Application.app.document_controllers[0].document_model.get_data_item_by_uuid(uuid.UUID(object_uuid)))
+        elif object_type == "data_group":
+            return FacadeDataGroup(Application.app.document_controllers[0].document_model.get_data_group_by_uuid(uuid.UUID(object_uuid)))
         return None
 
 
@@ -379,6 +381,10 @@ class FacadeDataGroup(object):
 
     def __init__(self, data_group):
         self.__data_group = data_group
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("data_group", self.__data_group.uuid)
 
     def add_data_item(self, data_item):
         self.__data_group.append_data_item(data_item._data_item)
@@ -732,7 +738,7 @@ class FacadeLibrary(object):
 
         .. versionadded:: 1.0
         """
-        return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
+        return FacadeDataGroup(self.__document_model.get_or_create_data_group(title))
 
     def data_ref_for_data_item(self, data_item):
 
@@ -1277,6 +1283,10 @@ class API_1(object):
 
     def resolve_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
+
+    # provisional
+    def queue_task(self, fn):
+        Application.app.document_controllers[0].queue_task(fn)
 
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
