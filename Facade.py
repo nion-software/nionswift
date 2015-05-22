@@ -9,12 +9,14 @@
 """
 
 # standard libraries
+import base64
 import datetime
 import gettext
 import threading
+import uuid
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift.model import Calibration
@@ -37,6 +39,27 @@ __all__ = ["get_api"]
 
 
 _ = gettext.gettext
+
+
+class ObjectSpecifier(object):
+
+    def __init__(self, object_type, object_uuid=None):
+        self.object_type = object_type
+        self.object_uuid = str(object_uuid) if object_uuid else None
+
+    @classmethod
+    def resolve(cls, d):
+        if d is None:
+            return get_api("1", "1")
+        object_type = d.get("object_type")
+        object_uuid = d.get("object_uuid")
+        if object_type == "application":
+            return FacadeApplication(Application.app)
+        elif object_type == "library":
+            return FacadeLibrary(Application.app.document_controllers[0].document_model)
+        elif object_type == "data_item":
+            return FacadeDataItem(Application.app.document_controllers[0].document_model.get_data_item_by_uuid(uuid.UUID(object_uuid)))
+        return None
 
 
 class FacadeCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -274,6 +297,10 @@ class FacadeDataItem(object):
     @property
     def _data_item(self):
         return self.__data_item
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("data_item", self.__data_item.uuid)
 
     @property
     def data(self):
@@ -611,6 +638,18 @@ class FacadeLibrary(object):
     def _document_model(self):
         return self.__document_model
 
+    @property
+    def specifier(self):
+        return ObjectSpecifier("library")
+
+    @property
+    def data_item_count(self):
+        return len(self.__document_model.data_items)
+
+    @property
+    def data_items(self):
+        return [FacadeDataItem(data_item) for data_item in self.__document_model.data_items]
+
     def create_data_item(self, title=None):
         """Create an empty data item in the library.
 
@@ -645,6 +684,7 @@ class FacadeLibrary(object):
 
         .. versionadded:: 1.0
         """
+        data = numpy.loads(base64.b64decode(data)) if isinstance(data, str) else data  # useful for proxy
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         intensity_calibration = Calibration.Calibration()
         dimensional_calibrations = list()
@@ -813,6 +853,25 @@ class FacadeDocumentController(object):
     document_controller.add_data_node_to_data_item(data_item, DataNode.make(data_item2) / 3)
     document_controller.add_operation_to_data_item(data_item, "crop-operation", { "bounds": rect })
     """
+
+
+class FacadeApplication(object):
+
+    def __init__(self, application):
+        self.__application = application
+
+    @property
+    def _application(self):
+        return self.__application
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("library")
+
+    @property
+    def library(self):
+        return FacadeLibrary(self.__application.document_controllers[0].document_model)
+
 
 class DataAndMetadataIOHandlerInterface(object):
     """An interface for an IO handler delegate. Implement each of the methods and properties, as required."""
@@ -1209,6 +1268,17 @@ class API_1(object):
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
         instrument = HardwareSource.HardwareSourceManager().get_instrument_by_id(instrument_id)
         return FacadeInstrument(instrument)
+
+    @property
+    def application(self):
+        return FacadeApplication(Application.app)
+
+    @property
+    def library(self):
+        return FacadeLibrary(Application.app.document_controllers[0].document_model)
+
+    def resolve_object_specifier(self, d):
+        return ObjectSpecifier.resolve(d)
 
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
