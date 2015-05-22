@@ -2,6 +2,8 @@
 import copy
 import functools
 import gettext
+import random
+import string
 import uuid
 import weakref
 
@@ -262,6 +264,7 @@ class BaseDisplayPanelContent(object):
         self.__weak_document_controller = weakref.ref(document_controller)
 
         self.ui = document_controller.ui
+        self.identifier = None
 
         self.canvas_item = CanvasItem.CanvasItemComposition()
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -609,6 +612,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     # not thread safe
     def __update_display_canvas(self, display_specifier):
         if self.header_canvas_item:  # may be closed
+            self.header_canvas_item.label = "#" + self.identifier
             self.header_canvas_item.title = display_specifier.data_item.displayed_title if display_specifier.data_item else None
         display_type = None
         data_and_calibration = display_specifier.display.data_and_calibration if display_specifier.display else None
@@ -937,13 +941,14 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
 class DisplayPanel(object):
 
     def __init__(self, document_controller, d):
-        self.uuid = uuid.uuid4()
         self.__weak_document_controller = weakref.ref(document_controller)
         document_controller.register_display_panel(self)
         self.__display_panel_content = None
         self.__canvas_item = CanvasItem.CanvasItemComposition()
         # self.__canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__canvas_item.wants_mouse_events = True
+        self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
+        self.identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(4)]))
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
@@ -975,6 +980,7 @@ class DisplayPanel(object):
             self.__canvas_item.remove_canvas_item(canvas_item)
 
         self.__display_panel_content = DisplayPanelManager().make_display_panel_content(document_controller, d)
+        self.__display_panel_content.identifier = self.identifier
         self.__canvas_item.insert_canvas_item(0, self.__display_panel_content.canvas_item)
         self.__canvas_item.refresh_layout(True)
 
@@ -1070,7 +1076,10 @@ class DisplayPanel(object):
         return self.__display_panel_content.display_specifier
 
     def save_contents(self):
-        return self.__display_panel_content.save_contents()
+        d = self.__display_panel_content.save_contents()
+        d["uuid"] = str(self.uuid)
+        d["identifier"] = self.identifier
+        return d
 
     def set_selected(self, selected):
         self.__display_panel_content.set_selected(selected)

@@ -20,19 +20,47 @@ from nion.ui import Test
 
 
 def get_layout(layout_id):
+    uuid1 = "0569ca31-afd7-48bd-ad54-5e2bb9f21102"
+    uuid2 = "acd77f9f-2f6f-4fbf-af5e-94330b73b997"
+    uuid3 = "3541821d-221a-40c5-82fa-d8188157f7bd"
+    uuid4 = "c2215359-786b-4ba6-aa62-87b124a3705e"
+    uuid5 = "f0ac94db-3a98-4eea-84e3-6e8b408ec5cd"
+    uuid6 = "307dd234-8295-4dc3-b339-4e402bf69d6e"
     if layout_id == "2x1":
-        d = { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "selected": True }, { "type": "image" } ] }
+        d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5],
+            "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
+                {"type": "image", "uuid": uuid2, "identifier": "b"}]}
     elif layout_id == "1x2":
-        d = { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "selected": True }, { "type": "image" } ] }
+        d = {"type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5],
+            "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
+                {"type": "image", "uuid": uuid2, "identifier": "b"}]}
     elif layout_id == "3x1":
-        d = { "type": "splitter", "orientation": "vertical", "splits": [1.0/3, 1.0/3, 1.0/3], "children": [ { "type": "image", "selected": True }, { "type": "image" }, { "type": "image" } ] }
+        d = {"type": "splitter", "orientation": "vertical", "splits": [1.0 / 3, 1.0 / 3, 1.0 / 3],
+            "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
+                {"type": "image", "uuid": uuid2, "identifier": "b"},
+                {"type": "image", "uuid": uuid2, "identifier": "c"}]}
     elif layout_id == "2x2":
-        d = { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image", "selected": True }, { "type": "image" } ] }, { "type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [ { "type": "image" }, { "type": "image" } ] } ] }
+        d = {"type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [
+            {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5],
+                "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
+                    {"type": "image", "uuid": uuid2, "identifier": "b"}]},
+            {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5],
+                "children": [{"type": "image", "uuid": uuid3, "identifier": "c"},
+                    {"type": "image", "uuid": uuid4, "identifier": "d"}]}]}
     elif layout_id == "3x2":
-        d = { "type": "splitter", "orientation": "vertical", "splits": [1.0/3, 1.0/3, 1.0/3], "children": [ { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image", "selected": True }, { "type": "image" } ] }, { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image" }, { "type": "image" } ] }, { "type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [ { "type": "image" }, { "type": "image" } ] } ] }
+        d = {"type": "splitter", "orientation": "vertical", "splits": [1.0 / 3, 1.0 / 3, 1.0 / 3], "children": [
+            {"type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5],
+                "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
+                    {"type": "image", "uuid": uuid2, "identifier": "b"}]},
+            {"type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5],
+                "children": [{"type": "image", "uuid": uuid3, "identifier": "c"},
+                    {"type": "image", "uuid": uuid4, "identifier": "d"}]},
+            {"type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5],
+                "children": [{"type": "image", "uuid": uuid5, "identifier": "e"},
+                    {"type": "image", "uuid": uuid6, "identifier": "f"}]}]}
     else:  # default 1x1
         layout_id = "1x1"
-        d = { "type": "image", "selected": True }
+        d = {"type": "image", "uuid": uuid1, "identifier": "a", "selected": True}
     return layout_id, d
 
 
@@ -410,7 +438,10 @@ class TestWorkspaceClass(unittest.TestCase):
         workspace_bad = document_controller.workspace_controller.new_workspace(layout={"type": "bad_component_type"})
         document_controller.workspace_controller.change_workspace(workspace_bad)
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-        self.assertEqual(document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0]), {'selected': True, 'type': 'image'})
+        panel_0_dict = document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0])
+        panel_0_dict.pop("identifier")
+        panel_0_dict.pop("uuid")
+        self.assertEqual(panel_0_dict, {'selected': True, 'type': 'image'})
 
     def test_dropping_on_unfocused_display_panel_focuses(self):
         document_model = DocumentModel.DocumentModel()

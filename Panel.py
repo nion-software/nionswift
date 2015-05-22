@@ -159,10 +159,11 @@ class ConsolePanel(Panel):
 
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
-    def __init__(self, title=None, display_drag_control=False, display_sync_control=False, display_close_control=False):
+    def __init__(self, title=None, label=None, display_drag_control=False, display_sync_control=False, display_close_control=False):
         super(HeaderCanvasItem, self).__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
+        self.__label = label if label else ""
         self.__display_drag_control = display_drag_control
         self.__display_sync_control = display_sync_control
         self.__display_close_control = display_close_control
@@ -183,29 +184,45 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
     def __str__(self):
         return self.__title
 
-    def __get_title(self):
+    @property
+    def title(self):
         return self.__title
-    def __set_title(self, title):
+
+    @title.setter
+    def title(self, title):
         if self.__title != title:
             self.__title = title
             self.update()
-    title = property(__get_title, __set_title)
 
-    def __get_start_header_color(self):
+    @property
+    def label(self):
+        return self.__label
+
+    @label.setter
+    def label(self, label):
+        if self.__label != label:
+            self.__label = label
+            self.update()
+
+    @property
+    def start_header_color(self):
         return self.__start_header_color
-    def __set_start_header_color(self, start_header_color):
+
+    @start_header_color.setter
+    def start_header_color(self, start_header_color):
         if self.__start_header_color != start_header_color:
             self.__start_header_color = start_header_color
             self.update()
-    start_header_color = property(__get_start_header_color, __set_start_header_color)
 
-    def __get_end_header_color(self):
+    @property
+    def end_header_color(self):
         return self.__end_header_color
-    def __set_end_header_color(self, end_header_color):
+
+    @end_header_color.setter
+    def end_header_color(self, end_header_color):
         if self.__end_header_color != end_header_color:
             self.__end_header_color = end_header_color
             self.update()
-    end_header_color = property(__get_end_header_color, __set_end_header_color)
 
     def reset_header_colors(self):
         self.__start_header_color = "#ededed"
@@ -236,83 +253,83 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
         canvas_size = self.canvas_size
 
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.move_to(0, 0)
-        drawing_context.line_to(0, canvas_size.height)
-        drawing_context.line_to(canvas_size.width, canvas_size.height)
-        drawing_context.line_to(canvas_size.width, 0)
-        drawing_context.close_path()
-        gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
-        gradient.add_color_stop(0, self.__start_header_color)
-        gradient.add_color_stop(1, self.__end_header_color)
-        drawing_context.fill_style = gradient
-        drawing_context.fill()
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.move_to(0, 0)
+            drawing_context.line_to(0, canvas_size.height)
+            drawing_context.line_to(canvas_size.width, canvas_size.height)
+            drawing_context.line_to(canvas_size.width, 0)
+            drawing_context.close_path()
+            gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
+            gradient.add_color_stop(0, self.__start_header_color)
+            gradient.add_color_stop(1, self.__end_header_color)
+            drawing_context.fill_style = gradient
+            drawing_context.fill()
 
-        drawing_context.save()
-        drawing_context.begin_path()
-        # line is adjust 1/2 pixel down to align to pixel boundary
-        drawing_context.move_to(0, 0.5)
-        drawing_context.line_to(canvas_size.width, 0.5)
-        drawing_context.stroke_style = '#FFF'
-        drawing_context.stroke()
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            # line is adjust 1/2 pixel down to align to pixel boundary
+            drawing_context.move_to(0, 0.5)
+            drawing_context.line_to(canvas_size.width, 0.5)
+            drawing_context.stroke_style = '#FFF'
+            drawing_context.stroke()
 
-        drawing_context.save()
-        drawing_context.begin_path()
-        # line is adjust 1/2 pixel down to align to pixel boundary
-        drawing_context.move_to(0, canvas_size.height-0.5)
-        drawing_context.line_to(canvas_size.width, canvas_size.height-0.5)
-        drawing_context.stroke_style = '#b0b0b0'
-        drawing_context.stroke()
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            # line is adjust 1/2 pixel down to align to pixel boundary
+            drawing_context.move_to(0, canvas_size.height-0.5)
+            drawing_context.line_to(canvas_size.width, canvas_size.height-0.5)
+            drawing_context.stroke_style = '#b0b0b0'
+            drawing_context.stroke()
 
         if self.__display_drag_control:
-            drawing_context.save()
-            drawing_context.begin_path()
-            drawing_context.move_to(6, canvas_size.height/2 - 4)
-            drawing_context.line_to(16, canvas_size.height/2 - 4)
-            drawing_context.move_to(6, canvas_size.height/2 - 1)
-            drawing_context.line_to(16, canvas_size.height/2 - 1)
-            drawing_context.move_to(6, canvas_size.height/2 + 2)
-            drawing_context.line_to(16, canvas_size.height/2 + 2)
-            drawing_context.move_to(6, canvas_size.height/2 + 5)
-            drawing_context.line_to(16, canvas_size.height/2 + 5)
-            drawing_context.stroke_style = '#444'
-            drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(6, canvas_size.height/2 - 4)
+                drawing_context.line_to(16, canvas_size.height/2 - 4)
+                drawing_context.move_to(6, canvas_size.height/2 - 1)
+                drawing_context.line_to(16, canvas_size.height/2 - 1)
+                drawing_context.move_to(6, canvas_size.height/2 + 2)
+                drawing_context.line_to(16, canvas_size.height/2 + 2)
+                drawing_context.move_to(6, canvas_size.height/2 + 5)
+                drawing_context.line_to(16, canvas_size.height/2 + 5)
+                drawing_context.stroke_style = '#444'
+                drawing_context.stroke()
 
         if self.__display_sync_control:
-            drawing_context.save()
-            drawing_context.begin_path()
-            drawing_context.move_to(24, canvas_size.height/2 - 2)
-            drawing_context.line_to(34, canvas_size.height/2 - 2)
-            drawing_context.line_to(31, canvas_size.height/2 - 4)
-            drawing_context.move_to(34, canvas_size.height/2 + 1)
-            drawing_context.line_to(24, canvas_size.height/2 + 1)
-            drawing_context.line_to(27, canvas_size.height/2 + 3)
-            drawing_context.stroke_style = '#444'
-            drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(24, canvas_size.height/2 - 2)
+                drawing_context.line_to(34, canvas_size.height/2 - 2)
+                drawing_context.line_to(31, canvas_size.height/2 - 4)
+                drawing_context.move_to(34, canvas_size.height/2 + 1)
+                drawing_context.line_to(24, canvas_size.height/2 + 1)
+                drawing_context.line_to(27, canvas_size.height/2 + 3)
+                drawing_context.stroke_style = '#444'
+                drawing_context.stroke()
 
         if self.__display_close_control:
-            drawing_context.save()
-            drawing_context.begin_path()
-            drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 - 3)
-            drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 + 3)
-            drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 + 3)
-            drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 - 3)
-            drawing_context.line_width = 2.0
-            drawing_context.line_cap = "round"
-            drawing_context.stroke_style = '#888'
-            drawing_context.stroke()
-            drawing_context.restore()
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 - 3)
+                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 + 3)
+                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 + 3)
+                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 - 3)
+                drawing_context.line_width = 2.0
+                drawing_context.line_cap = "round"
+                drawing_context.stroke_style = '#888'
+                drawing_context.stroke()
 
-        drawing_context.save()
-        drawing_context.font = 'normal 11px serif'
-        drawing_context.text_align = 'center'
-        drawing_context.text_baseline = 'middle'
-        drawing_context.fill_style = '#000'
-        drawing_context.fill_text(self.title, canvas_size.width/2, canvas_size.height/2+1)
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.font = 'normal 11px serif'
+            drawing_context.text_align = 'left'
+            drawing_context.text_baseline = 'middle'
+            drawing_context.fill_style = '#888'
+            drawing_context.fill_text(self.label, 42, canvas_size.height/2+1)
+
+        with drawing_context.saver():
+            drawing_context.font = 'normal 11px serif'
+            drawing_context.text_align = 'center'
+            drawing_context.text_baseline = 'middle'
+            drawing_context.fill_style = '#000'
+            drawing_context.fill_text(self.title, canvas_size.width/2, canvas_size.height/2+1)
