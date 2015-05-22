@@ -374,6 +374,72 @@ class FacadeDataItem(object):
     def remove_region(self, region):
         self.__data_item.maybe_data_source.remove_region(region._region)
 
+    def data_item_to_svg(self):
+
+        from nion.swift import LinePlotCanvasItem
+        from nion.swift import ImageCanvasItem
+        from nion.ui import DrawingContext
+
+        import collections
+        import copy
+        import numpy
+
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+
+        FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+
+        def get_font_metrics(font, text):
+            return FontMetrics(width=6.5 * len(text), height=15, ascent=12, descent=3, leading=0)
+
+        aspect_ratio = None
+
+        buffered_data_source = display_specifier.buffered_data_source
+
+        if buffered_data_source.is_data_1d:
+            display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics, None)
+            aspect_ratio = 4.0 / 3.0 if not aspect_ratio else aspect_ratio
+        else:
+            display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics, None)
+            aspect_ratio = float(buffered_data_source.dimensional_shape[-1]) / buffered_data_source.dimensional_shape[-2]
+
+        viewbox = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))
+        viewbox = Geometry.IntRect(Geometry.IntPoint(), Geometry.fit_to_aspect_ratio(viewbox, aspect_ratio).size)
+        box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320, height=240))
+        size = Geometry.fit_to_aspect_ratio(box, aspect_ratio).size
+
+        try:
+            display_canvas_item.update_layout(viewbox.origin, viewbox.size)
+
+            display = buffered_data_source.displays[0]
+            display_type = "line_plot" if buffered_data_source.is_data_1d else "image"
+            data_and_calibration = buffered_data_source.data_and_calibration
+
+            if display_type == "image":
+                data_shape_and_dtype = (display.preview_2d_shape, numpy.uint32)
+                intensity_calibration = data_and_calibration.intensity_calibration
+                dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
+                metadata = data_and_calibration.metadata
+                timestamp = data_and_calibration.timestamp
+                preview_data_and_calibration = Operation.DataAndCalibration(lambda: display.preview_2d,
+                                                                            data_shape_and_dtype, intensity_calibration,
+                                                                            dimensional_calibrations, metadata, timestamp)
+                display_canvas_item.update_display_state(preview_data_and_calibration)
+            elif display_type == "line_plot":
+                display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style,
+                    "left_channel": display.left_channel, "right_channel": display.right_channel}
+                display_canvas_item.update_display_state(data_and_calibration, display_properties,
+                                                         display.display_calibrated_values)
+
+            dc = DrawingContext.DrawingContext()
+
+            display_canvas_item._repaint(dc)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+
+        return dc.to_svg(size, viewbox)
+
 
 class FacadeDisplayPanel(object):
 

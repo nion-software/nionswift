@@ -614,6 +614,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return dimensional_shape
 
     def __update_cursor_info(self):
+        if not self.delegate:  # allow display to work without delegate
+            return
         if self.__mouse_in and self.__last_mouse:
             data_size = self.__get_dimensional_shape()
             pos_1d = None

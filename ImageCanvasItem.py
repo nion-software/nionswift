@@ -792,6 +792,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return None
 
     def __update_cursor_info(self):
+        if not self.delegate:  # allow display to work without delegate
+            return
         image_size = self.__get_image_size()
         if self.__mouse_in and self.__last_mouse:
             pos_2d = None
