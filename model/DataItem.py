@@ -433,6 +433,14 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             traceback.print_stack()
             raise
 
+    def set_data_and_calibration(self, data_and_calibration):
+        with self._changes():
+            self.__set_data(data_and_calibration.data)
+            self.set_intensity_calibration(data_and_calibration.intensity_calibration)
+            self.set_dimensional_calibrations(data_and_calibration.dimensional_calibrations)
+            self.set_metadata(data_and_calibration.metadata)
+            self.created = data_and_calibration.timestamp
+
     @property
     def data_shape_and_dtype(self):
         if self.has_data:

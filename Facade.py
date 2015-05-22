@@ -327,11 +327,109 @@ class FacadeDataItem(object):
 
     @property
     def data(self):
-        return self.__data_item.maybe_data_source.data_and_metadata.data
+        """Return the data as a numpy ndarray.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.maybe_data_source.data_and_calibration.data
+
+    def set_data(self, data):
+        """Set the data.
+
+        :param data: A numpy ndarray.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        with self.__data_item.maybe_data_source.data_ref() as data_ref:
+            data_ref.data = data
+
+    @property
+    def intensity_calibration(self):
+        """Return the intensity calibration.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.maybe_data_source.intensity_calibration
+
+    def set_intensity_calibration(self, intensity_calibration):
+        """Set the intensity calibration.
+
+        :param intensity_calibration: The intensity calibration.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__data_item.maybe_data_source.set_intensity_calibration(intensity_calibration)
+
+    @property
+    def dimensional_calibrations(self):
+        """Return the list of dimensional calibrations.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.maybe_data_source.dimensional_calibrations
+
+    def set_dimensional_calibrations(self, dimensional_calibrations):
+        """Set the dimensional calibrations.
+
+        :param dimensional_calibrations: A list of calibrations, must match the dimensions of the data.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__data_item.maybe_data_source.set_dimensional_calibrations(dimensional_calibrations)
+
+    @property
+    def metadata(self):
+        """Return the metadata as a dict.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.maybe_data_source.metadata
+
+    def set_metadata(self, metadata):
+        """Set the metadata.
+
+        :param metadata: The metadata dict.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__data_item.maybe_data_source.set_metadata(metadata)
 
     @property
     def data_and_metadata(self):
-        return self.__data_item.maybe_data_source.data_and_metadata
+        """Return the data and metadata object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.maybe_data_source.data_and_calibration
+
+    def set_data_and_metadata(self, data_and_metadata):
+        """Set the data and metadata.
+
+        :param data_and_metadata: The data and metadata.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.maybe_data_source.set_data_and_calibration(data_and_metadata)
 
     @property
     def regions(self):
@@ -950,6 +1048,19 @@ class FacadeDocumentController(object):
         Scriptable: Yes
         """
         return [FacadeDisplayPanel(display_panel) for display_panel in self.__document_controller.workspace_controller.display_panels]
+
+    def get_display_panel_by_id(self, identifier):
+        """Return display panel with the identifier.
+
+        .. versionadded:: 1.0
+
+        Status: Provisional
+        Scriptable: Yes
+        """
+        display_panel = next(
+            (display_panel for display_panel in self.__document_controller.workspace_controller.display_panels if
+            display_panel.identifier.lower() == identifier.lower()), None)
+        return FacadeDisplayPanel(display_panel) if display_panel else None
 
     @property
     def target_display_panel(self):
