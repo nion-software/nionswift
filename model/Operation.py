@@ -1,4 +1,5 @@
 # standard libraries
+import base64
 import collections
 import copy
 import datetime
@@ -6,6 +7,7 @@ import functools
 import gettext
 import logging
 import math
+import re
 import threading
 import uuid
 import weakref
@@ -44,6 +46,37 @@ class DataAndCalibration(object):
         self.dimensional_calibrations = dimensional_calibrations
         self.timestamp = timestamp
         self.metadata = copy.deepcopy(metadata)
+
+    @classmethod
+    def from_rpc_dict(cls, d):
+        if d is None:
+            return None
+        data = numpy.loads(base64.b64decode(d["data"]))
+        data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
+        intensity_calibration = Calibration.from_rpc_dict(d.get("intensity_calibration"))
+        if "dimensional_calibrations" in d:
+            dimensional_calibrations = [Calibration.from_rpc_dict(dc) for dc in d.get("dimensional_calibrations")]
+        else:
+            dimensional_calibrations = None
+        metadata = d.get("metadata")
+        timestamp = datetime.datetime(*map(int, re.split('[^\d]', d.get("timestamp")))) if "timestamp" in d else None
+        return DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+
+    @property
+    def rpc_dict(self):
+        d = dict()
+        data = self.data
+        if data is not None:
+            d["data"] = base64.b64encode(numpy.ndarray.dumps(data))
+        if self.intensity_calibration:
+            d["intensity_calibration"] = self.intensity_calibration.rpc_dict
+        if self.dimensional_calibrations:
+            d["dimensional_calibrations"] = [dimensional_calibration.rpc_dict for dimensional_calibration in self.dimensional_calibrations]
+        if self.timestamp:
+            d["timestamp"] = self.timestamp.isoformat()
+        if self.metadata:
+            d["metadata"] = copy.copy(self.metadata)
+        return d
 
     @property
     def data(self):

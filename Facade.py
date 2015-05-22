@@ -9,14 +9,13 @@
 """
 
 # standard libraries
-import base64
 import datetime
 import gettext
 import threading
 import uuid
 
 # third party libraries
-import numpy
+# None
 
 # local libraries
 from nion.swift.model import Calibration
@@ -684,7 +683,6 @@ class FacadeLibrary(object):
 
         .. versionadded:: 1.0
         """
-        data = numpy.loads(base64.b64decode(data)) if isinstance(data, str) else data  # useful for proxy
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         intensity_calibration = Calibration.Calibration()
         dimensional_calibrations = list()

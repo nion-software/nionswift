@@ -47,47 +47,65 @@ class Calibration(object):
         storage_dict["units"] = self.units
         return storage_dict
 
-    def __get_is_calibrated(self):
+    @classmethod
+    def from_rpc_dict(cls, d):
+        if d is None:
+            return None
+        return Calibration(d.get("offset"), d.get("scale"), d.get("units"))
+
+    @property
+    def rpc_dict(self):
+        d = dict()
+        if self.__offset: d["offset"] = self.__offset
+        if self.__scale: d["scale"] = self.__scale
+        if self.__units: d["units"] = self.__units
+        return d
+
+    @property
+    def is_calibrated(self):
         return self.__offset is not None or self.__scale is not None or self.__units is not None
-    is_calibrated = property(__get_is_calibrated)
 
     def clear(self):
         self.__offset = None
         self.__scale = None
         self.__units = None
 
-    def __get_offset(self):
+    @property
+    def offset(self):
         return self.__offset if self.__offset else 0.0
-    def __set_offset(self, value):
-        value = float(value) if value else None
-        if self.__offset != value:
-            self.__offset = value
-    offset = property(__get_offset, __set_offset)
 
-    def __get_scale(self):
+    @offset.setter
+    def offset(self, value):
+        self.__offset = float(value) if value else None
+
+    @property
+    def scale(self):
         return self.__scale if self.__scale else 1.0
-    def __set_scale(self, value):
-        value = float(value) if value else None
-        if self.__scale != value:
-            self.__scale = value
-    scale = property(__get_scale, __set_scale)
 
-    def __get_units(self):
+    @scale.setter
+    def scale(self, value):
+        self.__scale = float(value) if value else None
+
+    @property
+    def units(self):
         return self.__units if self.__units else unicode()
-    def __set_units(self, value):
-        value = unicode(value) if value else None
-        if self.units != value:
-            self.__units = value
-    units = property(__get_units, __set_units)
+
+    @units.setter
+    def units(self, value):
+        self.__units = unicode(value) if value else None
 
     def convert_to_calibrated_value(self, value):
         return self.offset + value * self.scale
+
     def convert_to_calibrated_size(self, size):
         return size * self.scale
+
     def convert_from_calibrated_value(self, value):
         return (value - self.offset) / self.scale
+
     def convert_from_calibrated_size(self, size):
         return size / self.scale
+
     def convert_to_calibrated_value_str(self, value, include_units=True):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if hasattr(value, 'dtype') and not value.shape:  # convert NumPy types to Python scalar types
@@ -101,6 +119,7 @@ class Calibration(object):
         else:
             result = None
         return result
+
     def convert_to_calibrated_size_str(self, size, include_units=True):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if hasattr(size, 'dtype') and not size.shape:  # convert NumPy types to Python scalar types
