@@ -572,6 +572,23 @@ class FacadeDisplayPanel(object):
         data_item = display_panel.display_specifier.data_item
         return FacadeDataItem(data_item) if data_item else None
 
+    def set_data_item(self, data_item):
+        """Set the data item associated with this display panel.
+
+        :param data_item: The :py:class:`nion.swift.Facade.FacadeDataItem` object to add.
+
+        This will replace whatever data item, browser, or controller is currently in the display panel with the single
+        data item.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        display_panel = self.__display_panel
+        if not display_panel:
+            return None
+        display_panel.set_displayed_data_item(data_item._data_item)
+
 
 class FacadeDisplay(object):
 

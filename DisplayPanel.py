@@ -264,7 +264,7 @@ class BaseDisplayPanelContent(object):
         self.__weak_document_controller = weakref.ref(document_controller)
 
         self.ui = document_controller.ui
-        self.identifier = None
+        self.__identifier = None
 
         self.canvas_item = CanvasItem.CanvasItemComposition()
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -353,6 +353,14 @@ class BaseDisplayPanelContent(object):
 
     def periodic(self):
         pass
+
+    @property
+    def identifier(self):
+        return self.__identifier
+
+    def set_identifier(self, identifier):
+        self.__identifier = identifier
+        self.header_canvas_item.label = "#" + self.identifier
 
     @property
     def document_controller(self):
@@ -612,7 +620,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     # not thread safe
     def __update_display_canvas(self, display_specifier):
         if self.header_canvas_item:  # may be closed
-            self.header_canvas_item.label = "#" + self.identifier
             self.header_canvas_item.title = display_specifier.data_item.displayed_title if display_specifier.data_item else None
         display_type = None
         data_and_calibration = display_specifier.display.data_and_calibration if display_specifier.display else None
@@ -860,6 +867,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         super(BrowserDisplayPanelContent, self).__init__(document_controller)
 
         self.header_canvas_item.end_header_color = "#FDFD96"
+        self.header_canvas_item.title = _("Browser")
         self.content_canvas_item.focused_style = None
         self.content_canvas_item.selected_style = None
 
@@ -980,7 +988,7 @@ class DisplayPanel(object):
             self.__canvas_item.remove_canvas_item(canvas_item)
 
         self.__display_panel_content = DisplayPanelManager().make_display_panel_content(document_controller, d)
-        self.__display_panel_content.identifier = self.identifier
+        self.__display_panel_content.set_identifier(self.identifier)
         self.__canvas_item.insert_canvas_item(0, self.__display_panel_content.canvas_item)
         self.__canvas_item.refresh_layout(True)
 
