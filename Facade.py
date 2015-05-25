@@ -349,7 +349,7 @@ class DataItem(object):
 
     @property
     def intensity_calibration(self):
-        """Return the intensity calibration.
+        """Return a copy of the intensity calibration.
 
         .. versionadded:: 1.0
 
@@ -370,7 +370,7 @@ class DataItem(object):
 
     @property
     def dimensional_calibrations(self):
-        """Return the list of dimensional calibrations.
+        """Return a copy of the list of dimensional calibrations.
 
         .. versionadded:: 1.0
 
@@ -391,7 +391,7 @@ class DataItem(object):
 
     @property
     def metadata(self):
-        """Return the metadata as a dict.
+        """Return a copy of the metadata as a dict.
 
         .. versionadded:: 1.0
 
@@ -403,6 +403,8 @@ class DataItem(object):
         """Set the metadata.
 
         :param metadata: The metadata dict.
+
+        The metadata dict must be convertible to JSON, e.g. ``json.dumps(metadata)`` must succeed.
 
         .. versionadded:: 1.0
 
