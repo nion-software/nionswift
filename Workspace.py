@@ -317,15 +317,16 @@ class Workspace(object):
             import traceback
             traceback.print_exc()
             traceback.print_stack()
-        if self.__workspace == None:
-            workspace = self.new_workspace()
+        if self.__workspace == None:  # handle error condition by creating known simple workspace and replacing bad one
+            workspace.layout = { "type": "image", "selected": True }
             display_panels = list()  # to be populated by _construct
             canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
             # store the new workspace
-            self.__workspace = workspace
-            self.display_panels.extend(display_panels)
-            self.__canvas_item.add_canvas_item(canvas_item)
-            self.image_row.add(self.__canvas_item.canvas_widget)
+            if canvas_item:
+                self.__workspace = workspace
+                self.display_panels.extend(display_panels)
+                self.__canvas_item.add_canvas_item(canvas_item)
+                self.image_row.add(self.__canvas_item.canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
         document_model.workspace_uuid = workspace.uuid
 
