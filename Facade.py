@@ -19,19 +19,19 @@ import uuid
 # None
 
 # local libraries
-from nion.swift.model import Calibration
-from nion.swift.model import DataItem
-from nion.swift.model import HardwareSource
+from nion.swift.model import Calibration as CalibrationModule
+from nion.swift.model import DataItem as DataItemModule
+from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Operation
-from nion.swift.model import Region
+from nion.swift.model import Region as RegionModule
 from nion.swift.model import Utility
-from nion.swift import Application
-from nion.swift import Panel
+from nion.swift import Application as ApplicationModule
+from nion.swift import Panel as PanelModule
 from nion.swift import Workspace
-from nion.ui import CanvasItem
+from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Geometry
 
 
@@ -54,24 +54,24 @@ class ObjectSpecifier(object):
         object_type = d.get("object_type")
         object_uuid_str = d.get("object_uuid")
         object_uuid = uuid.UUID(object_uuid_str) if object_uuid_str else None
-        document_model = Application.app.document_controllers[0].document_model
+        document_model = ApplicationModule.app.document_controllers[0].document_model
         if object_type == "application":
-            return FacadeApplication(Application.app)
+            return Application(ApplicationModule.app)
         elif object_type == "library":
-            return FacadeLibrary(document_model)
+            return Library(document_model)
         elif object_type == "document_controller":
-            document_controller = next(itertools.ifilter(lambda x: x.uuid == object_uuid, Application.app.document_controllers), None)
-            return FacadeDocumentController(document_controller) if document_controller else None
+            document_controller = next(itertools.ifilter(lambda x: x.uuid == object_uuid, ApplicationModule.app.document_controllers), None)
+            return DocumentController(document_controller) if document_controller else None
         elif object_type == "display_panel":
-            for document_controller in Application.app.document_controllers:
+            for document_controller in ApplicationModule.app.document_controllers:
                 display_panel = next(itertools.ifilter(lambda x: x.uuid == object_uuid, document_controller.workspace_controller.display_panels), None)
                 if display_panel:
-                    return FacadeDisplayPanel(display_panel)
+                    return DisplayPanel(display_panel)
             return None
         elif object_type == "data_item":
-            return FacadeDataItem(document_model.get_data_item_by_uuid(uuid.UUID(object_uuid_str)))
+            return DataItem(document_model.get_data_item_by_uuid(uuid.UUID(object_uuid_str)))
         elif object_type == "data_group":
-            return FacadeDataGroup(document_model.get_data_group_by_uuid(uuid.UUID(object_uuid_str)))
+            return DataGroup(document_model.get_data_group_by_uuid(uuid.UUID(object_uuid_str)))
         elif object_type == "region":
             for data_item in document_model.data_items:
                 for data_source in data_item.data_sources:
@@ -81,10 +81,10 @@ class ObjectSpecifier(object):
         return None
 
 
-class FacadeCanvasItem(CanvasItem.AbstractCanvasItem):
+class CanvasItem(CanvasItemModule.AbstractCanvasItem):
 
     def __init__(self):
-        super(FacadeCanvasItem, self).__init__()
+        super(CanvasItem, self).__init__()
         self.on_repaint = None
 
     def _repaint(self, drawing_context):
@@ -92,10 +92,10 @@ class FacadeCanvasItem(CanvasItem.AbstractCanvasItem):
             self.on_repaint(drawing_context, Geometry.IntSize.make(self.canvas_size))
 
 
-class FacadeRootCanvasItem(CanvasItem.RootCanvasItem):
+class RootCanvasItem(CanvasItemModule.RootCanvasItem):
 
     def __init__(self, ui, canvas_item, properties):
-        super(FacadeRootCanvasItem, self).__init__(ui, properties)
+        super(RootCanvasItem, self).__init__(ui, properties)
         self.__canvas_item = canvas_item
 
     @property
@@ -111,7 +111,7 @@ class FacadeRootCanvasItem(CanvasItem.RootCanvasItem):
         self.__canvas_item.on_repaint = value
 
 
-class FacadeColumnWidget(object):
+class ColumnWidget(object):
 
     def __init__(self, ui):
         self.__ui = ui
@@ -131,7 +131,7 @@ class FacadeColumnWidget(object):
         self.__column_widget.add(widget._widget)
 
 
-class FacadeRowWidget(object):
+class RowWidget(object):
 
     def __init__(self, ui):
         self.__ui = ui
@@ -151,7 +151,7 @@ class FacadeRowWidget(object):
         self.__row_widget.add(widget._widget)
 
 
-class FacadeLabelWidget(object):
+class LabelWidget(object):
 
     def __init__(self, ui):
         self.__ui = ui
@@ -170,7 +170,7 @@ class FacadeLabelWidget(object):
         self.__label_widget.text = value
 
 
-class FacadeLineEditWidget(object):
+class LineEditWidget(object):
 
     def __init__(self, ui):
         self.__ui = ui
@@ -200,7 +200,7 @@ class FacadeLineEditWidget(object):
         self.__line_edit_widget.select_all()
 
 
-class FacadePushButtonWidget(object):
+class PushButtonWidget(object):
 
     def __init__(self, ui):
         self.__ui = ui
@@ -227,7 +227,7 @@ class FacadePushButtonWidget(object):
         self.__push_button_widget.on_clicked = value
 
 
-class FacadeUserInterface(object):
+class UserInterface(object):
 
     def __init__(self, ui_version, ui):
         actual_version = "1.0.0"
@@ -240,37 +240,37 @@ class FacadeUserInterface(object):
         if height is not None:
             properties["min-height"] = height
             properties["max-height"] = height
-        canvas_item = FacadeCanvasItem()
-        root_canvas_item = FacadeRootCanvasItem(self.__ui, canvas_item, properties=properties)
+        canvas_item = CanvasItem()
+        root_canvas_item = RootCanvasItem(self.__ui, canvas_item, properties=properties)
         root_canvas_item.add_canvas_item(canvas_item)
         return root_canvas_item
 
     def create_column_widget(self):
-        return FacadeColumnWidget(self.__ui)
+        return ColumnWidget(self.__ui)
 
     def create_row_widget(self):
-        return FacadeRowWidget(self.__ui)
+        return RowWidget(self.__ui)
 
     def create_label_widget(self, text=None):
-        label_widget = FacadeLabelWidget(self.__ui)
+        label_widget = LabelWidget(self.__ui)
         label_widget.text = text
         return label_widget
 
     def create_line_edit_widget(self, text=None):
-        line_edit_widget = FacadeLineEditWidget(self.__ui)
+        line_edit_widget = LineEditWidget(self.__ui)
         line_edit_widget.text = text
         return line_edit_widget
 
     def create_push_button_widget(self, text=None):
-        push_button_widget = FacadePushButtonWidget(self.__ui)
+        push_button_widget = PushButtonWidget(self.__ui)
         push_button_widget.text = text
         return push_button_widget
 
 
-class FacadePanel(Panel.Panel):
+class Panel(PanelModule.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
-        super(FacadePanel, self).__init__(document_controller, panel_id, panel_id)
+        super(Panel, self).__init__(document_controller, panel_id, panel_id)
         self.on_close = None
 
     def close(self):
@@ -278,7 +278,7 @@ class FacadePanel(Panel.Panel):
             self.on_close()
 
 
-class FacadeRegion(object):
+class Region(object):
 
     def __init__(self, region):
         self.__region = region
@@ -312,7 +312,7 @@ class FacadeRegion(object):
     # position, start, end, vector, center, size, bounds, angle
 
 
-class FacadeDataItem(object):
+class DataItem(object):
 
     def __init__(self, data_item):
         self.__data_item = data_item
@@ -433,51 +433,51 @@ class FacadeDataItem(object):
 
     @property
     def regions(self):
-        return [FacadeRegion(region) for region in self.__data_item.maybe_data_source.regions]
+        return [Region(region) for region in self.__data_item.maybe_data_source.regions]
 
     def add_point_region(self, y, x):
         """Add a point region to the data item.
 
         :param x: The x coordinate, in relative units [0.0, 1.0]
         :param y: The y coordinate, in relative units [0.0, 1.0]
-        :return: The :py:class:`nion.swift.Facade.FacadeRegion` object that was added.
+        :return: The :py:class:`nion.swift.Facade.Region` object that was added.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        region = Region.PointRegion()
+        region = RegionModule.PointRegion()
         region.position = Geometry.FloatPoint(y, x)
         self.__data_item.maybe_data_source.add_region(region)
-        return FacadeRegion(region)
+        return Region(region)
 
     def add_rectangle_region(self, center_y, center_x, height, width):
-        region = Region.RectRegion()
+        region = RegionModule.RectRegion()
         region.center = Geometry.FloatPoint(center_y, center_x)
         region.size = Geometry.FloatSize(height, width)
         self.__data_item.maybe_data_source.add_region(region)
-        return FacadeRegion(region)
+        return Region(region)
 
     def add_ellipse_region(self, center_y, center_x, height, width):
-        region = Region.EllipseRegion()
+        region = RegionModule.EllipseRegion()
         region.center = Geometry.FloatPoint(center_y, center_x)
         region.size = Geometry.FloatSize(height, width)
         self.__data_item.maybe_data_source.add_region(region)
-        return FacadeRegion(region)
+        return Region(region)
 
     def add_line_region(self, start_y, start_x, end_y, end_x):
-        region = Region.LineRegion()
+        region = RegionModule.LineRegion()
         region.start = Geometry.FloatPoint(start_y, start_x)
         region.end = Geometry.FloatPoint(end_y, end_x)
         self.__data_item.maybe_data_source.add_region(region)
-        return FacadeRegion(region)
+        return Region(region)
 
     def add_interval_region(self, start, end):
-        region = Region.IntervalRegion()
+        region = RegionModule.IntervalRegion()
         region.start = start
         region.end = end
         self.__data_item.maybe_data_source.add_region(region)
-        return FacadeRegion(region)
+        return Region(region)
 
     def remove_region(self, region):
         self.__data_item.maybe_data_source.remove_region(region._region)
@@ -492,7 +492,7 @@ class FacadeDataItem(object):
         import copy
         import numpy
 
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
 
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
@@ -549,7 +549,7 @@ class FacadeDataItem(object):
         return dc.to_svg(size, viewbox)
 
 
-class FacadeDisplayPanel(object):
+class DisplayPanel(object):
 
     def __init__(self, display_panel):
         self.__display_panel = display_panel
@@ -570,12 +570,12 @@ class FacadeDisplayPanel(object):
         if not display_panel:
             return None
         data_item = display_panel.display_specifier.data_item
-        return FacadeDataItem(data_item) if data_item else None
+        return DataItem(data_item) if data_item else None
 
     def set_data_item(self, data_item):
         """Set the data item associated with this display panel.
 
-        :param data_item: The :py:class:`nion.swift.Facade.FacadeDataItem` object to add.
+        :param data_item: The :py:class:`nion.swift.Facade.DataItem` object to add.
 
         This will replace whatever data item, browser, or controller is currently in the display panel with the single
         data item.
@@ -590,7 +590,7 @@ class FacadeDisplayPanel(object):
         display_panel.set_displayed_data_item(data_item._data_item)
 
 
-class FacadeDisplay(object):
+class Display(object):
 
     def __init__(self):
         pass
@@ -604,7 +604,7 @@ class FacadeDisplay(object):
         raise AttributeError()
 
 
-class FacadeDataGroup(object):
+class DataGroup(object):
 
     def __init__(self, data_group):
         self.__data_group = data_group
@@ -616,7 +616,7 @@ class FacadeDataGroup(object):
     def add_data_item(self, data_item):
         """Add a data item to the group.
 
-        :param data_item: The :py:class:`nion.swift.Facade.FacadeDataItem` object to add.
+        :param data_item: The :py:class:`nion.swift.Facade.DataItem` object to add.
 
         .. versionadded:: 1.0
 
@@ -635,7 +635,7 @@ class FacadeDataGroup(object):
         raise AttributeError()
 
 
-class FacadeMonitor(object):
+class Monitor(object):
 
     def __init__(self):
         self.on_data_and_metadata_list_available = None  # frame_index, data_and_metadata_list, frame_parameters
@@ -648,7 +648,7 @@ class FacadeMonitor(object):
         pass
 
 
-class FacadeRecordTask(object):
+class RecordTask(object):
     def __init__(self, hardware_source, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
         if frame_parameters:
@@ -661,7 +661,7 @@ class FacadeRecordTask(object):
         def record_thread():
             self.__hardware_source.start_recording()
             data_elements = self.__hardware_source.get_next_data_elements_to_finish()
-            self.__data_and_metadata_list = [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for
+            self.__data_and_metadata_list = [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for
                 data_element in data_elements]
 
         self.__thread = threading.Thread(target=record_thread)
@@ -703,7 +703,7 @@ class FacadeRecordTask(object):
         self.__hardware_source.abort_recording()
 
 
-class FacadeViewTask(object):
+class ViewTask(object):
 
     def __init__(self, hardware_source, mode, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
@@ -752,7 +752,7 @@ class FacadeViewTask(object):
         :rtype: list of :py:class:`DataAndMetadata`
         """
         data_elements = self.__hardware_source.get_next_data_elements_to_finish()
-        return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
     def grab_next_to_start(self):
         """Grab list of data/metadata from the task.
@@ -765,10 +765,10 @@ class FacadeViewTask(object):
         :rtype: list of :py:class:`DataAndMetadata`
         """
         data_elements = self.__hardware_source.get_next_data_elements_to_start()
-        return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
 
-class FacadeHardwareSource(object):
+class HardwareSource(object):
 
     def __init__(self, hardware_source):
         self.__hardware_source = hardware_source
@@ -812,7 +812,7 @@ class FacadeHardwareSource(object):
             self.__hardware_source.set_record_channels_enabled(channels_enabled)
         self.__hardware_source.start_recording()
         data_elements = self.__hardware_source.get_next_data_elements_to_finish()
-        return [HardwareSource.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
     def create_record_task(self, frame_parameters=None, channels_enabled=None):
         """Create a record task for this hardware source.
@@ -830,7 +830,7 @@ class FacadeHardwareSource(object):
 
         See :py:class:`RecordTask` for examples of how to use.
         """
-        return FacadeRecordTask(self.__hardware_source, frame_parameters, channels_enabled)
+        return RecordTask(self.__hardware_source, frame_parameters, channels_enabled)
 
     def create_view_task(self, mode=None, frame_parameters=None, channels_enabled=None):
         """Create a view task for this hardware source.
@@ -848,13 +848,13 @@ class FacadeHardwareSource(object):
 
         See :py:class:`ViewTask` for examples of how to use.
         """
-        return FacadeViewTask(self.__hardware_source, mode, frame_parameters, channels_enabled)
+        return ViewTask(self.__hardware_source, mode, frame_parameters, channels_enabled)
 
     def get_frame_info(self, data_and_metadata):
         pass
 
 
-class FacadeInstrument(object):
+class Instrument(object):
 
     def __init__(self, instrument):
         self.__instrument = instrument
@@ -869,7 +869,7 @@ class FacadeInstrument(object):
         self.__instrument.values[property_name] = value
 
 
-class FacadeLibrary(object):
+class Library(object):
 
     def __init__(self, document_model):
         self.__document_model = document_model
@@ -898,31 +898,31 @@ class FacadeLibrary(object):
     def data_items(self):
         """Return the list of data items.
 
-        :return: The list of :py:class:`nion.swift.Facade.FacadeDataItem` objects.
+        :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        return [FacadeDataItem(data_item) for data_item in self.__document_model.data_items]
+        return [DataItem(data_item) for data_item in self.__document_model.data_items]
 
     def create_data_item(self, title=None):
         """Create an empty data item in the library.
 
         :param title: The title of the data item (optional).
-        :return: The new :py:class:`nion.swift.Facade.FacadeDataItem` object.
-        :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
+        :return: The new :py:class:`nion.swift.Facade.DataItem` object.
+        :rtype: :py:class:`nion.swift.Facade.DataItem`
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        data_item = DataItem.DataItem()
-        data_item.append_data_source(DataItem.BufferedDataSource())
+        data_item = DataItemModule.DataItem()
+        data_item.append_data_source(DataItemModule.BufferedDataSource())
         if title is not None:
             data_item.title = title
         self.__document_model.append_data_item(data_item)
-        return FacadeDataItem(data_item)
+        return DataItem(data_item)
 
     def create_data_item_from_data(self, data, title=None):
         """Create a data item in the library from an ndarray.
@@ -937,18 +937,18 @@ class FacadeLibrary(object):
 
         :param data: The data (ndarray).
         :param title: The title of the data item (optional).
-        :return: The new :py:class:`nion.swift.Facade.FacadeDataItem` object.
-        :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
+        :return: The new :py:class:`nion.swift.Facade.DataItem` object.
+        :rtype: :py:class:`nion.swift.Facade.DataItem`
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
-        intensity_calibration = Calibration.Calibration()
+        intensity_calibration = CalibrationModule.Calibration()
         dimensional_calibrations = list()
         for _ in data_shape_and_dtype[0]:
-            dimensional_calibrations.append(Calibration.Calibration())
+            dimensional_calibrations.append(CalibrationModule.Calibration())
         metadata = dict()
         timestamp = datetime.datetime.utcnow()
         data_and_metadata = Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
@@ -967,37 +967,37 @@ class FacadeLibrary(object):
 
         :param data_and_metadata: The data and metadata.
         :param title: The title of the data item (optional).
-        :return: The new :py:class:`nion.swift.Facade.FacadeDataItem` object.
-        :rtype: :py:class:`nion.swift.Facade.FacadeDataItem`
+        :return: The new :py:class:`nion.swift.Facade.DataItem` object.
+        :rtype: :py:class:`nion.swift.Facade.DataItem`
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        data_item = DataItem.DataItem()
+        data_item = DataItemModule.DataItem()
         if title is not None:
             data_item.title = title
-        buffered_data_source = DataItem.BufferedDataSource(data_and_metadata.data)
+        buffered_data_source = DataItemModule.BufferedDataSource(data_and_metadata.data)
         buffered_data_source.set_metadata(data_and_metadata.metadata)
         buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
         buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
         buffered_data_source.created = data_and_metadata.timestamp
         data_item.append_data_source(buffered_data_source)
         self.__document_model.append_data_item(data_item)
-        return FacadeDataItem(data_item)
+        return DataItem(data_item)
 
     def get_or_create_data_group(self, title):
         """Get (or create) a data group.
 
         :param title: The title of the data group.
-        :return: The new :py:class:`nion.swift.Facade.FacadeDataGroup` object.
-        :rtype: :py:class:`nion.swift.Facade.FacadeDataGroup`
+        :return: The new :py:class:`nion.swift.Facade.DataGroup` object.
+        :rtype: :py:class:`nion.swift.Facade.DataGroup`
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        return FacadeDataGroup(self.__document_model.get_or_create_data_group(title))
+        return DataGroup(self.__document_model.get_or_create_data_group(title))
 
     def data_ref_for_data_item(self, data_item):
 
@@ -1033,7 +1033,7 @@ class FacadeLibrary(object):
         return DataRef(self.__document_model, data_item)
 
 
-class FacadeDocumentController(object):
+class DocumentController(object):
 
     def __init__(self, document_controller):
         self.__document_controller = document_controller
@@ -1054,7 +1054,7 @@ class FacadeDocumentController(object):
 
         Scriptable: Yes
         """
-        return FacadeLibrary(self.__document_controller.document_model)
+        return Library(self.__document_controller.document_model)
 
     @property
     def all_display_panels(self):
@@ -1064,7 +1064,7 @@ class FacadeDocumentController(object):
 
         Scriptable: Yes
         """
-        return [FacadeDisplayPanel(display_panel) for display_panel in self.__document_controller.workspace_controller.display_panels]
+        return [DisplayPanel(display_panel) for display_panel in self.__document_controller.workspace_controller.display_panels]
 
     def get_display_panel_by_id(self, identifier):
         """Return display panel with the identifier.
@@ -1077,7 +1077,7 @@ class FacadeDocumentController(object):
         display_panel = next(
             (display_panel for display_panel in self.__document_controller.workspace_controller.display_panels if
             display_panel.identifier.lower() == identifier.lower()), None)
-        return FacadeDisplayPanel(display_panel) if display_panel else None
+        return DisplayPanel(display_panel) if display_panel else None
 
     @property
     def target_display_panel(self):
@@ -1089,7 +1089,7 @@ class FacadeDocumentController(object):
 
     @property
     def target_data_item(self):
-        return FacadeDataItem(self.__document_controller.selected_display_specifier.data_item)
+        return DataItem(self.__document_controller.selected_display_specifier.data_item)
 
     def create_task_context_manager(self, title, task_type):
         return self.__document_controller.create_task_context_manager(title, task_type)
@@ -1102,7 +1102,7 @@ class FacadeDocumentController(object):
 
         .. versionadded:: 1.0
         .. deprecated:: 1.1
-           Use :py:meth:`nion.swift.Facade.FacadeLibrary.create_data_item_from_data` instead.
+           Use :py:meth:`nion.swift.Facade.Library.create_data_item_from_data` instead.
 
         Scriptable: No
         """
@@ -1117,7 +1117,7 @@ class FacadeDocumentController(object):
 
         Scriptable: No
         """
-        return FacadeDataItem(self.__document_controller.add_data(data, title))
+        return DataItem(self.__document_controller.add_data(data, title))
 
     def create_data_item_from_data_and_metadata(self, data_and_metadata, title=None):
         """Create a data item in the library from the data and metadata.
@@ -1128,17 +1128,17 @@ class FacadeDocumentController(object):
 
         Scriptable: No
         """
-        data_item = DataItem.DataItem()
+        data_item = DataItemModule.DataItem()
         if title is not None:
             data_item.title = title
-        buffered_data_source = DataItem.BufferedDataSource(data_and_metadata.data)
+        buffered_data_source = DataItemModule.BufferedDataSource(data_and_metadata.data)
         buffered_data_source.set_metadata(data_and_metadata.metadata)
         buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
         buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
         buffered_data_source.created = data_and_metadata.timestamp
         data_item.append_data_source(buffered_data_source)
         self.__document_controller.document_model.append_data_item(data_item)
-        return FacadeDataItem(data_item)
+        return DataItem(data_item)
 
     def get_or_create_data_group(self, title):
         """Get (or create) a data group.
@@ -1149,10 +1149,10 @@ class FacadeDocumentController(object):
 
         Scriptable: No
         """
-        return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
+        return DataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
 
 
-class FacadeApplication(object):
+class Application(object):
 
     def __init__(self, application):
         self.__application = application
@@ -1173,7 +1173,7 @@ class FacadeApplication(object):
 
         Scriptable: Yes
         """
-        return FacadeLibrary(self.__application.document_controllers[0].document_model)
+        return Library(self.__application.document_controllers[0].document_model)
 
     @property
     def document_controllers(self):
@@ -1183,7 +1183,7 @@ class FacadeApplication(object):
 
         Scriptable: Yes
         """
-        return [FacadeDocumentController(document_controller) for document_controller in self.__application.document_controllers]
+        return [DocumentController(document_controller) for document_controller in self.__application.document_controllers]
 
 
 class DataAndMetadataIOHandlerInterface(object):
@@ -1302,7 +1302,7 @@ class API_1(object):
         Calibrated units and uncalibrated units have the following relationship:
             :samp:`calibrated_value = offset + value * scale`
         """
-        return Calibration.Calibration(offset, scale, units)
+        return CalibrationModule.Calibration(offset, scale, units)
 
     def create_data_and_metadata(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
         """Create a data_and_metadata object from data.
@@ -1319,11 +1319,11 @@ class API_1(object):
         """
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         if intensity_calibration is None:
-            intensity_calibration = Calibration.Calibration()
+            intensity_calibration = CalibrationModule.Calibration()
         if dimensional_calibrations is None:
             dimensional_calibrations = list()
             for _ in data_shape_and_dtype[0]:
-                dimensional_calibrations.append(Calibration.Calibration())
+                dimensional_calibrations.append(CalibrationModule.Calibration())
         if metadata is None:
             metadata = dict()
         timestamp = timestamp if timestamp else datetime.datetime.utcnow()
@@ -1414,7 +1414,7 @@ class API_1(object):
                 menu = document_controller.get_menu(menu_id)
             key_sequence = getattr(menu_item_handler, "menu_item_key_sequence", None)
             if menu:
-                facade_document_controller = FacadeDocumentController(document_controller)
+                facade_document_controller = DocumentController(document_controller)
                 menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(
                     facade_document_controller), key_sequence=key_sequence)
 
@@ -1422,7 +1422,7 @@ class API_1(object):
 
             def __init__(self):
                 self.__menu_item_handler = menu_item_handler
-                Application.app.register_menu_handler(build_menus)
+                ApplicationModule.app.register_menu_handler(build_menus)
 
             def __del__(self):
                 self.close()
@@ -1432,7 +1432,7 @@ class API_1(object):
                     menu_item_handler_close_fn = getattr(self.__menu_item_handler, "close", None)
                     if menu_item_handler_close_fn:
                        menu_item_handler_close_fn()
-                    Application.app.unregister_menu_handler(build_menus)
+                    ApplicationModule.app.unregister_menu_handler(build_menus)
                     self.__menu_item_handler = None
 
         return MenuItemReference()
@@ -1440,7 +1440,7 @@ class API_1(object):
 
     def create_hardware_source(self, hardware_source_delegate):
 
-        class FacadeHardwareSource(HardwareSource.HardwareSource):
+        class FacadeHardwareSource(HardwareSourceModule.HardwareSource):
 
             def __init__(self):
                 super(FacadeHardwareSource, self).__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
@@ -1468,7 +1468,7 @@ class API_1(object):
             def __init__(self):
                 self.__hardware_source_delegate = hardware_source_delegate
                 self.__hardware_source = FacadeHardwareSource()
-                HardwareSource.HardwareSourceManager().register_hardware_source(self.__hardware_source)
+                HardwareSourceModule.HardwareSourceManager().register_hardware_source(self.__hardware_source)
 
             def __del__(self):
                 self.close()
@@ -1478,7 +1478,7 @@ class API_1(object):
                     hardware_source_delegate_close_fn = getattr(self.__hardware_source_delegate, "close", None)
                     if hardware_source_delegate_close_fn:
                        hardware_source_delegate_close_fn()
-                    HardwareSource.HardwareSourceManager().unregister_hardware_source(self.__hardware_source)
+                    HardwareSourceModule.HardwareSourceManager().unregister_hardware_source(self.__hardware_source)
                     self.__hardware_source_delegate = None
 
         return HardwareSourceReference()
@@ -1508,9 +1508,9 @@ class API_1(object):
         workspace_manager = Workspace.WorkspaceManager()
 
         def create_facade_panel(document_controller, panel_id, properties):
-            panel = FacadePanel(document_controller, panel_id, properties)
-            ui = FacadeUserInterface(self.__ui_version, document_controller.ui)
-            document_controller = FacadeDocumentController(document_controller)
+            panel = Panel(document_controller, panel_id, properties)
+            ui = UserInterface(self.__ui_version, document_controller.ui)
+            document_controller = DocumentController(document_controller)
             panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
             return panel
 
@@ -1560,7 +1560,7 @@ class API_1(object):
                 for operation_region_id in getattr(unary_operation_delegate, "operation_region_bindings", dict()).keys():
                     operation.establish_associated_region(operation_region_id, buffered_data_source)
                 return document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=unary_operation_delegate.operation_prefix)
-            return DataItem.DisplaySpecifier()
+            return DataItemModule.DisplaySpecifier()
 
         def build_menus(document_controller):
             """ Make menu item for this operation. """
@@ -1571,7 +1571,7 @@ class API_1(object):
             def __init__(self):
                 self.__unary_operation_delegate = unary_operation_delegate
                 Operation.OperationManager().register_operation(unary_operation_delegate.operation_id, lambda: DelegateOperation())
-                Application.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
+                ApplicationModule.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
 
             def __del__(self):
                 self.close()
@@ -1582,7 +1582,7 @@ class API_1(object):
                     if unary_operation_delegate_close_fn:
                        unary_operation_delegate_close_fn()
                     Operation.OperationManager().unregister_operation(unary_operation_delegate.operation_id)
-                    Application.app.unregister_menu_handler(build_menus)
+                    ApplicationModule.app.unregister_menu_handler(build_menus)
                     self.__unary_operation_delegate = None
 
         return OperationReference()
@@ -1591,15 +1591,15 @@ class API_1(object):
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
-        hardware_source = HardwareSource.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
-        return FacadeHardwareSource(hardware_source)
+        hardware_source = HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+        return HardwareSource(hardware_source)
 
     def get_instrument_by_id(self, instrument_id, version):
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
-        instrument = HardwareSource.HardwareSourceManager().get_instrument_by_id(instrument_id)
-        return FacadeInstrument(instrument)
+        instrument = HardwareSourceModule.HardwareSourceManager().get_instrument_by_id(instrument_id)
+        return Instrument(instrument)
 
     @property
     def application(self):
@@ -1609,7 +1609,7 @@ class API_1(object):
 
         Scriptable: Yes
         """
-        return FacadeApplication(Application.app)
+        return Application(ApplicationModule.app)
 
     @property
     def library(self):
@@ -1619,14 +1619,14 @@ class API_1(object):
 
         Scriptable: Yes
         """
-        return FacadeLibrary(Application.app.document_controllers[0].document_model)
+        return Library(ApplicationModule.app.document_controllers[0].document_model)
 
     def resolve_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
 
     # provisional
     def queue_task(self, fn):
-        Application.app.document_controllers[0].queue_task(fn)
+        ApplicationModule.app.document_controllers[0].queue_task(fn)
 
     def raise_requirements_exception(self, reason):
         raise PlugInManager.RequirementsException(reason)
