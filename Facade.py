@@ -1101,7 +1101,7 @@ class FacadeDocumentController(object):
         """Create a data item in the library from data.
 
         .. versionadded:: 1.0
-        .. deprecated:: 2.0
+        .. deprecated:: 1.1
            Use :py:meth:`nion.swift.Facade.FacadeLibrary.create_data_item_from_data` instead.
 
         Scriptable: No
@@ -1112,7 +1112,7 @@ class FacadeDocumentController(object):
         """Create a data item in the library from data.
 
         .. versionadded:: 1.0
-        .. deprecated:: 2.0
+        .. deprecated:: 1.1
            Use library.create_data_item_from_data instead.
 
         Scriptable: No
@@ -1123,7 +1123,7 @@ class FacadeDocumentController(object):
         """Create a data item in the library from the data and metadata.
 
         .. versionadded:: 1.0
-        .. deprecated:: 2.0
+        .. deprecated:: 1.1
            Use library.create_data_item_from_data_and_metadata instead.
 
         Scriptable: No
@@ -1144,19 +1144,12 @@ class FacadeDocumentController(object):
         """Get (or create) a data group.
 
         .. versionadded:: 1.0
-        .. deprecated:: 2.0
+        .. deprecated:: 1.1
            Use library.create_data_item_from_data instead.
 
         Scriptable: No
         """
         return FacadeDataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
-
-    """
-    data_item = document_controller.create_data_item_from_data(some_data)
-    data_item2 = document_controller.create_data_item_from_data_node(DataNode.make(data_item) * 3)
-    document_controller.add_data_node_to_data_item(data_item, DataNode.make(data_item2) / 3)
-    document_controller.add_operation_to_data_item(data_item, "crop-operation", { "bounds": rect })
-    """
 
 
 class FacadeApplication(object):
@@ -1311,7 +1304,7 @@ class API_1(object):
         """
         return Calibration.Calibration(offset, scale, units)
 
-    def create_data_and_metadata_from_data(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
+    def create_data_and_metadata(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
         """Create a data_and_metadata object from data.
 
         :param data: an ndarray of data.
@@ -1335,6 +1328,17 @@ class API_1(object):
             metadata = dict()
         timestamp = timestamp if timestamp else datetime.datetime.utcnow()
         return Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+
+    def create_data_and_metadata_from_data(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
+        """Create a data_and_metadata object from data.
+
+        .. versionadded:: 1.0
+        .. deprecated:: 1.1
+           Use api.create_data_and_metadata instead.
+
+        Scriptable: No
+        """
+        return self.create_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
     def create_data_and_metadata_io_handler(self, io_handler_delegate):
         """Create an I/O handler that reads and writes a single data_and_metadata.
@@ -1643,6 +1647,3 @@ def get_api(version, ui_version):
 # for this to work, Facade must be imported early in the startup process.
 def initialize():
     PlugInManager.register_api_broker_fn(get_api)
-
-
-# TODO: handle user hitting 'pause' or 'abort' during acquisition tasks
