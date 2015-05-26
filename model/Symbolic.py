@@ -7,11 +7,13 @@
     DataNodes represent data items, operations, numpy arrays, and constants.
 """
 
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import logging
 import numbers
 import operator
-import uuid
 
 # third party libraries
 import numpy

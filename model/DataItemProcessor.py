@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+
+# standard libraries
 import threading
 import time
 import weakref

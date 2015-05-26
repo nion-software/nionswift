@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import collections
 import contextlib
@@ -11,7 +15,13 @@ import time
 import numpy
 
 # local libraries
-# None
+from nion.ui import Unicode
+
+
+if sys.version < '3':
+    integer_types = (int, long,)
+else:
+    integer_types = (int,)
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -23,8 +33,8 @@ import numpy
 def get_datetime_item_from_datetime(datetime_local):
     datetime_item = dict()
     datetime_item["local_datetime"] = datetime_local.isoformat()
-    tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) / 60
-    datetime_item["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes / 60, tz_minutes % 60)
+    tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+    datetime_item["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes // 60, tz_minutes % 60)
     datetime_item["dst"] = "+60" if time.localtime().tm_isdst else "+00"
     return datetime_item
 
@@ -34,7 +44,7 @@ def get_current_datetime_item():
 
 
 def get_datetime_item_from_utc_datetime(datetime_utc):
-    tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) / 60
+    tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
     return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes))
 
 
@@ -120,9 +130,9 @@ def clean_item(i):
         return float(i)
     elif itype == float:
         return i
-    elif itype == str or itype == unicode:
+    elif Unicode.is_unicode_type(itype):
         return i
-    elif itype == int or itype == long:
+    elif itype in integer_types:
         return i
     elif itype == bool:
         return i
@@ -149,9 +159,9 @@ def clean_item_no_list(i):
         return float(i)
     elif itype == float:
         return i
-    elif itype == str or itype == unicode:
+    elif Unicode.is_unicode_type(itype):
         return i
-    elif itype == int or itype == long:
+    elif itype in integer_types:
         return i
     elif itype == bool:
         return i

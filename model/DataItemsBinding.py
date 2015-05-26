@@ -2,13 +2,14 @@
     Contains classes that help bind a list of data items to another object.
 """
 
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import copy
 import logging
 import operator
-import string
 import threading
-import traceback
 
 # third party libraries
 # None

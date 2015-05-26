@@ -10,6 +10,10 @@
     combined into a grid layout with the line graph.
 """
 
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import collections
 import gettext

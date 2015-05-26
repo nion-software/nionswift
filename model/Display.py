@@ -2,6 +2,10 @@
     Contains classes related to display of data items.
 """
 
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import collections
 import copy
@@ -518,8 +522,8 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         image_height = image.shape[0]
         image_width = image.shape[1]
         if image_height > 0 and image_width > 0:
-            scaled_height = height if image_height > image_width else height * image_height / image_width
-            scaled_width = width if image_width > image_height else width * image_width / image_height
+            scaled_height = height if image_height > image_width else height * image_height // image_width
+            scaled_width = width if image_width > image_height else width * image_width // image_height
             scaled_height = max(1, scaled_height)
             scaled_width = max(1, scaled_width)
             thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')

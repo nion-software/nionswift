@@ -2,11 +2,12 @@
     Contains classes related to connections between library objects.
 """
 
+# futures
+from __future__ import absolute_import
+
 # standard libraries
-import copy
 import logging
 import uuid
-import weakref
 
 # third party libraries
 # None

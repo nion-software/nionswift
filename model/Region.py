@@ -2,11 +2,11 @@
     Contains classes related to regions of data items.
 """
 
+# futures
+from __future__ import absolute_import
+
 # standard libraries
-import copy
-import logging
-import uuid
-import weakref
+# None
 
 # third party libraries
 # None

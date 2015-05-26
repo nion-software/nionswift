@@ -7,6 +7,9 @@ A HardwareSource represents a source of data and metadata.
 A HardwareSourceController represents
 """
 
+# futures
+from __future__ import absolute_import
+
 # system imports
 import collections
 import ConfigParser as configparser
@@ -37,8 +40,9 @@ _ = gettext.gettext
 
 # Keeps track of all registered hardware sources and instruments.
 # Also keeps track of aliases between hardware sources and logical names.
-class HardwareSourceManager(object):
-    __metaclass__ = Utility.Singleton
+class HardwareSourceManager(Utility.Singleton("HardwareSourceManagerSingleton", (object, ), {})):
+    # __metaclass__ = Utility.Singleton
+    # TODO: Fix metaclass in Python 3
 
     def __init__(self):
         super(HardwareSourceManager, self).__init__()

@@ -1,6 +1,8 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import collections
-import copy
 import gettext
 import uuid
 

@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import copy
 import datetime
@@ -1245,7 +1248,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     @property
     def created_local(self):
         created_utc = self.created
-        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) / 60
+        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
         return created_utc + datetime.timedelta(minutes=tz_minutes)
 
     # access metadata

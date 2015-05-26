@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import base64
 import collections
@@ -59,7 +63,7 @@ class DataAndCalibration(object):
         else:
             dimensional_calibrations = None
         metadata = d.get("metadata")
-        timestamp = datetime.datetime(*map(int, re.split('[^\d]', d.get("timestamp")))) if "timestamp" in d else None
+        timestamp = datetime.datetime(*list(map(int, re.split('[^\d]', d.get("timestamp"))))) if "timestamp" in d else None
         return DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
     @property
@@ -662,17 +666,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         # copy one by one to keep default values for missing keys
         for key in values.keys():
             self.set_property(key, values[key])
-
-
-class Singleton(type):
-    def __init__(cls, name, bases, dict):
-        super(Singleton, cls).__init__(name, bases, dict)
-        cls.instance = None
-
-    def __call__(cls,*args,**kw):
-        if cls.instance is None:
-            cls.instance = super(Singleton, cls).__call__(*args, **kw)
-        return cls.instance
 
 
 class Operation(object):
@@ -1433,8 +1426,9 @@ class ConvertToScalarOperation(Operation):
             return data_shape, data_dtype
 
 
-class OperationManager(object):
-    __metaclass__ = Singleton
+class OperationManager(Utility.Singleton("OperationManagerSingleton", (object, ), {})):
+    # __metaclass__ = Utility.Singleton
+    # TODO: Fix metaclass in Python 3
 
     def __init__(self):
         self.__operations = dict()

@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import cStringIO
 import datetime
@@ -76,8 +80,9 @@ class ImportExportHandler(object):
         pass
 
 
-class ImportExportManager(object):
-    __metaclass__ = Utility.Singleton
+class ImportExportManager(Utility.Singleton("ImportExportManagerSingleton", (object, ), {})):
+    # __metaclass__ = Utility.Singleton
+    # TODO: Fix metaclass in Python 3
     """
         Tracks import/export plugins.
     """

@@ -793,7 +793,7 @@ class Workspace(object):
 
 
 class WorkspaceManager(Utility.Singleton("WorkspaceManagerSingleton", (object, ), {})):
-    # __metaclass__ = Decorators.Singleton
+    # __metaclass__ = Utility.Singleton
     # TODO: Fix metaclass in Python 3
 
     """
