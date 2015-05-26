@@ -1254,7 +1254,7 @@ class DbDatastore(object):
         c.execute("SELECT value FROM properties WHERE uuid=? AND key=?", (parent_node, key, ))
         value_row = c.fetchone()
         if value_row is not None:
-            return pickle.loads(str(value_row[0]))
+            return pickle.loads(bytes(value_row[0]))
         else:
             return default_value
 
@@ -1316,7 +1316,7 @@ class DbDatastore(object):
         c.execute("SELECT value FROM properties WHERE uuid=? AND key=?", (str(item_uuid), key, ))
         value_row = c.fetchone()
         if value_row is not None:
-            return pickle.loads(str(value_row[0]))
+            return pickle.loads(bytes(value_row[0]))
         return None
 
     def set_root_properties(self, item_uuid, properties, reference, file_datetime):
@@ -1666,7 +1666,7 @@ class DbStorageCache(object):
         last_result = self.execute("SELECT value FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
         value_row = last_result.fetchone()
         if value_row is not None:
-            result = pickle.loads(str(value_row[0]))
+            result = pickle.loads(bytes(value_row[0]))
             return result
         else:
             return default_value

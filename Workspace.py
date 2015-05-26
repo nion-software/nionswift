@@ -111,7 +111,7 @@ class Workspace(object):
         for hardware_source_id in self.__channels_data_updated_event_listeners:
             self.__channels_data_updated_event_listeners[hardware_source_id].close()
         self.__channels_data_updated_event_listeners = None
-        for message_box_widget in copy.copy(self.__message_boxes.values()):
+        for message_box_widget in copy.copy(list(self.__message_boxes.values())):
             self.message_column.remove(message_box_widget)
         self.__message_boxes.clear()
         self.__filtered_data_items_binding.close()

@@ -486,7 +486,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         excluded = ["rating", "datetime_original", "title", "source_file_path", "session_id", "caption",
                             "flag", "datetime_modified", "connections", "data_sources", "uuid", "reader_version",
                             "version", "metadata"]
-                        for key in properties.keys():
+                        for key in list(properties.keys()):
                             if key not in excluded:
                                 data_source_dict.setdefault("metadata", dict())[key] = properties[key]
                                 del properties[key]

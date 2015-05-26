@@ -12,9 +12,11 @@ import zipfile
 # conditional imports
 import sys
 if sys.version < '3':
+    from io import BytesIO
     import cStringIO as io
 else:
     import io
+    from io import BytesIO
 
 # third party libraries
 import numpy
@@ -129,7 +131,7 @@ class ImportExportManager(Utility.Singleton("ImportExportManagerSingleton", (obj
             data_and_calibration = data_item.data_sources[0].data_and_calibration
             for io_handler in self.__io_handlers:
                 for extension in io_handler.extensions:
-                    if io_handler.can_write(data_and_calibration, string.lower(extension)):
+                    if io_handler.can_write(data_and_calibration, extension.lower()):
                         writers.append(io_handler)
         return writers
 
@@ -138,7 +140,7 @@ class ImportExportManager(Utility.Singleton("ImportExportManagerSingleton", (obj
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
-            extension = string.lower(extension)
+            extension = extension.lower()
             for io_handler in self.__io_handlers:
                 if extension in io_handler.extensions:
                     return io_handler.read_data_items(ui, extension, path)
@@ -149,7 +151,7 @@ class ImportExportManager(Utility.Singleton("ImportExportManagerSingleton", (obj
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
-            extension = string.lower(extension)
+            extension = extension.lower()
             for io_handler in self.__io_handlers:
                 if extension in io_handler.extensions:
                     return io_handler.read_data_elements(ui, extension, path)
@@ -159,7 +161,7 @@ class ImportExportManager(Utility.Singleton("ImportExportManagerSingleton", (obj
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
-            extension = string.lower(extension)
+            extension = extension.lower()
             buffered_data_source = data_item.maybe_data_source
             if extension in writer.extensions and buffered_data_source and writer.can_write(buffered_data_source.data_and_calibration, extension):
                 writer.write(ui, data_item, path, extension)
@@ -168,7 +170,7 @@ class ImportExportManager(Utility.Singleton("ImportExportManagerSingleton", (obj
         root, extension = os.path.splitext(path)
         if extension:
             extension = extension[1:]  # remove the leading "."
-            extension = string.lower(extension)
+            extension = extension.lower()
             for io_handler in self.__io_handlers:
                 buffered_data_source = data_item.maybe_data_source
                 if extension in io_handler.extensions and buffered_data_source and io_handler.can_write(buffered_data_source.data_and_calibration, extension):
@@ -395,11 +397,9 @@ class NDataImportExportHandler(ImportExportHandler):
         zip_file = zipfile.ZipFile(path, 'r')
         namelist = zip_file.namelist()
         if "metadata.json" in namelist and "data.npy" in namelist:
-            with zip_file.open("metadata.json") as fp:
-                metadata = json.load(fp)
-            with zip_file.open("data.npy") as fp:
-                data_buffer = io.StringIO(fp.read())
-                data = numpy.load(data_buffer)
+            metadata = json.loads(zip_file.read("metadata.json").decode("utf-8"))
+            data_bytes = zip_file.read("data.npy")
+            data = numpy.load(BytesIO(data_bytes))
         if data is not None:
             data_element = metadata
             data_element["data"] = data

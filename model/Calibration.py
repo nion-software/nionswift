@@ -3,6 +3,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 # standard libraries
+import sys
 import types
 
 # third party libraries
@@ -10,6 +11,12 @@ import numpy
 
 # local libraries
 from nion.ui import Unicode
+
+
+if sys.version < '3':
+    integer_types = (int, long,)
+else:
+    integer_types = (int,)
 
 
 class Calibration(object):
@@ -29,6 +36,11 @@ class Calibration(object):
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             return self.offset == other.offset and self.scale == other.scale and self.units == other.units
+        return False
+
+    def __ne__(self, other):
+        if isinstance(other, self.__class__):
+            return self.offset != other.offset or self.scale != other.scale or self.units != other.units
         return False
 
     def __str__(self):
@@ -113,9 +125,9 @@ class Calibration(object):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if hasattr(value, 'dtype') and not value.shape:  # convert NumPy types to Python scalar types
             value = numpy.asscalar(value)
-        if isinstance(value, types.IntType) or isinstance(value, types.LongType):
+        if isinstance(value, integer_types):
             result = u"{0:g}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
-        elif isinstance(value, types.FloatType) or isinstance(value, types.ComplexType):
+        elif isinstance(value, float) or isinstance(value, complex):
             result = u"{0:g}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
         elif isinstance(value, numpy.ndarray) and numpy.ndim(value) == 1 and value.shape[0] in (3, 4) and value.dtype == numpy.uint8:
             result = u", ".join([u"{0:d}".format(v) for v in value])
@@ -127,9 +139,9 @@ class Calibration(object):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if hasattr(size, 'dtype') and not size.shape:  # convert NumPy types to Python scalar types
             size = numpy.asscalar(size)
-        if isinstance(size, types.IntType) or isinstance(size, types.LongType):
+        if isinstance(size, integer_types):
             result = u"{0:g}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
-        elif isinstance(size, types.FloatType) or isinstance(size, types.ComplexType):
+        elif isinstance(size, float) or isinstance(size, complex):
             result = u"{0:g}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
         elif isinstance(size, numpy.ndarray) and numpy.ndim(size) == 1 and size.shape[0] in (3, 4) and size.dtype == numpy.uint8:
             result = u", ".join([u"{0:d}".format(v) for v in size])

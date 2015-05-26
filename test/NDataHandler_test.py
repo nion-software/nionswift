@@ -89,11 +89,12 @@ class TestNDataHandlerClass(unittest.TestCase):
                     json.dump(properties, json_io)
                     json_str = json_io.getvalue()
                     def write_json(fp):
-                        fp.write(json_str)
-                        return binascii.crc32(json_str) & 0xFFFFFFFF
+                        json_bytes = Unicode.str_to_bytes(json_str)
+                        fp.write(json_bytes)
+                        return binascii.crc32(json_bytes) & 0xFFFFFFFF
                     offset_json = fp.tell()
-                    json_len, json_crc32 = NDataHandler.write_local_file(fp, "metadata.json", write_json, dt)
-                    dir_data_list.append((offset_json, "metadata.json", json_len, json_crc32))
+                    json_len, json_crc32 = NDataHandler.write_local_file(fp, b"metadata.json", write_json, dt)
+                    dir_data_list.append((offset_json, b"metadata.json", json_len, json_crc32))
                 if data is not None:
                     offset_data = fp.tell()
                     def write_data(fp):
@@ -101,15 +102,15 @@ class TestNDataHandlerClass(unittest.TestCase):
                         numpy.save(fp, data)
                         numpy_end_pos = fp.tell()
                         fp.seek(numpy_start_pos)
-                        header_data = fp.read(len(data.data) - (numpy_end_pos - numpy_start_pos))  # read the header
+                        header_data = fp.read((numpy_end_pos - numpy_start_pos) - data.nbytes)  # read the header
                         data_crc32 = binascii.crc32(data.data, binascii.crc32(header_data)) & 0xFFFFFFFF
                         fp.seek(numpy_end_pos)
                         return data_crc32
-                    data_len, crc32 = NDataHandler.write_local_file(fp, "data.npy", write_data, dt)
-                    dir_data_list.append((offset_data, "data.npy", data_len, crc32))
+                    data_len, crc32 = NDataHandler.write_local_file(fp, b"data.npy", write_data, dt)
+                    dir_data_list.append((offset_data, b"data.npy", data_len, crc32))
                 dir_offset = fp.tell()
-                for offset, name, data_len, crc32 in dir_data_list:
-                    NDataHandler.write_directory_data(fp, offset, name, data_len, crc32, dt)
+                for offset, name_bytes, data_len, crc32 in dir_data_list:
+                    NDataHandler.write_directory_data(fp, offset, name_bytes, data_len, crc32, dt)
                 dir_size = fp.tell() - dir_offset
                 NDataHandler.write_end_of_directory(fp, dir_size, dir_offset, len(dir_data_list))
                 fp.truncate()
@@ -133,9 +134,8 @@ class TestNDataHandlerClass(unittest.TestCase):
         Storage.db_make_directory_if_needed(data_dir)
         try:
             h = NDataHandler.NDataHandler(data_dir)
-            data1 = numpy.ones((16, 16), dtype=numpy.float64)
-            data = scipy.signal.fftconvolve(data1, data1, mode='same')
-            self.assertRaises(AttributeError, lambda: data.data)  # make sure we're getting discontiguous data
+            data = numpy.random.randint(0, 10, size=(10, 10))[:,3]  # discontiguous data
+            self.assertFalse(data.flags['C_CONTIGUOUS'])
             p = {u"uuid": Unicode.u(uuid.uuid4())}
             # write properties
             h.write_properties("abc", p, now)

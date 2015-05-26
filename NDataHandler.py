@@ -43,7 +43,7 @@ def make_directory_if_needed(directory_path):
         os.makedirs(directory_path)
 
 
-def write_local_file(fp, name, writer, dt):
+def write_local_file(fp, name_bytes, writer, dt):
     """
         Writes a zip file local file header structure at the current file position.
 
@@ -67,9 +67,9 @@ def write_local_file(fp, name, writer, dt):
     data_len_pos = fp.tell()
     fp.write(struct.pack('I', 0))           # compressed length placeholder
     fp.write(struct.pack('I', 0))           # uncompressed length placeholder
-    fp.write(struct.pack('H', len(name)))   # name length
+    fp.write(struct.pack('H', len(name_bytes)))   # name length
     fp.write(struct.pack('H', 0))           # extra length
-    fp.write(name)
+    fp.write(name_bytes)
     data_start_pos = fp.tell()
     crc32 = writer(fp)
     data_end_pos = fp.tell()
@@ -83,7 +83,7 @@ def write_local_file(fp, name, writer, dt):
     return data_len, crc32
 
 
-def write_directory_data(fp, offset, name, data_len, crc32, dt):
+def write_directory_data(fp, offset, name_bytes, data_len, crc32, dt):
     """
         Write a zip fie directory entry at the current file position
 
@@ -106,14 +106,14 @@ def write_directory_data(fp, offset, name, data_len, crc32, dt):
     fp.write(struct.pack('I', crc32))       # crc32
     fp.write(struct.pack('I', data_len))    # compressed length
     fp.write(struct.pack('I', data_len))    # uncompressed length
-    fp.write(struct.pack('H', len(name)))   # name length
+    fp.write(struct.pack('H', len(name_bytes)))   # name length
     fp.write(struct.pack('H', 0))           # extra length
     fp.write(struct.pack('H', 0))           # comments length
     fp.write(struct.pack('H', 0))           # disk number
     fp.write(struct.pack('H', 0))           # internal file attributes
     fp.write(struct.pack('I', 0))           # external file attributes
     fp.write(struct.pack('I', offset))      # relative offset of file header
-    fp.write(name)
+    fp.write(name_bytes)
 
 
 def write_end_of_directory(fp, dir_size, dir_offset, count):
@@ -166,12 +166,12 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
             numpy_end_pos = fp.tell()
             fp.seek(numpy_start_pos)
             data_c = numpy.require(data, dtype=data.dtype, requirements=["C_CONTIGUOUS"])
-            header_data = fp.read((numpy_end_pos - numpy_start_pos) - len(data_c.data))  # read the header
+            header_data = fp.read((numpy_end_pos - numpy_start_pos) - data_c.nbytes)  # read the header
             data_crc32 = binascii.crc32(data_c.data, binascii.crc32(header_data)) & 0xFFFFFFFF
             fp.seek(numpy_end_pos)
             return data_crc32
-        data_len, crc32 = write_local_file(fp, "data.npy", write_data, dt)
-        dir_data_list.append((offset_data, "data.npy", data_len, crc32))
+        data_len, crc32 = write_local_file(fp, b"data.npy", write_data, dt)
+        dir_data_list.append((offset_data, b"data.npy", data_len, crc32))
     if properties is not None:
         json_str = Unicode.u()
         try:
@@ -191,14 +191,15 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
             traceback.print_exc()
             traceback.print_stack()
         def write_json(fp):
-            fp.write(json_str)
-            return binascii.crc32(json_str) & 0xFFFFFFFF
+            json_bytes = Unicode.str_to_bytes(json_str)
+            fp.write(json_bytes)
+            return binascii.crc32(json_bytes) & 0xFFFFFFFF
         offset_json = fp.tell()
-        json_len, json_crc32 = write_local_file(fp, "metadata.json", write_json, dt)
-        dir_data_list.append((offset_json, "metadata.json", json_len, json_crc32))
+        json_len, json_crc32 = write_local_file(fp, b"metadata.json", write_json, dt)
+        dir_data_list.append((offset_json, b"metadata.json", json_len, json_crc32))
     dir_offset = fp.tell()
-    for offset, name, data_len, crc32 in dir_data_list:
-        write_directory_data(fp, offset, name, data_len, crc32, dt)
+    for offset, name_bytes, data_len, crc32 in dir_data_list:
+        write_directory_data(fp, offset, name_bytes, data_len, crc32, dt)
     dir_size = fp.tell() - dir_offset
     write_end_of_directory(fp, dir_size, dir_offset, len(dir_data_list))
     fp.truncate()
@@ -254,11 +255,11 @@ def parse_zip(fp):
             fp.seek(pos + 26)
             name_len = struct.unpack('H', fp.read(2))[0]
             extra_len = struct.unpack('H', fp.read(2))[0]
-            name = fp.read(name_len)
+            name_bytes = fp.read(name_len)
             fp.seek(extra_len, os.SEEK_CUR)
             data_pos = fp.tell()
             fp.seek(data_len, os.SEEK_CUR)
-            local_files[pos] = (name, data_pos, data_len, crc32)
+            local_files[pos] = (name_bytes, data_pos, data_len, crc32)
         elif signature == 0x02014b50:
             fp.seek(pos + 28)
             name_len = struct.unpack('H', fp.read(2))[0]
@@ -266,9 +267,9 @@ def parse_zip(fp):
             comment_len = struct.unpack('H', fp.read(2))[0]
             fp.seek(pos + 42)
             pos2 = struct.unpack('I', fp.read(4))[0]
-            name = fp.read(name_len)
+            name_bytes = fp.read(name_len)
             fp.seek(pos + 46 + name_len + extra_len + comment_len)
-            dir_files[name] = (pos, pos2)
+            dir_files[name_bytes] = (pos, pos2)
         elif signature == 0x06054b50:
             fp.seek(pos + 16)
             pos2 = struct.unpack('I', fp.read(4))[0]
@@ -277,7 +278,7 @@ def parse_zip(fp):
     return local_files, dir_files, eocd
 
 
-def read_data(fp, local_files, dir_files, name):
+def read_data(fp, local_files, dir_files, name_bytes):
     """
         Read a numpy data array from the zip file
 
@@ -293,13 +294,13 @@ def read_data(fp, local_files, dir_files, name):
         The local_files and dir_files should be passed from
         the results of parse_zip.
     """
-    if name in dir_files:
-        fp.seek(local_files[dir_files[name][1]][1])
+    if name_bytes in dir_files:
+        fp.seek(local_files[dir_files[name_bytes][1]][1])
         return numpy.load(fp)
     return None
 
 
-def read_json(fp, local_files, dir_files, name):
+def read_json(fp, local_files, dir_files, name_bytes):
     """
         Read json properties from the zip file
 
@@ -315,12 +316,12 @@ def read_json(fp, local_files, dir_files, name):
         The local_files and dir_files should be passed from
         the results of parse_zip.
     """
-    if name in dir_files:
-        json_pos = local_files[dir_files[name][1]][1]
-        json_len = local_files[dir_files[name][1]][2]
+    if name_bytes in dir_files:
+        json_pos = local_files[dir_files[name_bytes][1]][1]
+        json_len = local_files[dir_files[name_bytes][1]][2]
         fp.seek(json_pos)
         json_properties = fp.read(json_len)
-        return json.loads(json_properties)
+        return json.loads(json_properties.decode("utf-8"))
     return None
 
 
@@ -342,17 +343,17 @@ def rewrite_zip(file_path, properties):
         local_files, dir_files, eocd = parse_zip(fp)
         # check to make sure directory has two files, named data.npy and metadata.json, and that data.npy is first
         # TODO: check compression, etc.
-        if len(dir_files) == 2 and "data.npy" in dir_files and "metadata.json" in dir_files and dir_files["data.npy"][1] == 0:
-            fp.seek(dir_files["metadata.json"][1])
+        if len(dir_files) == 2 and b"data.npy" in dir_files and b"metadata.json" in dir_files and dir_files[b"data.npy"][1] == 0:
+            fp.seek(dir_files[b"metadata.json"][1])
             dir_data_list = list()
-            local_file_pos = dir_files["data.npy"][1]
+            local_file_pos = dir_files[b"data.npy"][1]
             local_file = local_files[local_file_pos]
-            dir_data_list.append((local_file_pos, "data.npy", local_file[2], local_file[3]))
+            dir_data_list.append((local_file_pos, b"data.npy", local_file[2], local_file[3]))
             write_zip_fp(fp, None, properties, dir_data_list)
         else:
             data = None
-            if "data.npy" in dir_files:
-                fp.seek(local_files[dir_files["data.npy"][1]][1])
+            if b"data.npy" in dir_files:
+                fp.seek(local_files[dir_files[b"data.npy"][1]][1])
                 data = numpy.load(fp)
             fp.seek(0)
             write_zip_fp(fp, data, properties)
@@ -400,8 +401,8 @@ class NDataHandler(object):
             try:
                 with open(file_path, "r+b") as fp:
                     local_files, dir_files, eocd = parse_zip(fp)
-                    contains_data = "data.npy" in dir_files
-                    contains_metadata = "metadata.json" in dir_files
+                    contains_data = b"data.npy" in dir_files
+                    contains_metadata = b"metadata.json" in dir_files
                     file_count = contains_data + contains_metadata  # use fact that True is 1, False is 0
                     # TODO: make sure ndata isn't compressed, or handle it
                     if len(dir_files) != file_count or file_count == 0:
@@ -466,7 +467,7 @@ class NDataHandler(object):
         absolute_file_path = os.path.join(self.__data_dir, data_file_path)
         with open(absolute_file_path, "rb") as fp:
             local_files, dir_files, eocd = parse_zip(fp)
-            properties = read_json(fp, local_files, dir_files, "metadata.json")
+            properties = read_json(fp, local_files, dir_files, b"metadata.json")
         item_uuid = uuid.UUID(properties["uuid"])
         return item_uuid, properties
 
@@ -482,7 +483,7 @@ class NDataHandler(object):
         #logging.debug("READ data file %s", absolute_file_path)
         with open(absolute_file_path, "rb") as fp:
             local_files, dir_files, eocd = parse_zip(fp)
-            return read_data(fp, local_files, dir_files, "data.npy")
+            return read_data(fp, local_files, dir_files, b"data.npy")
         return None
 
     def remove(self, reference):

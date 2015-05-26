@@ -162,7 +162,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNot(data_item.created, data_item_copy.created)
         self.assertIsNot(display_specifier.buffered_data_source.created, display_specifier2.buffered_data_source.created)
         # make sure calibrations, operations, nor graphics are not shared
-        self.assertNotEqual(display_specifier.buffered_data_source.dimensional_calibrations[0], display_specifier2.buffered_data_source.dimensional_calibrations[0])
+        self.assertNotEqual(id(display_specifier.buffered_data_source.dimensional_calibrations[0]), id(display_specifier2.buffered_data_source.dimensional_calibrations[0]))
         self.assertNotEqual(data_item.operation, data_item_copy.operation)
         self.assertNotEqual(display_specifier.display.graphics[0], display_specifier2.display.graphics[0])
 
