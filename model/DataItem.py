@@ -21,6 +21,7 @@ from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.ui import Observable
+from nion.ui import Unicode
 
 _ = gettext.gettext
 
@@ -1198,10 +1199,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.notify_listeners("data_item_content_changed", self, changes)
 
     def __validate_source_file_path(self, value):
-        value = unicode(value)
+        value = Unicode.u(value)
         if value:
             value = os.path.normpath(value)
-        return unicode(value)
+        return Unicode.u(value)
 
     def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
@@ -1450,18 +1451,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     @title.setter
     def title(self, value):
         metadata = self.metadata
-        metadata.setdefault("description", dict())["title"] = unicode(value)
+        metadata.setdefault("description", dict())["title"] = Unicode.u(value)
         self.set_metadata(metadata)
         self.__metadata_property_changed("title", value)
 
     @property
     def caption(self):
-        return self.metadata.get("description", dict()).get("caption", unicode())
+        return self.metadata.get("description", dict()).get("caption", Unicode.u())
 
     @caption.setter
     def caption(self, value):
         metadata = self.metadata
-        metadata.setdefault("description", dict())["caption"] = unicode(value)
+        metadata.setdefault("description", dict())["caption"] = Unicode.u(value)
         self.set_metadata(metadata)
         self.__metadata_property_changed("caption", value)
 

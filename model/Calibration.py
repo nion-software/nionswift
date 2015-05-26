@@ -6,7 +6,7 @@ import types
 import numpy
 
 # local libraries
-from nion.swift.model import Storage
+from nion.ui import Unicode
 
 
 class Calibration(object):
@@ -21,7 +21,7 @@ class Calibration(object):
         super(Calibration, self).__init__()
         self.__offset = float(offset) if offset else None
         self.__scale = float(scale) if scale else None
-        self.__units = unicode(units) if units else None
+        self.__units = Unicode.u(units) if units else None
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -88,11 +88,11 @@ class Calibration(object):
 
     @property
     def units(self):
-        return self.__units if self.__units else unicode()
+        return self.__units if self.__units else Unicode.u()
 
     @units.setter
     def units(self, value):
-        self.__units = unicode(value) if value else None
+        self.__units = Unicode.u(value) if value else None
 
     def convert_to_calibrated_value(self, value):
         return self.offset + value * self.scale

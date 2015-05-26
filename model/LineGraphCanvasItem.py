@@ -386,7 +386,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
                     binned_data = Image.rebin_1d(data_info.data, binned_length, self.__retained_rebin_1d)
                     binned_left = int(data_left * plot_width / data_width)
                     # draw the plot
-                    for i in xrange(0, plot_width):
+                    for i in range(0, plot_width):
                         px = plot_origin_x + i
                         binned_index = binned_left + i
                         data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0

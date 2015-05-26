@@ -8,8 +8,8 @@ import uuid
 # None
 
 # local libraries
-from nion.swift.model import DataItem
 from nion.ui import Observable
+from nion.ui import Unicode
 
 
 _ = gettext.gettext
@@ -94,7 +94,7 @@ class DataGroup(Observable.Observable, Observable.Broadcaster, Observable.Manage
         return self.title
 
     def __validate_title(self, value):
-        return unicode(value)
+        return Unicode.u(value)
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)

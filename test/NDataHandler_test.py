@@ -16,6 +16,7 @@ import scipy.signal
 # local libraries
 from nion.swift import NDataHandler
 from nion.swift.model import Storage
+from nion.ui import Unicode
 
 
 class TestNDataHandlerClass(unittest.TestCase):
@@ -33,7 +34,7 @@ class TestNDataHandlerClass(unittest.TestCase):
         Storage.db_make_directory_if_needed(data_dir)
         try:
             h = NDataHandler.NDataHandler(data_dir)
-            p = {u"abc": 1, u"def": u"bcd", u"uuid": unicode(uuid.uuid4())}
+            p = {u"abc": 1, u"def": u"bcd", u"uuid": Unicode.u(uuid.uuid4())}
             # write properties
             h.write_properties("abc", p, now)
             self.assertEqual(h.read_properties("abc")[1], p)
@@ -66,7 +67,7 @@ class TestNDataHandlerClass(unittest.TestCase):
         data_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(data_dir)
         try:
-            p = {u"abc": 1, u"def": u"bcd", u"uuid": unicode(uuid.uuid4())}
+            p = {u"abc": 1, u"def": u"bcd", u"uuid": Unicode.u(uuid.uuid4())}
             d = numpy.zeros((12,12), dtype=numpy.float32)
             # write zip file where metadata is first
             with open(os.path.join(data_dir, "file.ndata"), "w+b") as fp:
@@ -128,7 +129,7 @@ class TestNDataHandlerClass(unittest.TestCase):
             data1 = numpy.ones((16, 16), dtype=numpy.float64)
             data = scipy.signal.fftconvolve(data1, data1, mode='same')
             self.assertRaises(AttributeError, lambda: data.data)  # make sure we're getting discontiguous data
-            p = {u"uuid": unicode(uuid.uuid4())}
+            p = {u"uuid": Unicode.u(uuid.uuid4())}
             # write properties
             h.write_properties("abc", p, now)
             # write data

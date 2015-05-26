@@ -17,8 +17,9 @@ import struct
 import time
 import uuid
 
-from nion.ui import Geometry
 from nion.swift.model import Utility
+from nion.ui import Geometry
+from nion.ui import Unicode
 
 # http://en.wikipedia.org/wiki/Zip_(file_format)
 # http://www.pkware.com/documents/casestudies/APPNOTE.TXT
@@ -167,7 +168,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         data_len, crc32 = write_local_file(fp, "data.npy", write_data, dt)
         dir_data_list.append((offset_data, "data.npy", data_len, crc32))
     if properties is not None:
-        json_str = u""  # was unicode() in Python 2
+        json_str = Unicode.u()
         try:
             class JSONEncoder(json.JSONEncoder):
                 def default(self, obj):

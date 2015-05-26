@@ -437,7 +437,7 @@ class TestDataPanelClass(unittest.TestCase):
     def test_data_items_are_inserted_correctly_when_switching_from_none_to_all_selected(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        for i in xrange(3):
+        for i in range(3):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             document_model.append_data_item(data_item)
         data_panel = document_controller.find_dock_widget("data-panel").panel
@@ -447,7 +447,7 @@ class TestDataPanelClass(unittest.TestCase):
     def test_display_filter_filters_data(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        for i in xrange(3):
+        for i in range(3):
             data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
             data_item.title = "X" if i != 1 else "Y"
             document_model.append_data_item(data_item)
