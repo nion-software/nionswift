@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import copy
 
@@ -159,7 +163,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         if voltage:
             units = "V"
             if voltage % 1000 == 0:
-                voltage = int(voltage / 1000)
+                voltage = voltage // 1000
                 units = "kV"
             info_items.append("{0} {1}".format(voltage, units))
         hardware_source_name = hardware_source_metadata.get("hardware_source_name")

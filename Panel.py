@@ -1,12 +1,12 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import code
-import copy
 from contextlib import contextmanager
 import gettext
 import logging
-import os
 import sys
-import uuid
 import weakref
 import StringIO
 
@@ -285,36 +285,36 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
         if self.__display_drag_control:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.move_to(6, canvas_size.height/2 - 4)
-                drawing_context.line_to(16, canvas_size.height/2 - 4)
-                drawing_context.move_to(6, canvas_size.height/2 - 1)
-                drawing_context.line_to(16, canvas_size.height/2 - 1)
-                drawing_context.move_to(6, canvas_size.height/2 + 2)
-                drawing_context.line_to(16, canvas_size.height/2 + 2)
-                drawing_context.move_to(6, canvas_size.height/2 + 5)
-                drawing_context.line_to(16, canvas_size.height/2 + 5)
+                drawing_context.move_to(6, canvas_size.height//2 - 4)
+                drawing_context.line_to(16, canvas_size.height//2 - 4)
+                drawing_context.move_to(6, canvas_size.height//2 - 1)
+                drawing_context.line_to(16, canvas_size.height//2 - 1)
+                drawing_context.move_to(6, canvas_size.height//2 + 2)
+                drawing_context.line_to(16, canvas_size.height//2 + 2)
+                drawing_context.move_to(6, canvas_size.height//2 + 5)
+                drawing_context.line_to(16, canvas_size.height//2 + 5)
                 drawing_context.stroke_style = '#444'
                 drawing_context.stroke()
 
         if self.__display_sync_control:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.move_to(24, canvas_size.height/2 - 2)
-                drawing_context.line_to(34, canvas_size.height/2 - 2)
-                drawing_context.line_to(31, canvas_size.height/2 - 4)
-                drawing_context.move_to(34, canvas_size.height/2 + 1)
-                drawing_context.line_to(24, canvas_size.height/2 + 1)
-                drawing_context.line_to(27, canvas_size.height/2 + 3)
+                drawing_context.move_to(24, canvas_size.height//2 - 2)
+                drawing_context.line_to(34, canvas_size.height//2 - 2)
+                drawing_context.line_to(31, canvas_size.height//2 - 4)
+                drawing_context.move_to(34, canvas_size.height//2 + 1)
+                drawing_context.line_to(24, canvas_size.height//2 + 1)
+                drawing_context.line_to(27, canvas_size.height//2 + 3)
                 drawing_context.stroke_style = '#444'
                 drawing_context.stroke()
 
         if self.__display_close_control:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 - 3)
-                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 + 3)
-                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height/2 + 3)
-                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height/2 - 3)
+                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height//2 - 3)
+                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height//2 + 3)
+                drawing_context.move_to(canvas_size.width - 20 + 7, canvas_size.height//2 + 3)
+                drawing_context.line_to(canvas_size.width - 20 + 13, canvas_size.height//2 - 3)
                 drawing_context.line_width = 2.0
                 drawing_context.line_cap = "round"
                 drawing_context.stroke_style = '#888'
@@ -325,11 +325,11 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'middle'
             drawing_context.fill_style = '#888'
-            drawing_context.fill_text(self.label, 42, canvas_size.height/2+1)
+            drawing_context.fill_text(self.label, 42, canvas_size.height//2+1)
 
         with drawing_context.saver():
             drawing_context.font = 'normal 11px serif'
             drawing_context.text_align = 'center'
             drawing_context.text_baseline = 'middle'
             drawing_context.fill_style = '#000'
-            drawing_context.fill_text(self.title, canvas_size.width/2, canvas_size.height/2+1)
+            drawing_context.fill_text(self.title, canvas_size.width//2, canvas_size.height//2+1)

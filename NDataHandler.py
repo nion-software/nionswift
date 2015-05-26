@@ -2,9 +2,11 @@
     A module for handle .ndata files for Swift.
 """
 
+# futures
+from __future__ import absolute_import
+
 import binascii
 import calendar
-import copy
 import datetime
 import logging
 import json
@@ -165,7 +167,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         data_len, crc32 = write_local_file(fp, "data.npy", write_data, dt)
         dir_data_list.append((offset_data, "data.npy", data_len, crc32))
     if properties is not None:
-        json_str = unicode()
+        json_str = u""  # was unicode() in Python 2
         try:
             class JSONEncoder(json.JSONEncoder):
                 def default(self, obj):

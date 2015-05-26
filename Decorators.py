@@ -1,8 +1,7 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
-import copy
-import functools
-import logging
-import Queue
 import threading
 import time
 import os
@@ -32,8 +31,8 @@ def timeit(method):
         result = method(*args, **kw)
         te = time.time()
 
-        print '%r %2.2f sec' % (method.__name__, te - ts)
-        #print '%r (%r, %r) %2.2f sec' % (method.__name__, args, kw, te - ts)
+        print('%r %2.2f sec' % (method.__name__, te - ts))
+        #print('%r (%r, %r) %2.2f sec' % (method.__name__, args, kw, te - ts))
         return result
 
     return timed
@@ -41,9 +40,9 @@ def timeit(method):
 
 def traceit(method):
     def traced(*args, **kw):
-        print 'ENTER %r (%r, %r) %s' % (method.__name__, args, kw, threading.current_thread().getName())
+        print('ENTER %r (%r, %r) %s' % (method.__name__, args, kw, threading.current_thread().getName()))
         result = method(*args, **kw)
-        print 'EXIT %r (%r, %r) %s' % (method.__name__, args, kw, threading.current_thread().getName())
+        print('EXIT %r (%r, %r) %s' % (method.__name__, args, kw, threading.current_thread().getName()))
         return result
     return traced
 

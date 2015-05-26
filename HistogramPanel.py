@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import gettext
 import logging
@@ -143,7 +147,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.save()
             drawing_context.begin_path()
             binned_data = Image.rebin_1d(self.data, int(canvas_width), self.__retained_rebin_1d) if int(canvas_width) != self.data.shape[0] else self.data
-            for i in xrange(canvas_width):
+            for i in range(canvas_width):
                 drawing_context.move_to(i, canvas_height)
                 drawing_context.line_to(i, canvas_height * (1 - binned_data[i]))
             drawing_context.line_width = 1
@@ -349,8 +353,8 @@ class HistogramPanel(Panel.Panel):
             else:
                 statistic_str = "{0} {1}".format(key, _("N/A"))
             statistic_strings.append(statistic_str)
-        self.stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings)+1)/2])
-        self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)/2:])
+        self.stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings)+1)//2])
+        self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)//2:])
 
     # thread safe
     def __set_display(self, data_item, buffered_data_source, display):

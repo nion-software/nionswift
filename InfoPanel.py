@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import gettext
 
@@ -71,7 +74,7 @@ class InfoPanel(Panel.Panel):
     def __cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
         def get_value_text(value, intensity_calibration):
             if value is not None:
-                return unicode(intensity_calibration.convert_to_calibrated_value_str(value))
+                return intensity_calibration.convert_to_calibrated_value_str(value)
             elif value is None:
                 return _("N/A")
             else:
@@ -86,7 +89,7 @@ class InfoPanel(Panel.Panel):
                     dimensional_calibrations = data_and_calibration.dimensional_calibrations
                     intensity_calibration = data_and_calibration.intensity_calibration
                 else:
-                    dimensional_calibrations = [Calibration.Calibration() for i in xrange(0, len(pos))]
+                    dimensional_calibrations = [Calibration.Calibration() for i in range(0, len(pos))]
                     intensity_calibration = Calibration.Calibration()
                 if len(pos) == 3:
                     # 3d image

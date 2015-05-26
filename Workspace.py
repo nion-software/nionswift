@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import copy
 import functools
@@ -218,7 +221,7 @@ class Workspace(object):
             return dock_widget
         except Exception, e:
             import traceback
-            print "Exception creating panel '" + panel_id + "': " + str(e)
+            print("Exception creating panel '" + panel_id + "': " + str(e))
             traceback.print_exc()
             traceback.print_stack()
             return None
@@ -789,8 +792,9 @@ class Workspace(object):
         return data_items
 
 
-class WorkspaceManager(object):
-    __metaclass__ = Utility.Singleton
+class WorkspaceManager(Utility.Singleton("WorkspaceManagerSingleton", (object, ), {})):
+    # __metaclass__ = Decorators.Singleton
+    # TODO: Fix metaclass in Python 3
 
     """
         The WorkspaceManager object keeps a list of workspaces and a list of panel
@@ -816,7 +820,7 @@ class WorkspaceManager(object):
                 return panel
             except Exception, e:
                 import traceback
-                print "Exception creating panel '" + panel_id + "': " + str(e)
+                print("Exception creating panel '" + panel_id + "': " + str(e))
                 traceback.print_exc()
                 traceback.print_stack()
         return None

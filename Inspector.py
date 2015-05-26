@@ -1,5 +1,8 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
-import collections
 import copy
 import functools
 import gettext

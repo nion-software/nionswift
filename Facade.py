@@ -8,6 +8,10 @@
     Versions numbering follows semantic version numbering: http://semver.org/
 """
 
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import datetime
 import gettext

@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import copy
 import gettext
@@ -279,8 +283,9 @@ class TaskContextManager(object):
             logging.debug("%s: %s %s", self.__task.title, progress_text, progress if progress else "")
 
 
-class TaskManager(object):
-    __metaclass__ = Decorators.Singleton
+class TaskManager(Decorators.Singleton("TaskManagerSingleton", (object, ), {})):
+    # __metaclass__ = Decorators.Singleton
+    # TODO: Fix metaclass in Python 3
 
     def __init__(self):
         self.__task_ui_builder_map = dict()
@@ -321,7 +326,7 @@ class TableController(object):
                     properties = {"stylesheet": "font-weight: bold"} if column_widget.count() == 0 else None
                     column_widget.add(self.ui.create_label_widget(properties))
                 column_widget.children[0].text = task.task_data["headers"][column_index]
-                for row_index in xrange(row_count):
+                for row_index in range(row_count):
                     column_widget.children[row_index + 1].text = str(task.task_data["data"][row_index][column_index])
         else:
             self.column_widgets.remove_all()

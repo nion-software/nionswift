@@ -2,6 +2,9 @@
     FilterPanel contains classes the implement the tracking of filters for the data panel.
 """
 
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import bisect
 import datetime
@@ -16,7 +19,6 @@ import weakref
 
 # local libraries
 from nion.swift import Panel
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
 
 _ = gettext.gettext

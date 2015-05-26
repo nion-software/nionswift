@@ -1,10 +1,12 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import copy
 import functools
 import gettext
 import logging
 import threading
-import time
 import uuid
 import weakref
 

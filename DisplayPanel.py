@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import copy
 import functools
@@ -1122,8 +1125,9 @@ class DisplayPanel(object):
 # and receive messages regarding image panels. for instance, when the user
 # presses a key on an image panel that isn't handled directly by the image
 # panel, listeners can be advised of this event.
-class DisplayPanelManager(Observable.Broadcaster):
-    __metaclass__ = Decorators.Singleton
+class DisplayPanelManager(Decorators.Singleton("DisplayPanelManagerSingleton", (Observable.Broadcaster, ), {})):
+    # __metaclass__ = Decorators.Singleton
+    # TODO: Fix metaclass in Python 3
 
     def __init__(self):
         super(DisplayPanelManager, self).__init__()
