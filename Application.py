@@ -96,9 +96,9 @@ class Application(object):
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
         return workspace_dir
 
-    def migrate_library(self, workspace_dir, lib_filename):
+    def migrate_library(self, workspace_dir, library_path):
         """ Migrate library to latest version. """
-        library_storage = DocumentModel.FilePersistentStorage(lib_filename, create=False)
+        library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
         version = library_storage.get_version()
         logging.debug("Library at version %s.", version)
 
@@ -122,34 +122,36 @@ class Application(object):
         documents_dir = self.ui.get_document_location()
         workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
         workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
-        lib_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-        cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
-        if not skip_choose and not os.path.exists(lib_filename):
+        library_filename = "Nion Swift Workspace.nslib"
+        cache_filename = "Nion Swift Cache.nscache"
+        library_path = os.path.join(workspace_dir, library_filename)
+        cache_path = os.path.join(workspace_dir, cache_filename)
+        if not skip_choose and not os.path.exists(library_path):
             workspace_dir = self.choose_workspace()
             if not workspace_dir:
                 return False
-            lib_filename = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-            cache_filename = os.path.join(workspace_dir, "Nion Swift Cache.nscache")
-        if os.path.exists(lib_filename):
-            self.migrate_library(workspace_dir, lib_filename)
+            library_path = os.path.join(workspace_dir, library_filename)
+            cache_path = os.path.join(workspace_dir, cache_filename)
+        if os.path.exists(library_path):
+            self.migrate_library(workspace_dir, library_path)
         self.workspace_dir = workspace_dir
         data_reference_handler = DataReferenceHandler(workspace_dir)
-        create_new_document = not os.path.exists(lib_filename)
+        create_new_document = not os.path.exists(library_path)
         if create_new_document:
-            logging.debug("Creating new document: %s", lib_filename)
-            library_storage = DocumentModel.FilePersistentStorage(lib_filename)
+            logging.debug("Creating new document: %s", library_path)
+            library_storage = DocumentModel.FilePersistentStorage(library_path)
         else:
-            logging.debug("Using existing document %s", lib_filename)
-            library_storage = DocumentModel.FilePersistentStorage(lib_filename, create=False)
+            logging.debug("Using existing document %s", library_path)
+            library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
         managed_object_context = DocumentModel.ManagedDataItemContext(data_reference_handler, False, False)
         counts = managed_object_context.read_data_items_version_stats()
         if counts[2] > 0:
 
             def do_ignore():
-                self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
+                self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
 
             def do_upgrade():
-                self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, False)
+                self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, False)
 
             class UpgradeDialog(Dialog.ActionDialog):
                 def __init__(self, ui):
@@ -204,12 +206,12 @@ class Application(object):
             upgrade_dialog.show()
 
         else:
-            self.continue_start(cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
+            self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
 
         return True
 
-    def continue_start(self, cache_filename, create_new_document, data_reference_handler, library_storage, workspace_dir, ignore_older_files):
-        storage_cache = Storage.DbStorageCache(cache_filename)
+    def continue_start(self, cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, ignore_older_files):
+        storage_cache = Storage.DbStorageCache(cache_path)
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
                                                      data_reference_handler=data_reference_handler,
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files)

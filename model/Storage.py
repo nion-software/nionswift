@@ -1660,13 +1660,16 @@ class DbStorageCache(object):
 
     def __set_cached_value(self, object, key, value, dirty=False):
         with self.conn:
-            self.execute("INSERT OR REPLACE INTO cache (uuid, key, value, dirty) VALUES (?, ?, ?, ?)", (str(object.uuid), key, sqlite3.Binary(pickle.dumps(value, pickle.HIGHEST_PROTOCOL)), 1 if dirty else 0))
+            self.execute("INSERT OR REPLACE INTO cache (uuid, key, value, dirty) VALUES (?, ?, ?, ?)", (str(object.uuid), key, sqlite3.Binary(pickle.dumps(value, 0)), 1 if dirty else 0))
 
     def __get_cached_value(self, object, key, default_value=None):
         last_result = self.execute("SELECT value FROM cache WHERE uuid=? AND key=?", (str(object.uuid), key))
         value_row = last_result.fetchone()
         if value_row is not None:
-            result = pickle.loads(bytes(value_row[0]))
+            if sys.version < '3':
+                result = pickle.loads(bytes(bytearray(value_row[0])))
+            else:
+                result = pickle.loads(value_row[0], encoding='latin1')
             return result
         else:
             return default_value
