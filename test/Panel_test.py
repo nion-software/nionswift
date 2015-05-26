@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import unittest
 
@@ -5,7 +8,7 @@ import unittest
 # None
 
 # local libraries
-from nion.swift import Panel
+# None
 
 
 class TestPanelClass(unittest.TestCase):

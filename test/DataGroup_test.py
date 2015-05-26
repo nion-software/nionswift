@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import copy
 import unittest
@@ -12,7 +15,6 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Operation
-from nion.swift.model import Storage
 from nion.ui import Test
 
 

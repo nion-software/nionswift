@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 import contextlib
 import datetime
 import logging
@@ -582,7 +585,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
         data_element = SimpleHardwareSource().make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        data_item.created = datetime.datetime(2000, 06, 30)
+        data_item.created = datetime.datetime(2000, 6, 30)
         ImportExportManager.update_data_item_from_data_element(data_item, data_element)
         self.assertEqual(data_item.created.year, datetime.datetime.utcnow().year)
 

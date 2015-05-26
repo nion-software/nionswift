@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import logging
 import random
@@ -10,7 +13,6 @@ import numpy
 # local libraries
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
-from nion.ui import Test
 
 
 class TestSymbolicClass(unittest.TestCase):

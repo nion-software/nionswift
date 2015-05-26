@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import locale
 import logging
@@ -9,11 +12,9 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.swift import DisplayPanel
 from nion.swift import Inspector
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Storage

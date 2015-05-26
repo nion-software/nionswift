@@ -1,7 +1,11 @@
+# futures
+from __future__ import absolute_import
+
+# standard libraries
 import os
 import unittest
-import weakref
 
+# local libraries
 from nion.swift import Decorators
 
 

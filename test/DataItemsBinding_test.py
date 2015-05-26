@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import logging
 import operator
@@ -12,7 +15,6 @@ import numpy
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
-from nion.swift.model import Utility
 
 
 class TestDataItemsBindingModule(unittest.TestCase):

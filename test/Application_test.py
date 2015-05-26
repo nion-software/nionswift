@@ -1,17 +1,15 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
-import datetime
 import logging
-import os
-import shutil
 import unittest
-import uuid
 
 # third party libraries
-import numpy
+# None
 
 # local libraries
-from nion.swift import Application
-from nion.swift.model import Storage
+# None
 
 
 class TestApplicationClass(unittest.TestCase):

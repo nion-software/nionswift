@@ -1,3 +1,7 @@
+# futures
+from __future__ import absolute_import
+from __future__ import division
+
 # standard libraries
 import contextlib
 import copy
@@ -10,7 +14,6 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.ui import Test
 
 
@@ -71,7 +74,7 @@ class TestDisplayClass(unittest.TestCase):
         self.assertEqual(display.display_range, (0, 15))
         self.assertEqual(display.data_range, (0, 15))
         with display_specifier.buffered_data_source.data_ref() as dr:
-            dr.data = irow / 2 + 4
+            dr.data = irow // 2 + 4
         self.assertEqual(display.display_range, (4, 11))
         self.assertEqual(display.data_range, (4, 11))
 
@@ -93,7 +96,7 @@ class TestDisplayClass(unittest.TestCase):
         o = Observer()
         display.add_observer(o)
         with display_specifier.buffered_data_source.data_ref() as dr:
-            dr.data = irow / 2 + 4
+            dr.data = irow // 2 + 4
         self.assertEqual(o.data_range, (4, 11))
         self.assertEqual(o.display_range, (4, 11))
 

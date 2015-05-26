@@ -1,3 +1,6 @@
+# futures
+from __future__ import absolute_import
+
 # standard libraries
 import contextlib
 import copy
@@ -378,7 +381,7 @@ class TestDataItemClass(unittest.TestCase):
         listeners = (listener, listener2, listener3)
         # changing the master data of the source should trigger a data changed message
         # subsequently that should trigger a changed message for dependent items
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((256, 256), numpy.uint32)
         document_model.recompute_all()
@@ -387,14 +390,14 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(listener3._data_changed and listener3._display_changed)
         # changing the param of the source should trigger a display changed message
         # but no data changed. nothing should change on the dependent items.
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         data_item.title = "new title"
         self.assertTrue(not listener._data_changed and listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # changing a graphic on source should NOT change dependent data
         # it should change the primary data item display, but not its data
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         data_item_graphic.start = (0.8, 0.2)
         self.assertTrue(not listener._data_changed)
         self.assertTrue(listener._display_changed)
@@ -402,13 +405,13 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # changing the display limit of source should NOT change dependent data
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         display_specifier.display.display_limits = (0.1, 0.9)
         self.assertTrue(not listener._data_changed and listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # modify a calibration should NOT change dependent data, but should change dependent display
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
         spatial_calibration_0.offset = 1.0
         display_specifier.buffered_data_source.set_dimensional_calibration(0, spatial_calibration_0)
@@ -416,7 +419,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
         # add/remove an operation. should change primary and dependent data and display
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         source_data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(source_data_item)
         invert_operation = Operation.OperationItem("invert-operation")
@@ -426,14 +429,14 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         data_item.set_operation(None)
         document_model.recompute_all()
         self.assertTrue(listener._data_changed and listener._display_changed)
         self.assertTrue(listener2._data_changed and listener2._display_changed)
         self.assertTrue(listener3._data_changed and listener3._display_changed)
         # add/remove a data item should NOT change data or dependent data or display
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         data_item4 = DataItem.DataItem()
         invert_operation4 = Operation.OperationItem("invert-operation")
         invert_operation4.add_data_source(data_item._create_test_data_source())
@@ -442,7 +445,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(not listener._data_changed and not listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
         self.assertTrue(not listener3._data_changed and not listener3._display_changed)
-        map(Listener.reset, listeners)
+        list(map(Listener.reset, listeners))
         document_model.remove_data_item(data_item4)
         self.assertTrue(not listener._data_changed and not listener._display_changed)
         self.assertTrue(not listener2._data_changed and not listener2._display_changed)
