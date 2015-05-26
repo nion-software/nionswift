@@ -55,7 +55,7 @@ class DataAndCalibration(object):
     def from_rpc_dict(cls, d):
         if d is None:
             return None
-        data = numpy.loads(base64.b64decode(d["data"]))
+        data = numpy.loads(base64.b64decode(d["data"].encode('utf-8')))
         data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
         intensity_calibration = Calibration.from_rpc_dict(d.get("intensity_calibration"))
         if "dimensional_calibrations" in d:
@@ -71,7 +71,7 @@ class DataAndCalibration(object):
         d = dict()
         data = self.data
         if data is not None:
-            d["data"] = base64.b64encode(numpy.ndarray.dumps(data))
+            d["data"] = base64.b64encode(numpy.ndarray.dumps(data)).decode('utf=8')
         if self.intensity_calibration:
             d["intensity_calibration"] = self.intensity_calibration.rpc_dict
         if self.dimensional_calibrations:

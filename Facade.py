@@ -64,11 +64,11 @@ class ObjectSpecifier(object):
         elif object_type == "library":
             return Library(document_model)
         elif object_type == "document_controller":
-            document_controller = next(itertools.ifilter(lambda x: x.uuid == object_uuid, ApplicationModule.app.document_controllers), None)
+            document_controller = next(iter(filter(lambda x: x.uuid == object_uuid, ApplicationModule.app.document_controllers)), None)
             return DocumentController(document_controller) if document_controller else None
         elif object_type == "display_panel":
             for document_controller in ApplicationModule.app.document_controllers:
-                display_panel = next(itertools.ifilter(lambda x: x.uuid == object_uuid, document_controller.workspace_controller.display_panels), None)
+                display_panel = next(iter(filter(lambda x: x.uuid == object_uuid, document_controller.workspace_controller.display_panels)), None)
                 if display_panel:
                     return DisplayPanel(display_panel)
             return None
