@@ -3,12 +3,18 @@ from __future__ import absolute_import
 from __future__ import division
 
 # standard libraries
-import cStringIO
 import datetime
 import json
 import os
 import string
 import zipfile
+
+# conditional imports
+import sys
+if sys.version < '3':
+    import cStringIO as io
+else:
+    import io
 
 # third party libraries
 import numpy
@@ -392,7 +398,7 @@ class NDataImportExportHandler(ImportExportHandler):
             with zip_file.open("metadata.json") as fp:
                 metadata = json.load(fp)
             with zip_file.open("data.npy") as fp:
-                data_buffer = cStringIO.StringIO(fp.read())
+                data_buffer = io.StringIO(fp.read())
                 data = numpy.load(data_buffer)
         if data is not None:
             data_element = metadata

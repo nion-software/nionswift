@@ -331,7 +331,7 @@ class DataReferenceHandler(object):
                 try:
                     item_uuid, properties = self.__file_handler.read_properties(reference)
                     tuples.append((item_uuid, properties, reference_type, reference))
-                except Exception, e:
+                except Exception as e:
                     logging.error("Exception reading file: %s", data_file)
                     logging.error(str(e))
                 #logging.debug("ONE %s", (uuid.UUID(item_uuid_str), properties, reference_type, reference))

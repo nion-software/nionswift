@@ -1000,7 +1000,7 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
         # increment the version on the data item
-        data_reference_handler.properties.values()[0]["version"] = data_item.writer_version + 1
+        list(data_reference_handler.properties.values())[0]["version"] = data_item.writer_version + 1
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         # check it

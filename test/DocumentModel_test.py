@@ -70,9 +70,9 @@ class TestDocumentModelClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         document_model.close()
         # modify data reference to have duplicate
-        old_data_key = data_reference_handler.data.keys()[0]
+        old_data_key = list(data_reference_handler.data.keys())[0]
         new_data_key = "2000" + old_data_key[4:]
-        old_properties_key = data_reference_handler.properties.keys()[0]
+        old_properties_key = list(data_reference_handler.properties.keys())[0]
         new_properties_key = "2000" + old_properties_key[4:]
         data_reference_handler.data[new_data_key] = copy.deepcopy(data_reference_handler.data[old_data_key])
         data_reference_handler.properties[new_properties_key] = copy.deepcopy(data_reference_handler.properties[old_properties_key])

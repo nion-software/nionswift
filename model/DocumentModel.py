@@ -10,10 +10,16 @@ import json
 import logging
 import numbers
 import os.path
-import Queue as queue
 import threading
 import uuid
 import weakref
+
+# conditional imports
+import sys
+if sys.version < '3':
+    import Queue as queue
+else:
+    import queue
 
 # third party libraries
 import scipy
@@ -541,7 +547,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                 traceback.print_stack()
         def sort_by_date_key(data_item):
             return data_item.created
-        data_items = data_items_by_uuid.values()
+        data_items = list(data_items_by_uuid.values())
         data_items.sort(key=sort_by_date_key)
         return data_items
 

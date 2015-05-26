@@ -12,7 +12,6 @@ from __future__ import absolute_import
 
 # system imports
 import collections
-import ConfigParser as configparser
 from contextlib import contextmanager
 import contextlib
 import copy
@@ -25,6 +24,13 @@ import threading
 import time
 import traceback
 import uuid
+
+# conditional imports
+import sys
+if sys.version < '3':
+    import ConfigParser as configparser
+else:
+    import configparser
 
 # local imports
 from nion.swift.model import Calibration

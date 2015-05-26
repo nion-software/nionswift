@@ -219,7 +219,7 @@ class Workspace(object):
             dock_widget.panel = panel
             self.dock_widgets.append(dock_widget)
             return dock_widget
-        except Exception, e:
+        except Exception as e:
             import traceback
             print("Exception creating panel '" + panel_id + "': " + str(e))
             traceback.print_exc()
@@ -818,7 +818,7 @@ class WorkspaceManager(Utility.Singleton("WorkspaceManagerSingleton", (object, )
                 properties = properties if properties else {}
                 panel = cls(document_controller, panel_id, properties)
                 return panel
-            except Exception, e:
+            except Exception as e:
                 import traceback
                 print("Exception creating panel '" + panel_id + "': " + str(e))
                 traceback.print_exc()
@@ -837,5 +837,5 @@ class WorkspaceManager(Utility.Singleton("WorkspaceManagerSingleton", (object, )
         return tuple[2], tuple[3], tuple[4], tuple[5]
 
     def __get_panel_ids(self):
-        return self.__panel_tuples.keys()
+        return list(self.__panel_tuples.keys())
     panel_ids = property(__get_panel_ids)

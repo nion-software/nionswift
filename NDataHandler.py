@@ -12,10 +12,15 @@ import logging
 import json
 import numpy
 import os
-import StringIO
 import struct
 import time
 import uuid
+
+import sys
+if sys.version < '3':
+    import cStringIO as io
+else:
+    import io
 
 from nion.swift.model import Utility
 from nion.ui import Geometry
@@ -176,10 +181,10 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
                         return tuple(obj)
                     else:
                         return json.JSONEncoder.default(self, obj)
-            json_io = StringIO.StringIO()
+            json_io = io.StringIO()
             json.dump(properties, json_io, cls=JSONEncoder)
             json_str = json_io.getvalue()
-        except Exception, e:
+        except Exception as e:
             # catch exceptions to avoid corrupt zip files
             import traceback
             logging.error("Exception writing zip file %s" + str(e))
@@ -402,7 +407,7 @@ class NDataHandler(object):
                     if len(dir_files) != file_count or file_count == 0:
                         return False
                     return True
-            except Exception, e:
+            except Exception as e:
                 logging.error("Exception parsing ndata file: %s", file_path)
                 logging.error(str(e))
         return False

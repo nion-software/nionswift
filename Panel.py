@@ -8,7 +8,12 @@ import gettext
 import logging
 import sys
 import weakref
-import StringIO
+
+# conditional imports
+if sys.version < '3':
+    import cStringIO as io
+else:
+    import io
 
 # third party libraries
 # None
@@ -109,8 +114,8 @@ class ConsolePanel(Panel):
         properties["min-height"] = 180
         self.widget = self.ui.create_console_widget(properties)
         self.widget.on_interpret_command = lambda command: self.interpret_command(command)
-        self.other_stdout = StringIO.StringIO()
-        self.other_stderr = StringIO.StringIO()
+        self.other_stdout = io.StringIO()
+        self.other_stderr = io.StringIO()
         # sys.ps1/2 is not always defined, we'll use it if it is
         self.ps1 = getattr(sys, "ps1", ">>> ")
         self.ps2 = getattr(sys, "ps2", "... ")

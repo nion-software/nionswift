@@ -4,18 +4,25 @@ from __future__ import absolute_import
 # standard libraries
 import collections
 import copy
-import cPickle as pickle
 import functools
 import logging
-import json
 import os
-import Queue
 import sqlite3
-import StringIO
 import threading
 import time
 import uuid
 import weakref
+
+# conditional imports
+import sys
+if sys.version < '3':
+    import cPickle as pickle
+    import Queue as queue
+    import StringIO as io
+else:
+    import io
+    import pickle
+    import queue
 
 # third party libraries
 import numpy
@@ -109,12 +116,12 @@ class SuspendableCache(object):
             self.__cache_dirty.clear()
             self.__cache_delayed = False
         if self.__storage_cache:
-            for object_id, (object, object_dict) in cache_copy.iteritems():
+            for object_id, (object, object_dict) in iter(cache_copy.items()):
                 _, object_dirty_dict = cache_dirty_copy.get(id(object), (object, dict()))
-                for key, value in object_dict.iteritems():
+                for key, value in iter(object_dict.items()):
                     dirty = object_dirty_dict.get(key, False)
                     self.__storage_cache.set_cached_value(object, key, value, dirty)
-            for object_id, (object, key_list) in cache_remove_copy.iteritems():
+            for object_id, (object, key_list) in iter(cache_remove_copy.items()):
                 for key in key_list:
                     self.__storage_cache.remove_cached_value(object, key)
 
@@ -228,7 +235,7 @@ class Cacheable(object):
             self.__cache_remove = list()
             self.__cache_dirty.clear()
         if self.storage_cache:
-            for key, value in cache_copy.iteritems():
+            for key, value in iter(cache_copy.items()):
                 self.storage_cache.set_cached_value(self, key, value, cache_dirty_copy.get(key, False))
             for key in cache_remove:
                 self.storage_cache.remove_cached_value(self, key)
@@ -924,7 +931,7 @@ class DbDatastore(object):
     # used for testing
     def to_data(self):
         # save out to string
-        string_file = StringIO.StringIO()
+        string_file = io.StringIO()
         for line in self.conn.iterdump():
             string_file.write('%s\n' % line)
         string_file.seek(0)
@@ -1337,7 +1344,7 @@ class DbDatastoreProxy(object):
 
     def __init__(self, data_reference_handler, db_filename, create=True, storage_data=None):
         self.__datastore = None
-        self.__queue = Queue.Queue()
+        self.__queue = queue.Queue()
         self.__started_event = threading.Event()
         self.__thread = threading.Thread(target=self.__run, args=[data_reference_handler, db_filename, create, storage_data])
         self.__thread.daemon = True
@@ -1586,7 +1593,7 @@ class DictStorageCache(object):
 
 class DbStorageCache(object):
     def __init__(self, cache_filename):
-        self.__queue = Queue.Queue()
+        self.__queue = queue.Queue()
         self.__queue_lock = threading.RLock()
         self.__started_event = threading.Event()
         self.__thread = threading.Thread(target=self.__run, args=[cache_filename])

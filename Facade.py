@@ -1547,10 +1547,10 @@ class API_1(object):
                 self.region_types = dict()
                 self.region_bindings = dict()
                 operation_region_bindings = getattr(unary_operation_delegate, "operation_region_bindings", dict())
-                for operation_region_id, binding_description in operation_region_bindings.iteritems():
+                for operation_region_id, binding_description in iter(operation_region_bindings.items()):
                     self.region_types[operation_region_id] = binding_description["type"]
                     for binding in binding_description["bindings"]:
-                        for from_key, to_key in binding.iteritems():
+                        for from_key, to_key in iter(binding.items()):
                             self.region_bindings[operation_region_id] = [Operation.RegionBinding(from_key, to_key)]
 
             def get_processed_data_and_calibration(self, data_and_metadatas, values):

@@ -59,7 +59,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 1)
         self.assertEqual(len(data_group.counted_data_items), 1)
         self.assertEqual(list(document_model.data_items), list(data_group.counted_data_items))
-        self.assertIn(data_item1, data_group.counted_data_items.keys())
+        self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
         # add a child data item and make sure top level and data_group see it
         # also check data item.
         data_item1a = DataItem.DataItem()
@@ -70,8 +70,8 @@ class TestDataGroupClass(unittest.TestCase):
         data_group.append_data_item(data_item1a)
         self.assertEqual(len(document_model.data_items), 2)
         self.assertEqual(len(data_group.counted_data_items), 2)
-        self.assertIn(data_item1, data_group.counted_data_items.keys())
-        self.assertIn(data_item1a, data_group.counted_data_items.keys())
+        self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
+        self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
         # add a child data item to the child and make sure top level and data_group match.
         # also check data items.
         data_item1a1 = DataItem.DataItem()
@@ -84,9 +84,9 @@ class TestDataGroupClass(unittest.TestCase):
         display_specifier1a1.buffered_data_source.dimensional_calibrations
         self.assertEqual(len(document_model.data_items), 3)
         self.assertEqual(len(data_group.counted_data_items), 3)
-        self.assertIn(data_item1, data_group.counted_data_items.keys())
-        self.assertIn(data_item1a, data_group.counted_data_items.keys())
-        self.assertIn(data_item1a1, data_group.counted_data_items.keys())
+        self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
+        self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
+        self.assertIn(data_item1a1, list(data_group.counted_data_items.keys()))
         # now add a data item that already has children
         data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item2)
@@ -100,7 +100,7 @@ class TestDataGroupClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 5)
         self.assertEqual(len(data_group.counted_data_items), 5)
         self.assertIn(data_item2a, document_model.data_items)
-        self.assertIn(data_item2a, data_group.counted_data_items.keys())
+        self.assertIn(data_item2a, list(data_group.counted_data_items.keys()))
         # remove data item without children
         document_model.remove_data_item(data_item1a1)
         self.assertEqual(len(document_model.data_items), 4)

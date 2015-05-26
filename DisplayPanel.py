@@ -719,7 +719,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     self.__display_panel_content.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
                 def update_display_properties(self, display_properties):
-                    for key, value in display_properties.iteritems():
+                    for key, value in iter(display_properties.items()):
                         setattr(self.__display_panel_content.display_specifier.display, key, value)
 
                 def create_rectangle(self, pos):

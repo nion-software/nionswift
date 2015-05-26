@@ -8,9 +8,15 @@ import json
 import logging
 import os
 import shutil
-import StringIO
 import unittest
 import uuid
+
+# conditional imports
+import sys
+if sys.version < '3':
+    import cStringIO as io
+else:
+    import io
 
 # third party libraries
 import numpy
@@ -79,11 +85,9 @@ class TestNDataHandlerClass(unittest.TestCase):
                 properties = p
                 data = d
                 if properties is not None:
-                    json_io = StringIO.StringIO()
+                    json_io = io.StringIO()
                     json.dump(properties, json_io)
                     json_str = json_io.getvalue()
-                    json_len = len(json_str)
-                    json_crc32 = binascii.crc32(json_str) & 0xFFFFFFFF
                     def write_json(fp):
                         fp.write(json_str)
                         return binascii.crc32(json_str) & 0xFFFFFFFF
