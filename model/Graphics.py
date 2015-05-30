@@ -20,90 +20,217 @@ from nion.ui import Observable
 _ = gettext.gettext
 
 
-def adjust_rectangle_like(mapping, original, current, part, modifiers):
+def adjust_rectangle_like(mapping, original, current, part, modifiers, constraints):
     # NOTE: all sizes/points are assumed to be in image coordinates
     o = mapping.map_point_widget_to_image(original)
     p = mapping.map_point_widget_to_image(current)
+    delta = (p[0] - o[0], p[1] - o[1])
     old_origin = mapping.map_point_image_norm_to_image(part[1][0])
     old_size = mapping.map_point_image_norm_to_image(part[1][1])
-    old_center = (old_origin[0] + 0.5*old_size[0], old_origin[1] + 0.5*old_size[1])
-    delta = (p[0] - o[0], p[1] - o[1])
+    old_top = old_origin[0]
+    old_left = old_origin[1]
+    old_height = old_size[0]
+    old_width = old_size[1]
+    old_center = old_top + 0.5 * old_height, old_left + 0.5 * old_width
+    old_bottom = old_top + old_height
+    old_right = old_left + old_width
+    data_height = mapping.data_shape[0]
+    data_width = mapping.data_shape[1]
+    # find the minimum distance of center from origin and bottom corner of data
+    min_from_origin = min(old_center[0], old_center[1])
+    min_from_full = min(data_height - old_center[0], data_width - old_center[1])
+    # now calculate the min/max v/h by adding/subtracting those values from bottom-right
+    min_v = old_center[0] - min(min_from_origin, min_from_full)
+    max_v = old_center[0] + min(min_from_origin, min_from_full)
+    min_h = old_center[1] - min(min_from_origin, min_from_full)
+    max_h = old_center[1] + min(min_from_origin, min_from_full)
+    max_abs_delta_v = min(old_center[0], mapping.data_shape[0] - old_center[0])
+    max_abs_delta_h = min(old_center[1], mapping.data_shape[1] - old_center[1])
     new_bounds = (old_origin, old_size)
-    if part[0] == "top-left":  # top left
-        if modifiers.alt:
-            new_top_left = (old_origin[0] + delta[0], old_origin[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_top_left[0], old_center[1] - new_top_left[1])
+    if part[0] == "top-left" and not "shape" in constraints:  # top left
+        new_top_left = old_top + delta[0], old_left + delta[1]
+        if modifiers.alt or "position" in constraints:
+            if modifiers.shift:
+                # shape constrained to square; hold center constant
+                half_size = old_center[0] - new_top_left[0], old_center[1] - new_top_left[1]
                 if half_size[0] > half_size[1]:  # size will be width
-                    new_top_left = (old_center[0] + half_size[1], new_top_left[1])
+                    new_top_left = old_center[0] - half_size[1], old_center[1] - half_size[1]
                 else:  # size will be height
-                    new_top_left = (new_top_left[0], old_center[1] + half_size[0])
-            new_bottom_right = (2*old_center[0] - new_top_left[0], 2*old_center[1] - new_top_left[1])
-            new_bounds = (new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1]))
+                    new_top_left = old_center[0] - half_size[0], old_center[1] - half_size[0]
+                if "bounds" in constraints:
+                    # now constrain the top-left value
+                    new_top_left = min(max(new_top_left[0], min_v), max_v), min(max(new_top_left[1], min_h), max_h)
+            else:
+                # shape not constrained; hold center constant
+                if "bounds" in constraints:
+                    new_top_left = min(max(new_top_left[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_top_left[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+            # c + (c - t), c + (c - l)
+            new_bottom_right = 2*old_center[0] - new_top_left[0], 2*old_center[1] - new_top_left[1]
+            new_bounds = new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1])
         else:
-            new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), (old_size[0] - delta[0], old_size[1] - delta[1]))
-            if modifiers.shift:  # hold bottom right constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0] + new_bounds[1][0] - new_bounds[1][1], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+            if modifiers.shift:
+                if "bounds" in constraints:
+                    # find the minimum distance of bottom-right from origin and opposite corner of data
+                    min_from_00 = min(old_bottom, old_right)
+                    min_from_11 = min(data_height - old_bottom, data_width - old_right)
+                    # now calculate the min/max v/h by adding/subtracting those values from bottom-right
+                    min_v = old_bottom - min_from_00
+                    max_v = old_bottom + min_from_11
+                    min_h = old_right - min_from_00
+                    max_h = old_right + min_from_11
+                    # now constrain the top-left value
+                    new_top_left = min(max(new_top_left[0], min_v), max_v), min(max(new_top_left[1], min_h), max_h)
+                # shape constrained to square; hold bottom right constant
+                if old_bottom - new_top_left[0] < old_right - new_top_left[1]:  # size will be width
+                    new_top_left = old_bottom - (old_right - new_top_left[1]), new_top_left[1]
                 else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1] + new_bounds[1][1] - new_bounds[1][0]), (new_bounds[1][0], new_bounds[1][0]))
-    elif part[0] == "top-right":  # top right
-        if modifiers.alt:
-            new_top_right = (old_origin[0] + delta[0], old_origin[1] + old_size[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_top_right[0], old_center[1] - new_top_right[1])
+                    new_top_left = new_top_left[0], old_right - (old_bottom - new_top_left[0])
+            else:
+                # shape not constrained; hold bottom right constant
+                if "bounds" in constraints:
+                    new_top_left = min(max(new_top_left[0], 0.0), mapping.data_shape[0]), min(max(new_top_left[1], 0.0), mapping.data_shape[1])
+            new_bounds = new_top_left, (old_bottom - new_top_left[0], old_right - new_top_left[1])
+    elif part[0] == "top-right" and not "shape" in constraints:  # top right
+        new_top_right = old_top + delta[0], old_right + delta[1]
+        if modifiers.alt or "position" in constraints:
+            if modifiers.shift:
+                # shape constrained to square; hold center constant
+                half_size = old_center[0] - new_top_right[0], new_top_right[1] - old_center[1]
                 if half_size[0] > half_size[1]:  # size will be width
-                    new_top_right = (old_center[0] + half_size[1], new_top_right[1])
+                    new_top_right = old_center[0] - half_size[1], old_center[1] + half_size[1]
                 else:  # size will be height
-                    new_top_right = (new_top_right[0], old_center[1] + half_size[0])
-            new_bottom_left = (2*old_center[0] - new_top_right[0], 2*old_center[1] - new_top_right[1])
-            new_bounds = ((new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1]))
+                    new_top_right = old_center[0] - half_size[0], old_center[1] + half_size[0]
+                if "bounds" in constraints:
+                    # now constrain the top-right value
+                    new_top_right = min(max(new_top_right[0], min_v), max_v), min(max(new_top_right[1], min_h), max_h)
+            else:
+                # shape not constrained; hold center constant
+                if "bounds" in constraints:
+                    new_top_right = min(max(new_top_right[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_top_right[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+            # c + (c - t), c - (r - c)
+            new_bottom_left = 2*old_center[0] - new_top_right[0], 2*old_center[1] - new_top_right[1]
+            new_bounds = (new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1])
         else:
-            new_bounds = ((old_origin[0] + delta[0], old_origin[1]), (old_size[0] - delta[0], old_size[1] + delta[1]))
-            if modifiers.shift:  # hold bottom left constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0] + new_bounds[1][0] - new_bounds[1][1], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+            if modifiers.shift:
+                if "bounds" in constraints:
+                    # find the minimum distance of bottom-left from bottom-left and opposite corner of data
+                    min_from_10 = min(data_height - old_bottom, old_left)
+                    min_from_01 = min(old_bottom, data_width - old_left)
+                    # now calculate the min/max v/h by adding/subtracting those values from bottom-left
+                    min_v = old_bottom - min_from_01
+                    max_v = old_bottom + min_from_10
+                    min_h = old_left - min_from_10
+                    max_h = old_left + min_from_01
+                    # now constrain the top-left value
+                    new_top_right = min(max(new_top_right[0], min_v), max_v), min(max(new_top_right[1], min_h), max_h)
+                # shape constrained to square; hold bottom left constant
+                if old_bottom - new_top_right[0] < new_top_right[1] - old_left:  # size will be width
+                    new_top_right = old_bottom - (new_top_right[1] - old_left), new_top_right[1]
                 else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][0], new_bounds[1][0]))
-    elif part[0] == "bottom-right":  # bottom right
-        if modifiers.alt:
-            new_bottom_right = (old_origin[0] + old_size[0] + delta[0], old_origin[1] + old_size[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_bottom_right[0], old_center[1] - new_bottom_right[1])
+                    new_top_right = new_top_right[0], old_left + (old_bottom - new_top_right[0])
+            else:
+                # shape not constrained; hold bottom left constant
+                if "bounds" in constraints:
+                    new_top_right = min(max(new_top_right[0], 0.0), mapping.data_shape[0]), min(max(new_top_right[1], 0.0), mapping.data_shape[1])
+            new_bounds = (new_top_right[0], old_left), (old_bottom - new_top_right[0], new_top_right[1] - old_left)
+    elif part[0] == "bottom-right" and not "shape" in constraints:  # bottom right
+        new_bottom_right = old_bottom + delta[0], old_right + delta[1]
+        if modifiers.alt or "position" in constraints:
+            if modifiers.shift:
+                # shape constrained to square; hold center constant
+                half_size = new_bottom_right[0] - old_center[0], new_bottom_right[1] - old_center[1]
                 if half_size[0] > half_size[1]:  # size will be width
-                    new_bottom_right = (old_center[0] + half_size[1], new_bottom_right[1])
+                    new_bottom_right = old_center[0] + half_size[1], old_center[1] + half_size[1]
                 else:  # size will be height
-                    new_bottom_right = (new_bottom_right[0], old_center[1] + half_size[0])
-            new_top_left = (2*old_center[0] - new_bottom_right[0], 2*old_center[1] - new_bottom_right[1])
-            new_bounds = (new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1]))
+                    new_bottom_right = old_center[0] + half_size[0], old_center[1] + half_size[0]
+                if "bounds" in constraints:
+                    # now constrain the bottom-left value
+                    new_bottom_right = min(max(new_bottom_right[0], min_v), max_v), min(max(new_bottom_right[1], min_h), max_h)
+            else:
+                # shape not constrained; hold center constant
+                if "bounds" in constraints:
+                    new_bottom_right = min(max(new_bottom_right[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_bottom_right[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+            # c - (b - c), c - (r - c)
+            new_top_left = 2*old_center[0] - new_bottom_right[0], 2*old_center[1] - new_bottom_right[1]
+            new_bounds = new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1])
         else:
-            new_bounds = ((old_origin[0], old_origin[1]), (old_size[0] + delta[0], old_size[1] + delta[1]))
-            if modifiers.shift:  # hold bottom left constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+            if modifiers.shift:
+                if "bounds" in constraints:
+                    # find the minimum distance of bottom-right from bottom-right and opposite corner of data
+                    min_from_00 = min(old_top, old_left)
+                    min_from_11 = min(data_height - old_top, data_width - old_left)
+                    # now calculate the min/max v/h by adding/subtracting those values from top-right
+                    min_v = old_top - min_from_00
+                    max_v = old_top + min_from_11
+                    min_h = old_left - min_from_00
+                    max_h = old_left + min_from_11
+                    # now constrain the bottom-left value
+                    new_bottom_right = min(max(new_bottom_right[0], min_v), max_v), min(max(new_bottom_right[1], min_h), max_h)
+                # shape constrained to square; hold top left constant
+                if new_bottom_right[0] - old_top < new_bottom_right[1] - old_left:  # size will be width
+                    new_bottom_right = old_top + (new_bottom_right[1] - old_left), new_bottom_right[1]
                 else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][0], new_bounds[1][0]))
-    elif part[0] == "bottom-left":  # bottom left
-        if modifiers.alt:
-            new_bottom_left = (old_origin[0] + old_size[0] + delta[0], old_origin[1] + delta[1])
-            if modifiers.shift:  # hold bottom left constant
-                half_size = (old_center[0] - new_bottom_left[0], old_center[1] - new_bottom_left[1])
+                    new_bottom_right = new_bottom_right[0], old_left + (new_bottom_right[0] - old_top)
+            else:
+                # shape not constrained; hold top right constant
+                if "bounds" in constraints:
+                    new_bottom_right = min(max(new_bottom_right[0], 0.0), mapping.data_shape[0]), min(max(new_bottom_right[1], 0.0), mapping.data_shape[1])
+            new_bounds = (old_top, old_left), (new_bottom_right[0] - old_top, new_bottom_right[1] - old_left)
+    elif part[0] == "bottom-left" and not "shape" in constraints:  # bottom left
+        new_bottom_left = old_bottom + delta[0], old_left + delta[1]
+        if modifiers.alt or "position" in constraints:
+            if modifiers.shift:
+                # shape constrained to square; hold center constant
+                half_size = new_bottom_left[0] - old_center[0], old_center[1] - new_bottom_left[1]
                 if half_size[0] > half_size[1]:  # size will be width
-                    new_bottom_left = (old_center[0] + half_size[1], new_bottom_left[1])
+                    new_bottom_left = old_center[0] + half_size[1], old_center[1] - half_size[1]
                 else:  # size will be height
-                    new_bottom_left = (new_bottom_left[0], old_center[1] + half_size[0])
-            new_top_right = (2*old_center[0] - new_bottom_left[0], 2*old_center[1] - new_bottom_left[1])
-            new_bounds = ((new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1]))
+                    new_bottom_left = old_center[0] + half_size[0], old_center[1] - half_size[0]
+                if "bounds" in constraints:
+                    # now constrain the bottom-left value
+                    new_bottom_left = min(max(new_bottom_left[0], min_v), max_v), min(max(new_bottom_left[1], min_h), max_h)
+            else:
+                # shape not constrained; hold center constant
+                if "bounds" in constraints:
+                    new_bottom_left = min(max(new_bottom_left[0], old_center[0] - max_abs_delta_v), old_center[0] + max_abs_delta_v), min(max(new_bottom_left[1], old_center[1] - max_abs_delta_h), old_center[1] + max_abs_delta_h)
+            # c - (b - c), c + (c - l)
+            new_top_right = 2*old_center[0] - new_bottom_left[0], 2*old_center[1] - new_bottom_left[1]
+            new_bounds = (new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1])
         else:
-            new_bounds = ((old_origin[0], old_origin[1] + delta[1]), (old_size[0] + delta[0], old_size[1] - delta[1]))
-            if modifiers.shift:  # hold bottom left constant
-                if new_bounds[1][0] > new_bounds[1][1]:  # size will be width
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1]), (new_bounds[1][1], new_bounds[1][1]))
+            if modifiers.shift:
+                if "bounds" in constraints:
+                    # find the minimum distance of top-right from top-right and opposite corner of data
+                    min_from_01 = min(old_top, data_width - old_right)
+                    min_from_10 = min(data_height - old_top, old_right)
+                    # now calculate the min/max v/h by adding/subtracting those values from top-right
+                    min_v = old_top - min_from_01
+                    max_v = old_top + min_from_10
+                    min_h = old_right - min_from_10
+                    max_h = old_right + min_from_01
+                    # now constrain the top-left value
+                    new_bottom_left = min(max(new_bottom_left[0], min_v), max_v), min(max(new_bottom_left[1], min_h), max_h)
+                # shape constrained to square; hold top right constant
+                if new_bottom_left[0] - old_top < old_right - new_bottom_left[1]:  # size will be width
+                    new_bottom_left = old_top + (old_right - new_bottom_left[1]), new_bottom_left[1]
                 else:  # size will be height
-                    new_bounds = ((new_bounds[0][0], new_bounds[0][1] + new_bounds[1][1] - new_bounds[1][0]), (new_bounds[1][0], new_bounds[1][0]))
-    elif part[0] == "all":
-        new_bounds = ((old_origin[0] + delta[0], old_origin[1] + delta[1]), old_size)
-    return (mapping.map_point_image_to_image_norm(new_bounds[0]), mapping.map_size_image_to_image_norm(new_bounds[1]))
+                    new_bottom_left = new_bottom_left[0], old_right - (new_bottom_left[0] - old_top)
+            else:
+                # shape not constrained; hold top right constant
+                if "bounds" in constraints:
+                    new_bottom_left = min(max(new_bottom_left[0], 0.0), mapping.data_shape[0]), min(max(new_bottom_left[1], 0.0), mapping.data_shape[1])
+            new_bounds = (old_top, new_bottom_left[1]), (new_bottom_left[0] - old_top, old_right - new_bottom_left[1])
+    elif (part[0] == "all" or "shape" in constraints) and not "position" in constraints:
+        if modifiers.shift:
+            if delta[0] > delta[1]:
+                origin = old_top + delta[0], old_left
+            else:
+                origin = old_top, old_left + delta[1]
+        else:
+            origin = old_top + delta[0], old_left + delta[1]
+        if "bounds" in constraints:
+            origin = min(max(origin[0], 0.0), data_height - old_height), min(max(origin[1], 0.0), data_width - old_width)
+        new_bounds = origin, old_size
+    return mapping.map_point_image_to_image_norm(new_bounds[0]), mapping.map_size_image_to_image_norm(new_bounds[1])
 
 
 class NullModifiers(object):
@@ -129,6 +256,9 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         self.define_type(type)
         self.define_property("color", "#F00", changed=self._property_changed)
         self.define_property("label", changed=self._property_changed)
+        self.define_property("is_position_locked", False, changed=self._property_changed)
+        self.define_property("is_shape_locked", False, changed=self._property_changed)
+        self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.__region = None
         self.about_to_be_removed_event = Observable.Event()
         self.label_padding = 4
@@ -142,6 +272,16 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         return self.__region
     def set_region(self, region):
         self.__region = region
+    @property
+    def _constraints(self):
+        constraints = set()
+        if self.is_position_locked:
+            constraints.add("position")
+        if self.is_shape_locked:
+            constraints.add("shape")
+        if self.is_bounds_constrained:
+            constraints.add("bounds")
+        return constraints
     # test whether points are close
     def test_point(self, p1, p2, radius):
         return math.sqrt(pow(p1[0]-p2[0], 2)+pow(p1[1]-p2[1], 2)) < radius
@@ -238,7 +378,9 @@ class RectangleTypeGraphic(Graphic):
         super(RectangleTypeGraphic, self).__init__(type)
         self.title = title
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
+
     # accessors
+
     def __validate_bounds(self, value):
         # normalize
         if value[1][0] < 0:  # height is negative
@@ -246,26 +388,34 @@ class RectangleTypeGraphic(Graphic):
         if value[1][1] < 0:  # width is negative
             value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
         return tuple(copy.deepcopy(value))
+
     def __bounds_changed(self, name, value):
         self._property_changed(name, value)
         self._property_changed("center", self.center)
         self._property_changed("size", self.size)
+
     # dependent property center
-    def __get_center(self):
-        return (self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5)
-    def __set_center(self, center):
+    @property
+    def center(self):
+        return self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5
+
+    @center.setter
+    def center(self, center):
         self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
-    center = property(__get_center, __set_center)
+
     # dependent property size
-    def __get_size(self):
+    @property
+    def size(self):
         return self.bounds[1]
-    def __set_size(self, size):
+
+    @size.setter
+    def size(self, size):
         # keep center the same
         old_origin = self.bounds[0]
         old_size = self.bounds[1]
         origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
         self.bounds = (origin, size)
-    size = property(__get_size, __set_size)
+
     # test point hit
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
@@ -289,19 +439,24 @@ class RectangleTypeGraphic(Graphic):
             return "all"
         # didn't find anything
         return None
+
     def begin_drag(self):
         return (self.bounds, )
+
     def end_drag(self, part_data):
         pass
+
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers)
+        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers, self._constraints)
+
     def nudge(self, mapping, delta):
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
         original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
         current = (original[0] + delta[0], original[1] + delta[1])
         self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
+
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         raise NotImplementedError()
 
@@ -453,7 +608,8 @@ class LineTypeGraphic(Graphic):
         p_image = mapping.map_point_widget_to_image(current)
         end_image = mapping.map_point_image_norm_to_image(self.end)
         start_image = mapping.map_point_image_norm_to_image(self.start)
-        if part[0] == "start":
+        constraints = self._constraints
+        if part[0] == "start" and not "shape" in constraints:
             dy = p_image[0] - end_image[0]
             dx = p_image[1] - end_image[1]
             if modifiers.shift:
@@ -473,8 +629,11 @@ class LineTypeGraphic(Graphic):
                             p_image = (end_image[0] - dx, p_image[1])
                 else:
                     p_image = (end_image[0], p_image[1])
-            self.start = mapping.map_point_image_to_image_norm(p_image)
-        elif part[0] == "end":
+            start = mapping.map_point_image_to_image_norm(p_image)
+            if "bounds" in constraints:
+                start = min(max(start[0], 0.0), 1.0), min(max(start[1], 0.0), 1.0)
+            self.start = start
+        elif part[0] == "end" and not "shape" in constraints:
             dy = p_image[0] - start_image[0]
             dx = p_image[1] - start_image[1]
             if modifiers.shift:
@@ -494,13 +653,27 @@ class LineTypeGraphic(Graphic):
                             p_image = (start_image[0] - dx, p_image[1])
                 else:
                     p_image = (start_image[0], p_image[1])
-            self.end = mapping.map_point_image_to_image_norm(p_image)
-        elif part[0] == "all":
+            end = mapping.map_point_image_to_image_norm(p_image)
+            if "bounds" in constraints:
+                end = min(max(end[0], 0.0), 1.0), min(max(end[1], 0.0), 1.0)
+            self.end = end
+        elif part[0] == "all" or "shape" in constraints:
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
-            start = (part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1]))
-            end = (part[2][0] + (p[0] - o[0]), part[2][1] + (p[1] - o[1]))
-            self.vector = (start, end)
+            delta_v = p[0] - o[0]
+            delta_h = p[1] - o[1]
+            y0 = part[1][0]
+            x0 = part[1][1]
+            y1 = part[2][0]
+            x1 = part[2][1]
+            if "bounds" in constraints:
+                delta_v = min(max(delta_v, -y0), 1.0 - y0)
+                delta_v = min(max(delta_v, -y1), 1.0 - y1)
+                delta_h = min(max(delta_h, -x0), 1.0 - x0)
+                delta_h = min(max(delta_h, -x1), 1.0 - x1)
+            start = (y0 + delta_v, x0 + delta_h)
+            end = (y1 + delta_v, x1 + delta_h)
+            self.vector = start, end
     def nudge(self, mapping, delta):
         end_image = mapping.map_point_image_norm_to_image(self.end)
         start_image = mapping.map_point_image_norm_to_image(self.start)
@@ -611,7 +784,17 @@ class PointTypeGraphic(Graphic):
         if part[0] == "all":
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
-            pos = part[1][0] + (p[0] - o[0]), part[1][1] + (p[1] - o[1])
+            delta_v = p[0] - o[0]
+            delta_h = p[1] - o[1]
+            if modifiers.shift:
+                if abs(delta_v) > abs(delta_h):
+                    pos = part[1][0] + delta_v, part[1][1]
+                else:
+                    pos = part[1][0], part[1][1] + delta_h
+            else:
+                pos = part[1][0] + delta_v, part[1][1] + delta_h
+            if "bounds" in self._constraints:
+                pos = min(max(pos[0], 0.0), 1.0), min(max(pos[1], 0.0), 1.0)
             self.position = pos
     def nudge(self, mapping, delta):
         pos_image = mapping.map_point_image_norm_to_image(self.position)

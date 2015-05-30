@@ -14,6 +14,7 @@ from __future__ import absolute_import
 # local libraries
 from nion.swift.model import Graphics
 from nion.ui import Binding
+from nion.ui import Geometry
 from nion.ui import Observable
 
 
@@ -24,6 +25,9 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
         super(Region, self).__init__()
         self.define_type(type)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s))
+        self.define_property("is_position_locked", False, changed=self._property_changed)
+        self.define_property("is_shape_locked", False, changed=self._property_changed)
+        self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     def about_to_be_removed(self):
@@ -52,10 +56,21 @@ class PointRegion(Region):
         self.__graphic.add_listener(self)
         self.__position_binding = RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
+        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
+        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
+        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
 
     @property
     def graphic(self):
         return self.__graphic
+
+    @property
+    def _position(self):
+        return Geometry.FloatPoint.make(self.position)
+
+    @_position.setter
+    def _position(self, value):
+        self.position = value
 
 
 class LineRegion(Region):
@@ -82,23 +97,46 @@ class LineRegion(Region):
         self.__vector_binding = RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector")
         self.__width_binding = RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
+        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
+        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
+        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
 
     def __vector_changed(self, name, value):
         self._property_changed(name, value)
         self.notify_set_property("start", value[0])
         self.notify_set_property("end", value[1])
 
-    def __get_start(self):
+    @property
+    def start(self):
         return self.vector[0]
-    def __set_start(self, start):
-        self.vector = start, self.end
-    start = property(__get_start, __set_start)
 
-    def __get_end(self):
+    @start.setter
+    def start(self, value):
+        self.vector = value, self.end
+
+    @property
+    def end(self):
         return self.vector[1]
-    def __set_end(self, end):
-        self.vector = self.start, end
-    end = property(__get_end, __set_end)
+
+    @end.setter
+    def end(self, value):
+        self.vector = self.start, value
+
+    @property
+    def _start(self):
+        return Geometry.FloatPoint.make(self.start)
+
+    @_start.setter
+    def _start(self, value):
+        self.start = value
+
+    @property
+    def _end(self):
+        return Geometry.FloatPoint.make(self.end)
+
+    @_end.setter
+    def _end(self, value):
+        self.end = value
 
     @property
     def graphic(self):
@@ -119,19 +157,35 @@ class RectRegion(Region):
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
         self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
+        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
+        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
+        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
 
     @property
     def graphic(self):
         return self.__graphic
 
-    def __get_bounds(self):
+    @property
+    def bounds(self):
         center = self.center
         size = self.size
         return (center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), size
-    def __set_bounds(self, bounds):
+
+    @bounds.setter
+    def bounds(self, bounds):
         self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
         self.size = bounds[1]
-    bounds = property(__get_bounds, __set_bounds)
+
+    @property
+    def _bounds(self):  # useful for testing
+        center = self.center
+        size = self.size
+        return Geometry.FloatRect(origin=(center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), size=size)
+
+    @_bounds.setter
+    def _bounds(self, bounds):
+        self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
+        self.size = bounds[1]
 
     def _property_changed(self, name, value):
         # override to implement dependency. argh.
@@ -153,6 +207,9 @@ class EllipseRegion(Region):
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
         self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
+        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
+        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
+        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
 
     @property
     def graphic(self):
@@ -193,6 +250,9 @@ class IntervalRegion(Region):
         self.__graphic.add_listener(self)
         self.__interval_binding = RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
+        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
+        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
+        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
 
     @property
     def graphic(self):

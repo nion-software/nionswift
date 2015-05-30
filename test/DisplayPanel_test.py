@@ -388,8 +388,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.45, 0.5))
         # drag with shift key
         self.display_panel.display_canvas_item.simulate_drag((300,250), (350,250), Test.KeyboardModifiers(shift=True))
-        self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[0], (0.35, 0.35))
-        self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.4, 0.4))
+        self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[0], (0.25, 0.25))
+        self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.5, 0.5))
 
     def test_resize_nonsquare_rectangle(self):
         self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
@@ -412,8 +412,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (700, 500))
         # drag with shift key
         self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (1000, 250))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (500, 500))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (900, 150))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (600, 600))
 
     def test_resize_nonsquare_ellipse(self):
         self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
