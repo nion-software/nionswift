@@ -161,8 +161,13 @@ class TestDataItemClass(unittest.TestCase):
         # make sure dates are independent
         self.assertIsNot(data_item.created, data_item_copy.created)
         self.assertIsNot(display_specifier.buffered_data_source.created, display_specifier2.buffered_data_source.created)
-        # make sure calibrations, operations, nor graphics are not shared
-        self.assertNotEqual(id(display_specifier.buffered_data_source.dimensional_calibrations[0]), id(display_specifier2.buffered_data_source.dimensional_calibrations[0]))
+        # make sure calibrations, operations, nor graphics are not shared.
+        # there is a subtlety here: the dimensional_calibrations property accessor will return a copy of
+        # the list each time it is called. store these in variables do make sure they don't get deallocated
+        # and re-used immediately (causing a test failure).
+        dimensional_calibrations = display_specifier.buffered_data_source.dimensional_calibrations
+        dimensional_calibrations2 = display_specifier2.buffered_data_source.dimensional_calibrations
+        self.assertNotEqual(id(dimensional_calibrations[0]), id(dimensional_calibrations2[0]))
         self.assertNotEqual(data_item.operation, data_item_copy.operation)
         self.assertNotEqual(display_specifier.display.graphics[0], display_specifier2.display.graphics[0])
 
