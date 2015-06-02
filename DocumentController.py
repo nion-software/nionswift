@@ -196,7 +196,15 @@ class DocumentController(Observable.Broadcaster):
         self.new_action = self.file_menu.add_sub_menu(_("Switch Library"), self.library_menu)
         self.file_menu.add_separator()
         self.import_action = self.file_menu.add_menu_item(_("Import..."), lambda: self.import_file())
-        self.export_action = self.file_menu.add_menu_item(_("Export..."), lambda: self.export_files())
+        def export_files():
+            selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
+            if len(selected_data_items) > 1:
+                self.export_files(selected_data_items)
+            elif len(selected_data_items) == 1:
+                self.export_file(selected_data_items[0])
+            elif self.selected_display_specifier.data_item:
+                self.export_file(self.selected_display_specifier.data_item)
+        self.export_action = self.file_menu.add_menu_item(_("Export..."), export_files)
         #self.file_menu.add_separator()
         #self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
         #self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
@@ -570,9 +578,8 @@ class DocumentController(Observable.Broadcaster):
         self.ui.set_persistent_string("import_directory", selected_directory)
         self.receive_files(paths)
 
-    def export_file(self):
+    def export_file(self, data_item):
         # present a loadfile dialog to the user
-        data_item = self.selected_display_specifier.data_item
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
         filter = ";;".join(
             [writer.name + " files (" + " ".join(
@@ -582,13 +589,12 @@ class DocumentController(Observable.Broadcaster):
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, data_item.title)
         path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter)
-        self.ui.set_persistent_string("export_directory", selected_directory)
         if path:
+            self.ui.set_persistent_string("export_directory", selected_directory)
             return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
 
-    def export_files(self):
-        selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
-        if len(selected_data_items) > 1:
+    def export_files(self, data_items):
+        if len(data_items) > 1:
 
             class ExportDialog(Dialog.OkCancelDialog):
                 def __init__(self, ui):
@@ -660,7 +666,7 @@ class DocumentController(Observable.Broadcaster):
                 directory = export_dialog.directory
                 writer = export_dialog.writer
                 if directory:
-                    for index, data_item in enumerate(selected_data_items):
+                    for index, data_item in enumerate(data_items):
                         try:
                             pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.maybe_data_source.dimensional_shape])
                             date_str = data_item.created_local.isoformat().replace(':', '')
@@ -675,8 +681,8 @@ class DocumentController(Observable.Broadcaster):
             export_dialog = ExportDialog(self.ui)
             export_dialog.on_accept = do_export
             export_dialog.show()
-        else:
-            self.export_file()
+        elif len(data_items) == 1:
+            self.export_file(data_items[0])
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title, task_type, logging=True):
@@ -1191,7 +1197,15 @@ class DocumentController(Observable.Broadcaster):
                 # TODO: show_source should handle multiple data sources
                 menu.add_menu_item(_("Go to Source"), show_source)
             menu.add_menu_item(_("Delete"), delete)
-            menu.add_menu_item(_("Export..."), self.export_files)
+            def export_files():
+                selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
+                if data_item in selected_data_items:
+                    self.export_files(selected_data_items)
+                else:
+                    self.export_file(data_item)
+            # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
+            # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
+            menu.add_menu_item(_("Export..."), lambda: self.queue_task(export_files))  # queued to avoid pop-up menu issue
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
