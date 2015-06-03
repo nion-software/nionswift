@@ -581,10 +581,12 @@ class DocumentController(Observable.Broadcaster):
     def export_file(self, data_item):
         # present a loadfile dialog to the user
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
+        name_writer_set = set()
+        for writer in writers:
+            name_writer_set.add((writer.name, " ".join(["*." + extension for extension in writer.extensions])))
+        name_writer_list = sorted(name_writer_set)
         filter = ";;".join(
-            [writer.name + " files (" + " ".join(
-                ["*."+extension for extension in writer.extensions])
-             + ")" for writer in writers])
+            [writer_name + " files (" + writer_extensions + ")" for writer_name, writer_extensions in name_writer_list])
         filter += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, data_item.title)
