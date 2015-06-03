@@ -590,9 +590,11 @@ class DocumentController(Observable.Broadcaster):
         filter += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, data_item.title)
-        path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter)
+        selected_filter = self.ui.get_persistent_string("export_filter")
+        path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
         if path:
             self.ui.set_persistent_string("export_directory", selected_directory)
+            self.ui.set_persistent_string("export_filter", selected_filter)
             return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
 
     def export_files(self, data_items):
