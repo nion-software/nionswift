@@ -15,7 +15,6 @@ from __future__ import division
 # standard libraries
 import datetime
 import gettext
-import itertools
 import threading
 import uuid
 
