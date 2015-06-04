@@ -3,8 +3,8 @@ from __future__ import absolute_import
 from __future__ import division
 
 # standard libraries
+import math
 import sys
-import types
 
 # third party libraries
 import numpy
@@ -121,13 +121,20 @@ class Calibration(object):
     def convert_from_calibrated_size(self, size):
         return size / self.scale
 
-    def convert_to_calibrated_value_str(self, value, include_units=True):
+    def convert_to_calibrated_value_str(self, value, include_units=True, value_range=None, samples=None):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if hasattr(value, 'dtype') and not value.shape:  # convert NumPy types to Python scalar types
             value = numpy.asscalar(value)
-        if isinstance(value, integer_types):
-            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
-        elif isinstance(value, float) or isinstance(value, complex):
+        if isinstance(value, integer_types) or isinstance(value, float):
+            calibrated_value = self.convert_to_calibrated_value(value)
+            if value_range and samples:
+                calibrated_value0 = self.convert_to_calibrated_value(value_range[0])
+                calibrated_value1 = self.convert_to_calibrated_value(value_range[1])
+                precision = int(max(-math.floor(math.log10(abs(calibrated_value0 - calibrated_value1)/samples + numpy.nextafter(0,1))), 0)) + 1
+                result = (u"{0:0." + u"{0:d}".format(precision) + "f}{1:s}").format(calibrated_value, units_str)
+            else:
+                result = u"{0:g}{1:s}".format(calibrated_value, units_str)
+        elif isinstance(value, complex):
             result = u"{0:g}{1:s}".format(self.convert_to_calibrated_value(value), units_str)
         elif isinstance(value, numpy.ndarray) and numpy.ndim(value) == 1 and value.shape[0] in (3, 4) and value.dtype == numpy.uint8:
             result = u", ".join([u"{0:d}".format(v) for v in value])
@@ -135,13 +142,20 @@ class Calibration(object):
             result = None
         return result
 
-    def convert_to_calibrated_size_str(self, size, include_units=True):
+    def convert_to_calibrated_size_str(self, size, include_units=True, value_range=None, samples=None):
         units_str = (" " + self.units) if include_units and self.__units else ""
         if hasattr(size, 'dtype') and not size.shape:  # convert NumPy types to Python scalar types
             size = numpy.asscalar(size)
-        if isinstance(size, integer_types):
-            result = u"{0:g}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
-        elif isinstance(size, float) or isinstance(size, complex):
+        if isinstance(size, integer_types) or isinstance(size, float):
+            calibrated_value = self.convert_to_calibrated_size(size)
+            if value_range and samples:
+                calibrated_value0 = self.convert_to_calibrated_value(value_range[0])
+                calibrated_value1 = self.convert_to_calibrated_value(value_range[1])
+                precision = int(max(-math.floor(math.log10(abs(calibrated_value0 - calibrated_value1)/samples + numpy.nextafter(0,1))), 0)) + 1
+                result = (u"{0:0." + u"{0:d}".format(precision) + "f}{1:s}").format(calibrated_value, units_str)
+            else:
+                result = u"{0:g}{1:s}".format(calibrated_value, units_str)
+        elif isinstance(size, complex):
             result = u"{0:g}{1:s}".format(self.convert_to_calibrated_size(size), units_str)
         elif isinstance(size, numpy.ndarray) and numpy.ndim(size) == 1 and size.shape[0] in (3, 4) and size.dtype == numpy.uint8:
             result = u", ".join([u"{0:d}".format(v) for v in size])
