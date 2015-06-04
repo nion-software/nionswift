@@ -19,6 +19,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.ui import Binding
+from nion.ui import CanvasItem
 from nion.ui import Converter
 from nion.ui import Observable
 
@@ -76,13 +77,16 @@ class InspectorPanel(Panel.Panel):
     # close the old data item inspector, and create a new one
     # not thread safe.
     def __update_display_inspector(self):
+        self.column.remove_all()
         if self.__display_inspector:
-            self.column.remove(self.__display_inspector.widget)
             self.__display_inspector.close()
             self.__display_inspector = None
         if self.__display_specifier.display:
             self.__display_inspector = DataItemInspector(self.ui, self.__display_specifier)
             self.column.add(self.__display_inspector.widget)
+            stretch_column = self.ui.create_column_widget()
+            stretch_column.add_stretch()
+            self.column.add(stretch_column)
 
     # not thread safe
     def __set_display_specifier(self, display_specifier):
@@ -113,11 +117,16 @@ class InspectorSection(object):
         to add item to the content portion of the section.
     """
 
-    def __init__(self, ui, section_title):
+    def __init__(self, ui, section_id, section_title):
         self.ui = ui
+
         section_widget = self.ui.create_column_widget()
         section_title_row = self.ui.create_row_widget()
-        #section_title_row.add(self.ui.create_label_widget(u"\u25B6", properties={"width": "20"}))
+
+        self.twist_down_canvas_item_root = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 20})
+        twist_down_canvas_item = CanvasItem.TwistDownCanvasItem()
+        self.twist_down_canvas_item_root.add_canvas_item(twist_down_canvas_item)
+        section_title_row.add(self.twist_down_canvas_item_root.canvas_widget)
         section_title_row.add(self.ui.create_label_widget(section_title, properties={"stylesheet": "font-weight: bold"}))
         section_title_row.add_stretch()
         section_widget.add(section_title_row)
@@ -129,12 +138,24 @@ class InspectorSection(object):
         section_widget.add_spacing(4)
         self.widget = section_widget
 
+        def toggle():
+            twist_down_canvas_item.checked = not twist_down_canvas_item.checked
+            self.__section_content_column.visible = twist_down_canvas_item.checked
+            self.ui.set_persistent_string("inspector/" + section_id + "/open", "true" if twist_down_canvas_item.checked else "false")
+        section_open = self.ui.get_persistent_string("inspector/" + section_id + "/open", "true") == "true"
+        twist_down_canvas_item.checked = section_open
+        self.__section_content_column.visible = section_open
+        twist_down_canvas_item.on_button_clicked = toggle
+
     def close(self):
         pass
 
     def add_widget_to_content(self, widget):
         self.__section_content_column.add_spacing(4)
         self.__section_content_column.add(widget)
+
+    def finish_widget_content(self):
+        self.__section_content_column.add_stretch()
 
 
 class InfoInspectorSection(InspectorSection):
@@ -144,7 +165,7 @@ class InfoInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, data_item):
-        super(InfoInspectorSection, self).__init__(ui, _("Info"))
+        super(InfoInspectorSection, self).__init__(ui, "info", _("Info"))
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
@@ -258,6 +279,7 @@ class InfoInspectorSection(InspectorSection):
         self.add_widget_to_content(self.info_section_session_row)
         self.add_widget_to_content(self.info_section_datetime_row)
         self.add_widget_to_content(self.info_section_format_row)
+        self.finish_widget_content()
 
 
 class CalibrationPublisherToObservable(Observable.Observable):
@@ -333,7 +355,7 @@ class CalibrationsInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, data_item, buffered_data_source, display):
-        super(CalibrationsInspectorSection, self).__init__(ui, _("Calibrations"))
+        super(CalibrationsInspectorSection, self).__init__(ui, "calibrations", _("Calibrations"))
         # get a data_and_calibration publisher
         data_and_calibration_publisher = buffered_data_source.get_data_and_calibration_publisher()
         # configure the bindings to dimension calibrations
@@ -382,6 +404,7 @@ class CalibrationsInspectorSection(InspectorSection):
         self.display_calibrations_row.add(self.display_calibrations_checkbox)
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
+        self.finish_widget_content()
 
     def close(self):
         # close the bound calibrations
@@ -463,7 +486,7 @@ class DisplayLimitsInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, display):
-        super(DisplayLimitsInspectorSection, self).__init__(ui, _("Display Limits"))
+        super(DisplayLimitsInspectorSection, self).__init__(ui, "display-limits", _("Display Limits"))
         # configure the display limit editor
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
@@ -488,6 +511,7 @@ class DisplayLimitsInspectorSection(InspectorSection):
         self.display_limits_limit_row.add_stretch()
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
+        self.finish_widget_content()
 
 
 class LinePlotInspectorSection(InspectorSection):
@@ -497,7 +521,7 @@ class LinePlotInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, display):
-        super(LinePlotInspectorSection, self).__init__(ui, _("Line Plot"))
+        super(LinePlotInspectorSection, self).__init__(ui, "line-plot", _("Line Plot"))
 
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
@@ -560,6 +584,7 @@ class LinePlotInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)
         self.add_widget_to_content(self.style_row)
+        self.finish_widget_content()
 
 
 class SliceInspectorSection(InspectorSection):
@@ -569,7 +594,7 @@ class SliceInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, data_item, buffered_data_source, display):
-        super(SliceInspectorSection, self).__init__(ui, _("Display"))
+        super(SliceInspectorSection, self).__init__(ui, "slice", _("Slice"))
 
         slice_center_row_widget = self.ui.create_row_widget()
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
@@ -601,6 +626,7 @@ class SliceInspectorSection(InspectorSection):
 
         self.add_widget_to_content(slice_center_row_widget)
         self.add_widget_to_content(slice_width_row_widget)
+        self.finish_widget_content()
 
 
 class CalibratedValueFloatToStringConverter(object):
@@ -803,7 +829,7 @@ class GraphicsInspectorSection(InspectorSection):
         """
 
     def __init__(self, ui, data_item, buffered_data_source, display):
-        super(GraphicsInspectorSection, self).__init__(ui, _("Graphics"))
+        super(GraphicsInspectorSection, self).__init__(ui, "graphics", _("Graphics"))
         self.__image_size = buffered_data_source.dimensional_shape
         self.__calibrations = buffered_data_source.dimensional_calibrations
         self.__graphics = display.drawn_graphics
@@ -814,6 +840,7 @@ class GraphicsInspectorSection(InspectorSection):
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
         list_widget.bind_items(Binding.ListBinding(display, "drawn_graphics"))
         self.add_widget_to_content(list_widget)
+        self.finish_widget_content()
 
     def __create_header_widget(self):
         return self.ui.create_row_widget()
@@ -862,12 +889,13 @@ class OperationsInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, data_item):
-        super(OperationsInspectorSection, self).__init__(ui, _("Operations"))
+        super(OperationsInspectorSection, self).__init__(ui, "operations", _("Operations"))
         # ui. create the spatial operations list.
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), None, header_for_empty_list_widget)
         list_widget.bind_items(Binding.ListBinding(data_item, "ordered_operations"))
         self.add_widget_to_content(list_widget)
+        self.finish_widget_content()
 
     # not thread safe
     def __create_header_for_empty_list_widget(self):
@@ -961,7 +989,6 @@ class OperationsInspectorSection(InspectorSection):
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(operation_widget)
-        column.add_stretch()
         return column
 
 
@@ -972,25 +999,25 @@ class DataItemInspector(object):
 
         data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
 
-        self.__inspectors = list()
         content_widget = self.ui.create_column_widget()
-        content_widget.add_spacing(6)
+        content_widget.add_spacing(4)
 
-        self.__inspectors.append(InfoInspectorSection(self.ui, data_item))
-        self.__inspectors.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
+        self.__inspector_sections = list()
+        self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+        self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
         if buffered_data_source and buffered_data_source.is_data_1d:
-            self.__inspectors.append(LinePlotInspectorSection(self.ui, display))
+            self.__inspector_sections.append(LinePlotInspectorSection(self.ui, display))
         elif buffered_data_source and buffered_data_source.is_data_2d:
-            self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
-            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
+            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
         elif buffered_data_source and buffered_data_source.is_data_3d:
-            self.__inspectors.append(DisplayLimitsInspectorSection(self.ui, display))
-            self.__inspectors.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspectors.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
-        self.__inspectors.append(OperationsInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
+            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+        self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
 
-        for inspector in self.__inspectors:
-            content_widget.add(inspector.widget)
+        for inspector_section in self.__inspector_sections:
+            content_widget.add(inspector_section.widget)
 
         content_widget.add_stretch()
 
@@ -998,10 +1025,10 @@ class DataItemInspector(object):
 
     def close(self):
         # close inspectors
-        for inspector in self.__inspectors:
+        for inspector in self.__inspector_sections:
             inspector.close()
-        self.__inspectors = None
+        self.__inspector_sections = None
 
     def _get_inspectors(self):
         """ Return a copy of the list of inspectors. """
-        return copy.copy(self.__inspectors)
+        return copy.copy(self.__inspector_sections)
