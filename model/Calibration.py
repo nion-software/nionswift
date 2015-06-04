@@ -41,7 +41,7 @@ class Calibration(object):
     def __ne__(self, other):
         if isinstance(other, self.__class__):
             return self.offset != other.offset or self.scale != other.scale or self.units != other.units
-        return False
+        return True
 
     def __str__(self):
         return "{0:s} offset:{1:g} scale:{2:g} units:\'{3:s}\'".format(self.__repr__(), self.offset, self.scale, self.units)

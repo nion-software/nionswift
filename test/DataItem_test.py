@@ -104,6 +104,17 @@ class TestCalibrationClass(unittest.TestCase):
         calibration = Calibration.Calibration(1.0, 2.0, "c")
         self.assertEqual(calibration.convert_to_calibrated_value_str(numpy.uint32(14)), "29 c")
 
+    def test_calibration_equality(self):
+        calibration1 = Calibration.Calibration(1.0, 2.0, "c")
+        calibration2 = Calibration.Calibration(1.0, 2.0, "c")
+        self.assertEqual(calibration1, calibration2)
+        calibration1 = Calibration.Calibration(1.0, 2.1, "c")
+        calibration2 = Calibration.Calibration(1.0, 2.0, "c")
+        self.assertNotEqual(calibration1, calibration2)
+        self.assertNotEqual(calibration1, None)
+        self.assertTrue(calibration1 != None)
+        self.assertFalse(calibration1 == None)
+
 
 class TestDataItemClass(unittest.TestCase):
 

@@ -77,10 +77,23 @@ class TestInspectorClass(unittest.TestCase):
         size_width_binding.update_source("0.6")
         self.assertEqual(center, rect_graphic.center)
 
-    def test_calibration_inspector_section_binds_initially(self):
+    def test_calibration_inspector_section_binds(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
+        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        content_section = inspector_section.widget.children[1].children[0].children[0].content_section
+        calibration_row = content_section.children[0].children[0]
+        offset_field = calibration_row.children[1]
+        scale_field = calibration_row.children[2]
+        units_field = calibration_row.children[3]
+        self.assertEqual(offset_field.text, "5.1000")
+        self.assertEqual(scale_field.text, "1.2000")
+        self.assertEqual(units_field.text, u"mm")
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=1.5, scale=2.1, units="mmm"))
+        self.assertEqual(offset_field.text, "1.5000")
+        self.assertEqual(scale_field.text, "2.1000")
+        self.assertEqual(units_field.text, u"mmm")
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
