@@ -17,6 +17,7 @@ from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.ui import Binding
 from nion.ui import Observable
@@ -70,8 +71,8 @@ class TestInspectorClass(unittest.TestCase):
         bool_model = BoolModel()
         display_calibrated_values_binding = Binding.PropertyBinding(bool_model, "display_calibrated_values")
         display_calibrated_values_binding2 = Binding.PropertyBinding(bool_model, "display_calibrated_values")
-        center_y_binding = Inspector.CalibratedValueBinding(Binding.TuplePropertyBinding(rect_graphic, "center", 0), display_calibrated_values_binding, y_converter)
-        size_width_binding = Inspector.CalibratedValueBinding(Binding.TuplePropertyBinding(rect_graphic, "size", 0), display_calibrated_values_binding2, height_converter)
+        center_y_binding = Inspector.CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(rect_graphic, "center", 0), display_calibrated_values_binding, y_converter)
+        size_width_binding = Inspector.CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(rect_graphic, "size", 0), display_calibrated_values_binding2, height_converter)
         size_width_binding.update_source("0.6")
         self.assertEqual(center, rect_graphic.center)
 
@@ -86,6 +87,18 @@ class TestInspectorClass(unittest.TestCase):
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+
+    def test_graphic_inspector_section_follows_spatial_calibration_change(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.buffered_data_source.add_region(Region.PointRegion())
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
+        self.assertEqual(graphic_widget.children[0].children[1].text, "128 mm")
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
+        self.assertEqual(graphic_widget.children[0].children[1].text, "128 mmm")
 
     def test_float_to_string_converter_strips_units(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

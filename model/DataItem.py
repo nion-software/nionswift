@@ -201,6 +201,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__subscription = None
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
+        self.metadata_changed_event = Observable.Event()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
@@ -356,6 +357,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     def __metadata_changed(self):
         self.__notify_next_data_and_calibration()
+        self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
