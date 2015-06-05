@@ -701,7 +701,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.delegate.enter_key_pressed()
             return True
         if self.__data_and_calibration:
-            if self.__graphic_selection.has_selection():
+            if self.__graphic_selection.has_selection:
                 if key.is_arrow:
                     widget_mapping = self.__get_mouse_mapping()
                     amount = 10.0 if key.modifiers.shift else 1.0

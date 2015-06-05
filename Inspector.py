@@ -79,10 +79,22 @@ class InspectorPanel(Panel.Panel):
     def __update_display_inspector(self):
         self.column.remove_all()
         if self.__display_inspector:
+            self.__display_graphic_selection_changed_event_listener.close()
+            self.__display_graphic_selection_changed_event_listener = None
             self.__display_inspector.close()
             self.__display_inspector = None
         if self.__display_specifier.display:
             self.__display_inspector = DataItemInspector(self.ui, self.__display_specifier)
+            # this ugly item below, which adds a listener for a changing selection and then calls
+            # back to this very method, is here to make sure the inspectors get updated when the
+            # user changes the selection.
+            display = self.__display_specifier.display
+
+            def display_graphic_selection_changed(graphic_selection):
+                self.__update_display_inspector()  # not really a recursive call; only delayed
+
+            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(
+                display_graphic_selection_changed)
             self.column.add(self.__display_inspector.widget)
             stretch_column = self.ui.create_column_widget()
             stretch_column.add_stretch()
@@ -95,8 +107,7 @@ class InspectorPanel(Panel.Panel):
             self.__update_display_inspector()
         if self.request_focus:
             if self.__display_inspector:
-                self.__display_inspector._get_inspectors()[0].info_title_label.focused = True
-                self.__display_inspector._get_inspectors()[0].info_title_label.select_all()
+                self.__display_inspector.focus_default()
             self.request_focus = False
 
     # this message is received from the data item binding.
@@ -831,7 +842,7 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, ui, data_item, buffered_data_source, display):
+    def __init__(self, ui, data_item, buffered_data_source, display, selected_only=False):
         super(GraphicsInspectorSection, self).__init__(ui, "graphics", _("Graphics"))
         self.__image_size = buffered_data_source.dimensional_shape
         self.__calibrations = buffered_data_source.dimensional_calibrations
@@ -840,8 +851,9 @@ class GraphicsInspectorSection(InspectorSection):
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
+        # TODO: do not use dynamic list object in graphics inspector; the dynamic aspect is not utilized.
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(display, "drawn_graphics"))
+        list_widget.bind_items(Binding.ListBinding(display, "selected_graphics" if selected_only else "drawn_graphics"))
         self.add_widget_to_content(list_widget)
         self.finish_widget_content()
 
@@ -1005,19 +1017,43 @@ class DataItemInspector(object):
         content_widget = self.ui.create_column_widget()
         content_widget.add_spacing(4)
 
+        self.__focus_default = None
         self.__inspector_sections = list()
-        self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
-        self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-        if buffered_data_source and buffered_data_source.is_data_1d:
+        if buffered_data_source and display.graphic_selection.has_selection:
+            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display, selected_only=True))
+            def focus_default():
+                pass
+            self.__focus_default = focus_default
+        elif buffered_data_source and buffered_data_source.is_data_1d:
+            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(LinePlotInspectorSection(self.ui, display))
+            self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
+            def focus_default():
+                self.__inspector_sections[0].info_title_label.focused = True
+                self.__inspector_sections[0].info_title_label.select_all()
+            self.__focus_default = focus_default
         elif buffered_data_source and buffered_data_source.is_data_2d:
+            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
+            def focus_default():
+                self.__inspector_sections[0].info_title_label.focused = True
+                self.__inspector_sections[0].info_title_label.select_all()
+            self.__focus_default = focus_default
         elif buffered_data_source and buffered_data_source.is_data_3d:
+            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
-        self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
+            def focus_default():
+                self.__inspector_sections[0].info_title_label.focused = True
+                self.__inspector_sections[0].info_title_label.select_all()
+            self.__focus_default = focus_default
 
         for inspector_section in self.__inspector_sections:
             content_widget.add(inspector_section.widget)
@@ -1035,3 +1071,7 @@ class DataItemInspector(object):
     def _get_inspectors(self):
         """ Return a copy of the list of inspectors. """
         return copy.copy(self.__inspector_sections)
+
+    def focus_default(self):
+        if self.__focus_default:
+            self.__focus_default()

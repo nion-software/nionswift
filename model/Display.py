@@ -30,54 +30,68 @@ from nion.ui import Observable
 _ = gettext.gettext
 
 
-class GraphicSelection(Observable.Broadcaster):
+class GraphicSelection(object):
     def __init__(self, indexes=None):
         super(GraphicSelection, self).__init__()
         self.__indexes = copy.copy(indexes) if indexes else set()
+        self.changed_event = Observable.Event()
+
     def __copy__(self):
         return type(self)(self.__indexes)
+
     def __eq__(self, other):
         return other is not None and self.indexes == other.indexes
+
     def __ne__(self, other):
         return other is None or self.indexes != other.indexes
+
     # manage selection
-    def __get_current_index(self):
+    @property
+    def current_index(self):
         if len(self.__indexes) == 1:
             for index in self.__indexes:
                 return index
         return None
-    current_index = property(__get_current_index)
+
+    @property
     def has_selection(self):
         return len(self.__indexes) > 0
+
     def contains(self, index):
         return index in self.__indexes
+
     @property
     def indexes(self):
         return self.__indexes
+
     def clear(self):
         old_index = self.__indexes.copy()
         self.__indexes = set()
         if old_index != self.__indexes:
-            self.notify_listeners("graphic_selection_changed", self)
+            self.changed_event.fire()
+
     def add(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("graphic_selection_changed", self)
+            self.changed_event.fire()
+
     def remove(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.remove(index)
         if old_index != self.__indexes:
-            self.notify_listeners("graphic_selection_changed", self)
+            self.changed_event.fire()
+
     def set(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes = set()
         self.__indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("graphic_selection_changed", self)
+            self.changed_event.fire()
+
     def toggle(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
@@ -86,28 +100,30 @@ class GraphicSelection(Observable.Broadcaster):
         else:
             self._indexes.add(index)
         if old_index != self.__indexes:
-            self.notify_listeners("graphic_selection_changed", self)
+            self.changed_event.fire()
+
     def insert_index(self, new_index):
         new_indexes = set()
         for index in self.__indexes:
             if index < new_index:
                 new_indexes.add(index)
             else:
-                new_indexes.add(index+1)
+                new_indexes.add(index + 1)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self.notify_listeners("graphic_selection_changed", self)
+            self.changed_event.fire()
+
     def remove_index(self, remove_index):
         new_indexes = set()
         for index in self.__indexes:
             if index != remove_index:
                 if index > remove_index:
-                    new_indexes.add(index-1)
+                    new_indexes.add(index - 1)
                 else:
                     new_indexes.add(index)
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
-            self.notify_listeners("graphic_selection_changed", self)
+            self.changed_event.fire()
 
 
 class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
@@ -137,7 +153,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
         self.graphic_selection = GraphicSelection()
-        self.graphic_selection.add_listener(self)
+        def graphic_selection_changed():
+            # relay the message
+            self.display_graphic_selection_changed_event.fire(self.graphic_selection)
+        self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
         self.about_to_be_removed_event = Observable.Event()
         self.display_changed_event = Observable.Event()
         self.display_graphic_selection_changed_event = Observable.Event()
@@ -149,13 +168,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def about_to_be_removed(self):
         self.about_to_be_removed_event.fire()
-        self.graphic_selection.remove_listener(self)
+        self.__graphic_selection_changed_event_listener.close()
+        self.__graphic_selection_changed_event_listener = None
         self.graphic_selection = None
-
-    # TODO: remove graphic_selection_changed method
-    def graphic_selection_changed(self, graphic_selection):
-        """ This message comes from the graphic selection object. Notify our listeners too. """
-        self.display_graphic_selection_changed_event.fire(graphic_selection)
 
     def get_processor(self, processor_id):
         # check for case where we might already be closed. not pretty.
@@ -235,9 +250,13 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def get_processed_data(self, processor_id):
         return self.get_processor(processor_id).get_cached_data()
 
-    def __get_drawn_graphics(self):
+    @property
+    def drawn_graphics(self):
         return copy.copy(self.__drawn_graphics)
-    drawn_graphics = property(__get_drawn_graphics)
+
+    @property
+    def selected_graphics(self):
+        return [self.__drawn_graphics[i] for i in self.graphic_selection.indexes]
 
     def __validate_display_limits(self, value):
         if value is not None:
@@ -248,7 +267,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__property_changed(name, value)
         self.notify_set_property("display_range", self.display_range)
 
-    def __get_slice_interval(self):
+    @property
+    def slice_interval(self):
         if self.__data_and_calibration:
             depth = self.__data_and_calibration.dimensional_shape[0]
             slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
@@ -256,14 +276,13 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
         return None
 
-    def __set_slice_interval(self, slice_interval):
+    @slice_interval.setter
+    def slice_interval(self, slice_interval):
         depth = self.__data_and_calibration.dimensional_shape[0]
         slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
         slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
         self.slice_center = slice_interval_center
         self.slice_width = slice_interval_width
-
-    slice_interval = property(__get_slice_interval, __set_slice_interval)
 
     def __slice_interval_changed(self, name, value):
         # notify for dependent slice_interval property
@@ -279,18 +298,18 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__preview = None
         self.display_changed_event.fire()
 
-    def __get_lookup_table(self):
+    @property
+    def lookup_table(self):
         return self.__lookup
 
-    def __set_lookup_table(self, lookup):
+    @lookup_table.setter
+    def lookup_table(self, lookup):
         self.__lookup = lookup
         self.__preview_data = None
         if self.__preview is not None:
             self.__preview_last = self.__preview
         self.__preview = None
         self.display_changed_event.fire()
-
-    lookup_table = property(__get_lookup_table, __set_lookup_table)
 
     @property
     def data_range(self):
@@ -300,7 +319,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
     def data_sample(self):
         return self.__data_properties.get("data_sample")
 
-    def __get_display_range(self):
+    @property
+    def display_range(self):
         if self.display_limits:
             return self.display_limits
         data_range = self.data_range
@@ -316,11 +336,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         else:
             return self.display_limits if self.display_limits else data_range
 
-    def __set_display_range(self, display_range):
+    @display_range.setter
+    def display_range(self, display_range):
+        # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
         self.display_limits = display_range
-
-    # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
-    display_range = property(__get_display_range, __set_display_range)
 
     # message sent from buffered_data_source to initialize properties
     def update_properties(self, properties):

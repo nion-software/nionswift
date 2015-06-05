@@ -777,7 +777,7 @@ class DocumentController(Observable.Broadcaster):
         display_specifier = self.selected_display_specifier
         if display_specifier:
             display = display_specifier.display
-            if display.graphic_selection.has_selection():
+            if display.graphic_selection.has_selection:
                 graphics = [display.drawn_graphics[index] for index in display.graphic_selection.indexes]
                 for graphic in graphics:
                     display.remove_drawn_graphic(graphic)
