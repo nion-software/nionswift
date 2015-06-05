@@ -63,14 +63,20 @@ class HardwareSourceManager(Utility.Singleton("HardwareSourceManagerSingleton", 
         self.__aliases = {}
 
     def close(self):
-        for hardware_source in self.hardware_sources:
-            if hasattr(hardware_source, "close"):
-                hardware_source.close()
+        self._close_hardware_sources()
+        self._close_instruments()
+
+    def _close_instruments(self):
         for instrument in self.instruments:
             if hasattr(instrument, "close"):
                 instrument.close()
-        self.hardware_sources = []
         self.instruments = []
+
+    def _close_hardware_sources(self):
+        for hardware_source in self.hardware_sources:
+            if hasattr(hardware_source, "close"):
+                hardware_source.close()
+        self.hardware_sources = []
 
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
@@ -407,6 +413,7 @@ class HardwareSource(object):
         # so nothing can be changed here that will make the acquisition loop fail.
         self.__acquire_thread_break = True
         self.__acquire_thread_trigger.set()
+        # acquire_thread should always be non-null here, otherwise close was called twice.
         self.__acquire_thread.join()
         self.__acquire_thread = None
 

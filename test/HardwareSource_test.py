@@ -136,7 +136,6 @@ def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcas
     frame5 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
     testcase.assertEqual((1, 3, 5), (frame1 - frame0, frame3 - frame0, frame5 - frame0))
     hardware_source.abort_playing()
-    hardware_source.close()
 
 def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -155,7 +154,6 @@ def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_sourc
     testcase.assertFalse(hardware_source.is_playing)
     document_controller.periodic()  # data items queued to be added from background thread get added here
     testcase.assertEqual(len(document_controller.document_model.data_items), 1)
-    hardware_source.close()
 
 def _test_simple_hardware_start_and_stop_actually_stops_acquisition(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -168,7 +166,6 @@ def _test_simple_hardware_start_and_stop_actually_stops_acquisition(testcase, ha
     while hardware_source.is_playing:
         time.sleep(0.01)
         testcase.assertTrue(time.time() - start_time < 3.0)
-    hardware_source.close()
 
 def _test_simple_hardware_start_and_abort_works_as_expected(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -178,7 +175,6 @@ def _test_simple_hardware_start_and_abort_works_as_expected(testcase, hardware_s
     while hardware_source.is_playing:
         time.sleep(0.01)
         testcase.assertTrue(time.time() - start_time < 3.0)
-    hardware_source.close()
 
 def _test_record_only_acquires_one_item(testcase, hardware_source, document_controller):
     hardware_source.start_recording()
@@ -191,7 +187,6 @@ def _test_record_only_acquires_one_item(testcase, hardware_source, document_cont
     testcase.assertFalse(hardware_source.is_playing)
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 1)
-    hardware_source.close()
 
 def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -217,7 +212,6 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
     hardware_source.abort_playing()
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 2)
-    hardware_source.close()
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing
@@ -237,7 +231,6 @@ def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, do
         data_element_generator()
     # clean up
     hardware_source.abort_playing()
-    hardware_source.close()
 
 def _test_view_reuses_single_data_item(testcase, hardware_source, document_controller):
     document_model = document_controller.document_model
@@ -275,7 +268,6 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     copied_frame_index = copied_data_item.data_sources[0].metadata.get("hardware_source")["frame_index"]
     testcase.assertNotEqual(frame_index, new_frame_index)
     testcase.assertEqual(frame_index, copied_frame_index)
-    hardware_source.close()
 
 def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -284,7 +276,6 @@ def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardwar
     document_controller.periodic()
     testcase.assertNotEqual(data_elements[0]["data"][0, 0], 0)
     testcase.assertNotEqual(data_elements[0]["data"][-1, -1], 0)
-    hardware_source.close()
 
 def _test_get_next_data_elements_to_finish_produces_data_item_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -293,7 +284,6 @@ def _test_get_next_data_elements_to_finish_produces_data_item_full_frames(testca
     document_controller.periodic()
     testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[0, 0], 0)
     testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[-1, -1], 0)
-    hardware_source.close()
 
 def _test_exception_during_view_halts_playback(testcase, hardware_source, exposure):
     enabled = [False]
@@ -312,7 +302,6 @@ def _test_exception_during_view_halts_playback(testcase, hardware_source, exposu
     hardware_source.get_next_data_elements_to_finish()
     time.sleep(exposure * 0.5)
     testcase.assertFalse(hardware_source.is_playing)
-    hardware_source.close()
 
 def _test_exception_during_record_halts_playback(testcase, hardware_source, exposure):
     enabled = [False]
@@ -332,7 +321,6 @@ def _test_exception_during_record_halts_playback(testcase, hardware_source, expo
     hardware_source.start_recording()
     time.sleep(exposure * 1.5)
     testcase.assertFalse(hardware_source.is_recording)
-    hardware_source.close()
 
 def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposure):
     enabled = [False]
@@ -352,7 +340,6 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     hardware_source.start_playing()
     hardware_source.get_next_data_elements_to_finish()
     hardware_source.get_next_data_elements_to_finish()
-    hardware_source.close()
 
 
 class TestHardwareSourceClass(unittest.TestCase):
@@ -362,7 +349,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         HardwareSource.HardwareSourceManager()._reset()
 
     def tearDown(self):
-        pass
+        HardwareSource.HardwareSourceManager().close()
 
     def __acquire_one(self, document_controller, hardware_source):
         hardware_source.start_playing()
@@ -528,7 +515,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         while hardware_source.is_playing:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
-        hardware_source.close()
 
     def test_view_reuses_externally_configured_item(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
