@@ -270,10 +270,9 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             dst_value = datetime_item.get("dst", "+00")
             tz_value = datetime_item.get("tz", "+0000")
             time_zone = { "dst": dst_value, "tz": tz_value}
-            dst_adjust = int(dst_value)
             tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
             local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)
-            utc_datetime = local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)
+            utc_datetime = local_datetime - datetime.timedelta(minutes=tz_adjust)  # tz_adjust already contains dst_adjust
             data_item.created = utc_datetime
             buffered_data_source = data_item.maybe_data_source
             if buffered_data_source:

@@ -82,6 +82,17 @@ class TestImportExportManagerClass(unittest.TestCase):
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
         self.assertTrue(len(writers) > 0)
 
+    def test_data_element_date(self):
+        data_element = dict()
+        data_element["version"] = 1
+        data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
+        data_element["datetime_modified"] = {'tz': '-0700', 'dst': '+60', 'local_datetime': '2015-06-10T09:31:52.780511'}
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertIsNotNone(data_item.created)
+        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["tz"]), 5)
+        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["dst"]), 3)
+        self.assertEqual(data_item.created_local_as_string, "Wed Jun 10 09:31:52 2015")
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
