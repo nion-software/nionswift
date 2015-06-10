@@ -4,8 +4,10 @@ from __future__ import absolute_import
 # standard libraries
 import copy
 import datetime
+import functools
 import gettext
 import logging
+import operator
 import os
 import threading
 import time
@@ -34,7 +36,7 @@ UNTITLED_STR = _("Untitled")
 class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def __init__(self, buffered_data_source):
-        super(StatisticsDataItemProcessor, self).__init__(buffered_data_source, "statistics_data")
+        super(StatisticsDataItemProcessor, self).__init__(buffered_data_source, "statistics_data_2")
 
     def get_calculated_data(self, ui, data):
         #logging.debug("Calculating statistics %s", self)
@@ -42,9 +44,10 @@ class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
         mean = numpy.mean(data)
         std = numpy.std(data)
         rms = numpy.sqrt(numpy.mean(numpy.absolute(data)**2))
+        sum = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
         data_range = self.item.data_range
         data_min, data_max = data_range if data_range is not None else (None, None)
-        all_computations = { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms }
+        all_computations = { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum }
         global _computation_fns
         for computation_fn in _computation_fns:
             computations = computation_fn(self.item)
