@@ -1190,8 +1190,10 @@ class DocumentController(Observable.Broadcaster):
         menu = self.ui.create_context_menu(self.document_window)
         if data_item:
             def delete():
-                if container and data_item in container.data_items:
-                    container.remove_data_item(data_item)
+                selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
+                for selected_data_item in selected_data_items:
+                    if container and selected_data_item in container.data_items:
+                        container.remove_data_item(selected_data_item)
             def show_source():
                 self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
             def show_in_new_window():

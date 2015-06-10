@@ -926,6 +926,10 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         self.__selection_changed_event_listener = None
         super(BrowserDisplayPanelContent, self).close()
 
+    @property
+    def _display_items_for_test(self):
+        return self.__display_items
+
     def save_contents(self):
         d = super(BrowserDisplayPanelContent, self).save_contents()
         d["display-panel-type"] = "browser-display-panel"

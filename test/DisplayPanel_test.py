@@ -1132,6 +1132,26 @@ class TestDisplayPanelClass(unittest.TestCase):
         # sep, split h, split v, sep, none, sep, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 8)
 
+    def test_browser_context_menu_deletes_all_selected_items(self):
+        d = {"type": "image", "display-panel-type": "browser-display-panel"}
+        self.display_panel.change_display_panel_content(d)
+        self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+        self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+        self.document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+        self.assertEqual(len(self.document_model.data_items), 4)
+        self.document_controller.periodic()
+        self.document_controller.data_browser_controller.selection.set_multiple([0, 1, 2, 3])
+        self.document_controller.data_browser_controller.selected_display_items_changed(self.display_panel._content_for_test._display_items_for_test)
+        self.document_controller.data_browser_controller.focused = True
+        self.document_controller.periodic()
+        self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
+        self.document_controller.periodic()
+        # show, delete, sep, split h, split v, sep, none, sep, browser, sep
+        self.document_controller.ui.popup.items[1]()
+        self.assertEqual(len(self.document_model.data_items), 0)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
