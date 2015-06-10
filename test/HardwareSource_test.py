@@ -314,12 +314,18 @@ def _test_exception_during_record_halts_playback(testcase, hardware_source, expo
     hardware_source.start_recording()
     time.sleep(exposure * 0.5)
     testcase.assertTrue(hardware_source.is_recording)
-    time.sleep(exposure * 4.0)
+    start = time.time()
+    while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
+        time.sleep(0.05)
+    # print(time.time() - start)
     testcase.assertFalse(hardware_source.is_recording)
     # now raise an exception
     enabled[0] = True
     hardware_source.start_recording()
-    time.sleep(exposure * 1.5)
+    start = time.time()
+    while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
+        time.sleep(0.05)
+    # print(time.time() - start)
     testcase.assertFalse(hardware_source.is_recording)
 
 def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposure):
@@ -340,6 +346,19 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     hardware_source.start_playing()
     hardware_source.get_next_data_elements_to_finish()
     hardware_source.get_next_data_elements_to_finish()
+
+def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_source, exposure):
+    # a reasonable time is 2x of record mode exposure (record mode exposure is 2x regular exposure)
+    hardware_source.start_recording()
+    time.sleep(exposure * 0.5)
+    testcase.assertTrue(hardware_source.is_recording)
+    start = time.time()
+    while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
+        time.sleep(0.05)
+    elapsed = time.time() - start
+    # print(exposure, elapsed)
+    testcase.assertTrue(elapsed < exposure * 8.0)
+    testcase.assertFalse(hardware_source.is_recording)
 
 
 class TestHardwareSourceClass(unittest.TestCase):
@@ -488,6 +507,10 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_able_to_restart_scan_after_exception_scan(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
+
+    def test_record_starts_and_finishes_in_reasonable_time(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        _test_record_starts_and_finishes_in_reasonable_time(self, hardware_source, hardware_source.sleep)
 
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
