@@ -336,16 +336,16 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     hardware_source._test_acquire_hook = raise_exception
     hardware_source._test_handle_view_exception = lambda *args: None
     hardware_source.start_playing()
-    hardware_source.get_next_data_elements_to_finish()
+    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
     testcase.assertTrue(hardware_source.is_playing)
     enabled[0] = True
-    hardware_source.get_next_data_elements_to_finish()
+    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
     time.sleep(exposure * 0.5)
     testcase.assertFalse(hardware_source.is_playing)
     enabled[0] = False
     hardware_source.start_playing()
-    hardware_source.get_next_data_elements_to_finish()
-    hardware_source.get_next_data_elements_to_finish()
+    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
 
 def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_source, exposure):
     # a reasonable time is 2x of record mode exposure (record mode exposure is 2x regular exposure)
