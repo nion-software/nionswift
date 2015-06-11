@@ -91,8 +91,8 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertIsNotNone(data_item.created)
         self.assertEqual(len(data_item.metadata["description"]["time_zone"]["tz"]), 5)
         self.assertEqual(len(data_item.metadata["description"]["time_zone"]["dst"]), 3)
-        self.assertEqual(data_item.created_local_as_string, "Wed Jun 10 09:31:52 2015")
-
+        match = datetime.datetime(year=2015, month=6, day=10, hour=9, minute=31, second=52, microsecond=780511)
+        self.assertEqual(data_item.created_local, match)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
