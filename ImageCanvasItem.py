@@ -192,7 +192,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / dimensional_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marker_width = Geometry.make_pretty(scale_marker_image_width * calibrations[1].scale)
+                    calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * calibrations[1].scale, True)
                     # update the scale marker width
                     scale_marker_image_width = calibrated_scale_marker_width / calibrations[1].scale
                     scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
