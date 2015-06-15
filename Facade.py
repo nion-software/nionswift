@@ -46,9 +46,10 @@ _ = gettext.gettext
 
 class ObjectSpecifier(object):
 
-    def __init__(self, object_type, object_uuid=None):
+    def __init__(self, object_type, object_uuid=None, object_id=None):
         self.object_type = object_type
         self.object_uuid = str(object_uuid) if object_uuid else None
+        self.object_id = str(object_id) if object_id else None
 
     @classmethod
     def resolve(cls, d):
@@ -56,6 +57,7 @@ class ObjectSpecifier(object):
             return get_api("1", "1")
         object_type = d.get("object_type")
         object_uuid_str = d.get("object_uuid")
+        object_id = d.get("object_id")
         object_uuid = uuid.UUID(object_uuid_str) if object_uuid_str else None
         document_model = ApplicationModule.app.document_controllers[0].document_model
         if object_type == "application":
@@ -81,6 +83,8 @@ class ObjectSpecifier(object):
                     for region in data_source.regions:
                         if region.uuid == object_uuid:
                             return region
+        elif object_type == "hardware_source":
+            return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
         return None
 
 
@@ -710,11 +714,9 @@ class RecordTask(object):
 
 class ViewTask(object):
 
-    def __init__(self, hardware_source, mode, frame_parameters, channels_enabled):
+    def __init__(self, hardware_source, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
         self.__was_playing = self.__hardware_source.is_playing
-        if mode:
-            self.__hardware_source.set_current_mode(mode)
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(frame_parameters)
         if channels_enabled:
@@ -781,8 +783,9 @@ class HardwareSource(object):
     def close(self):
         pass
 
-    def create_monitor(self):
-        pass
+    @property
+    def specifier(self):
+        return ObjectSpecifier("hardware_source", object_id=self.__hardware_source.hardware_source_id)
 
     def get_default_frame_parameters(self):
         return self.__hardware_source.get_default_frame_parameters()
@@ -790,9 +793,7 @@ class HardwareSource(object):
     def get_frame_parameters_for_profile_by_index(self, profile_index):
         return self.__hardware_source.get_frame_parameters(profile_index)
 
-    def start_playing(self, frame_parameters=None, channels_enabled=None, mode=None):
-        if mode:
-            self.__hardware_source.set_current_mode(mode)
+    def start_playing(self, frame_parameters=None, channels_enabled=None):
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(frame_parameters)
         if channels_enabled:
@@ -837,7 +838,7 @@ class HardwareSource(object):
         """
         return RecordTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def create_view_task(self, mode=None, frame_parameters=None, channels_enabled=None):
+    def create_view_task(self, frame_parameters=None, channels_enabled=None):
         """Create a view task for this hardware source.
 
         .. versionadded:: 1.0
@@ -853,10 +854,20 @@ class HardwareSource(object):
 
         See :py:class:`ViewTask` for examples of how to use.
         """
-        return ViewTask(self.__hardware_source, mode, frame_parameters, channels_enabled)
+        return ViewTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def get_frame_info(self, data_and_metadata):
-        pass
+    def grab_next_to_finish(self):
+        """Grabs the next frame to finish and returns it as data and metadata.
+
+        .. versionadded:: 1.0
+
+        :return: The array of data and metadata items that were read.
+        :rtype: list of :py:class:`DataAndMetadata`
+
+        Scriptable: Yes
+        """
+        data_elements = self.__hardware_source.get_next_data_elements_to_finish()
+        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
 
 class Instrument(object):
@@ -1593,6 +1604,12 @@ class API_1(object):
         return OperationReference()
 
     def get_hardware_source_by_id(self, hardware_source_id, version):
+        """Return the hardware source API matching the hardware_source_id and version.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
