@@ -81,8 +81,8 @@ class Application(object):
 
     def deinitialize(self):
         self.__close()
-        PlugInManager.unload_plug_ins()
         HardwareSource.HardwareSourceManager().close()
+        PlugInManager.unload_plug_ins()
         self.ui.close()
 
     def __close(self):
