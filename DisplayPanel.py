@@ -471,6 +471,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__display_changed_event_listener = None
         self.__display_graphic_selection_changed_event_listener = None
+        self.__data_item_metadata_changed_event_listener = None
 
         def data_item_deleted(data_item):
             # if our item gets deleted, clear the selection
@@ -578,19 +579,28 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__display_graphic_selection_changed_event_listener:
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
+        if self.__data_item_metadata_changed_event_listener:
+            self.__data_item_metadata_changed_event_listener.close()
+            self.__data_item_metadata_changed_event_listener = None
         self.__display_specifier = copy.copy(display_specifier)
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
-        if self.__display_specifier.display:
+        display = self.__display_specifier.display
+        if display:
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # thread safe.
                 display_specifier = copy.copy(self.__display_specifier)
                 if display_specifier.display:
                     self.__update_display_canvas(display_specifier)
-            display = self.__display_specifier.display
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(functools.partial(self.__display_graphic_selection_changed, display))
+        data_item = self.__display_specifier.data_item
+        if data_item:
+            def metadata_changed():
+                if self.header_canvas_item:  # may be closed
+                    self.header_canvas_item.title = data_item.displayed_title
+            self.__data_item_metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
         self.__update_display_canvas(self.__display_specifier)
 
     # this gets called when the user initiates a drag in the drag control to move the panel around

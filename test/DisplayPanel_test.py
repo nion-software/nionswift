@@ -1151,6 +1151,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.ui.popup.items[1]()
         self.assertEqual(len(self.document_model.data_items), 0)
 
+    def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
+        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.title)
+        self.data_item.title = "New Title"
+        self.document_controller.periodic()
+        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.title)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
