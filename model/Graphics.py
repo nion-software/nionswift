@@ -290,13 +290,16 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         c = (p[0] - start[0], p[1] - start[1])
         v = (end[0] - start[0], end[1] - start[1])
         length = math.sqrt(pow(v[0],2) + pow(v[1],2))
-        v = (v[0] / length, v[1] / length)
-        t = v[0] * c[0] + v[1] * c[1]
-        if t < 0:
+        if length > 0:
+            v = (v[0] / length, v[1] / length)
+            t = v[0] * c[0] + v[1] * c[1]
+            if t < 0:
+                return start
+            if t > length:
+                return end
+            return (start[0] + v[0] * t, start[1] + v[1] * t)
+        else:
             return start
-        if t > length:
-            return end
-        return (start[0] + v[0] * t, start[1] + v[1] * t)
     # test whether point is close to line
     def test_line(self, start, end, p, radius):
         cp = self.get_closest_point_on_line(start, end, p)
