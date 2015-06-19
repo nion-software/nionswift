@@ -159,6 +159,22 @@ class TestInspectorClass(unittest.TestCase):
         except locale.Error as e:
             pass
 
+    def test_inspector_handles_sliced_3d_data(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item = DataItem.DataItem(numpy.zeros((16, 32, 32)))
+        document_model.append_data_item(data_item)
+        display_panel.set_displayed_data_item(data_item)
+        document_controller.selected_display_panel = None
+        document_controller.selected_display_panel = display_panel
+        document_controller.processing_slice()
+        document_model.recompute_all()
+        display_panel.set_displayed_data_item(document_model.data_items[1])
+        inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+        document_controller.periodic()
+        self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

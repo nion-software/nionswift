@@ -74,6 +74,9 @@ class InspectorPanel(Panel.Panel):
         # finish closing
         super(InspectorPanel, self).close()
 
+    def _get_inspector_sections(self):
+        return self.__display_inspector._get_inspectors() if self.__display_inspector else None
+
     # close the old data item inspector, and create a new one
     # not thread safe.
     def __update_display_inspector(self):
@@ -972,7 +975,7 @@ class OperationsInspectorSection(InspectorSection):
                 label_widget = self.ui.create_label_widget(name)
                 line_edit_widget = self.ui.create_line_edit_widget()
                 slider_widget = self.ui.create_slider_widget()
-                slider_widget.maximum = operation.data_sources[0].dimensional_shape[0] - 1
+                slider_widget.maximum = operation.data_sources[0].buffered_data_source.data_and_calibration.dimensional_shape[0] - 1
                 slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
                 line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
                 row_widget.add(label_widget)
@@ -989,7 +992,7 @@ class OperationsInspectorSection(InspectorSection):
                 line_edit_widget = self.ui.create_line_edit_widget()
                 slider_widget = self.ui.create_slider_widget()
                 slider_widget.minimum = 1
-                slider_widget.maximum = operation.data_sources[0].dimensional_shape[0]
+                slider_widget.maximum = operation.data_sources[0].buffered_data_source.data_and_calibration.dimensional_shape[0]
                 slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
                 line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
                 row_widget.add(label_widget)

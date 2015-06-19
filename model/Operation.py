@@ -283,6 +283,10 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
             if dependent_data_item:
                 source_data_item.add_dependent_data_item(dependent_data_item)
 
+    @property
+    def buffered_data_source(self):
+        return self.__buffered_data_source
+
     def set_data_item_manager(self, data_item_manager):
         # When this object is inserted into a container, it will get get a data_item_manager. The data_item_manager is
         # used to watch for the matching buffered_data_source becoming available.
