@@ -924,6 +924,27 @@ class TestOperationClass(unittest.TestCase):
         document_model.remove_data_item(data_item1)
         cc_data_item.recompute_data()
 
+    def test_crop_of_slice_of_3d_handles_dimensions(self):
+        # the bug was that slice operation returned the wrong number of dimensions
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.zeros((16, 32, 32), numpy.float))
+        document_model.append_data_item(data_item)
+        slice_operation = Operation.OperationItem("slice-operation")
+        slice_operation.add_data_source(data_item._create_test_data_source())
+        slice_data_item = DataItem.DataItem()
+        slice_data_item.set_operation(slice_operation)
+        document_model.append_data_item(slice_data_item)
+        document_model.recompute_all()
+        crop_operation = Operation.OperationItem("crop-operation")
+        crop_region = Region.RectRegion()
+        slice_data_item.maybe_data_source.add_region(crop_region)
+        crop_operation.establish_associated_region("crop", slice_data_item.maybe_data_source, crop_region)
+        crop_operation.add_data_source(slice_data_item._create_test_data_source())
+        crop_data_item = DataItem.DataItem()
+        crop_data_item.set_operation(crop_operation)
+        document_model.append_data_item(crop_data_item)
+        document_model.recompute_all()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

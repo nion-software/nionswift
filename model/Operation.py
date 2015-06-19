@@ -1163,6 +1163,9 @@ class Slice3dOperation(Operation):
         slice_end = min(shape[0], slice_end)
         return numpy.average(data[slice_start:slice_end,:], 0)
 
+    def get_processed_dimensional_calibrations(self, data_sources, values):
+        return data_sources[0].dimensional_calibrations[1:]
+
 
 class Pick3dOperation(Operation):
 
