@@ -294,13 +294,15 @@ def _test_exception_during_view_halts_playback(testcase, hardware_source, exposu
     hardware_source._test_handle_view_exception = lambda *args: None
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
     finally:
         pass
     testcase.assertTrue(hardware_source.is_playing)
     enabled[0] = True
-    hardware_source.get_next_data_elements_to_finish()
-    time.sleep(exposure * 0.5)
+    start_time = time.time()
+    while hardware_source.is_playing:
+        time.sleep(0.01)
+        testcase.assertTrue(time.time() - start_time < 3.0)
     testcase.assertFalse(hardware_source.is_playing)
 
 def _test_exception_during_record_halts_playback(testcase, hardware_source, exposure):
