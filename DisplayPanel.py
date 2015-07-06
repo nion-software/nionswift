@@ -501,7 +501,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def prepare_to_close(self):
         # the display panel controller needs a chance to remove its canvas items
         # before the actual close process starts. here is its chance to do so.
-        pass # self.__set_display_panel_controller(None)
+        self.__set_display_panel_controller(None)
+
+    @property
+    def _display_panel_controller_for_test(self):
+        return self.__display_panel_controller
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.
