@@ -12,6 +12,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DisplayPanel
 from nion.swift import DocumentController
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -492,6 +493,36 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertIsNotNone(display_binding.display_specifier.data_item)
         display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(False)
         self.assertIsNotNone(display_binding.display_specifier.data_item)
+
+    def test_switch_from_layout_with_controller_with_footer_works(self):
+        class DisplayPanelController(object):
+            def __init__(self, display_panel_content):
+                self.type = "test"
+                self.__display_panel_content = display_panel_content
+                self.__composition = CanvasItem.CanvasItemComposition()
+                self.__composition.add_canvas_item(CanvasItem.TextButtonCanvasItem("ABC"))
+                self.__display_panel_content.footer_canvas_item.insert_canvas_item(0, self.__composition)
+            def close(self):
+                self.__display_panel_content.footer_canvas_item.remove_canvas_item(self.__composition)
+                self.__display_panel_content = None
+            def save(self, d):
+                pass
+        class DisplayPanelControllerFactory(object):
+            def make_new(self, controller_type, display_panel_content, d):
+                if controller_type == "test":
+                    return DisplayPanelController(display_panel_content)
+                return None
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", DisplayPanelControllerFactory())
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
+        workspace2 = document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        document_controller.workspace_controller.change_workspace(workspace1)
+        document_controller.workspace_controller.change_workspace(workspace2)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
