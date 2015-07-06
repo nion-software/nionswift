@@ -247,6 +247,65 @@ class PushButtonWidget(object):
         self.__push_button_widget.on_clicked = value
 
 
+class CheckBoxWidget(object):
+
+    def __init__(self, ui):
+        self.__ui = ui
+        self.__check_box_widget = self.__ui.create_check_box_widget()
+
+    @property
+    def _widget(self):
+        return self.__check_box_widget
+
+    @property
+    def text(self):
+        return self.__check_box_widget.text
+
+    @text.setter
+    def text(self, value):
+        self.__check_box_widget.text = value
+
+    @property
+    def checked(self):
+        return self.__check_box_widget.checked
+
+    @checked.setter
+    def checked(self, value):
+        self.__check_box_widget.checked = value
+
+    @property
+    def on_checked_changed(self):
+        return self.__check_box_widget.on_checked_changed
+
+    @on_checked_changed.setter
+    def on_checked_changed(self, value):
+        self.__check_box_widget.on_checked_changed = value
+
+    @property
+    def tristate(self):
+        return self.__check_box_widget.tristate
+
+    @tristate.setter
+    def tristate(self, value):
+        self.__check_box_widget.tristate = value
+
+    @property
+    def check_state(self):
+        return self.__check_box_widget.check_state
+
+    @check_state.setter
+    def check_state(self, value):
+        self.__check_box_widget.check_state = value
+
+    @property
+    def on_check_state_changed(self):
+        return self.__check_box_widget.on_check_state_changed
+
+    @on_check_state_changed.setter
+    def on_check_state_changed(self, value):
+        self.__check_box_widget.on_check_state_changed = value
+
+
 class UserInterface(object):
 
     def __init__(self, ui_version, ui):
@@ -271,6 +330,21 @@ class UserInterface(object):
     def create_row_widget(self):
         return RowWidget(self.__ui)
 
+    def create_splitter_widget(self):
+        raise NotImplemented()
+
+    def create_tab_widget(self):
+        raise NotImplemented()
+
+    def create_stack_widget(self):
+        raise NotImplemented()
+
+    def create_scroll_area_widget(self):
+        raise NotImplemented()
+
+    def create_combo_box_widget(self):
+        raise NotImplemented()
+
     def create_label_widget(self, text=None):
         label_widget = LabelWidget(self.__ui)
         label_widget.text = text
@@ -281,10 +355,21 @@ class UserInterface(object):
         line_edit_widget.text = text
         return line_edit_widget
 
+    def create_check_box_widget(self, text=None):
+        check_box_widget = CheckBoxWidget(self.__ui)
+        check_box_widget.text = text
+        return check_box_widget
+
     def create_push_button_widget(self, text=None):
         push_button_widget = PushButtonWidget(self.__ui)
         push_button_widget.text = text
         return push_button_widget
+
+    def create_slider_widget(self):
+        raise NotImplemented()
+
+    def create_text_edit_widget(self):
+        raise NotImplemented()
 
 
 class Panel(PanelModule.Panel):
