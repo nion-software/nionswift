@@ -83,6 +83,19 @@ class ObjectSpecifier(object):
                     for region in data_source.regions:
                         if region.uuid == object_uuid:
                             return region
+        elif object_type == "display":
+            for data_item in document_model.data_items:
+                for data_source in data_item.data_sources:
+                    for display in data_source.displays:
+                        if display.uuid == object_uuid:
+                            return display
+        elif object_type == "graphic":
+            for data_item in document_model.data_items:
+                for data_source in data_item.data_sources:
+                    for display in data_source.displays:
+                        for graphic in display.drawn_graphics:
+                            if graphic.uuid == object_uuid:
+                                return graphic
         elif object_type == "hardware_source":
             return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
         return None
@@ -599,10 +612,36 @@ class DisplayPanel(object):
         display_panel.set_displayed_data_item(data_item._data_item)
 
 
+class Graphic(object):
+
+    def __init__(self, graphic):
+        self.__graphic = graphic
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("graphic", self.__graphic.uuid)
+
+    @property
+    def region(self):
+        return Region(self.__graphic.region)
+
+
 class Display(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, display):
+        self.__display = display
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("display", self.__display.uuid)
+
+    @property
+    def selected_graphics(self):
+        return [Graphic(graphic) for graphic in self.__display.selected_graphics]
+
+    @property
+    def graphics(self):
+        return [Graphic(graphic) for graphic in self.__display.drawn_graphics]
 
     @property
     def data_item(self):
@@ -1101,7 +1140,7 @@ class DocumentController(object):
 
     @property
     def target_display(self):
-        raise AttributeError()
+        return Display(self.__document_controller.selected_display_specifier.display)
 
     @property
     def target_data_item(self):
