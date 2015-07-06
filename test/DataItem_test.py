@@ -523,6 +523,14 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
         self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
 
+    def test_data_range_gets_updated_after_data_ref_data_updated(self):
+        data_item = DataItem.DataItem(numpy.zeros((4, 8, 8), numpy.uint32))
+        for z in range(4):
+            with data_item.maybe_data_source.data_ref() as data_ref:
+                data_ref.data[z, :, :] = z
+                data_ref.data_updated()
+            self.assertEqual(data_item.maybe_data_source.data_range, (0, z))
+
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
