@@ -739,7 +739,7 @@ class Operation(object):
         return None
 
     def get_processed_timestamp(self, data_sources, values):
-        return datetime.datetime.utcnow()
+        return max([data_source.timestamp for data_source in data_sources])
 
 
 class FFTOperation(Operation):

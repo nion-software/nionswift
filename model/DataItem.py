@@ -6,7 +6,6 @@ import copy
 import datetime
 import functools
 import gettext
-import logging
 import operator
 import os
 import threading
@@ -185,6 +184,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        self.define_property("source_data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        self.define_property("data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True)
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
@@ -372,6 +373,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     def __notify_next_data_and_calibration_after_subscribe(self, subscriber):
         data_and_calibration = self.data_and_calibration
+        data_and_calibration.timestamp = self.data_modified if self.data_modified else self.created
         self.__publisher.notify_next_value(data_and_calibration, subscriber)
 
     def get_data_and_calibration_publisher(self):
@@ -619,11 +621,12 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         with self.__data_lock:
             return self.__data
 
-    def __set_data(self, data):
+    def __set_data(self, data, data_modified=None):
         with self._changes():
             assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
             with self.__data_lock:
                 self.__data = data
+                self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
                 self.data_shape = data.shape if data is not None else None
                 self.data_dtype = data.dtype if data is not None else None
                 dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
@@ -799,6 +802,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
                                 operation_data = pending_data.data_fn()
                                 if operation_data is not None:
                                     self.__set_data(operation_data)
+                                    self.source_data_modified = pending_data.timestamp
                             finally:
                                 self.decrement_data_ref_count()  # unload data
                             operation_intensity_calibration = pending_data.intensity_calibration
@@ -879,6 +883,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     * *rating* an integer star rating (0 to 5)
     * *flag* a flag (-1, 0, 1)
 
+    *Modification Dates*
+
+    Data items keep track of a created datetime, which is set once when the object is created; a modified datetime,
+    which is updated whenever the object or its related objects get modified.
+
+    Data items also provide a data modified datetime, which is the latest data modified datetime from all of the data
+    sources.
+
     *Notifications*
 
     Data items will emit the following notifications to listeners. Listeners should take care to not call functions
@@ -946,7 +958,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
             self.append_data_source(data_source)
 
     def __str__(self):
-        return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.created_local_as_string)
+        return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
 
     def __copy__(self):
         assert False
@@ -1245,6 +1257,30 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
                 self.__data_item_changes.update(changes)
 
     # date times
+
+    @property
+    def date_for_sorting(self):
+        data_modified_list = list()
+        for data_source in self.data_sources:
+            source_data_modified = data_source.source_data_modified
+            if source_data_modified:
+                data_modified_list.append(source_data_modified)
+            else:
+                data_modified = data_source.data_modified
+                if data_modified:
+                    data_modified_list.append(data_modified)
+                else:
+                    data_modified_list.append(self.created)
+        if len(data_modified_list):
+            return max(data_modified_list)
+        return self.created
+
+    @property
+    def date_for_sorting_local_as_string(self):
+        date_utc = self.date_for_sorting
+        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+        date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
+        return date_local.strftime("%c")
 
     @property
     def created_local_as_string(self):
@@ -1550,7 +1586,7 @@ class DisplaySpecifier(object):
 
 def sort_by_date_key(data_item):
     """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
-    return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.created, str(data_item.uuid)
+    return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
 
 
 _computation_fns = list()

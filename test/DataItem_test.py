@@ -10,6 +10,7 @@ import gc
 import logging
 import math
 import threading
+import time
 import unittest
 import weakref
 
@@ -1505,6 +1506,35 @@ class TestDataItemClass(unittest.TestCase):
             data_item.session_id = "20000630-150201"
         self.assertEqual(len(data_reference_handler.data.keys()), 1)
         document_model.close()
+
+    def test_processed_data_item_has_source_data_modified_equal_to_sources_data_modifed(self):
+        document_model = DocumentModel.DocumentModel()
+        src_data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+        document_model.append_data_item(src_data_item)
+        time.sleep(0.01)
+        data_item = DataItem.DataItem()
+        operation = Operation.OperationItem("invert-operation")
+        operation.add_data_source(document_model.data_items[0]._create_test_data_source())
+        data_item.set_operation(operation)
+        document_model.append_data_item(data_item)
+        document_model.recompute_all()
+        self.assertIsNotNone(src_data_item.maybe_data_source.data_modified)
+        self.assertEqual(src_data_item.maybe_data_source.data_modified, data_item.maybe_data_source.source_data_modified)
+
+    def test_processed_data_item_has_source_data_modified_equal_to_sources_created_when_sources_data_modified_is_none(self):
+        document_model = DocumentModel.DocumentModel()
+        src_data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+        src_data_item.maybe_data_source.data_modified = None
+        document_model.append_data_item(src_data_item)
+        time.sleep(0.01)
+        data_item = DataItem.DataItem()
+        operation = Operation.OperationItem("invert-operation")
+        operation.add_data_source(document_model.data_items[0]._create_test_data_source())
+        data_item.set_operation(operation)
+        document_model.append_data_item(data_item)
+        document_model.recompute_all()
+        self.assertEqual(src_data_item.maybe_data_source.created, data_item.maybe_data_source.source_data_modified)
+
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

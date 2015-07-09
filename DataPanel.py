@@ -91,7 +91,7 @@ class DisplayItem(object):
     @property
     def datetime_str(self):
         data_item = self.data_item
-        return data_item.created_local_as_string
+        return data_item.date_for_sorting_local_as_string
 
     @property
     def status_str(self):

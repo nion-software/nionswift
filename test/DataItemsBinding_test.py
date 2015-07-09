@@ -6,6 +6,7 @@ import logging
 import operator
 import random
 import threading
+import time
 import unittest
 
 # third party libraries
@@ -15,6 +16,7 @@ import numpy
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
+from nion.swift.model import Operation
 
 
 class TestDataItemsBindingModule(unittest.TestCase):
@@ -257,6 +259,44 @@ class TestDataItemsBindingModule(unittest.TestCase):
             finished.wait()
             filter_binding.close()
             binding.close()
+
+    def test_data_items_sorted_by_data_modified_date(self):
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        binding.sort_key = DataItem.sort_by_date_key
+        document_model = DocumentModel.DocumentModel()
+        for _ in range(4):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            binding.data_item_inserted(None, data_item, 0, False)
+            document_model.append_data_item(data_item)
+            time.sleep(0.01)
+        self.assertEqual(len(binding.data_items), 4)
+        self.assertEqual(list(document_model.data_items), binding.data_items)
+        with document_model.data_items[0].maybe_data_source.data_ref() as dr:
+            dr.data += 1.0
+        self.assertEqual([document_model.data_items[1], document_model.data_items[2], document_model.data_items[3], document_model.data_items[0]], binding.data_items)
+
+    def test_processed_data_items_sorted_by_source_data_modified_date(self):
+        binding = DataItemsBinding.DataItemsInContainerBinding()
+        binding.sort_key = DataItem.sort_by_date_key
+        document_model = DocumentModel.DocumentModel()
+        for _ in range(4):
+            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+            binding.data_item_inserted(None, data_item, 0, False)
+            document_model.append_data_item(data_item)
+            time.sleep(0.01)
+        data_item = DataItem.DataItem()
+        operation = Operation.OperationItem("invert-operation")
+        operation.add_data_source(document_model.data_items[0]._create_test_data_source())
+        data_item.set_operation(operation)
+        document_model.append_data_item(data_item)
+        document_model.recompute_all()
+        binding.data_item_inserted(None, data_item, 0, False)
+        self.assertEqual(len(binding.data_items), 5)
+        # new data item should be in either position 0, 1 depending on uuid
+        self.assertTrue(binding.data_items.index(document_model.data_items[4]) in [0, 1])
+        self.assertTrue(binding.data_items.index(document_model.data_items[0]) in [0, 1])
+        self.assertEqual(list(document_model.data_items[1:4]), binding.data_items[2:])  # rest of list matches
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
