@@ -618,6 +618,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__library_storage.set_value(self, "uuid", str(self.uuid))
         self.__library_storage.set_value(self, "version", 0)
         self.data_item_deleted_event = Observable.Event()
+        self.data_item_will_be_removed_event = Observable.Event()
 
     def __read(self):
         # first read the items
@@ -690,6 +691,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have managed_object_context cleared upon return. """
+        # remove data item from any selections
+        self.data_item_will_be_removed_event.fire(data_item)
         # remove the data item from any groups
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:

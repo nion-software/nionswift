@@ -301,8 +301,6 @@ class DataListController(object):
     def display_item_inserted(self, display_item, before_index):
         self.__display_items.insert(before_index, display_item)
         self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
-        # update the selection object. this won't change the selection; only adjust the existing indexes.
-        self.selection.insert_index(before_index)
         # tell the icon view to update.
         self.__list_canvas_item.update()
 
@@ -312,7 +310,6 @@ class DataListController(object):
         self.__display_item_needs_update_listeners[index].close()
         del self.__display_item_needs_update_listeners[index]
         del self.__display_items[index]
-        self.selection.remove_index(index)
         self.__list_canvas_item.update()
 
     # this message comes from the styled item delegate
@@ -499,8 +496,6 @@ class DataGridController(object):
     def display_item_inserted(self, display_item, before_index):
         self.__display_items.insert(before_index, display_item)
         self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
-        # update the selection object. this won't change the selection; only adjust the existing indexes.
-        self.selection.insert_index(before_index)
         # tell the icon view to update.
         self.icon_view_canvas_item.update()
 
@@ -510,7 +505,6 @@ class DataGridController(object):
         self.__display_item_needs_update_listeners[index].close()
         del self.__display_item_needs_update_listeners[index]
         del self.__display_items[index]
-        self.selection.remove_index(index)
         self.icon_view_canvas_item.update()
 
 
@@ -554,14 +548,14 @@ class DataGridWidget(object):
 
 class DataBrowserController(object):
 
-    def __init__(self, document_controller):
+    def __init__(self, document_controller, selection):
         self.document_controller = document_controller
         self.__focused = False
         self.__data_group = None
         self.__data_item = None
         self.__filter_id = None
         self.__selected_display_items = list()
-        self.selection = Selection.IndexedSelection()
+        self.selection = selection
         self.filter_changed_event = Observable.Event()
         self.selection_changed_event = Observable.Event()
         self.selected_data_items_changed_event = Observable.Event()
@@ -648,12 +642,17 @@ class DataBrowserController(object):
         self.document_controller.new_window("data", data_item=data_item)
 
     def delete_display_items(self, display_items):
-        for display_item in display_items:
+        for display_item in copy.copy(display_items):
             data_item = display_item.data_item
             container = self.document_controller.data_items_binding.container
             container = DataGroup.get_data_item_container(container, data_item)
             if container and data_item in container.data_items:
                 container.remove_data_item(data_item)
+                # TODO: avoid calling periodic by reworking thread support in data panel
+                # Note: this is here because the one in browser display panel is there.
+                # I could not get a test to fail without this statement; but regular use
+                # seems to fail during delete if this isn't here. Argh. Bad design.
+                self.document_controller.periodic()  # keep the display items in data panel consistent.
 
 
 class DataPanel(Panel.Panel):
@@ -1037,14 +1036,15 @@ class DataPanel(Panel.Panel):
             menu.popup(gx, gy)
             return True
 
-        self.data_list_controller = DataListController(document_controller.ui, self.__data_browser_controller.selection)
+        selection = self.__data_browser_controller.selection
+        self.data_list_controller = DataListController(document_controller.ui, selection)
         self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
-        self.data_grid_controller = DataGridController(document_controller.ui, self.__data_browser_controller.selection)
+        self.data_grid_controller = DataGridController(document_controller.ui, selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked

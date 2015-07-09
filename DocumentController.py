@@ -31,8 +31,9 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.ui import Dialog
-from nion.ui import Process
 from nion.ui import Observable
+from nion.ui import Process
+from nion.ui import Selection
 
 _ = gettext.gettext
 
@@ -93,17 +94,27 @@ class DocumentController(Observable.Broadcaster):
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
 
+        selection = Selection.IndexedSelection()
+
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
         # data items binding tracks the main list of items selected in the data panel.
         # filtered data items binding tracks the filtered items from those in data items binding.
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding)
+        self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding, selection)
         self.__last_display_filter = None
+
+        def data_item_will_be_removed(data_item):
+            if data_item in self.__filtered_data_items_binding.data_items:
+                index = self.__filtered_data_items_binding.data_items.index(data_item)
+                if selection.contains(index):
+                    selection.remove(index)
+
+        self.__data_item_will_be_removed_event_listener = self.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
 
         self.filter_controller = FilterPanel.FilterController(self)
 
-        self.__data_browser_controller = DataPanel.DataBrowserController(self)
+        self.__data_browser_controller = DataPanel.DataBrowserController(self, selection)
 
         self.console = None
         self.create_menus()
@@ -131,6 +142,8 @@ class DocumentController(Observable.Broadcaster):
             self.__workspace_controller = None
         self.document_window = None
         # get rid of the bindings
+        self.__data_item_will_be_removed_event_listener.close()
+        self.__data_item_will_be_removed_event_listener = None
         self.__filtered_data_items_binding.close()
         self.__filtered_data_items_binding = None
         self.filter_controller.close()
@@ -1194,6 +1207,8 @@ class DocumentController(Observable.Broadcaster):
                 for selected_data_item in selected_data_items:
                     if container and selected_data_item in container.data_items:
                         container.remove_data_item(selected_data_item)
+                        # TODO: avoid calling periodic by reworking thread support in data panel
+                        self.periodic()  # keep the display items in data panel consistent.
             def show_source():
                 self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
             def show_in_new_window():

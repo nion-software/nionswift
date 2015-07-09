@@ -174,6 +174,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
 
     def get_processor(self, processor_id):
         # check for case where we might already be closed. not pretty.
+        # TODO: get_processor should never be called after close
         return self.__processors[processor_id] if self.__processors else None
 
     @property

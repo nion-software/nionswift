@@ -91,6 +91,24 @@ class TestDataPanelClass(unittest.TestCase):
         display_panel.close()
         document_controller.close()
 
+    def test_data_panel_deletes_all_selected_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+        document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+        document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+        document_controller.periodic()
+        data_item = document_model.data_items[0]
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
+        data_panel = document_controller.find_dock_widget("data-panel").panel
+        self.assertEqual(len(document_model.data_items), 3)
+        document_controller.data_browser_controller.focused = True
+        document_controller.data_browser_controller.selection.set_multiple([0, 1, 2])
+        document_controller.periodic()
+        data_panel.data_list_controller._delete_pressed()
+        self.assertEqual(len(document_model.data_items), 0)
+
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.
     def test_selected_data_item_persistence(self):

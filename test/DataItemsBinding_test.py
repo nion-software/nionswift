@@ -17,6 +17,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.swift.model import Operation
+from nion.ui import Selection
 
 
 class TestDataItemsBindingModule(unittest.TestCase):
@@ -89,8 +90,9 @@ class TestDataItemsBindingModule(unittest.TestCase):
         self.assertEqual([d.title for d in binding.data_items], [v for v in result if not v.startswith("D")])
 
     def test_filter_binding_follows_binding(self):
+        selection = Selection.IndexedSelection()
         binding = DataItemsBinding.DataItemsInContainerBinding()
-        binding2 = DataItemsBinding.DataItemsFilterBinding(binding)
+        binding2 = DataItemsBinding.DataItemsFilterBinding(binding, selection)
         binding.sort_key = operator.attrgetter("title")
         data_items = list()
         for value in TestDataItemsBindingModule.values:
@@ -111,7 +113,8 @@ class TestDataItemsBindingModule(unittest.TestCase):
             binding.data_item_inserted(None, data_item, 0, False)
             data_items.append(data_item)
         self.assertEqual([d.title for d in binding.data_items], sorted([d.title for d in binding.data_items]))
-        binding2 = DataItemsBinding.DataItemsFilterBinding(binding)
+        selection = Selection.IndexedSelection()
+        binding2 = DataItemsBinding.DataItemsFilterBinding(binding, selection)
         self.assertEqual([d.title for d in binding.data_items], [d.title for d in binding2.data_items])
 
     def test_sorted_binding_updates_when_transaction_started(self):
@@ -197,7 +200,8 @@ class TestDataItemsBindingModule(unittest.TestCase):
             binding.data_item_inserted(None, data_item, 0, False)
             document_model.append_data_item(data_item)
         self.assertEqual(len(binding.data_items), 4)
-        filter_binding = DataItemsBinding.DataItemsFilterBinding(binding)
+        selection = Selection.IndexedSelection()
+        filter_binding = DataItemsBinding.DataItemsFilterBinding(binding, selection)
         def is_live_filter(data_item):
             return data_item.is_live
         filter_binding.filter = is_live_filter
@@ -215,7 +219,8 @@ class TestDataItemsBindingModule(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
             binding.data_item_inserted(None, data_item, 0, False)
             data_items.append(data_item)
-        filter_binding = DataItemsBinding.DataItemsFilterBinding(binding)
+        selection = Selection.IndexedSelection()
+        filter_binding = DataItemsBinding.DataItemsFilterBinding(binding, selection)
         import random
         for xx in range(10):
             c1 = [n for n in range(cc)]
