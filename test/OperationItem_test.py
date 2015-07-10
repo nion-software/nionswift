@@ -106,6 +106,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d(self):
@@ -151,6 +152,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_3d(self):
@@ -175,6 +177,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgb(self):
@@ -218,6 +221,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgba(self):
@@ -261,6 +265,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     def test_operations_2d_complex128(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex128))
@@ -285,6 +290,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     def test_operations_2d_complex64(self):
         data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex64))
@@ -309,6 +315,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
                 self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
                 self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_invalid_operations(self):

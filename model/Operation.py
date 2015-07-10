@@ -1040,7 +1040,6 @@ class TransposeFlipOperation(Operation):
 
     def get_processed_dimensional_calibrations(self, data_sources, values):
         if len(data_sources) > 0:
-            dimensional_calibrations = data_sources[0].dimensional_calibrations
             if values.get("transpose"):
                 dimensional_calibrations = list(reversed(data_sources[0].dimensional_calibrations))
             else:
@@ -1198,6 +1197,9 @@ class Pick3dOperation(Operation):
         else:
             return numpy.zeros((data_shape[0], ), dtype=data.dtype)
 
+    def get_processed_dimensional_calibrations(self, data_sources, values):
+        return data_sources[0].dimensional_calibrations[0:-2]
+
 
 class Projection2dOperation(Operation):
 
@@ -1315,6 +1317,9 @@ class HistogramOperation(Operation):
             return None
         histogram_data = numpy.histogram(data, bins=self.bins)
         return histogram_data[0].astype(numpy.int)
+
+    def get_processed_dimensional_calibrations(self, data_sources, values):
+        return [Calibration.Calibration()]
 
 
 class LineProfileOperation(Operation):
