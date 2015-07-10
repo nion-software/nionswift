@@ -1614,12 +1614,7 @@ class API_1(object):
                 self.close()
 
             def close(self):
-                if self.__hardware_source_delegate:
-                    hardware_source_delegate_close_fn = getattr(self.__hardware_source_delegate, "close", None)
-                    if hardware_source_delegate_close_fn:
-                       hardware_source_delegate_close_fn()
-                    HardwareSourceModule.HardwareSourceManager().unregister_hardware_source(self.__hardware_source)
-                    self.__hardware_source_delegate = None
+                pass  # closed automatically during application shutdown
 
         return HardwareSourceReference()
 
