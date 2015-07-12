@@ -43,6 +43,7 @@ class InspectorPanel(Panel.Panel):
         self.request_focus = False
 
         # listen for selected display binding changes
+        self.__data_item_will_be_removed_event_listener = None
         self.__display_binding = document_controller.create_selected_display_binding()
         self.__selected_display_binding_changed_event_listener = self.__display_binding.selected_display_binding_changed_event.listen(self.__selected_display_binding_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
@@ -118,8 +119,20 @@ class InspectorPanel(Panel.Panel):
     # mark the data item as needing updating.
     # thread safe.
     def __selected_display_binding_changed(self, display_specifier):
+        def data_item_will_be_removed(data_item):
+            self.document_controller.clear_task("update_display" + str(id(self)))
+            if self.__data_item_will_be_removed_event_listener:
+                self.__data_item_will_be_removed_event_listener.close()
+                self.__data_item_will_be_removed_event_listener = None
         def update_display():
             self.__set_display_specifier(display_specifier)
+            data_item_will_be_removed(None)
+        # handle the case where the selected display binding changes and then the item is removed before periodic has
+        # had a chance to update display. in that case, when periodic finally gets called, we need to make sure that
+        # update display has been canceled somehow. this barely passes the smell test.
+        if display_specifier.data_item:
+            data_item_will_be_removed(None)
+            self.__data_item_will_be_removed_event_listener = self.document_controller.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 

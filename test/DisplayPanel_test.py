@@ -1157,6 +1157,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.periodic()
         self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.title)
 
+    def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
+        # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
+        # panels; nor should it affect the focus functionality
+        raise Exception()
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

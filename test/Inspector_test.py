@@ -186,6 +186,24 @@ class TestInspectorClass(unittest.TestCase):
         document_model.remove_data_item(data_item)  # removes item while still in queue
         document_controller.periodic()  # execute queue
 
+    def test_inspector_handles_deleted_data_being_displayed(self):
+        # if the inspector doesn't watch for the item being deleted, and the inspector's update display
+        # doesn't get called during periodic before the item is deleted (which will naturally happen sometimes),
+        # then there will be a pending call using a data item that doesn't exist.
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.ones((8, 8)))
+        document_model.append_data_item(data_item)
+        document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+        # document_controller.periodic()  # this makes it succeed in all cases
+        document_model.remove_data_item(data_item)
+        document_controller.periodic()
+
+    def disabled_test_corrupt_data_item_should_not_completely_disable_the_inspector(self):
+        # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
+        # panels; nor should it affect the focus functionality
+        raise Exception()
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
