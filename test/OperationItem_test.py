@@ -698,24 +698,25 @@ class TestOperationClass(unittest.TestCase):
 
     def test_crop_2d_region_connects_if_operation_added_after_data_item_is_in_document(self):
         document_model = DocumentModel.DocumentModel()
-        # configure the source item
-        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
-        document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        # configure the dependent item
-        data_item2 = DataItem.DataItem()
-        document_model.append_data_item(data_item2)
-        crop_operation = Operation.OperationItem("crop-operation")
-        crop_region = Region.RectRegion()
-        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
-        crop_operation.add_data_source(data_item._create_test_data_source())
-        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
-        data_item2.set_operation(crop_operation)
-        # see if the region is connected to the operation
-        self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
-        bounds = ((0.3, 0.4), (0.5, 0.6))
-        crop_operation.set_property("bounds", bounds)
-        self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
+        with contextlib.closing(document_model):
+            # configure the source item
+            data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            # configure the dependent item
+            data_item2 = DataItem.DataItem()
+            document_model.append_data_item(data_item2)
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_region = Region.RectRegion()
+            DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
+            crop_operation.add_data_source(data_item._create_test_data_source())
+            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
+            data_item2.set_operation(crop_operation)
+            # see if the region is connected to the operation
+            self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
+            bounds = ((0.3, 0.4), (0.5, 0.6))
+            crop_operation.set_property("bounds", bounds)
+            self.assertEqual(crop_operation.get_property("bounds"), crop_region.bounds)
 
     class Dummy2Operation(Operation.Operation):
         def __init__(self):
@@ -728,25 +729,26 @@ class TestOperationClass(unittest.TestCase):
 
     def test_removing_operation_with_multiple_associated_regions_removes_all_regions(self):
         document_model = DocumentModel.DocumentModel()
-        # configure the source item
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        # configure the dependent item
-        data_item2 = DataItem.DataItem()
-        document_model.append_data_item(data_item2)
-        Operation.OperationManager().register_operation("dummy2-operation", lambda: TestOperationClass.Dummy2Operation())
-        dummy_operation = Operation.OperationItem("dummy2-operation")
-        dummy_operation.establish_associated_region("a", display_specifier.buffered_data_source)
-        dummy_operation.establish_associated_region("b", display_specifier.buffered_data_source)
-        dummy_operation.add_data_source(data_item._create_test_data_source())
-        data_item2.set_operation(dummy_operation)
-        # assumptions
-        self.assertEqual(len(display_specifier.buffered_data_source.regions), 2)
-        # now remove the operation
-        data_item2.set_operation(None)
-        # check to make sure regions were removed
-        self.assertEqual(len(display_specifier.buffered_data_source.regions), 0)
+        with contextlib.closing(document_model):
+            # configure the source item
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            # configure the dependent item
+            data_item2 = DataItem.DataItem()
+            document_model.append_data_item(data_item2)
+            Operation.OperationManager().register_operation("dummy2-operation", lambda: TestOperationClass.Dummy2Operation())
+            dummy_operation = Operation.OperationItem("dummy2-operation")
+            dummy_operation.establish_associated_region("a", display_specifier.buffered_data_source)
+            dummy_operation.establish_associated_region("b", display_specifier.buffered_data_source)
+            dummy_operation.add_data_source(data_item._create_test_data_source())
+            data_item2.set_operation(dummy_operation)
+            # assumptions
+            self.assertEqual(len(display_specifier.buffered_data_source.regions), 2)
+            # now remove the operation
+            data_item2.set_operation(None)
+            # check to make sure regions were removed
+            self.assertEqual(len(display_specifier.buffered_data_source.regions), 0)
 
     def test_crop_works_on_selected_region_without_exception(self):
         document_model = DocumentModel.DocumentModel()
@@ -828,131 +830,136 @@ class TestOperationClass(unittest.TestCase):
 
     def test_modifying_operation_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()
-        # set up the data items
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item)
-        blurred_data_item = DataItem.DataItem()
-        blur_operation = Operation.OperationItem("gaussian-blur-operation")
-        blur_operation.add_data_source(data_item._create_test_data_source())
-        blurred_data_item.set_operation(blur_operation)
-        document_model.append_data_item(blurred_data_item)
-        blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
-        # establish listeners
-        class Listener(object):
-            def __init__(self):
-                self.reset()
-            def reset(self):
-                self._data_changed = False
-                self._display_changed = False
-            def data_item_content_changed(self, data_item, changes):
-                self._data_changed = self._data_changed or DataItem.DATA in changes
-        listener = Listener()
-        blurred_data_item.add_listener(listener)
-        def display_changed():
-            listener._display_changed = True
-        with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
-            # modify an operation. make sure data and dependent data gets updated.
-            listener.reset()
-            blur_operation.set_property("sigma", 0.1)
-            document_model.recompute_all()
-            self.assertTrue(listener._data_changed)
-            self.assertTrue(listener._display_changed)
+        with contextlib.closing(document_model):
+            # set up the data items
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item)
+            blurred_data_item = DataItem.DataItem()
+            blur_operation = Operation.OperationItem("gaussian-blur-operation")
+            blur_operation.add_data_source(data_item._create_test_data_source())
+            blurred_data_item.set_operation(blur_operation)
+            document_model.append_data_item(blurred_data_item)
+            blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
+            # establish listeners
+            class Listener(object):
+                def __init__(self):
+                    self.reset()
+                def reset(self):
+                    self._data_changed = False
+                    self._display_changed = False
+                def data_item_content_changed(self, data_item, changes):
+                    self._data_changed = self._data_changed or DataItem.DATA in changes
+            listener = Listener()
+            blurred_data_item.add_listener(listener)
+            def display_changed():
+                listener._display_changed = True
+            with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
+                # modify an operation. make sure data and dependent data gets updated.
+                listener.reset()
+                blur_operation.set_property("sigma", 0.1)
+                document_model.recompute_all()
+                self.assertTrue(listener._data_changed)
+                self.assertTrue(listener._display_changed)
 
     def test_modifying_operation_region_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()
-        # set up the data items
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item)
-        blurred_data_item = DataItem.DataItem()
-        blur_operation = Operation.OperationItem("gaussian-blur-operation")
-        blur_operation.add_data_source(data_item._create_test_data_source())
-        blurred_data_item.set_operation(blur_operation)
-        document_model.append_data_item(blurred_data_item)
-        blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
-        # establish listeners
-        class Listener(object):
-            def __init__(self):
-                self.reset()
-            def reset(self):
-                self._data_changed = False
-                self._display_changed = False
-            def data_item_content_changed(self, data_item, changes):
-                self._data_changed = self._data_changed or DataItem.DATA in changes
-        listener = Listener()
-        blurred_data_item.add_listener(listener)
-        def display_changed():
-            listener._display_changed = True
-        with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
-            # modify an operation. make sure data and dependent data gets updated.
-            listener.reset()
-            blur_operation.set_property("sigma", 0.1)
-            document_model.recompute_all()
-            self.assertTrue(listener._data_changed)
-            self.assertTrue(listener._display_changed)
+        with contextlib.closing(document_model):
+            # set up the data items
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item)
+            blurred_data_item = DataItem.DataItem()
+            blur_operation = Operation.OperationItem("gaussian-blur-operation")
+            blur_operation.add_data_source(data_item._create_test_data_source())
+            blurred_data_item.set_operation(blur_operation)
+            document_model.append_data_item(blurred_data_item)
+            blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
+            # establish listeners
+            class Listener(object):
+                def __init__(self):
+                    self.reset()
+                def reset(self):
+                    self._data_changed = False
+                    self._display_changed = False
+                def data_item_content_changed(self, data_item, changes):
+                    self._data_changed = self._data_changed or DataItem.DATA in changes
+            listener = Listener()
+            blurred_data_item.add_listener(listener)
+            def display_changed():
+                listener._display_changed = True
+            with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
+                # modify an operation. make sure data and dependent data gets updated.
+                listener.reset()
+                blur_operation.set_property("sigma", 0.1)
+                document_model.recompute_all()
+                self.assertTrue(listener._data_changed)
+                self.assertTrue(listener._display_changed)
 
     def test_changing_region_does_not_trigger_fft_recompute(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        fft_data_item = DataItem.DataItem()
-        fft_operation = Operation.OperationItem("fft-operation")
-        fft_operation.add_data_source(data_item._create_test_data_source())
-        fft_data_item.set_operation(fft_operation)
-        document_model.append_data_item(fft_data_item)
-        fft_display_specifier = DataItem.DisplaySpecifier.from_data_item(fft_data_item)
-        crop_data_item = DataItem.DataItem()
-        crop_operation = Operation.OperationItem("crop-operation")
-        crop_region = Region.RectRegion()
-        display_specifier.buffered_data_source.add_region(crop_region)
-        crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
-        crop_operation.add_data_source(data_item._create_test_data_source())
-        crop_data_item.set_operation(crop_operation)
-        crop_display_specifier = DataItem.DisplaySpecifier.from_data_item(crop_data_item)
-        document_model.append_data_item(crop_data_item)
-        document_model.recompute_all()
-        self.assertFalse(fft_display_specifier.buffered_data_source.is_data_stale)
-        self.assertFalse(crop_display_specifier.buffered_data_source.is_data_stale)
-        crop_region.bounds = Geometry.FloatRect(crop_region.bounds[0], Geometry.FloatPoint(0.1, 0.1))
-        self.assertTrue(crop_display_specifier.buffered_data_source.is_data_stale)
-        self.assertFalse(fft_display_specifier.buffered_data_source.is_data_stale)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            fft_data_item = DataItem.DataItem()
+            fft_operation = Operation.OperationItem("fft-operation")
+            fft_operation.add_data_source(data_item._create_test_data_source())
+            fft_data_item.set_operation(fft_operation)
+            document_model.append_data_item(fft_data_item)
+            fft_display_specifier = DataItem.DisplaySpecifier.from_data_item(fft_data_item)
+            crop_data_item = DataItem.DataItem()
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_region = Region.RectRegion()
+            display_specifier.buffered_data_source.add_region(crop_region)
+            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
+            crop_operation.add_data_source(data_item._create_test_data_source())
+            crop_data_item.set_operation(crop_operation)
+            crop_display_specifier = DataItem.DisplaySpecifier.from_data_item(crop_data_item)
+            document_model.append_data_item(crop_data_item)
+            document_model.recompute_all()
+            self.assertFalse(fft_display_specifier.buffered_data_source.is_data_stale)
+            self.assertFalse(crop_display_specifier.buffered_data_source.is_data_stale)
+            crop_region.bounds = Geometry.FloatRect(crop_region.bounds[0], Geometry.FloatPoint(0.1, 0.1))
+            self.assertTrue(crop_display_specifier.buffered_data_source.is_data_stale)
+            self.assertFalse(fft_display_specifier.buffered_data_source.is_data_stale)
 
     def test_removing_source_of_cross_correlation_does_not_throw_exception(self):
         document_model = DocumentModel.DocumentModel()
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item1)
-        document_model.append_data_item(data_item2)
-        operation = Operation.OperationItem("cross-correlate-operation")
-        operation.add_data_source(data_item1._create_test_data_source())
-        operation.add_data_source(data_item2._create_test_data_source())
-        cc_data_item = DataItem.DataItem()
-        cc_data_item.set_operation(operation)
-        document_model.append_data_item(cc_data_item)
-        cc_data_item.recompute_data()
-        document_model.remove_data_item(data_item1)
-        cc_data_item.recompute_data()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            operation = Operation.OperationItem("cross-correlate-operation")
+            operation.add_data_source(data_item1._create_test_data_source())
+            operation.add_data_source(data_item2._create_test_data_source())
+            cc_data_item = DataItem.DataItem()
+            cc_data_item.set_operation(operation)
+            document_model.append_data_item(cc_data_item)
+            cc_data_item.recompute_data()
+            document_model.remove_data_item(data_item1)
+            cc_data_item.recompute_data()
 
     def test_crop_of_slice_of_3d_handles_dimensions(self):
         # the bug was that slice operation returned the wrong number of dimensions
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((16, 32, 32), numpy.float))
-        document_model.append_data_item(data_item)
-        slice_operation = Operation.OperationItem("slice-operation")
-        slice_operation.add_data_source(data_item._create_test_data_source())
-        slice_data_item = DataItem.DataItem()
-        slice_data_item.set_operation(slice_operation)
-        document_model.append_data_item(slice_data_item)
-        document_model.recompute_all()
-        crop_operation = Operation.OperationItem("crop-operation")
-        crop_region = Region.RectRegion()
-        slice_data_item.maybe_data_source.add_region(crop_region)
-        crop_operation.establish_associated_region("crop", slice_data_item.maybe_data_source, crop_region)
-        crop_operation.add_data_source(slice_data_item._create_test_data_source())
-        crop_data_item = DataItem.DataItem()
-        crop_data_item.set_operation(crop_operation)
-        document_model.append_data_item(crop_data_item)
-        document_model.recompute_all()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((16, 32, 32), numpy.float))
+            document_model.append_data_item(data_item)
+            slice_operation = Operation.OperationItem("slice-operation")
+            slice_operation.add_data_source(data_item._create_test_data_source())
+            slice_data_item = DataItem.DataItem()
+            slice_data_item.set_operation(slice_operation)
+            document_model.append_data_item(slice_data_item)
+            document_model.recompute_all()
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_region = Region.RectRegion()
+            slice_data_item.maybe_data_source.add_region(crop_region)
+            crop_operation.establish_associated_region("crop", slice_data_item.maybe_data_source, crop_region)
+            crop_operation.add_data_source(slice_data_item._create_test_data_source())
+            crop_data_item = DataItem.DataItem()
+            crop_data_item.set_operation(crop_operation)
+            document_model.append_data_item(crop_data_item)
+            document_model.recompute_all()
 
 
 if __name__ == '__main__':

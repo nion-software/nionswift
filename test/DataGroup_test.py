@@ -49,67 +49,68 @@ class TestDataGroupClass(unittest.TestCase):
     def test_counted_data_items(self):
         # TODO: split test_counted_data_items into separate tests
         document_model = DocumentModel.DocumentModel()
-        data_group = DataGroup.DataGroup()
-        document_model.append_data_group(data_group)
-        self.assertEqual(len(data_group.counted_data_items), 0)
-        self.assertEqual(len(document_model.data_items), 0)
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item1)
-        data_group.append_data_item(data_item1)
-        # make sure that both top level and data_group see the data item
-        self.assertEqual(len(document_model.data_items), 1)
-        self.assertEqual(len(data_group.counted_data_items), 1)
-        self.assertEqual(list(document_model.data_items), list(data_group.counted_data_items))
-        self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
-        # add a child data item and make sure top level and data_group see it
-        # also check data item.
-        data_item1a = DataItem.DataItem()
-        operation1a = Operation.OperationItem("resample-operation")
-        operation1a.add_data_source(data_item1._create_test_data_source())
-        data_item1a.set_operation(operation1a)
-        document_model.append_data_item(data_item1a)
-        data_group.append_data_item(data_item1a)
-        self.assertEqual(len(document_model.data_items), 2)
-        self.assertEqual(len(data_group.counted_data_items), 2)
-        self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
-        self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
-        # add a child data item to the child and make sure top level and data_group match.
-        # also check data items.
-        data_item1a1 = DataItem.DataItem()
-        operation1a1 = Operation.OperationItem("resample-operation")
-        operation1a1.add_data_source(data_item1a._create_test_data_source())
-        data_item1a1.set_operation(operation1a1)
-        document_model.append_data_item(data_item1a1)
-        display_specifier1a1 = DataItem.DisplaySpecifier.from_data_item(data_item1a1)
-        data_group.append_data_item(data_item1a1)
-        display_specifier1a1.buffered_data_source.dimensional_calibrations
-        self.assertEqual(len(document_model.data_items), 3)
-        self.assertEqual(len(data_group.counted_data_items), 3)
-        self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
-        self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
-        self.assertIn(data_item1a1, list(data_group.counted_data_items.keys()))
-        # now add a data item that already has children
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item2)
-        data_item2a = DataItem.DataItem()
-        operation2a = Operation.OperationItem("resample-operation")
-        operation2a.add_data_source(data_item2._create_test_data_source())
-        data_item2a.set_operation(operation2a)
-        document_model.append_data_item(data_item2a)
-        data_group.append_data_item(data_item2)
-        data_group.append_data_item(data_item2a)
-        self.assertEqual(len(document_model.data_items), 5)
-        self.assertEqual(len(data_group.counted_data_items), 5)
-        self.assertIn(data_item2a, document_model.data_items)
-        self.assertIn(data_item2a, list(data_group.counted_data_items.keys()))
-        # remove data item without children
-        document_model.remove_data_item(data_item1a1)
-        self.assertEqual(len(document_model.data_items), 4)
-        self.assertEqual(len(data_group.counted_data_items), 4)
-        # now remove data item with children
-        document_model.remove_data_item(data_item2)
-        self.assertEqual(len(document_model.data_items), 2)
-        self.assertEqual(len(data_group.counted_data_items), 2)
+        with contextlib.closing(document_model):
+            data_group = DataGroup.DataGroup()
+            document_model.append_data_group(data_group)
+            self.assertEqual(len(data_group.counted_data_items), 0)
+            self.assertEqual(len(document_model.data_items), 0)
+            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item1)
+            data_group.append_data_item(data_item1)
+            # make sure that both top level and data_group see the data item
+            self.assertEqual(len(document_model.data_items), 1)
+            self.assertEqual(len(data_group.counted_data_items), 1)
+            self.assertEqual(list(document_model.data_items), list(data_group.counted_data_items))
+            self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
+            # add a child data item and make sure top level and data_group see it
+            # also check data item.
+            data_item1a = DataItem.DataItem()
+            operation1a = Operation.OperationItem("resample-operation")
+            operation1a.add_data_source(data_item1._create_test_data_source())
+            data_item1a.set_operation(operation1a)
+            document_model.append_data_item(data_item1a)
+            data_group.append_data_item(data_item1a)
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual(len(data_group.counted_data_items), 2)
+            self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
+            self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
+            # add a child data item to the child and make sure top level and data_group match.
+            # also check data items.
+            data_item1a1 = DataItem.DataItem()
+            operation1a1 = Operation.OperationItem("resample-operation")
+            operation1a1.add_data_source(data_item1a._create_test_data_source())
+            data_item1a1.set_operation(operation1a1)
+            document_model.append_data_item(data_item1a1)
+            display_specifier1a1 = DataItem.DisplaySpecifier.from_data_item(data_item1a1)
+            data_group.append_data_item(data_item1a1)
+            display_specifier1a1.buffered_data_source.dimensional_calibrations
+            self.assertEqual(len(document_model.data_items), 3)
+            self.assertEqual(len(data_group.counted_data_items), 3)
+            self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
+            self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
+            self.assertIn(data_item1a1, list(data_group.counted_data_items.keys()))
+            # now add a data item that already has children
+            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            data_item2a = DataItem.DataItem()
+            operation2a = Operation.OperationItem("resample-operation")
+            operation2a.add_data_source(data_item2._create_test_data_source())
+            data_item2a.set_operation(operation2a)
+            document_model.append_data_item(data_item2a)
+            data_group.append_data_item(data_item2)
+            data_group.append_data_item(data_item2a)
+            self.assertEqual(len(document_model.data_items), 5)
+            self.assertEqual(len(data_group.counted_data_items), 5)
+            self.assertIn(data_item2a, document_model.data_items)
+            self.assertIn(data_item2a, list(data_group.counted_data_items.keys()))
+            # remove data item without children
+            document_model.remove_data_item(data_item1a1)
+            self.assertEqual(len(document_model.data_items), 4)
+            self.assertEqual(len(data_group.counted_data_items), 4)
+            # now remove data item with children
+            document_model.remove_data_item(data_item2)
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual(len(data_group.counted_data_items), 2)
 
     def test_inserting_item_with_existing_data_source_establishes_connection(self):
         document_model = DocumentModel.DocumentModel()
@@ -147,10 +148,11 @@ class TestDataGroupClass(unittest.TestCase):
 
     def test_deleting_document_with_dependent_data_items_works(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item)
-        data_item_child = DataItem.DataItem()
-        document_model.append_data_item(data_item_child)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_item_child = DataItem.DataItem()
+            document_model.append_data_item(data_item_child)
 
 if __name__ == '__main__':
     unittest.main()

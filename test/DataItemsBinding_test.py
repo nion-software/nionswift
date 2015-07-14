@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 # standard libraries
+import contextlib
 import logging
 import operator
 import random
@@ -125,14 +126,15 @@ class TestDataItemsBindingModule(unittest.TestCase):
         binding.sort_key = sort_by_date_key
         binding.sort_reverse = True
         document_model = DocumentModel.DocumentModel()
-        for value in TestDataItemsBindingModule.values:
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            data_item.title = value
-            binding.data_item_inserted(None, data_item, 0, False)
-            document_model.append_data_item(data_item)
-        live_data_item = binding.data_items[2]
-        with document_model.data_item_live(live_data_item):
-            self.assertEqual(binding.data_items.index(live_data_item), 0)
+        with contextlib.closing(document_model):
+            for value in TestDataItemsBindingModule.values:
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                data_item.title = value
+                binding.data_item_inserted(None, data_item, 0, False)
+                document_model.append_data_item(data_item)
+            live_data_item = binding.data_items[2]
+            with document_model.data_item_live(live_data_item):
+                self.assertEqual(binding.data_items.index(live_data_item), 0)
 
     def test_sorted_filtered_binding_updates_when_data_item_enters_filter(self):
         def is_live_filter(data_item):
@@ -143,18 +145,19 @@ class TestDataItemsBindingModule(unittest.TestCase):
         binding.filter = is_live_filter
         binding.sort_key = sort_by_date_key
         document_model = DocumentModel.DocumentModel()
-        for _ in range(4):
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            binding.data_item_inserted(None, data_item, 0, False)
-            document_model.append_data_item(data_item)
-        self.assertEqual(len(binding.data_items), 0)
-        with document_model.data_item_live(document_model.data_items[0]):
-            binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
-            self.assertEqual(len(binding.data_items), 1)
-            with document_model.data_item_live(document_model.data_items[2]):
-                binding.data_item_content_changed(document_model.data_items[2], [DataItem.METADATA])
-                self.assertEqual(len(binding.data_items), 2)
-                self.assertTrue(binding.data_items.index(document_model.data_items[0]) < binding.data_items.index(document_model.data_items[2]))
+        with contextlib.closing(document_model):
+            for _ in range(4):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                binding.data_item_inserted(None, data_item, 0, False)
+                document_model.append_data_item(data_item)
+            self.assertEqual(len(binding.data_items), 0)
+            with document_model.data_item_live(document_model.data_items[0]):
+                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                self.assertEqual(len(binding.data_items), 1)
+                with document_model.data_item_live(document_model.data_items[2]):
+                    binding.data_item_content_changed(document_model.data_items[2], [DataItem.METADATA])
+                    self.assertEqual(len(binding.data_items), 2)
+                    self.assertTrue(binding.data_items.index(document_model.data_items[0]) < binding.data_items.index(document_model.data_items[2]))
 
     def test_unsorted_filtered_binding_updates_when_data_item_enters_filter(self):
         def is_live_filter(data_item):
@@ -162,17 +165,18 @@ class TestDataItemsBindingModule(unittest.TestCase):
         binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.filter = is_live_filter
         document_model = DocumentModel.DocumentModel()
-        for _ in range(4):
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            binding.data_item_inserted(None, data_item, 0, False)
-            document_model.append_data_item(data_item)
-        self.assertEqual(len(binding.data_items), 0)
-        with document_model.data_item_live(document_model.data_items[0]):
-            binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
-            self.assertEqual(len(binding.data_items), 1)
-            with document_model.data_item_live(document_model.data_items[2]):
-                binding.data_item_content_changed(document_model.data_items[2], [DataItem.METADATA])
-                self.assertEqual(len(binding.data_items), 2)
+        with contextlib.closing(document_model):
+            for _ in range(4):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                binding.data_item_inserted(None, data_item, 0, False)
+                document_model.append_data_item(data_item)
+            self.assertEqual(len(binding.data_items), 0)
+            with document_model.data_item_live(document_model.data_items[0]):
+                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                self.assertEqual(len(binding.data_items), 1)
+                with document_model.data_item_live(document_model.data_items[2]):
+                    binding.data_item_content_changed(document_model.data_items[2], [DataItem.METADATA])
+                    self.assertEqual(len(binding.data_items), 2)
 
     def test_sorted_filtered_binding_updates_when_data_item_exits_filter(self):
         def is_not_live_filter(data_item):
@@ -183,33 +187,35 @@ class TestDataItemsBindingModule(unittest.TestCase):
         binding.filter = is_not_live_filter
         binding.sort_key = sort_by_date_key
         document_model = DocumentModel.DocumentModel()
-        for _ in range(4):
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            binding.data_item_inserted(None, data_item, 0, False)
-            document_model.append_data_item(data_item)
-        self.assertEqual(len(binding.data_items), 4)
-        with document_model.data_item_live(document_model.data_items[0]):
-            binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
-            self.assertEqual(len(binding.data_items), 3)
+        with contextlib.closing(document_model):
+            for _ in range(4):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                binding.data_item_inserted(None, data_item, 0, False)
+                document_model.append_data_item(data_item)
+            self.assertEqual(len(binding.data_items), 4)
+            with document_model.data_item_live(document_model.data_items[0]):
+                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                self.assertEqual(len(binding.data_items), 3)
 
     def test_filtered_binding_updates_when_source_binding_has_data_item_that_updates(self):
         binding = DataItemsBinding.DataItemsInContainerBinding()
         document_model = DocumentModel.DocumentModel()
-        for _ in range(4):
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            binding.data_item_inserted(None, data_item, 0, False)
-            document_model.append_data_item(data_item)
-        self.assertEqual(len(binding.data_items), 4)
-        selection = Selection.IndexedSelection()
-        filter_binding = DataItemsBinding.DataItemsFilterBinding(binding, selection)
-        def is_live_filter(data_item):
-            return data_item.is_live
-        filter_binding.filter = is_live_filter
-        self.assertEqual(len(filter_binding.data_items), 0)
-        with document_model.data_item_live(document_model.data_items[0]):
-            binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
-            self.assertEqual(len(binding.data_items), 4)  # verify assumption
-            self.assertTrue(document_model.data_items[0] in filter_binding.data_items)
+        with contextlib.closing(document_model):
+            for _ in range(4):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                binding.data_item_inserted(None, data_item, 0, False)
+                document_model.append_data_item(data_item)
+            self.assertEqual(len(binding.data_items), 4)
+            selection = Selection.IndexedSelection()
+            filter_binding = DataItemsBinding.DataItemsFilterBinding(binding, selection)
+            def is_live_filter(data_item):
+                return data_item.is_live
+            filter_binding.filter = is_live_filter
+            self.assertEqual(len(filter_binding.data_items), 0)
+            with document_model.data_item_live(document_model.data_items[0]):
+                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                self.assertEqual(len(binding.data_items), 4)  # verify assumption
+                self.assertTrue(document_model.data_items[0] in filter_binding.data_items)
 
     def test_random_filtered_binding_updates(self):
         binding = DataItemsBinding.DataItemsInContainerBinding()
@@ -269,38 +275,40 @@ class TestDataItemsBindingModule(unittest.TestCase):
         binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.sort_key = DataItem.sort_by_date_key
         document_model = DocumentModel.DocumentModel()
-        for _ in range(4):
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            binding.data_item_inserted(None, data_item, 0, False)
-            document_model.append_data_item(data_item)
-            time.sleep(0.01)
-        self.assertEqual(len(binding.data_items), 4)
-        self.assertEqual(list(document_model.data_items), binding.data_items)
-        with document_model.data_items[0].maybe_data_source.data_ref() as dr:
-            dr.data += 1.0
-        self.assertEqual([document_model.data_items[1], document_model.data_items[2], document_model.data_items[3], document_model.data_items[0]], binding.data_items)
+        with contextlib.closing(document_model):
+            for _ in range(4):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                binding.data_item_inserted(None, data_item, 0, False)
+                document_model.append_data_item(data_item)
+                time.sleep(0.01)
+            self.assertEqual(len(binding.data_items), 4)
+            self.assertEqual(list(document_model.data_items), binding.data_items)
+            with document_model.data_items[0].maybe_data_source.data_ref() as dr:
+                dr.data += 1.0
+            self.assertEqual([document_model.data_items[1], document_model.data_items[2], document_model.data_items[3], document_model.data_items[0]], binding.data_items)
 
     def test_processed_data_items_sorted_by_source_data_modified_date(self):
         binding = DataItemsBinding.DataItemsInContainerBinding()
         binding.sort_key = DataItem.sort_by_date_key
         document_model = DocumentModel.DocumentModel()
-        for _ in range(4):
-            data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
-            binding.data_item_inserted(None, data_item, 0, False)
+        with contextlib.closing(document_model):
+            for _ in range(4):
+                data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
+                binding.data_item_inserted(None, data_item, 0, False)
+                document_model.append_data_item(data_item)
+                time.sleep(0.01)
+            data_item = DataItem.DataItem()
+            operation = Operation.OperationItem("invert-operation")
+            operation.add_data_source(document_model.data_items[0]._create_test_data_source())
+            data_item.set_operation(operation)
             document_model.append_data_item(data_item)
-            time.sleep(0.01)
-        data_item = DataItem.DataItem()
-        operation = Operation.OperationItem("invert-operation")
-        operation.add_data_source(document_model.data_items[0]._create_test_data_source())
-        data_item.set_operation(operation)
-        document_model.append_data_item(data_item)
-        document_model.recompute_all()
-        binding.data_item_inserted(None, data_item, 0, False)
-        self.assertEqual(len(binding.data_items), 5)
-        # new data item should be in either position 0, 1 depending on uuid
-        self.assertTrue(binding.data_items.index(document_model.data_items[4]) in [0, 1])
-        self.assertTrue(binding.data_items.index(document_model.data_items[0]) in [0, 1])
-        self.assertEqual(list(document_model.data_items[1:4]), binding.data_items[2:])  # rest of list matches
+            document_model.recompute_all()
+            binding.data_item_inserted(None, data_item, 0, False)
+            self.assertEqual(len(binding.data_items), 5)
+            # new data item should be in either position 0, 1 depending on uuid
+            self.assertTrue(binding.data_items.index(document_model.data_items[4]) in [0, 1])
+            self.assertTrue(binding.data_items.index(document_model.data_items[0]) in [0, 1])
+            self.assertEqual(list(document_model.data_items[1:4]), binding.data_items[2:])  # rest of list matches
 
 
 if __name__ == '__main__':
