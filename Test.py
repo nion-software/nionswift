@@ -41,11 +41,11 @@ def load_tests():
 
     base_local_path = os.path.dirname(os.path.realpath(__file__))
     base_local_path = os.path.join(base_local_path, "..")
-    for subdir in ["swift", "ui"]:
+    for subdir in ["swift", "../nionui/nion/ui"]:
         localpath = os.path.join(base_local_path, subdir)
         for file in os.listdir(os.path.join(localpath, "test")):
             if file.endswith("_test.py"):
-                module_name = "nion.{0}.test.".format(subdir) + file.replace(".py", "")
+                module_name = "nion.{0}.test.".format(os.path.basename(subdir)) + file.replace(".py", "")
                 module = importlib.import_module(module_name)
                 for maybe_a_class in inspect.getmembers(module):
                     if inspect.isclass(maybe_a_class[1]) and maybe_a_class[0].startswith("Test"):

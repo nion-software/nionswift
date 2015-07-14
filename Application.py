@@ -77,7 +77,6 @@ class Application(object):
 
     def initialize(self):
         PlugInManager.load_plug_ins(self, get_root_dir())
-        Test.load_tests()  # after plug-ins are loaded
 
     def deinitialize(self):
         self.__close()
