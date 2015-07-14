@@ -110,6 +110,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
+        document_controller.close()
 
     def test_save_load_document(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
@@ -415,6 +416,7 @@ class TestStorageClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
+        document_controller.close()
 
     def update_data(self, data_item):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -449,6 +451,7 @@ class TestStorageClass(unittest.TestCase):
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
         with read_display_specifier.buffered_data_source.data_ref() as data_ref:
             self.assertEqual(data_ref.data[0,0], 2)
+        document_controller.close()
 
     def test_storage_insert_items(self):
         cache_name = ":memory:"
@@ -473,6 +476,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.data_groups[0].remove_data_group(document_controller.document_model.data_groups[0].data_groups[2])
         # make sure indexes are in sequence still
         self.assertEqual(len(library_storage.properties["data_groups"][0]["data_groups"]), 4)
+        document_controller.close()
 
     def test_copy_data_group(self):
         document_model = DocumentModel.DocumentModel()
@@ -492,6 +496,7 @@ class TestStorageClass(unittest.TestCase):
         data_group2b1 = DataGroup.DataGroup()
         data_group2b.append_data_group(data_group2b1)
         data_group2_copy = copy.deepcopy(data_group2)
+        document_controller.close()
 
     def test_adding_data_item_to_document_model_twice_raises_exception(self):
         document_model = DocumentModel.DocumentModel()
@@ -501,6 +506,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         with self.assertRaises(AssertionError):
             document_model.append_data_item(data_item)
+        document_controller.close()
 
     # make sure thumbnail raises exception if a bad operation is involved
     def test_adding_data_item_to_data_group_twice_raises_exception(self):
@@ -512,6 +518,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.data_groups[0].append_data_item(data_item)
         with self.assertRaises(AssertionError):
             document_model.data_groups[0].append_data_item(data_item)
+        document_controller.close()
 
     def test_insert_item_with_transaction(self):
         cache_name = ":memory:"
@@ -749,6 +756,7 @@ class TestStorageClass(unittest.TestCase):
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
         self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
+        document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
@@ -768,6 +776,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         document_model.append_data_item(data_item)
+        document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
@@ -785,6 +794,7 @@ class TestStorageClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         invert_operation = Operation.OperationItem("invert-operation")
         data_item.set_operation(invert_operation)
+        document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
@@ -802,6 +812,7 @@ class TestStorageClass(unittest.TestCase):
         gaussian_operation = Operation.OperationItem("gaussian-blur-operation")
         data_item.set_operation(gaussian_operation)
         gaussian_operation.set_property("sigma", 1.7)
+        document_controller.close()
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -826,6 +837,7 @@ class TestStorageClass(unittest.TestCase):
         line_profile_operation.establish_associated_region("line", display_specifier.buffered_data_source)
         line_profile_operation.add_data_source(data_item._create_test_data_source())
         data_item2.set_operation(line_profile_operation)
+        document_controller.close()
         # read it back
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
@@ -920,6 +932,7 @@ class TestStorageClass(unittest.TestCase):
         self.assertTrue("data_dtype" in data_item.properties.get("data_sources")[0])
         self.assertTrue("uuid" in data_item.properties)
         self.assertTrue("version" in data_item.properties)
+        document_controller.close()
 
     def test_deleting_dependent_after_deleting_source_succeeds(self):
         current_working_directory = os.getcwd()

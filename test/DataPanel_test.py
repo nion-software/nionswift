@@ -108,6 +108,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.periodic()
         data_panel.data_list_controller._delete_pressed()
         self.assertEqual(len(document_model.data_items), 0)
+        document_controller.close()
 
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.
@@ -149,6 +150,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(data_panel.data_list_controller.selection.indexes, set([0]))
+        document_controller.close()
 
     # make sure switching between two data items in different groups works
     # then make sure the same group is selected if the data item is in multiple groups
@@ -244,6 +246,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(data_panel.data_list_controller.selection.indexes, set([1]))
+        document_controller.close()
 
     def test_selection_during_operations(self):
         document_model = DocumentModel.DocumentModel()
@@ -297,6 +300,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item1)
         binding.close()
         binding = None
+        document_controller.close()
 
     def test_data_group_data_items_binding_should_close_nicely(self):
         document_model = DocumentModel.DocumentModel()
@@ -317,6 +321,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertTrue(data_item1 in binding.data_items)
         binding.close()
         binding = None
+        document_controller.close()
 
     def test_data_group_data_items_binding_should_replace_data_group_with_itself_without_failing(self):
         document_model = DocumentModel.DocumentModel()
@@ -338,6 +343,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertTrue(data_item1 in binding.data_items)
         binding.close()
         binding = None
+        document_controller.close()
 
     def test_add_remove_sync(self):
         document_model = DocumentModel.DocumentModel()
@@ -380,6 +386,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).title_str, str(data_item1.title))
         self.assertEqual(data_panel.data_list_controller._test_get_display_item(1).title_str, str(data_item4.title))
         self.assertEqual(data_panel.data_list_controller._test_get_display_item(2).title_str, str(data_item3.title))
+        document_controller.close()
 
     def test_select_after_receive_files(self):
         document_model = DocumentModel.DocumentModel()
@@ -395,6 +402,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertIsNone(document_controller.data_browser_controller.data_item)
         data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
         self.assertEqual(document_controller.data_browser_controller.data_item, data_group.data_items[0])
+        document_controller.close()
 
     def test_data_panel_remove_group(self):
         document_model = DocumentModel.DocumentModel()
@@ -450,6 +458,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.periodic()
         data_panel.data_list_controller.selection.set_multiple([0, 1])
         data_panel.data_list_controller._delete_pressed()
+        document_controller.close()
 
     def test_data_panel_should_save_and_restore_state_when_no_data_group_is_selected(self):
         # TODO: implement data panel save/restore test
@@ -464,6 +473,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.library_widget.on_selection_changed([(1, -1, 0)])
         data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+        document_controller.close()
 
     def test_display_filter_filters_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -478,6 +488,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.display_filter = lambda data_item: data_item.title == "Y"
         document_controller.periodic()  # changes to filter will be queued. update that here.
         self.assertEqual(len(document_controller.filtered_data_items_binding.data_items), 1)
+        document_controller.close()
 
     def test_changing_display_limits_causes_display_changed_message(self):
         # necessary to make the thumbnails update in the data panel
@@ -514,6 +525,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.data_list_controller.selection.set_multiple([0, 1])
         document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2)
+        document_controller.close()
 
     def test_change_from_filter_to_group_and_back_and_forth_updates_without_recursion(self):
         document_model = DocumentModel.DocumentModel()
@@ -528,6 +540,7 @@ class TestDataPanelClass(unittest.TestCase):
         # now select the first group in the data panel
         document_controller.data_browser_controller.set_data_browser_selection(filter_id="all")
         document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2)
+        document_controller.close()
 
     def test_data_panel_list_contents_resize_properly(self):
         document_model = DocumentModel.DocumentModel()
@@ -541,6 +554,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.data_list_widget.root_canvas_item.size_changed(width, 148)
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_bounds.width, width - 16)
+        document_controller.close()
 
     def test_data_panel_scroll_bar_works_properly(self):
         document_model = DocumentModel.DocumentModel()
@@ -553,6 +567,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_rect, Geometry.IntRect((0, 0), (800, 304)))
         data_panel.data_list_controller.scroll_bar_canvas_item.simulate_drag((8, 8), (24, 8))
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_rect, Geometry.IntRect((-80, 0), (800, 304)))
+        document_controller.close()
 
     def test_data_panel_grid_contents_resize_properly(self):
         document_model = DocumentModel.DocumentModel()
@@ -566,6 +581,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.data_grid_widget.root_canvas_item.size_changed(width, 148)
         self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
         self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.content.canvas_bounds.width, width - 16)
+        document_controller.close()
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

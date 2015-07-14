@@ -528,6 +528,7 @@ class TestOperationClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[0].operation.get_property("param"), 5)
+        document_controller.close()
 
     def test_operation_should_reload_properties_when_saved(self):
         cache_name = ":memory:"
@@ -762,6 +763,7 @@ class TestOperationClass(unittest.TestCase):
         data_item.maybe_data_source.add_region(crop_region)
         display_specifier.display.graphic_selection.set(0)
         document_controller.processing_crop().data_item
+        document_controller.close()
 
     def test_remove_graphic_for_crop_removes_processed_data_item(self):
         document_model = DocumentModel.DocumentModel()

@@ -120,6 +120,7 @@ class TestWorkspaceClass(unittest.TestCase):
         image_panel_weak_ref = weakref.ref(document_controller.workspace_controller.display_panels[0])
         document_controller.workspace_controller.change_workspace(workspace_2x1)
         self.assertIsNone(image_panel_weak_ref())
+        document_controller.close()
 
     def test_image_panel_focused_when_clicked(self):
         # setup
@@ -155,6 +156,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
         self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_focused())
         self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_selected())
+        document_controller.close()
 
     def test_empty_image_panel_focused_when_clicked(self):
         # setup
@@ -174,6 +176,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
         self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_focused())
         self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_selected())
+        document_controller.close()
 
     def test_changed_image_panel_focused_when_clicked(self):
         # setup
@@ -206,6 +209,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_selected())
         self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_focused())
         self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_selected())
+        document_controller.close()
 
     def test_workspace_construct_and_deconstruct_result_in_matching_descriptions(self):
         # setup
@@ -219,6 +223,7 @@ class TestWorkspaceClass(unittest.TestCase):
         desc1 = get_layout("2x1")[1]
         desc2 = document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0])
         self.assertEqual(desc1, desc2)
+        document_controller.close()
 
     def test_workspace_change_records_workspace_uuid(self):
         document_controller = DocumentController_test.construct_test_document(self.app, workspace_id="library")
@@ -250,6 +255,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.change_workspace(workspace_2x1)
         self.assertEqual(document_controller.workspace_controller.display_panels[0].display_specifier.data_item, data_item2)
         self.assertEqual(document_controller.workspace_controller.display_panels[1].display_specifier.data_item, data_item3)
+        document_controller.close()
 
     def test_workspace_records_json_compatible_content_when_closing_document(self):
         library_storage = DocumentModel.FilePersistentStorage()
@@ -279,6 +285,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace_1x1 = document_controller.document_model.workspaces[0]
         self.assertEqual(document_controller.workspace_controller.display_panels[0].display_specifier.data_item, document_model.data_items[0])
+        document_controller.close()
 
     def __test_drop_on_1x1(self, region):
         document_model = DocumentModel.DocumentModel()
@@ -374,6 +381,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 1)
         # check that there is just one top level panel now
         self.assertEqual(document_controller.workspace_controller.display_panels[0].display_specifier.data_item, data_item2)
+        document_controller.close()
 
     def test_removing_middle_item_in_3x1_results_in_sensible_splits(self):
         document_model = DocumentModel.DocumentModel()
@@ -403,6 +411,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(document_controller.workspace_controller.display_panels[1].display_specifier.data_item, data_item3)
         # check that the splits are the same at the top level
         self.assertEqual(root_canvas_item.canvas_items[0].splits, splits)
+        document_controller.close()
 
     def test_close_button_in_header_works(self):
         document_model = DocumentModel.DocumentModel()
@@ -419,6 +428,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
         # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
         document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_click((12, 308))
+        document_controller.close()
 
     def test_dragging_header_to_swap_works(self):
         document_model = DocumentModel.DocumentModel()
@@ -435,6 +445,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
         # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
         document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_drag((12, 12), (480, 240))
+        document_controller.close()
 
     def test_creating_invalid_workspace_fails_gracefully(self):
         document_model = DocumentModel.DocumentModel()
@@ -446,6 +457,7 @@ class TestWorkspaceClass(unittest.TestCase):
         panel_0_dict.pop("identifier")
         panel_0_dict.pop("uuid")
         self.assertEqual(panel_0_dict, {'selected': True, 'type': 'image'})
+        document_controller.close()
 
     def test_dropping_on_unfocused_display_panel_focuses(self):
         document_model = DocumentModel.DocumentModel()
@@ -470,6 +482,7 @@ class TestWorkspaceClass(unittest.TestCase):
         # check focus
         self.assertTrue(display_panel0._content_for_test.content_canvas_item.focused)
         self.assertFalse(display_panel1._content_for_test.content_canvas_item.focused)
+        document_controller.close()
 
     def test_browser_does_not_reset_selected_display_specifier_when_root_loses_focus(self):
         # make sure the inspector doesn't disappear when focus changes to one of its fields
@@ -493,6 +506,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertIsNotNone(display_binding.display_specifier.data_item)
         display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(False)
         self.assertIsNotNone(display_binding.display_specifier.data_item)
+        document_controller.close()
 
     class DisplayPanelController(object):
         def __init__(self, display_panel_content):
@@ -528,6 +542,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.change_workspace(workspace1)
         document_controller.workspace_controller.change_workspace(workspace2)
         DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+        document_controller.close()
 
     def test_switch_workspace_closes_display_panel_controller(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
@@ -545,6 +560,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.change_to_previous_workspace()
         self.assertTrue(display_panel_controller.closed)
         DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+        document_controller.close()
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -441,78 +441,97 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_acquiring_frames_as_partials_with_generator_produces_correct_frame_numbers(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_acquire_multiple_frames_reuses_same_data_item(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_acquire_multiple_frames_as_partials_reuses_same_data_item(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_simple_hardware_start_and_stop_actually_stops_acquisition(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_simple_hardware_start_and_stop_actually_stops_acquisition(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_simple_hardware_start_and_abort_works_as_expected(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_simple_hardware_start_and_abort_works_as_expected(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_record_only_acquires_one_item(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_record_only_acquires_one_item(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_record_during_view_records_one_item_and_keeps_viewing(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_record_during_view_records_one_item_and_keeps_viewing(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_abort_record_during_view_returns_to_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_abort_record_during_view_returns_to_view(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_view_reuses_single_data_item(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_view_reuses_single_data_item(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_get_next_data_elements_to_finish_returns_full_frames(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_get_next_data_elements_to_finish_produces_data_item_full_frames(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_get_next_data_elements_to_finish_produces_data_item_full_frames(self, hardware_source, document_controller)
+        document_controller.close()
 
     def test_exception_during_view_halts_playback(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
+        document_controller.close()
 
     def test_exception_during_record_halts_playback(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
+        document_controller.close()
 
     def test_able_to_restart_view_after_exception(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
+        document_controller.close()
 
     def test_exception_during_view_halts_scan(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
+        document_controller.close()
 
     def test_exception_during_record_halts_scan(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
+        document_controller.close()
 
     def test_able_to_restart_scan_after_exception_scan(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
+        document_controller.close()
 
     def test_record_starts_and_finishes_in_reasonable_time(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         _test_record_starts_and_finishes_in_reasonable_time(self, hardware_source, hardware_source.sleep)
+        document_controller.close()
 
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
@@ -540,6 +559,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         while hardware_source.is_playing:
             time.sleep(0.01)
             self.assertTrue(time.time() - start_time < 3.0)
+        document_controller.close()
 
     def test_view_reuses_externally_configured_item(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -554,6 +574,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 2)  # old one is copied
         self.assertAlmostEqual(document_model.data_items[0].data_sources[0].data[0], 1.0)
         self.assertAlmostEqual(document_model.data_items[1].data_sources[0].data[0], 2.0)
+        document_controller.close()
 
     def test_setup_channel_configures_tags_correctly(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -568,6 +589,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["hardware_source_id"], hardware_source_id)
         self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["channel_id"], channel_id)
         self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["view_id"], view_id)
+        document_controller.close()
 
     def test_partial_acquisition_only_updates_sub_area(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
@@ -586,6 +608,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         data = document_model.data_items[0].data_sources[0].data
         self.assertAlmostEqual(data[0, 0], 1.0)
         self.assertAlmostEqual(data[128, 0], 16.0)
+        document_controller.close()
 
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = SimpleHardwareSource().make_data_element()
@@ -610,6 +633,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
         self.assertIsNone(hardware_source_metadata.get("channel_id"))
         self.assertIsNone(hardware_source_metadata.get("channel_name"))
+        document_controller.close()
 
     def test_channel_id_and_name_and_index_are_correct_for_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
@@ -621,6 +645,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
         self.assertEqual(hardware_source_metadata.get("channel_id"), "a")
         self.assertEqual(hardware_source_metadata.get("channel_name"), "A")
+        document_controller.close()
 
     def test_channel_id_and_name_and_index_are_correct_for_multiview(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
@@ -640,6 +665,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(hardware_source_metadata1.get("channel_index"), 1)
         self.assertEqual(hardware_source_metadata1.get("channel_id"), "b")
         self.assertEqual(hardware_source_metadata1.get("channel_name"), "B")
+        document_controller.close()
 
     def test_multiview_reuse_second_channel_by_id_not_index(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
@@ -657,16 +683,19 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertAlmostEqual(buffered_data_source1.data[0, 0], 3.0)
         self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)
         self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 4.0)
+        document_controller.close()
 
     def test_assessed_flag_is_not_set_for_viewed_data(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         self.__acquire_one(document_controller, hardware_source)
         self.assertIsNone(document_model.data_items[0].metadata.get("assessed"))
+        document_controller.close()
 
     def test_assessed_flag_is_false_for_recorded_data(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         self.__record_one(document_controller, hardware_source)
         self.assertFalse(document_model.data_items[0].metadata.get("assessed", True))
+        document_controller.close()
 
     def test_restarting_view_in_same_session_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -688,6 +717,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         acq_value = document_model.data_items[0].data_sources[0].data_and_calibration.data[0]
         self.assertEqual(acq_value, 2.0)
         self.assertEqual(value, -acq_value)
+        document_controller.close()
 
     def test_restarting_view_after_reload_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -708,6 +738,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(acq_value0, 2.0)
         self.assertEqual(acq_value2, 1.0)
         self.assertEqual(value, -acq_value0)
+        document_controller.close()
 
     def test_reloading_restarted_view_after_size_change_produces_data_item_with_unique_uuid(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
@@ -739,6 +770,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(count_ref[0], 0)
             self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(count_ref[0], 1)
+        document_controller.close()
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -753,6 +785,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(count_ref[0], 0)
             self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(count_ref[0], 1)
+        document_controller.close()
 
 if __name__ == '__main__':
     unittest.main()

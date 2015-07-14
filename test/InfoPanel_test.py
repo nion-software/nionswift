@@ -38,6 +38,7 @@ class TestInfoPanelClass(unittest.TestCase):
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
         display_panel.display_canvas_item.mouse_exited()
+        document_controller.close()
 
     def test_cursor_over_1d_data_displays_without_exception_when_not_displaying_calibration(self):
         document_model = DocumentModel.DocumentModel()
@@ -52,6 +53,7 @@ class TestInfoPanelClass(unittest.TestCase):
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
         display_panel.display_canvas_item.mouse_exited()
+        document_controller.close()
 
     def test_cursor_over_3d_data_displays_without_exception(self):
         document_model = DocumentModel.DocumentModel()
@@ -65,6 +67,7 @@ class TestInfoPanelClass(unittest.TestCase):
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
         display_panel.display_canvas_item.mouse_exited()
+        document_controller.close()
 
     def test_cursor_display_can_only_be_nulled_by_the_current_cursor_source(self):
         document_model = DocumentModel.DocumentModel()
@@ -83,3 +86,4 @@ class TestInfoPanelClass(unittest.TestCase):
         document_controller.cursor_changed("abc", None, False, None)
         document_controller.periodic()
         self.assertEqual(info_panel.position_text.text, "")
+        document_controller.close()

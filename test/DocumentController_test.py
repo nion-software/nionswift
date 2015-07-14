@@ -163,6 +163,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item3)
         new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], threaded=False)
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
+        document_controller.close()
 
     def test_receive_files_should_put_files_into_document_model_at_index(self):
         document_model = DocumentModel.DocumentModel()
@@ -178,6 +179,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item3)
         new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], index=2, threaded=False)
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 2)
+        document_controller.close()
 
     def test_receive_files_should_put_files_into_data_group_at_index(self):
         document_model = DocumentModel.DocumentModel()
@@ -199,6 +201,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         new_data_items = document_controller.receive_files([":/app/scroll_gem.png"], data_group=data_group, index=2, threaded=False)
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
         self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
+        document_controller.close()
 
     def test_remove_graphic_removes_it_from_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -299,6 +302,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(inverted_display_specifier.buffered_data_source.data_shape, (128, 128))
         self.assertEqual(inverted_display_specifier.buffered_data_source.data_dtype, display_specifier.buffered_data_source.data_dtype)
         self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[50, 50], -1.0)
+        document_controller.close()
 
     def test_processing_on_crop_region_connects_region_to_operation(self):
         document_model = DocumentModel.DocumentModel()
@@ -315,6 +319,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(crop_region.bounds, operation.data_sources[0].get_property("bounds"))
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
         self.assertEqual(crop_region.bounds, operation.data_sources[0].get_property("bounds"))
+        document_controller.close()
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -333,6 +338,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertFalse(cropped_display_specifier.buffered_data_source.is_data_stale)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
         self.assertTrue(cropped_display_specifier.buffered_data_source.is_data_stale)
+        document_controller.close()
 
     class SumOperation(Operation.Operation):
 
@@ -380,6 +386,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertAlmostEqual(buffered_data_source.data[96, 32], 1.0)
         self.assertAlmostEqual(buffered_data_source.data[96, 96], 1.0)
         self.assertAlmostEqual(buffered_data_source.data[32, 96], 1.0)
+        document_controller.close()
 
     def test_deleting_processed_data_item_and_then_recomputing_works(self):
         # processed data item should be removed from recomputing queue
@@ -396,6 +403,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         data_item_result = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
         document_model.remove_data_item(data_item_result)
         document_model.recompute_all()
+        document_controller.close()
 
     def test_processing_duplicate_does_copy(self):
         document_model = DocumentModel.DocumentModel()
@@ -405,6 +413,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
         document_controller.processing_duplicate()
+        document_controller.close()
 
     def test_processing_duplicate_with_region_does_copy(self):
         document_model = DocumentModel.DocumentModel()
@@ -417,6 +426,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
         document_controller.processing_duplicate()
+        document_controller.close()
 
     def test_processing_duplicate_with_operation_copies_it_but_has_same_data_source(self):
         document_model = DocumentModel.DocumentModel()
@@ -436,6 +446,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertNotEqual(data_item_dup.operation.data_sources[0], data_item.operation.data_sources[0])
         self.assertEqual(data_item_dup.operation.data_sources[0].buffered_data_source_uuid, data_item.operation.data_sources[0].buffered_data_source_uuid)
         self.assertEqual(data_item_dup.operation.data_sources[0].source_data_item, data_item.operation.data_sources[0].source_data_item)
+        document_controller.close()
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()
@@ -458,6 +469,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_controller.fix_display_limits(display_specifier)
             self.assertEqual(len(display_specifier.display.display_limits), 2)
+        document_controller.close()
 
 
 if __name__ == '__main__':

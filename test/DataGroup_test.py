@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 # standard libraries
+import contextlib
 import copy
 import unittest
 
@@ -113,34 +114,36 @@ class TestDataGroupClass(unittest.TestCase):
     def test_inserting_item_with_existing_data_source_establishes_connection(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
-        # setup by adding data item and a dependent data item
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item2a = DataItem.DataItem()
-        operation2a = Operation.OperationItem("resample-operation")
-        operation2a.add_data_source(data_item2._create_test_data_source())
-        data_item2a.set_operation(operation2a)
-        document_model.append_data_item(data_item2)  # add this first
-        document_model.append_data_item(data_item2a)  # add this second
-        # verify
-        self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
+        with contextlib.closing(document_controller):
+            # setup by adding data item and a dependent data item
+            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item2a = DataItem.DataItem()
+            operation2a = Operation.OperationItem("resample-operation")
+            operation2a.add_data_source(data_item2._create_test_data_source())
+            data_item2a.set_operation(operation2a)
+            document_model.append_data_item(data_item2)  # add this first
+            document_model.append_data_item(data_item2a)  # add this second
+            # verify
+            self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
 
     def test_removing_data_item_with_dependent_data_item_removes_them_both(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
-        # setup by adding data item and a dependent data item
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        data_item2a = DataItem.DataItem()
-        operation2a = Operation.OperationItem("resample-operation")
-        operation2a.add_data_source(data_item2._create_test_data_source())
-        data_item2a.set_operation(operation2a)
-        document_model.append_data_item(data_item2)
-        document_model.append_data_item(data_item2a)
-        # verify assumptions
-        self.assertEqual(len(document_model.data_items), 2)
-        # remove root
-        document_model.remove_data_item(data_item2)
-        # verify it and its dependent are gone
-        self.assertEqual(len(document_model.data_items), 0)
+        with contextlib.closing(document_controller):
+            # setup by adding data item and a dependent data item
+            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item2a = DataItem.DataItem()
+            operation2a = Operation.OperationItem("resample-operation")
+            operation2a.add_data_source(data_item2._create_test_data_source())
+            data_item2a.set_operation(operation2a)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item2a)
+            # verify assumptions
+            self.assertEqual(len(document_model.data_items), 2)
+            # remove root
+            document_model.remove_data_item(data_item2)
+            # verify it and its dependent are gone
+            self.assertEqual(len(document_model.data_items), 0)
 
     def test_deleting_document_with_dependent_data_items_works(self):
         document_model = DocumentModel.DocumentModel()

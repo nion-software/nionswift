@@ -174,6 +174,7 @@ class TestInspectorClass(unittest.TestCase):
         inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
         document_controller.periodic()
         self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
+        document_controller.close()
 
     def test_inspector_handles_deleted_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -185,6 +186,7 @@ class TestInspectorClass(unittest.TestCase):
         document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item)  # queues the update
         document_model.remove_data_item(data_item)  # removes item while still in queue
         document_controller.periodic()  # execute queue
+        document_controller.close()
 
     def test_inspector_handles_deleted_data_being_displayed(self):
         # if the inspector doesn't watch for the item being deleted, and the inspector's update display
@@ -198,6 +200,7 @@ class TestInspectorClass(unittest.TestCase):
         # document_controller.periodic()  # this makes it succeed in all cases
         document_model.remove_data_item(data_item)
         document_controller.periodic()
+        document_controller.close()
 
     def disabled_test_corrupt_data_item_should_not_completely_disable_the_inspector(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
