@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 # standard libraries
 import gettext
+import weakref
 
 # third party libraries
 import numpy
@@ -27,6 +28,8 @@ class ToolbarPanel(Panel.Panel):
         # see https://www.iconfinder.com
 
         ui = document_controller.ui
+
+        document_controller_weak_ref = weakref.ref(document_controller)
 
         icon_size = Geometry.IntSize(height=24, width=32)
         border_color = "#CCC"
@@ -72,41 +75,41 @@ class ToolbarPanel(Panel.Panel):
         modes = "pointer", "hand", "line", "rectangle", "ellipse", "point", "line-profile", "interval"
         self.__tool_button_group = CanvasItem.RadioButtonGroup([pointer_tool_button, hand_tool_button, line_tool_button, rectangle_tool_button, ellipse_tool_button, point_tool_button, line_profile_tool_button, interval_tool_button])
         self.__tool_button_group.current_index = modes.index(document_controller.tool_mode)
-        self.__tool_button_group.on_current_index_changed = lambda index: setattr(document_controller, "tool_mode", modes[index])
+        self.__tool_button_group.on_current_index_changed = lambda index: setattr(document_controller_weak_ref(), "tool_mode", modes[index])
 
         new_group_button = self.ui.create_push_button_widget()
         new_group_button.tool_tip = _("New Group")
         new_group_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/new_group_icon.png")
-        new_group_button.on_clicked = lambda: document_controller.add_group_action.trigger()
+        new_group_button.on_clicked = lambda: document_controller_weak_ref().add_group_action.trigger()
 
         delete_button = self.ui.create_push_button_widget()
         delete_button.tool_tip = _("Delete")
         delete_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/delete_icon.png")
-        delete_button.on_clicked = lambda: document_controller.delete_action.trigger()
+        delete_button.on_clicked = lambda: document_controller_weak_ref().delete_action.trigger()
 
         export_button = self.ui.create_push_button_widget()
         export_button.tool_tip = _("Export")
         export_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/export_icon.png")
-        export_button.on_clicked = lambda: document_controller.export_action.trigger()
+        export_button.on_clicked = lambda: document_controller_weak_ref().export_action.trigger()
 
         view_palette_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 54, "width": 68})
         view_palette_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=2), margins=margins)
 
         fit_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/fit_icon.png"), border_color=border_color)
         fit_view_button.size = icon_size
-        fit_view_button.on_button_clicked = lambda: document_controller.fit_view_action.trigger()
+        fit_view_button.on_button_clicked = lambda: document_controller_weak_ref().fit_view_action.trigger()
 
         fill_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/fill_icon.png"), border_color=border_color)
         fill_view_button.size = icon_size
-        fill_view_button.on_button_clicked = lambda: document_controller.fill_view_action.trigger()
+        fill_view_button.on_button_clicked = lambda: document_controller_weak_ref().fill_view_action.trigger()
 
         one_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/1x1_icon.png"), border_color=border_color)
         one_to_one_view_button.size = icon_size
-        one_to_one_view_button.on_button_clicked = lambda: document_controller.one_to_one_view_action.trigger()
+        one_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref().one_to_one_view_action.trigger()
 
         two_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/2x1_icon.png"), border_color=border_color)
         two_to_one_view_button.size = icon_size
-        two_to_one_view_button.on_button_clicked = lambda: document_controller.two_to_one_view_action.trigger()
+        two_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref().two_to_one_view_action.trigger()
 
         view_palette_canvas_item.add_canvas_item(fit_view_button, Geometry.IntPoint(x=0, y=0))
         view_palette_canvas_item.add_canvas_item(fill_view_button, Geometry.IntPoint(x=0, y=1))
@@ -116,7 +119,7 @@ class ToolbarPanel(Panel.Panel):
         toggle_filter_button = self.ui.create_push_button_widget()
         toggle_filter_button.tool_tip = _("Toggle Filter Panel")
         toggle_filter_button.icon = self.ui.load_rgba_data_from_file(":/Graphics/filter_icon.png")
-        toggle_filter_button.on_clicked = lambda: document_controller.toggle_filter_action.trigger()
+        toggle_filter_button.on_clicked = lambda: document_controller_weak_ref().toggle_filter_action.trigger()
 
         tool_group_widget = self.ui.create_row_widget()
         tool_group_widget.add(tool_palette_canvas_item.canvas_widget)
