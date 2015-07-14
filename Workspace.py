@@ -136,6 +136,7 @@ class Workspace(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.__content_column = None
+        self.filter_panel.close()
         self.filter_panel = None
         self.filter_row = None
         self.image_row = None

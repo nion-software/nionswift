@@ -320,6 +320,10 @@ class FilterPanel(object):
 
         self.widget = filter_column
 
+    def close(self):
+        self.header_canvas_item_container.close()
+        self.header_canvas_item_container = None
+
 
 class TreeNode(object):
 

@@ -175,7 +175,8 @@ class InspectorSection(object):
         twist_down_canvas_item.on_button_clicked = toggle
 
     def close(self):
-        pass
+        self.twist_down_canvas_item_root.close()
+        self.twist_down_canvas_item_root = None
 
     def add_widget_to_content(self, widget):
         self.__section_content_column.add_spacing(4)

@@ -147,3 +147,12 @@ class ToolbarPanel(Panel.Panel):
         toolbar_row_widget.add_stretch()
 
         self.widget.add(toolbar_row_widget)
+
+        self.__tool_palette_canvas_item = tool_palette_canvas_item
+        self.__view_palette_canvas_item = view_palette_canvas_item
+
+    def close(self):
+        self.__tool_palette_canvas_item.close()
+        self.__tool_palette_canvas_item = None
+        self.__view_palette_canvas_item.close()
+        self.__view_palette_canvas_item = None

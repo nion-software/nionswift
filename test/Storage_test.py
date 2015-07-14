@@ -1521,6 +1521,14 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def disabled_test_document_controller_disposes_threads(self):
+        thread_count = threading.activeCount()
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        document_controller.close()
+        gc.collect()
+        self.assertEqual(threading.activeCount(), thread_count)
+
     def disabled_test_document_controller_leaks_no_memory(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -1557,6 +1565,7 @@ class TestStorageClass(unittest.TestCase):
         gc.collect()
         memory_usage = memory_usage_resource() - memory_start
         self.assertTrue(memory_usage < 0.2)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -525,6 +525,7 @@ class DataListWidget(object):
         self.data_list_controller.on_drag_started = None
         self.data_list_controller = None
         self.root_canvas_item.close()
+        self.root_canvas_item = None
 
 
 class DataGridWidget(object):
@@ -544,6 +545,7 @@ class DataGridWidget(object):
         self.data_grid_controller.on_drag_started = None
         self.data_grid_controller = None
         self.root_canvas_item.close()
+        self.root_canvas_item = None
 
 
 class DataBrowserController(object):
@@ -1156,6 +1158,8 @@ class DataPanel(Panel.Panel):
         # button group
         self.__view_button_group.close()
         self.__view_button_group = None
+        self.buttons_canvas_item.close()
+        self.buttons_canvas_item = None
         # finish closing
         super(DataPanel, self).close()
 

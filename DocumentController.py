@@ -140,6 +140,7 @@ class DocumentController(Observable.Broadcaster):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
+        self.document_window.close()
         self.document_window = None
         # get rid of the bindings
         self.__data_item_will_be_removed_event_listener.close()
