@@ -38,7 +38,7 @@ class TestInspectorClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         # configure the inspectors
@@ -49,7 +49,7 @@ class TestInspectorClass(unittest.TestCase):
         document_controller.close()
 
     def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         converter = Inspector.CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, 256)
         converter.convert(0.5)
@@ -65,7 +65,7 @@ class TestInspectorClass(unittest.TestCase):
             def __init__(self):
                 super(BoolModel, self).__init__()
                 self.display_calibrated_values = False
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         y_converter = Inspector.CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, 256)
         height_converter = Inspector.CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, 256)
@@ -78,7 +78,7 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(center, rect_graphic.center)
 
     def test_calibration_inspector_section_binds(self):
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
@@ -96,7 +96,7 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(units_field.text, u"mmm")
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
@@ -133,7 +133,7 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(graphic_widget.children[0].children[1].text, "-18.10 mm")
 
     def test_float_to_string_converter_strips_units(self):
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         buffered_data_source = display_specifier.buffered_data_source
         converter = Inspector.CalibratedValueFloatToStringConverter(buffered_data_source, 0, 256)

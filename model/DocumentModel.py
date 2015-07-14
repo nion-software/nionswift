@@ -114,7 +114,7 @@ class FilePersistentStorage(object):
     def update_properties(self):
         if self.__filepath:
             with open(self.__filepath, "w") as fp:
-                properties = json.dump(self.__properties, fp)
+                json.dump(self.__properties, fp)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)

@@ -66,7 +66,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_model = DocumentModel.DocumentModel()
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
-        self.data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
@@ -359,9 +359,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         # assumes the test widget is 640x480
         self.display_panel.display_canvas_item.update_layout((0, 0), (480, 640))
         self.assertIsNotNone(self.display_panel.display_canvas_item.map_widget_to_image((240, 320)))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((240, 320)), (500.0, 500.0))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((240, 320)), (5, 5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((0, 80)), (0.0, 0.0))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((480, 560)), (1000.0, 1000.0))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((480, 560)), (10, 10))
 
     # this helps test out cursor positioning
     def test_map_widget_to_offset_image(self):
@@ -370,9 +370,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
         self.display_panel.display_canvas_item.move_left()  # 10 pixels left
         self.assertIsNotNone(self.display_panel.display_canvas_item.map_widget_to_image((240, 320)))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((240, 300)), (500.0, 500.0))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((240, 300)), (5, 5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((0, 60)), (0.0, 0.0))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((480, 540)), (1000.0, 1000.0))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_widget_to_image((480, 540)), (10, 10))
 
     def test_resize_rectangle(self):
         # add rect (0.25, 0.25), (0.5, 0.5)
@@ -392,7 +392,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.5, 0.5))
 
     def test_resize_nonsquare_rectangle(self):
-        self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((20, 10)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
@@ -402,21 +402,21 @@ class TestDisplayPanelClass(unittest.TestCase):
         # make sure items it is in the right place
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.5, 0.5))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (500, 250))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (1000, 500))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (5, 2.5))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (10, 5))
         # select it
         self.display_specifier.display.graphic_selection.set(0)
         # drag top left corner
         self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (800, 250))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (700, 500))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (8, 2.5))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (7, 5))
         # drag with shift key
         self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (900, 150))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (600, 600))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (9, 1.5))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (6, 6))
 
     def test_resize_nonsquare_ellipse(self):
-        self.data_item = DataItem.DataItem(numpy.zeros((2000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((20, 10)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
@@ -426,18 +426,18 @@ class TestDisplayPanelClass(unittest.TestCase):
         # make sure items it is in the right place
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.5, 0.5))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (500, 250))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (1000, 500))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (5, 2.5))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (10, 5))
         # select it
         self.display_specifier.display.graphic_selection.set(0)
         # drag top left corner
         self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250), Test.KeyboardModifiers(alt=True))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (800, 250))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (400, 500))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (8, 2.5))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (4, 5))
         # drag with shift key
         self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True, alt=True))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (900, 400))
-        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (200, 200))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (9, 4))
+        self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (2, 2))
 
     def test_insert_remove_graphics_and_selection(self):
         self.assertFalse(self.display_specifier.display.graphic_selection.indexes)

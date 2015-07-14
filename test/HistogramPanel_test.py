@@ -26,9 +26,9 @@ class TestHistogramPanelClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
-        data = numpy.zeros((1000, 1000), dtype=numpy.uint32)
+        data = numpy.zeros((10, 10), dtype=numpy.uint32)
         data[:] = 200
-        data[500,500] = 650
+        data[5, 5] = 650
         self.data_item = DataItem.DataItem(data)
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
@@ -78,7 +78,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.assertIsNotNone(histogram_data1)
         # now change the data and verify that histogram gets recomputed via document model
         with self.display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
+            data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
         self.document_model.recompute_all()
         histogram_data2 = self.histogram_canvas_item.histogram_data
         self.assertFalse(numpy.array_equal(histogram_data1, histogram_data2))
@@ -94,7 +94,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.assertIsNotNone(stats2_text)
         # now change the data and verify that statistics gets recomputed via document model
         with self.display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = numpy.ones((1000, 1000), dtype=numpy.uint32)
+            data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
         self.document_model.recompute_all()
         self.assertNotEqual(stats1_text, self.histogram_panel.stats1_property.value)
         self.assertNotEqual(stats2_text, self.histogram_panel.stats2_property.value)

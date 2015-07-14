@@ -4,6 +4,7 @@ from __future__ import absolute_import
 # standard libraries
 import contextlib
 import copy
+import gc
 import logging
 import unittest
 
@@ -84,6 +85,19 @@ class TestDocumentModelClass(unittest.TestCase):
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
             self.assertEqual(len(document_model.data_items), 1)
+
+    def test_document_model_releases_data_item(self):
+        # test memory usage
+        document_model = DocumentModel.DocumentModel()
+        import weakref
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(data=numpy.zeros((2, 2)))
+            data_item_weak_ref = weakref.ref(data_item)
+            document_model.append_data_item(data_item)
+            data_item = None
+        document_model = None
+        gc.collect()
+        self.assertIsNone(data_item_weak_ref())
 
 if __name__ == '__main__':
     unittest.main()

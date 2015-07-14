@@ -980,12 +980,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         return data_item_copy
 
     def close(self):
-        """ Optional method to close the data item. """
+        for data_source in copy.copy(self.data_sources):
+            data_source.close()
         for subscription in self.__subscriptions:
             subscription.close()
         self.__subscriptions = list()
-        for data_source in self.data_sources:
-            data_source.close()
 
     def snapshot(self):
         """

@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import contextlib
 import copy
 import datetime
+import gc
 import logging
 import os
 import shutil
@@ -29,16 +30,30 @@ from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Storage
-from nion.swift.model import Utility
 from nion.ui import Test
 
+
+def memory_usage_resource():
+    import resource
+    import sys
+    rusage_denom = 1024.
+    if sys.platform == 'darwin':
+        # ... it seems that in OSX the output is different units ...
+        rusage_denom = rusage_denom * rusage_denom
+    mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rusage_denom
+    return mem
 
 class TestStorageClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
+        # self.__memory_start = memory_usage_resource()
 
     def tearDown(self):
+        # gc.collect()
+        # memory_usage = memory_usage_resource() - self.__memory_start
+        # if memory_usage > 0.5:
+        #     logging.debug("{} {}".format(self.id(), memory_usage))
         pass
 
     """
@@ -70,7 +85,7 @@ class TestStorageClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
         document_controller.document_model.append_data_group(data_group)
-        data_item2 = DataItem.DataItem(scipy.misc.lena())
+        data_item2 = DataItem.DataItem(numpy.empty((12, 12), dtype=numpy.int64))
         document_controller.document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
@@ -85,27 +100,27 @@ class TestStorageClass(unittest.TestCase):
         document_controller.document_model.append_data_item(data_item2a)
         document_controller.document_model.append_data_item(data_item2b)
         display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
-        document_controller.selected_display_panel = display_panel
-        display_panel.set_displayed_data_item(data_item)
-        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
-        document_controller.add_line_region()
-        document_controller.add_rectangle_region()
-        document_controller.add_ellipse_region()
-        document_controller.add_point_region()
-        display_panel.set_displayed_data_item(data_item)
-        document_controller.processing_gaussian_blur()
-        display_panel.set_displayed_data_item(data_item)
-        document_controller.processing_resample()
-        display_panel.set_displayed_data_item(data_item)
-        document_controller.processing_invert()
-        display_panel.set_displayed_data_item(data_item)
-        document_controller.processing_crop()
-        display_panel.set_displayed_data_item(data_item2)
-        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item2)
-        document_controller.processing_fft()
-        document_controller.processing_ifft()
-        display_panel.canvas_item.close()
-        display_panel.close()
+        with contextlib.closing(display_panel):
+            document_controller.selected_display_panel = display_panel
+            display_panel.set_displayed_data_item(data_item)
+            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
+            document_controller.add_line_region()
+            document_controller.add_rectangle_region()
+            document_controller.add_ellipse_region()
+            document_controller.add_point_region()
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.processing_gaussian_blur()
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.processing_resample()
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.processing_invert()
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.processing_crop()
+            display_panel.set_displayed_data_item(data_item2)
+            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item2)
+            document_controller.processing_fft()
+            document_controller.processing_ifft()
+            display_panel.canvas_item.close()
 
     def test_save_document(self):
         document_model = DocumentModel.DocumentModel()
@@ -259,7 +274,7 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertIsNotNone(display_specifier.buffered_data_source.data_range)
@@ -504,7 +519,7 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         with self.assertRaises(AssertionError):
             document_model.append_data_item(data_item)
@@ -514,13 +529,13 @@ class TestStorageClass(unittest.TestCase):
     def test_adding_data_item_to_data_group_twice_raises_exception(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.save_document(document_controller)
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-        document_model.append_data_item(data_item)
-        document_model.data_groups[0].append_data_item(data_item)
-        with self.assertRaises(AssertionError):
+        with contextlib.closing(document_controller):
+            self.save_document(document_controller)
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
             document_model.data_groups[0].append_data_item(data_item)
-        document_controller.close()
+            with self.assertRaises(AssertionError):
+                document_model.data_groups[0].append_data_item(data_item)
 
     def test_insert_item_with_transaction(self):
         cache_name = ":memory:"
@@ -779,7 +794,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller.close()
         # read it back
@@ -795,7 +810,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         invert_operation = Operation.OperationItem("invert-operation")
         data_item.set_operation(invert_operation)
@@ -812,7 +827,7 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         gaussian_operation = Operation.OperationItem("gaussian-blur-operation")
         data_item.set_operation(gaussian_operation)
@@ -832,7 +847,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         data_item2 = DataItem.DataItem()
@@ -868,7 +883,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         rect_graphic = Graphics.RectangleGraphic()
@@ -892,7 +907,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         point_region = Region.PointRegion()
         point_region.position = (0.6, 0.4)
@@ -931,7 +946,7 @@ class TestStorageClass(unittest.TestCase):
     def test_new_data_item_stores_uuid_and_data_info_in_properties_immediately(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         self.assertTrue("data_shape" in data_item.properties.get("data_sources")[0])
         self.assertTrue("data_dtype" in data_item.properties.get("data_sources")[0])
@@ -995,7 +1010,7 @@ class TestStorageClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller.close()
         # read it back
@@ -1014,7 +1029,7 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             # increment the version on the data item
             list(data_reference_handler.properties.values())[0]["version"] = data_item.writer_version + 1
@@ -1028,7 +1043,7 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+        data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
         document_model.append_data_item(data_item)
         crop_region = Region.RectRegion()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
@@ -1051,7 +1066,7 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
             data_item_inverted = DataItem.DataItem()
             invert_operation = Operation.OperationItem("invert-operation")
@@ -1070,7 +1085,7 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item_cropped = DataItem.DataItem()
@@ -1092,7 +1107,7 @@ class TestStorageClass(unittest.TestCase):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((256, 256), numpy.float))
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item_cropped = DataItem.DataItem()
@@ -1116,7 +1131,7 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier.buffered_data_source.regions[0].bounds = (0.25, 0.25), (0.5, 0.5)
             self.assertTrue(read_display_specifier2.buffered_data_source.is_data_stale)
             document_model.recompute_all()
-            self.assertEqual(read_display_specifier2.buffered_data_source.data_shape, (128, 128))
+            self.assertEqual(read_display_specifier2.buffered_data_source.data_shape, (4, 4))
 
     def test_cropped_data_item_with_region_does_not_need_histogram_recompute_when_reloaded(self):
         # tests caching on display
@@ -1169,7 +1184,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["data_source_uuid"] = str(uuid.uuid4())
         data_item_dict["properties"] = { "voltage": 200.0, "session_uuid": str(uuid.uuid4()) }
         data_item_dict["version"] = 1
-        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_reference_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         with contextlib.closing(document_model):
@@ -1186,7 +1201,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse("session_uuid" in data_item.maybe_data_source.metadata.get("hardware_source"))
             self.assertIsNone(data_item.session_id)  # v1 is not allowed to set session_id
             self.assertEqual(display_specifier.buffered_data_source.data_dtype, numpy.uint32)
-            self.assertEqual(display_specifier.buffered_data_source.data_shape, (256, 256))
+            self.assertEqual(display_specifier.buffered_data_source.data_shape, (8, 8))
 
     def test_data_items_v2_migration(self):
         # construct v2 data item
@@ -1195,9 +1210,9 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["displays"] = [{"graphics": [{"type": "rect-graphic"}]}]
         data_item_dict["operations"] = [{"operation_id": "invert-operation"}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
-        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["version"] = 2
-        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_reference_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         with contextlib.closing(document_model):
@@ -1217,9 +1232,9 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["intrinsic_spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intrinsic_intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
-        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["version"] = 3
-        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_reference_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         with contextlib.closing(document_model):
@@ -1242,9 +1257,9 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["regions"] = [{"type": "rectangle-region", "uuid": region_uuid_str}]
         data_item_dict["operations"] = [{"operation_id": "crop-operation", "region_uuid": region_uuid_str}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
-        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["version"] = 4
-        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_reference_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, log_migrations=False)
         with contextlib.closing(document_model):
@@ -1263,11 +1278,11 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
-        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["intrinsic_spatial_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intrinsic_intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["version"] = 5
-        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_reference_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         data_item2_dict = data_reference_handler.properties.setdefault("B", dict())
         data_item2_dict["uuid"] = str(uuid.uuid4())
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
@@ -1301,11 +1316,11 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
-        data_item_dict["master_data_shape"] = (256, 256)
+        data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["version"] = 6
-        data_reference_handler.data["A"] = numpy.zeros((256, 256), numpy.uint32)
+        data_reference_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         data_item2_dict = data_reference_handler.properties.setdefault("B", dict())
         data_item2_dict["uuid"] = str(uuid.uuid4())
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
@@ -1358,7 +1373,7 @@ class TestStorageClass(unittest.TestCase):
         data_source_dict["type"] = "buffered-data-source"
         data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
-        data_source_dict["data_shape"] = (256, 256)
+        data_source_dict["data_shape"] = (8, 8)
         data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["data_sources"] = [data_source_dict]
@@ -1505,6 +1520,43 @@ class TestStorageClass(unittest.TestCase):
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
+
+    def disabled_test_document_controller_leaks_no_memory(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(data=numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+
+    def disabled_test_document_model_leaks_no_memory(self):
+        # numpy min/max leak memory, so make sure they're used before testing data item
+        data = numpy.zeros((2000, 2000))
+        data.min(), data.max()
+        # test memory usage
+        memory_start = memory_usage_resource()
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(data=data)
+            document_model.append_data_item(data_item)
+            data_item = None
+        document_model = None
+        gc.collect()
+        memory_usage = memory_usage_resource() - memory_start
+        print(memory_usage)
+        self.assertTrue(memory_usage < 0.2)
+
+    def disabled_test_data_item_leaks_no_memory(self):
+        # numpy min/max leak memory, so make sure they're used before testing data item
+        data = numpy.zeros((2000, 2000))
+        data.min(), data.max()
+        # test memory usage
+        memory_start = memory_usage_resource()
+        # data_item = DataItem.DataItem(data=data)
+        # data_item.close()
+        # data_item = None
+        gc.collect()
+        memory_usage = memory_usage_resource() - memory_start
+        self.assertTrue(memory_usage < 0.2)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -59,7 +59,7 @@ class TestInfoPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((8, 1000, 1000)))
+        data_item = DataItem.DataItem(numpy.zeros((4, 10, 10)))
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
         header_height = Panel.HeaderCanvasItem().header_height
@@ -73,7 +73,7 @@ class TestInfoPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         info_panel = document_controller.find_dock_widget("info-panel").panel
-        data_item1 = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item1)
         data_item2 = DataItem.DataItem(numpy.zeros((1000, )))
         document_model.append_data_item(data_item2)

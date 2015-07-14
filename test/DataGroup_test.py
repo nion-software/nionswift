@@ -30,7 +30,7 @@ class TestDataGroupClass(unittest.TestCase):
 
     def test_deep_copy_should_deep_copy_child_data_groups(self):
         data_group = DataGroup.DataGroup()
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_group.append_data_item(data_item1)
         data_group2 = DataGroup.DataGroup()
         data_group.append_data_group(data_group2)
@@ -41,7 +41,7 @@ class TestDataGroupClass(unittest.TestCase):
 
     def test_deep_copy_should_not_deep_copy_data_items(self):
         data_group = DataGroup.DataGroup()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_group.append_data_item(data_item)
         data_group_copy = copy.deepcopy(data_group)
         self.assertEqual(data_item.uuid, data_group_copy.data_item_uuids[0])
@@ -54,7 +54,7 @@ class TestDataGroupClass(unittest.TestCase):
             document_model.append_data_group(data_group)
             self.assertEqual(len(data_group.counted_data_items), 0)
             self.assertEqual(len(document_model.data_items), 0)
-            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item1)
             data_group.append_data_item(data_item1)
             # make sure that both top level and data_group see the data item
@@ -90,7 +90,7 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
             self.assertIn(data_item1a1, list(data_group.counted_data_items.keys()))
             # now add a data item that already has children
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             data_item2a = DataItem.DataItem()
             operation2a = Operation.OperationItem("resample-operation")
@@ -117,7 +117,7 @@ class TestDataGroupClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         with contextlib.closing(document_controller):
             # setup by adding data item and a dependent data item
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             operation2a = Operation.OperationItem("resample-operation")
             operation2a.add_data_source(data_item2._create_test_data_source())
@@ -132,7 +132,7 @@ class TestDataGroupClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         with contextlib.closing(document_controller):
             # setup by adding data item and a dependent data item
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
             operation2a = Operation.OperationItem("resample-operation")
             operation2a.add_data_source(data_item2._create_test_data_source())
@@ -149,7 +149,7 @@ class TestDataGroupClass(unittest.TestCase):
     def test_deleting_document_with_dependent_data_items_works(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             data_item_child = DataItem.DataItem()
             document_model.append_data_item(data_item_child)

@@ -32,7 +32,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
-        self.data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.document_model.append_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
@@ -51,7 +51,7 @@ class TestOperationClass(unittest.TestCase):
     # make sure defaults get propagated when adding data item to document
     def test_default_propagation(self):
         # first make sure data and calibrations come out OK
-        source_data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         self.document_model.append_data_item(source_data_item)
         operation = Operation.OperationItem("resample-operation")
         operation.add_data_source(source_data_item._create_test_data_source())
@@ -110,7 +110,7 @@ class TestOperationClass(unittest.TestCase):
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d(self):
-        data_item_real = DataItem.DataItem(numpy.zeros((256,256), numpy.double))
+        data_item_real = DataItem.DataItem(numpy.zeros((8, 8), numpy.double))
         self.document_model.append_data_item(data_item_real)
 
         operation_list = []
@@ -181,7 +181,7 @@ class TestOperationClass(unittest.TestCase):
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgb(self):
-        data_item_rgb = DataItem.DataItem(numpy.zeros((256,256,3), numpy.uint8))
+        data_item_rgb = DataItem.DataItem(numpy.zeros((8, 8, 3), numpy.uint8))
         self.document_model.append_data_item(data_item_rgb)
 
         operation_list = []
@@ -225,7 +225,7 @@ class TestOperationClass(unittest.TestCase):
 
     # test operations against 2d data. doesn't test for correctness of the operation.
     def test_operations_2d_rgba(self):
-        data_item_rgb = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        data_item_rgb = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
         self.document_model.append_data_item(data_item_rgb)
 
         operation_list = []
@@ -268,7 +268,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     def test_operations_2d_complex128(self):
-        data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex128))
+        data_item_complex = DataItem.DataItem(numpy.zeros((8, 8), numpy.complex128))
         self.document_model.append_data_item(data_item_complex)
 
         operation_list = []
@@ -293,7 +293,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
 
     def test_operations_2d_complex64(self):
-        data_item_complex = DataItem.DataItem(numpy.zeros((256,256), numpy.complex64))
+        data_item_complex = DataItem.DataItem(numpy.zeros((8, 8), numpy.complex64))
         self.document_model.append_data_item(data_item_complex)
 
         operation_list = []
@@ -329,7 +329,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_real_0w)
         data_item_real_0h = DataItem.DataItem(numpy.zeros((0,256), numpy.double))
         self.document_model.append_data_item(data_item_real_0h)
-        data_item_real_0z = DataItem.DataItem(numpy.zeros((0,256,256), numpy.double))
+        data_item_real_0z = DataItem.DataItem(numpy.zeros((0, 8, 8), numpy.double))
         self.document_model.append_data_item(data_item_real_0z)
         data_item_real_0z0w = DataItem.DataItem(numpy.zeros((16,0,256), numpy.double))
         self.document_model.append_data_item(data_item_real_0z0w)
@@ -342,7 +342,7 @@ class TestOperationClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_complex_0w)
         data_item_complex_0h = DataItem.DataItem(numpy.zeros((0,256), numpy.double))
         self.document_model.append_data_item(data_item_complex_0h)
-        data_item_complex_0z = DataItem.DataItem(numpy.zeros((0,256,256), numpy.double))
+        data_item_complex_0z = DataItem.DataItem(numpy.zeros((0, 8, 8), numpy.double))
         self.document_model.append_data_item(data_item_complex_0z)
         data_item_complex_0z0w = DataItem.DataItem(numpy.zeros((16,0,256), numpy.double))
         self.document_model.append_data_item(data_item_complex_0z0w)
@@ -457,7 +457,7 @@ class TestOperationClass(unittest.TestCase):
                 self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations, [])
 
     def test_crop_2d_operation_returns_correct_dimensional_shape_and_data_shape(self):
-        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        data_item = DataItem.DataItem(numpy.zeros((20,10), numpy.double))
         real_data_item = DataItem.DataItem()
         operation = Operation.OperationItem("crop-operation")
         operation.set_property("bounds", ((0.2, 0.3), (0.5, 0.5)))
@@ -466,12 +466,12 @@ class TestOperationClass(unittest.TestCase):
         real_display_specifier = DataItem.DisplaySpecifier.from_data_item(real_data_item)
         real_data_item.recompute_data()
         # make sure we get the right shape
-        self.assertEqual(real_display_specifier.buffered_data_source.dimensional_shape, (1000, 500))
+        self.assertEqual(real_display_specifier.buffered_data_source.dimensional_shape, (10, 5))
         with real_display_specifier.buffered_data_source.data_ref() as data_real_accessor:
-            self.assertEqual(data_real_accessor.data.shape, (1000, 500))
+            self.assertEqual(data_real_accessor.data.shape, (10, 5))
 
     def test_fft_2d_dtype(self):
-        data_item = DataItem.DataItem(numpy.zeros((512,512), numpy.float64))
+        data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.float64))
         self.document_model.append_data_item(data_item)
 
         fft_data_item = DataItem.DataItem()
@@ -483,11 +483,11 @@ class TestOperationClass(unittest.TestCase):
         fft_data_item.recompute_data()
 
         with fft_display_specifier.buffered_data_source.data_ref() as fft_data_ref:
-            self.assertEqual(fft_data_ref.data.shape, (512, 512))
+            self.assertEqual(fft_data_ref.data.shape, (16, 16))
             self.assertEqual(fft_data_ref.data.dtype, numpy.dtype(numpy.complex128))
 
     def test_convert_complex128_to_scalar_results_in_float64(self):
-        data_item = DataItem.DataItem(numpy.zeros((512,512), numpy.complex128))
+        data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.complex128))
         self.document_model.append_data_item(data_item)
         scalar_data_item = DataItem.DataItem()
         scalar_operation = Operation.OperationItem("convert-to-scalar-operation")
@@ -515,7 +515,7 @@ class TestOperationClass(unittest.TestCase):
         storage_cache = Storage.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((1000, 1000)))
+        data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item)
         Operation.OperationManager().register_operation("dummy-operation", lambda: TestOperationClass.DummyOperation())
         dummy_operation = Operation.OperationItem("dummy-operation")
@@ -555,7 +555,7 @@ class TestOperationClass(unittest.TestCase):
             self.assertEqual(d.data[0, 0], 5.2)
 
     def test_rgba_invert_operation_should_retain_alpha(self):
-        rgba_data_item = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        rgba_data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
         rgba_display_specifier = DataItem.DisplaySpecifier.from_data_item(rgba_data_item)
         with rgba_display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data[:] = (20,40,60,100)
@@ -574,7 +574,7 @@ class TestOperationClass(unittest.TestCase):
             self.assertEqual(pixel[3], 100)
 
     def test_deepcopy_of_crop_operation_should_copy_roi(self):
-        data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        data_item_rgba = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
         self.document_model.append_data_item(data_item_rgba)
         data_item_rgba2 = DataItem.DataItem()
         self.document_model.append_data_item(data_item_rgba2)
@@ -587,7 +587,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertNotEqual(data_item_rgba2.operation, data_item_rgba2_copy.operation)
 
     def test_snapshot_of_operation_should_copy_data_items(self):
-        data_item_rgba = DataItem.DataItem(numpy.zeros((256,256,4), numpy.uint8))
+        data_item_rgba = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
         self.document_model.append_data_item(data_item_rgba)
         data_item_rgba2 = DataItem.DataItem()
         invert_operation = Operation.OperationItem("invert-operation")
@@ -645,7 +645,7 @@ class TestOperationClass(unittest.TestCase):
         self.assertEqual(buffered_data_source.intensity_calibration.units, u"ll")
 
     def test_crop_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
-        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        data_item = DataItem.DataItem(numpy.zeros((20, 10), numpy.double))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
         spatial_calibration_0.offset = 20.0
@@ -665,15 +665,15 @@ class TestOperationClass(unittest.TestCase):
         display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item2)
         data_item2.recompute_data()
         # make sure the calibrations are correct
-        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].offset, 20.0 + 2000 * 0.2 * 5.0)
-        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[1].offset, 55.0 + 1000 * 0.3 * 5.5)
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].offset, 20.0 + 20 * 0.2 * 5.0)
+        self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[1].offset, 55.0 + 10 * 0.3 * 5.5)
         self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].scale, 5.0)
         self.assertAlmostEqual(display_specifier2.buffered_data_source.dimensional_calibrations[1].scale, 5.5)
         self.assertEqual(display_specifier2.buffered_data_source.dimensional_calibrations[0].units, "dogs")
         self.assertEqual(display_specifier2.buffered_data_source.dimensional_calibrations[1].units, "cats")
 
     def test_projection_2d_operation_on_calibrated_data_results_in_calibration_with_correct_offset(self):
-        data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+        data_item = DataItem.DataItem(numpy.zeros((20, 10), numpy.double))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
         spatial_calibration_0.offset = 20.0
@@ -700,7 +700,7 @@ class TestOperationClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             # configure the source item
-            data_item = DataItem.DataItem(numpy.zeros((2000,1000), numpy.double))
+            data_item = DataItem.DataItem(numpy.zeros((20, 10), numpy.double))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # configure the dependent item
@@ -731,7 +731,7 @@ class TestOperationClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             # configure the source item
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # configure the dependent item
@@ -752,7 +752,7 @@ class TestOperationClass(unittest.TestCase):
 
     def test_crop_works_on_selected_region_without_exception(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -769,7 +769,7 @@ class TestOperationClass(unittest.TestCase):
 
     def test_remove_graphic_for_crop_removes_processed_data_item(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -800,7 +800,7 @@ class TestOperationClass(unittest.TestCase):
 
     def test_remove_graphic_for_crop_combined_with_another_operation_removes_processed_data_item(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -832,7 +832,7 @@ class TestOperationClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             # set up the data items
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             blurred_data_item = DataItem.DataItem()
             blur_operation = Operation.OperationItem("gaussian-blur-operation")
@@ -865,7 +865,7 @@ class TestOperationClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             # set up the data items
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             blurred_data_item = DataItem.DataItem()
             blur_operation = Operation.OperationItem("gaussian-blur-operation")
@@ -897,7 +897,7 @@ class TestOperationClass(unittest.TestCase):
     def test_changing_region_does_not_trigger_fft_recompute(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             fft_data_item = DataItem.DataItem()
@@ -925,8 +925,8 @@ class TestOperationClass(unittest.TestCase):
     def test_removing_source_of_cross_correlation_does_not_throw_exception(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
-            data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             operation = Operation.OperationItem("cross-correlate-operation")

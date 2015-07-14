@@ -26,7 +26,7 @@ class TestDisplayClass(unittest.TestCase):
         pass
 
     def test_changing_display_limits_clears_histogram_data_cache(self):
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
@@ -37,7 +37,7 @@ class TestDisplayClass(unittest.TestCase):
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
 
     def test_changing_display_limits_clears_histogram_data_cache_before_reporting_display_change(self):
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         self.assertTrue(display.is_cached_value_dirty("histogram_data"))
@@ -52,7 +52,7 @@ class TestDisplayClass(unittest.TestCase):
             self.assertTrue(dirty_ref[0])
 
     def test_setting_inverted_display_limits_reverses_them(self):
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         display.display_limits = (0.75, 0.25)

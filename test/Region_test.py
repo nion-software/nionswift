@@ -20,7 +20,7 @@ class TestRegionClass(unittest.TestCase):
     def test_changing_point_region_updates_drawn_graphic(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             point_region = Region.PointRegion()
@@ -33,7 +33,7 @@ class TestRegionClass(unittest.TestCase):
     def test_changing_drawn_graphic_updates_point_region(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             point_region = Region.PointRegion()
@@ -46,7 +46,7 @@ class TestRegionClass(unittest.TestCase):
     def test_changing_region_properties_change_drawn_graphic_properties(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             regions = list()

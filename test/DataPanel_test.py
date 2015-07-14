@@ -43,7 +43,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_model.append_data_group(data_group)
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
@@ -54,7 +54,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1a.set_operation(operation1a)
         document_model.append_data_item(data_item1a)
         data_group.append_data_item(data_item1a)
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
@@ -65,7 +65,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_item2a.set_operation(operation2a)
         document_model.append_data_item(data_item2a)
         data_group.append_data_item(data_item2a)
-        data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
@@ -121,11 +121,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.title = "data_group"
         parent_data_group.append_data_group(data_group)
         document_model.append_data_group(parent_data_group)
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
@@ -157,9 +157,9 @@ class TestDataPanelClass(unittest.TestCase):
     def test_selected_group_persistence(self):
         document_model = DocumentModel.DocumentModel()
         # create data_item2 earlier than data_item1 so they sort to match old test setup
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "Data 2"
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "Data 1"
         parent_data_group = DataGroup.DataGroup()
         parent_data_group.title = "parent_data_group"
@@ -254,10 +254,10 @@ class TestDataPanelClass(unittest.TestCase):
         # data_item1
         #   inverted
         # data_item2
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         # finished setting up
@@ -285,11 +285,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.document_model.append_data_group(data_group)
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
@@ -308,11 +308,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.document_model.append_data_group(data_group)
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
@@ -329,11 +329,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.document_model.append_data_group(data_group)
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
@@ -351,15 +351,15 @@ class TestDataPanelClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.title = "data_group"
         document_controller.document_model.append_data_group(data_group)
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         data_group.append_data_item(data_item1)
         document_model.append_data_item(data_item1)
-        data_item2 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         data_group.append_data_item(data_item2)
         document_model.append_data_item(data_item2)
-        data_item3 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item3.title = "data_item3"
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
@@ -377,7 +377,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).title_str, str(data_item1.title))
         self.assertEqual(data_panel.data_list_controller._test_get_display_item(1).title_str, str(data_item3.title))
         # insert new item
-        data_item4 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item4 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item4.title = "data_item4"
         data_group.insert_data_item(1, data_item4)
         document_controller.periodic()
@@ -391,7 +391,7 @@ class TestDataPanelClass(unittest.TestCase):
     def test_select_after_receive_files(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item.title = "data_item"
         data_group = DataGroup.DataGroup()
         document_controller.document_model.append_data_group(data_group)
@@ -409,7 +409,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "Green 1"
         document_model.append_data_item(data_item1)
         data_group1.append_data_item(data_item1)
@@ -428,7 +428,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group1 = DataGroup.DataGroup()
         data_group1.title = "data_group1"
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "Green 1"
         document_model.append_data_item(data_item1)
         data_group1.append_data_item(data_item1)
@@ -448,7 +448,7 @@ class TestDataPanelClass(unittest.TestCase):
     def test_remove_item_should_remove_children_when_both_parent_and_child_are_selected(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item1 = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_item1a = DataItem.DataItem()
@@ -468,7 +468,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         for i in range(3):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.library_widget.on_selection_changed([(1, -1, 0)])
@@ -479,7 +479,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         for i in range(3):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item.title = "X" if i != 1 else "Y"
             document_model.append_data_item(data_item)
         data_panel = document_controller.find_dock_widget("data-panel").panel
@@ -492,7 +492,7 @@ class TestDataPanelClass(unittest.TestCase):
 
     def test_changing_display_limits_causes_display_changed_message(self):
         # necessary to make the thumbnails update in the data panel
-        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_changed_ref = [False]
         def display_changed():
@@ -512,11 +512,11 @@ class TestDataPanelClass(unittest.TestCase):
         data_group2.title = "data_group1"
         document_model.append_data_group(data_group2)
         # add items to data group 1
-        data_item1a = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1a.title = "data_item1a"
         document_model.append_data_item(data_item1a)
         data_group1.append_data_item(data_item1a)
-        data_item1b = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item1b = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item1b.title = "data_item1a"
         document_model.append_data_item(data_item1b)
         data_group1.append_data_item(data_item1b)
