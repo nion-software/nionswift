@@ -72,14 +72,12 @@ class TestDataPanelClass(unittest.TestCase):
         display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
         display_panel.set_displayed_data_item(data_item1)
         data_panel = document_controller.find_dock_widget("data-panel").panel
-        document_controller.data_browser_controller.set_data_browser_selection(None)
         document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item1)
         document_controller.periodic()
         document_controller.selected_display_panel = display_panel
         # first delete a child of a data item
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         self.assertEqual(len(data_group.data_items), 5)
-        document_controller.data_browser_controller.set_data_browser_selection(None)
         document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item1a)
         data_panel.data_list_controller.selection.set(3)
         data_panel.data_list_controller._delete_pressed()
