@@ -79,12 +79,13 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         self.assertEqual(len(data_group.data_items), 5)
         document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item1a)
-        data_panel.data_list_controller.selection.set(3)
+        # data_panel.data_list_controller.selection.set(3)  # set above by date_item instead
         data_panel.data_list_controller._delete_pressed()
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
         # now delete a child of a data group
         self.assertEqual(len(data_group.data_items), 4)
-        data_panel.data_list_controller.selection.set(2)
+        document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item2)
+        # data_panel.data_list_controller.selection.set(2)  # set above by date_item instead
         data_panel.data_list_controller._delete_pressed()
         self.assertEqual(len(data_group.data_items), 2)
         display_panel.canvas_item.close()

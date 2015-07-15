@@ -181,7 +181,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         data_dtype = data.dtype if data is not None else None
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
-        time.sleep(0.001)
         self.define_property("data_shape", data_shape)
         self.define_property("data_dtype", data_dtype, converter=DtypeToStringConverter())
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
