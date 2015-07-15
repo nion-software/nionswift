@@ -1742,9 +1742,10 @@ class QtNewListWidget(QtColumnWidget):
         super(QtNewListWidget, self).close()
 
     def insert_item(self, item, before_index):
-        item_row = self.create_list_item_widget(item)
-        self.content_section.insert(item_row, before_index)
-        self.__sync_header()
+        if self.create_list_item_widget:  # item may be closed while this call is pending on main thread.
+            item_row = self.create_list_item_widget(item)
+            self.content_section.insert(item_row, before_index)
+            self.__sync_header()
 
     def remove_item(self, index):
         self.content_section.remove(index)
