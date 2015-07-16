@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 # standard libraries
+import contextlib
 import logging
 import random
 import unittest
@@ -14,6 +15,7 @@ import scipy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Region
@@ -30,87 +32,89 @@ class TestSymbolicClass(unittest.TestCase):
         pass
 
     def test_unary_inversion_returns_inverted_data(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("-a", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "-a", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, -d)
 
     def test_binary_addition_returns_added_data(self):
+        document_model = DocumentModel.DocumentModel()
         d1 = numpy.zeros((8, 8), dtype=numpy.uint32)
         d1[:] = random.randint(0, 100)
         data_item1 = DataItem.DataItem(d1)
         d2 = numpy.zeros((8, 8), dtype=numpy.uint32)
         d2[:] = random.randint(0, 100)
         data_item2 = DataItem.DataItem(d2)
-        map = {"a": {"type": "data_item", "uuid": str(data_item1.uuid)}, "b": {"type": "data_item", "uuid": str(data_item2.uuid)}}
-        reverse_map = {data_item1.uuid: data_item1.maybe_data_source.data_and_calibration, data_item2.uuid: data_item2.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("a+b", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        map = {"a": document_model.get_object_specifier(data_item1), "b": document_model.get_object_specifier(data_item2)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "a+b", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, d1 + d2)
 
     def test_binary_multiplication_with_scalar_returns_multiplied_data(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node1, mapping1 = Symbolic.parse_expression("a * 5", map)
-        def resolve1(uuid_):
-            return reverse_map[uuid.UUID(mapping1[uuid_]["uuid"])]
-        data1 = data_node1.evaluate(resolve1).data
-        data_node2, mapping2 = Symbolic.parse_expression("5 * a", map)
-        def resolve2(uuid_):
-            return reverse_map[uuid.UUID(mapping2[uuid_]["uuid"])]
-        data2 = data_node2.evaluate(resolve2).data
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation1 = Symbolic.Computation()
+        computation1.parse_expression(document_model, "a * 5", map)
+        data1 = computation1.evaluate().data
+        computation2 = Symbolic.Computation()
+        computation2.parse_expression(document_model, "5 * a", map)
+        data2 = computation1.evaluate().data
         assert numpy.array_equal(data1, d * 5)
         assert numpy.array_equal(data2, d * 5)
 
     def test_subtract_min_returns_subtracted_min(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("a - min(a)", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "a - min(a)", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, d - numpy.amin(d))
 
     def test_ability_to_take_slice(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("a[:,4,4]", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "a[:,4,4]", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, d[:,4,4])
 
     def test_ability_to_write_read_basic_nodes(self):
-        d = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("-a / average(a) * 5", map)
-        data_node_dict = data_node.write()
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data_node2 = Symbolic.DataNode.factory(data_node_dict)
-        data = data_node.evaluate(resolve).data
-        data2 = data_node2.evaluate(resolve).data
-        assert numpy.array_equal(data, -d / numpy.average(d) * 5)
+        document_model = DocumentModel.DocumentModel()
+        src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+        src_data[:] = random.randint(0, 100)
+        data_item = DataItem.DataItem(src_data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "-a / average(a) * 5", map)
+        data_node_dict = computation.write_to_dict()
+        computation2 = Symbolic.Computation()
+        computation2.read_from_dict(data_node_dict)
+        computation2.bind(document_model)
+        data = computation.evaluate().data
+        data2 = computation2.evaluate().data
+        assert numpy.array_equal(data, -src_data / numpy.average(src_data) * 5)
         assert numpy.array_equal(data, data2)
 
     def test_make_operation_works_without_exception_and_produces_correct_data(self):
@@ -120,56 +124,57 @@ class TestSymbolicClass(unittest.TestCase):
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
         document_model.append_data_item(data_item)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
+        map = {"a": document_model.get_object_specifier(data_item)}
         data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
         document_model.recompute_all()
         assert numpy.array_equal(data_item.maybe_data_source.data, -d / numpy.average(d) * 5)
 
     def test_fft_returns_complex_data(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.random.randn(64, 64)
         data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("fft(a)", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "fft(a)", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
     def test_gaussian_blur_handles_scalar_argument(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.random.randn(64, 64)
         data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("gaussian_blur(a, 4.0)", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "gaussian_blur(a, 4.0)", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
 
     def test_transpose_flip_handles_args(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.random.randn(30, 60)
         data_item = DataItem.DataItem(d)
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration}
-        data_node, mapping = Symbolic.parse_expression("transpose_flip(a, flip_v=True)", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "transpose_flip(a, flip_v=True)", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, numpy.flipud(d))
 
     def test_crop_handles_args(self):
+        document_model = DocumentModel.DocumentModel()
         d = numpy.random.randn(64, 64)
         data_item = DataItem.DataItem(d)
         region = Region.RectRegion()
         region.center = 0.41, 0.51
         region.size = 0.52, 0.42
-        map = {"a": {"type": "data_item", "uuid": str(data_item.uuid)}, "regionA": {"type": "region", "uuid": str(region.uuid)}}
-        reverse_map = {data_item.uuid: data_item.maybe_data_source.data_and_calibration, region.uuid: region}
-        data_node, mapping = Symbolic.parse_expression("crop(a, regionA.bounds)", map)
-        def resolve(uuid_):
-            return reverse_map[uuid.UUID(mapping[uuid_]["uuid"])]
-        data = data_node.evaluate(resolve).data
+        data_item.maybe_data_source.add_region(region)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item), "regionA": document_model.get_object_specifier(region)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "crop(a, regionA.bounds)", map)
+        data = computation.evaluate().data
         assert numpy.array_equal(data, d[9:42, 19:45])
 
     def test_evaluate_computation_within_document_model_gives_correct_value(self):
@@ -177,11 +182,83 @@ class TestSymbolicClass(unittest.TestCase):
         data = numpy.ones((2, 2), numpy.double)
         data_item = DataItem.DataItem(data)
         document_model.append_data_item(data_item)
-        computation = Symbolic.Computation()
         map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
         computation.parse_expression(document_model, "-a", map)
         data_and_metadata = computation.evaluate()
         self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
+
+    def test_computation_within_document_model_fires_needs_update_event_when_data_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "-a", map)
+        needs_update_ref = [False]
+        def needs_update():
+            needs_update_ref[0] = True
+        needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+        with contextlib.closing(needs_update_event_listener):
+            with data_item.maybe_data_source.data_ref() as dr:
+                dr.data += 1.5
+        self.assertTrue(needs_update_ref[0])
+
+    def test_computation_within_document_model_fires_needs_update_event_when_object_property(self):
+        document_model = DocumentModel.DocumentModel()
+        data = numpy.random.randn(64, 64)
+        data_item = DataItem.DataItem(data)
+        region = Region.RectRegion()
+        region.center = 0.41, 0.51
+        region.size = 0.52, 0.42
+        data_item.maybe_data_source.add_region(region)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item), "regionA": document_model.get_object_specifier(region)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "crop(a, regionA.bounds)", map)
+        needs_update_ref = [False]
+        def needs_update():
+            needs_update_ref[0] = True
+        needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+        with contextlib.closing(needs_update_event_listener):
+            data_item.maybe_data_source.regions[0].size = 0.53, 0.43
+        self.assertTrue(needs_update_ref[0])
+
+    def test_computation_copies_metadata_during_computation(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        d = numpy.zeros((8, 8), dtype=numpy.uint32)
+        d[:] = random.randint(0, 100)
+        data_item = DataItem.DataItem(d)
+        data_item.maybe_data_source.set_metadata({"abc": 1})
+        data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
+        data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        new_data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
+        document_model.recompute_all()
+        self.assertEqual(new_data_item.maybe_data_source.metadata, data_item.maybe_data_source.metadata)
+        self.assertEqual(new_data_item.maybe_data_source.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
+        self.assertEqual(new_data_item.maybe_data_source.dimensional_calibrations, data_item.maybe_data_source.dimensional_calibrations)
+
+    def test_computation_recomputes_when_metadata_changes(self):
+        assert False
+
+    def test_references_named_in_original_text_get_assigned(self):
+        assert False
+
+    def test_expression_text_can_be_changed(self):
+        assert False
+
+    def test_expression_text_can_be_reloaded(self):
+        assert False
+
+    def test_invalid_expression_text_is_handled_gracefully(self):
+        assert False
+
+    def test_all_old_operations_are_available_as_symbolic_nodes(self):
+        assert False
 
 
 if __name__ == '__main__':

@@ -1522,7 +1522,7 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
-    def test_reloading_computation_evaluates_when_reloaded(self):
+    def test_computation_reconnects_after_reload(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         data = numpy.ones((2, 2), numpy.double)
@@ -1534,14 +1534,45 @@ class TestStorageClass(unittest.TestCase):
         computed_data_item = DataItem.DataItem(data.copy())
         computed_data_item.maybe_data_source.set_computation(computation)
         document_model.append_data_item(computed_data_item)
+        computation.needs_update_event.fire()  # ugh. bootstrap.
+        document_model.recompute_all()
+        assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
         document_model.close()
         document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
         read_computation = document_model.data_items[1].maybe_data_source.computation
         self.assertIsNotNone(read_computation)
         self.assertNotEqual(id(read_computation.node), id(computation.node))
-        self.assertNotEqual(id(read_computation.specifiers), id(computation.specifiers))
         self.assertEqual(read_computation.node, computation.node)
-        self.assertEqual(read_computation.specifiers, computation.specifiers)
+        with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+            data_ref.data += 1.5
+        document_model.recompute_all()
+        assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
+
+    def test_computation_does_not_recompute_on_reload(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        computation = Symbolic.Computation()
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation.parse_expression(document_model, "-a", map)
+        computed_data_item = DataItem.DataItem(data.copy())
+        computed_data_item.maybe_data_source.set_computation(computation)
+        document_model.append_data_item(computed_data_item)
+        computation.needs_update_event.fire()  # ugh. bootstrap.
+        document_model.recompute_all()
+        assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
+        document_model.close()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        changed_ref = [False]
+        def changed():
+            changed_ref[0] = True
+        changed_event_listener = document_model.data_items[1].maybe_data_source.data_and_metadata_changed_event.listen(changed)
+        with contextlib.closing(changed_event_listener):
+            document_model.recompute_all()
+            assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
+            self.assertFalse(changed_ref[0])
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()

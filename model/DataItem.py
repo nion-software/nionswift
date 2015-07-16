@@ -216,9 +216,9 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__subscription = None
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
+        self.data_and_metadata_changed_event = Observable.Event()
         self.metadata_changed_event = Observable.Event()
         self.request_remove_data_item_because_operation_removed_event = Observable.Event()
-        self.computation_changed_event = Observable.Event()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
@@ -317,9 +317,14 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
+            computation = self.computation
+            if self.__data_item_manager and computation:
+                self.__data_item_manager.computation_changed(self, None)
             self.__data_item_manager = data_item_manager
             if self.data_source:
                 self.data_source.set_data_item_manager(self.__data_item_manager)
+            if self.__data_item_manager and computation:
+                self.__data_item_manager.computation_changed(self, computation)
 
     def set_dependent_data_item(self, data_item):
         self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
@@ -397,14 +402,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.set_item("computation", computation)
 
     def __computation_changed(self, name, old_computation, new_computation):
-        self.computation_changed_event.fire()
-        # if old_computation:
-        #     self.__computation_needs_update_event_listener.close()
-        #     self.__computation_needs_update_event_listener = None
-        # if new_computation:
-        #     def computation_needs_update():
-        #         pass
-        #     self.__computation_needs_update_event_listener = new_computation.computation_needs_update_event.listen(computation_needs_update)
+        if self.__data_item_manager:
+            self.__data_item_manager.computation_changed(self, new_computation)
 
     def __data_source_changed(self, name, old_data_source, new_data_source):
         # and about to be removed messages
@@ -795,6 +794,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         if change_count == 0 and changed:
             data_and_calibration = self.data_and_calibration
             self.__publisher.notify_next_value(data_and_calibration)
+            self.data_and_metadata_changed_event.fire()
             for display in self.displays:
                 display.update_data(data_and_calibration)
             if not self._is_reading:

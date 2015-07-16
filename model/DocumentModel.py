@@ -607,6 +607,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__buffered_data_source_set_changed_event = Observable.Event()
         self.session_id = None
         self.start_new_session()
+        self.__computation_changed_listeners = dict()
         self.__read()
         self.__library_storage.set_value(self, "uuid", str(self.uuid))
         self.__library_storage.set_value(self, "version", 0)
@@ -629,6 +630,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # mark itself clean after reading all of them in.
         for data_item in data_items:
             data_item.finish_reading()
+        for data_item in data_items:
+            for buffered_data_source in data_item.data_sources:
+                computation = buffered_data_source.computation
+                if computation:
+                    computation.bind(self)
         # all data items will already have a managed_object_context
         for data_group in self.data_groups:
             data_group.connect_data_items(self.get_data_item_by_uuid)
@@ -965,6 +971,23 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def start_dispatcher(self):
         self.__thread_pool.start(16)
 
+    def computation_changed(self, buffered_data_source, computation):
+        existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
+        if existing_computation_changed_listener:
+            existing_computation_changed_listener.close()
+            del self.__computation_changed_listeners[self.buffered_data_source.uuid]
+        def computation_needs_update():
+            def compute():
+                with buffered_data_source.data_ref() as data_ref:
+                    data_and_metadata = computation.evaluate()
+                    data_ref.data = data_and_metadata.data
+                    buffered_data_source.set_metadata(data_and_metadata.metadata)
+                    buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+                    buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+            self.dispatch_task(compute)
+        computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
+        self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
+
     def get_object_specifier(self, object):
         if isinstance(object, DataItem.DataItem):
             return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
@@ -972,7 +995,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
         return None
 
-    def resolve_object_specifier(self, specifier):
+    def resolve_object_specifier(self, specifier, property_name=None):
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
             if specifier_type == "data_item":
@@ -980,13 +1003,17 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 data_item = self.get_data_item_by_uuid(object_uuid)
                 class BoundDataItem(object):
                     def __init__(self, data_item):
-                        self.__data_item = data_item
+                        self.__buffered_data_source = data_item.maybe_data_source
                         self.changed_event = Observable.Event()
+                        def data_and_metadata_changed():
+                            self.changed_event.fire()
+                        self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed)
                     @property
                     def value(self):
-                        return self.__data_item.maybe_data_source.data_and_calibration
+                        return self.__buffered_data_source.data_and_calibration
                     def close(self):
-                        pass
+                        self.__data_and_metadata_changed_event_listener.close()
+                        self.__data_and_metadata_changed_event_listener = None
                 return BoundDataItem(data_item)
             elif specifier_type == "region":
                 object_uuid = uuid.UUID(specifier["uuid"])
@@ -995,13 +1022,18 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                         for region in data_source.regions:
                             if region.uuid == object_uuid:
                                 class BoundRegion(object):
-                                    def __init__(self, object):
+                                    def __init__(self, object, property_name):
                                         self.__object = object
+                                        self.__property = property_name
                                         self.changed_event = Observable.Event()
+                                        self.__object.add_observer(self)  # property_changed
+                                    def property_changed(self, sender, property_name, value):
+                                        if property_name == self.__property:
+                                            self.changed_event.fire()
                                     @property
                                     def value(self):
-                                        return self.__object
+                                        return getattr(self.__object, self.__property)
                                     def close(self):
-                                        pass
-                                return BoundRegion(region)
+                                        self.__object.remove_observer(self)
+                                return BoundRegion(region, property_name)
         return None
