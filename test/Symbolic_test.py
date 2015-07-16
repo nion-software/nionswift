@@ -271,6 +271,38 @@ class TestSymbolicClass(unittest.TestCase):
         document_model.recompute_all()
         document_model.remove_data_item(new_data_item)
 
+    def test_evaluate_corrupt_computation_within_document_model_gives_sensible_response(self):
+        document_model = DocumentModel.DocumentModel()
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "(a++)", map)
+        data_and_metadata = computation.evaluate()
+        self.assertIsNone(data_and_metadata)
+
+    def test_evaluate_computation_with_invalid_source_gives_sensible_response(self):
+        document_model = DocumentModel.DocumentModel()
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "a+e", map)
+        data_and_metadata = computation.evaluate()
+        self.assertIsNone(data_and_metadata)
+
+    def test_evaluate_computation_with_invalid_function_in_document_fails_cleanly(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        document_controller.processing_calculation("void(a,2)", map)
+        document_model.recompute_all()
+
     def disabled_test_references_named_in_original_text_get_assigned(self):
         assert False
 
@@ -278,12 +310,6 @@ class TestSymbolicClass(unittest.TestCase):
         assert False
 
     def disabled_test_expression_text_can_be_reloaded(self):
-        assert False
-
-    def disabled_test_invalid_expression_text_is_handled_gracefully(self):
-        assert False
-
-    def disabled_test_all_old_operations_are_available_as_symbolic_nodes(self):
         assert False
 
     def disabled_test_knobs_for_computations_appear_in_inspector(self):

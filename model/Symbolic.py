@@ -689,6 +689,7 @@ def extract_data(evaluated_input):
         return evaluated_input.data
     return evaluated_input
 
+
 class DataNode(object):
 
     def __init__(self, inputs=None):
@@ -1179,7 +1180,10 @@ def parse_expression(calculation_script, variable_map):
         g[variable_name] = reference_node
     code_lines.append("result = {0}".format(calculation_script))
     code = "\n".join(code_lines)
-    exec(code, g, l)
+    try:
+        exec(code, g, l)
+    except Exception as e:
+        return None
     return l["result"]
 
 
@@ -1189,10 +1193,15 @@ class Computation(Observable.Observable, Observable.ManagedObject):
     Watches for changes to the sources and fires a needs_update_event
     when a new computation needs to occur.
 
-    Call parse_expression first to establish the computation.
+    Call parse_expression first to establish the computation. Bind will be automatically called.
+
+    Call bind to establish connections after reloading. Call unbind to release connections.
 
     Listen to needs_update_event and call evaluate in response to perform
     computation (on thread).
+
+    The computation will listen to any bound items established in the bind method. When those
+    items signal a change, the needs_update_event will be fired.
     """
 
     def __init__(self):
@@ -1210,14 +1219,17 @@ class Computation(Observable.Observable, Observable.ManagedObject):
 
     def parse_expression(self, context, expression, variable_map):
         self.__data_node = parse_expression(expression, variable_map)
-        self.node = self.__data_node.write()
-        self.bind(context)
+        if self.__data_node:
+            self.node = self.__data_node.write()
+            self.bind(context)
 
     def evaluate(self):
         def resolve(uuid):
             bound_item = self.__bound_items[uuid]
             return bound_item.value
-        return self.__data_node.evaluate(resolve)
+        if self.__data_node:
+            return self.__data_node.evaluate(resolve)
+        return None
 
     def bind(self, context):
         assert len(self.__bound_items) == 0
