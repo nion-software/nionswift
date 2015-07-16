@@ -1289,10 +1289,12 @@ class NodeOperation(Operation):
 
     def get_processed_data(self, data_sources, values):
         index_mapping = values.get("data_mapping")
+
         def resolve(uuid):
             return data_sources[index_mapping[str(uuid)]]
+
         data_node = Symbolic.DataNode.factory(values.get("data_node"))
-        return data_node.get_data(resolve)
+        return data_node.get_data_and_metadata(resolve).data
 
 
 class OperationManager(Utility.Singleton("OperationManagerSingleton", (object, ), {})):

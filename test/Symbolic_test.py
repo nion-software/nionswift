@@ -35,7 +35,7 @@ class TestSymbolicClass(unittest.TestCase):
         data_node, mapping = Symbolic.parse_expression("-a", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source
-        data = data_node.get_data(resolve)
+        data = data_node.get_data_and_metadata(resolve).data
         assert numpy.array_equal(data, -d)
 
     def test_binary_addition_returns_added_data(self):
@@ -49,7 +49,7 @@ class TestSymbolicClass(unittest.TestCase):
         data_node, mapping = Symbolic.parse_expression("a+b", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source
-        data = data_node.get_data(resolve)
+        data = data_node.get_data_and_metadata(resolve).data
         assert numpy.array_equal(data, d1 + d2)
 
     def test_binary_multiplication_with_scalar_returns_multiplied_data(self):
@@ -60,11 +60,11 @@ class TestSymbolicClass(unittest.TestCase):
         data_node1, mapping1 = Symbolic.parse_expression("a * 5", map)
         def resolve1(uuid):
             return mapping1[uuid].maybe_data_source
-        data1 = data_node1.get_data(resolve1)
+        data1 = data_node1.get_data_and_metadata(resolve1).data
         data_node2, mapping2 = Symbolic.parse_expression("5 * a", map)
         def resolve2(uuid):
             return mapping2[uuid].maybe_data_source
-        data2 = data_node2.get_data(resolve2)
+        data2 = data_node2.get_data_and_metadata(resolve2).data
         assert numpy.array_equal(data1, d * 5)
         assert numpy.array_equal(data2, d * 5)
 
@@ -76,7 +76,7 @@ class TestSymbolicClass(unittest.TestCase):
         data_node, mapping = Symbolic.parse_expression("a - min(a)", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source
-        data = data_node.get_data(resolve)
+        data = data_node.get_data_and_metadata(resolve).data
         assert numpy.array_equal(data, d - numpy.amin(d))
 
     def test_ability_to_take_slice(self):
@@ -87,7 +87,7 @@ class TestSymbolicClass(unittest.TestCase):
         data_node, mapping = Symbolic.parse_expression("a[:,4,4]", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source
-        data = data_node.get_data(resolve)
+        data = data_node.get_data_and_metadata(resolve).data
         assert numpy.array_equal(data, d[:,4,4])
 
     def test_ability_to_write_read_basic_nodes(self):
@@ -100,8 +100,8 @@ class TestSymbolicClass(unittest.TestCase):
         def resolve(uuid):
             return mapping[uuid].maybe_data_source
         data_node2 = Symbolic.DataNode.factory(data_node_dict)
-        data = data_node.get_data(resolve)
-        data2 = data_node2.get_data(resolve)
+        data = data_node.get_data_and_metadata(resolve).data
+        data2 = data_node2.get_data_and_metadata(resolve).data
         assert numpy.array_equal(data, -d / numpy.average(d) * 5)
         assert numpy.array_equal(data, data2)
 

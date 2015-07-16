@@ -12,6 +12,7 @@ from __future__ import absolute_import
 
 # standard libraries
 import copy
+import datetime
 import logging
 import numbers
 import operator
@@ -21,7 +22,8 @@ import uuid
 import numpy
 
 # local libraries
-# from nion.swift.model import DataItem
+from nion.swift.model import Calibration
+from nion.swift.model import DataAndMetadata
 
 
 def range(data):
@@ -107,13 +109,17 @@ class DataNode(object):
         assert False
         return None
 
-    def get_data(self, resolve):
-        data_list = list()
+    def get_data_and_metadata(self, resolve):
+        data_and_metadata_list = list()
         for input in self.inputs:
-            data = input.get_data(resolve)
-            data = data if data is not None else input.scalar
-            data_list.append(data)
-        return self._get_data(data_list, resolve)
+            data_and_metadata = input.get_data_and_metadata(resolve)
+            if data_and_metadata is None:
+                data = numpy.array(input.scalar)
+                data_and_metadata = DataAndMetadata.DataAndMetadata(lambda: data, (data.shape, data.dtype),
+                                                                    Calibration.Calibration(), list(), dict(),
+                                                                    datetime.datetime.utcnow())
+            data_and_metadata_list.append(data_and_metadata)
+        return self._get_data_and_metadata(data_and_metadata_list, resolve)
 
     @property
     def data_reference_uuids(self):
@@ -122,7 +128,7 @@ class DataNode(object):
             data_reference_uuids.extend(input.data_reference_uuids)
         return data_reference_uuids
 
-    def _get_data(self, data_list, resolve):
+    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
         return None  # fall back on scalar
 
     def __abs__(self):
@@ -236,33 +242,41 @@ class ConstantDataNode(DataNode):
 
     def __init__(self, value=None):
         super(ConstantDataNode, self).__init__()
-        self.scalar = value
+        self.scalar = numpy.array(value)
+        if isinstance(value, numbers.Integral):
+            self.scalar_type = "integral"
+        elif isinstance(value, numbers.Rational):
+            self.scalar_type = "rational"
+        elif isinstance(value, numbers.Real):
+            self.scalar_type = "real"
+        elif isinstance(value, numbers.Complex):
+            self.scalar_type = "complex"
+        # else:
+        #     raise Exception("Invalid constant type [{}].".format(type(value)))
 
     def read(self, d):
         super(ConstantDataNode, self).read(d)
         scalar_type = d.get("scalar_type")
         if scalar_type == "integral":
-            self.scalar = int(d["value"])
+            self.scalar = numpy.array(int(d["value"]))
         elif scalar_type == "real":
-            self.scalar = float(d["value"])
+            self.scalar = numpy.array(float(d["value"]))
         elif scalar_type == "complex":
-            self.scalar = complex(*d["value"])
+            self.scalar = numpy.array(complex(*d["value"]))
 
     def write(self):
         d = super(ConstantDataNode, self).write()
         d["data_node_type"] = "constant"
+        d["scalar_type"] = self.scalar_type
         value = self.scalar
-        if isinstance(value, numbers.Integral):
-            d["scalar_type"] = "integral"
-            d["value"] = value
+        if self.scalar_type == "integral":
+            d["value"] = int(value)
         elif isinstance(value, numbers.Rational):
             pass
-        elif isinstance(value, numbers.Real):
-            d["scalar_type"] = "real"
-            d["value"] = value
-        elif isinstance(value, numbers.Complex):
-            d["scalar_type"] = "complex"
-            d["value"] = (value.real, value.imag)
+        elif self.scalar_type == "real":
+            d["value"] = float(value)
+        elif self.scalar_type == "complex":
+            d["value"] = complex(float(value.real), float(value.imag))
         return d
 
     def __str__(self):
@@ -292,8 +306,12 @@ class ScalarOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data(self, data_list, resolve):
-        return _function_map[self.__function_id](data_list[0], **self.__args)
+    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+        def calculate_data():
+            return _function_map[self.__function_id](data_and_metadata_list[0].data, **self.__args)
+
+        return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata_list[0].data_shape_and_dtype,
+                                               Calibration.Calibration(), list(), dict(), datetime.datetime.utcnow())
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -322,8 +340,14 @@ class UnaryOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data(self, data_list, resolve):
-        return _function_map[self.__function_id](data_list[0], **self.__args)
+    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+        def calculate_data():
+            return _function_map[self.__function_id](data_and_metadata_list[0].data, **self.__args)
+
+        return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata_list[0].data_shape_and_dtype,
+                                               data_and_metadata_list[0].intensity_calibration,
+                                               data_and_metadata_list[0].dimensional_calibrations,
+                                               data_and_metadata_list[0].metadata, datetime.datetime.utcnow())
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -352,8 +376,14 @@ class BinaryOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data(self, data_list, resolve):
-        return _function_map[self.__function_id](data_list[0], data_list[1],  **self.__args)
+    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+        def calculate_data():
+            return _function_map[self.__function_id](data_and_metadata_list[0].data, data_and_metadata_list[1].data, **self.__args)
+
+        return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata_list[0].data_shape_and_dtype,
+                                               data_and_metadata_list[0].intensity_calibration,
+                                               data_and_metadata_list[0].dimensional_calibrations,
+                                               data_and_metadata_list[0].metadata, datetime.datetime.utcnow())
 
     def __str__(self):
         return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, self.inputs[0], self.inputs[1])
@@ -386,8 +416,8 @@ class DataItemDataNode(DataNode):
     def data_reference_uuids(self):
         return [self.__data_reference_uuid]
 
-    def _get_data(self, data_list, resolve):
-        return resolve(self.__data_reference_uuid).data if self.__data_reference_uuid else None
+    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+        return resolve(self.__data_reference_uuid) if self.__data_reference_uuid else None
 
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__data_reference_uuid)
