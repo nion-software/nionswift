@@ -1547,6 +1547,7 @@ class TestStorageClass(unittest.TestCase):
             data_ref.data += 1.5
         document_model.recompute_all()
         assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
+        document_model.close()
 
     def test_computation_does_not_recompute_on_reload(self):
         data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
@@ -1573,6 +1574,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
             self.assertFalse(changed_ref[0])
+        document_model.close()
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()

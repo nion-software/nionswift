@@ -33,89 +33,95 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_unary_inversion_returns_inverted_data(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "-a", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, -d)
+        with contextlib.closing(document_model):
+            d = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "-a", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, -d)
 
     def test_binary_addition_returns_added_data(self):
         document_model = DocumentModel.DocumentModel()
-        d1 = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d1[:] = random.randint(0, 100)
-        data_item1 = DataItem.DataItem(d1)
-        d2 = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d2[:] = random.randint(0, 100)
-        data_item2 = DataItem.DataItem(d2)
-        document_model.append_data_item(data_item1)
-        document_model.append_data_item(data_item2)
-        map = {"a": document_model.get_object_specifier(data_item1), "b": document_model.get_object_specifier(data_item2)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "a+b", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, d1 + d2)
+        with contextlib.closing(document_model):
+            d1 = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d1[:] = random.randint(0, 100)
+            data_item1 = DataItem.DataItem(d1)
+            d2 = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d2[:] = random.randint(0, 100)
+            data_item2 = DataItem.DataItem(d2)
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            map = {"a": document_model.get_object_specifier(data_item1), "b": document_model.get_object_specifier(data_item2)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a+b", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d1 + d2)
 
     def test_binary_multiplication_with_scalar_returns_multiplied_data(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation1 = Symbolic.Computation()
-        computation1.parse_expression(document_model, "a * 5", map)
-        data1 = computation1.evaluate().data
-        computation2 = Symbolic.Computation()
-        computation2.parse_expression(document_model, "5 * a", map)
-        data2 = computation1.evaluate().data
-        assert numpy.array_equal(data1, d * 5)
-        assert numpy.array_equal(data2, d * 5)
+        with contextlib.closing(document_model):
+            d = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation1 = Symbolic.Computation()
+            computation1.parse_expression(document_model, "a * 5", map)
+            data1 = computation1.evaluate().data
+            computation2 = Symbolic.Computation()
+            computation2.parse_expression(document_model, "5 * a", map)
+            data2 = computation1.evaluate().data
+            assert numpy.array_equal(data1, d * 5)
+            assert numpy.array_equal(data2, d * 5)
 
     def test_subtract_min_returns_subtracted_min(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "a - amin(a)", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, d - numpy.amin(d))
+        with contextlib.closing(document_model):
+            d = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a - amin(a)", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d - numpy.amin(d))
 
     def test_ability_to_take_slice(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
-        d[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "a[:,4,4]", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, d[:,4,4])
+        with contextlib.closing(document_model):
+            d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a[:,4,4]", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d[:,4,4])
 
     def test_ability_to_write_read_basic_nodes(self):
         document_model = DocumentModel.DocumentModel()
-        src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
-        src_data[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(src_data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "-a / average(a) * 5", map)
-        data_node_dict = computation.write_to_dict()
-        computation2 = Symbolic.Computation()
-        computation2.read_from_dict(data_node_dict)
-        computation2.bind(document_model)
-        data = computation.evaluate().data
-        data2 = computation2.evaluate().data
-        assert numpy.array_equal(data, -src_data / numpy.average(src_data) * 5)
-        assert numpy.array_equal(data, data2)
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "-a / average(a) * 5", map)
+            data_node_dict = computation.write_to_dict()
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            data = computation.evaluate().data
+            data2 = computation2.evaluate().data
+            assert numpy.array_equal(data, -src_data / numpy.average(src_data) * 5)
+            assert numpy.array_equal(data, data2)
 
     def test_make_operation_works_without_exception_and_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -132,117 +138,125 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_fft_returns_complex_data(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.random.randn(64, 64)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "fft(a)", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(64, 64)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "fft(a)", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
     def test_gaussian_blur_handles_scalar_argument(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.random.randn(64, 64)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "gaussian_blur(a, 4.0)", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(64, 64)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "gaussian_blur(a, 4.0)", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
 
     def test_transpose_flip_handles_args(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.random.randn(30, 60)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "transpose_flip(a, flip_v=True)", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, numpy.flipud(d))
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(30, 60)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "transpose_flip(a, flip_v=True)", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.flipud(d))
 
     def test_crop_handles_args(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.random.randn(64, 64)
-        data_item = DataItem.DataItem(d)
-        region = Region.RectRegion()
-        region.center = 0.41, 0.51
-        region.size = 0.52, 0.42
-        data_item.maybe_data_source.add_region(region)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item), "regionA": document_model.get_object_specifier(region)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "crop(a, regionA.bounds)", map)
-        data = computation.evaluate().data
-        assert numpy.array_equal(data, d[9:42, 19:45])
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(64, 64)
+            data_item = DataItem.DataItem(d)
+            region = Region.RectRegion()
+            region.center = 0.41, 0.51
+            region.size = 0.52, 0.42
+            data_item.maybe_data_source.add_region(region)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item), "regionA": document_model.get_object_specifier(region)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "crop(a, regionA.bounds)", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d[9:42, 19:45])
 
     def test_evaluate_computation_within_document_model_gives_correct_value(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.ones((2, 2), numpy.double)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "-a", map)
-        data_and_metadata = computation.evaluate()
-        self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
+        with contextlib.closing(document_model):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "-a", map)
+            data_and_metadata = computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
 
     def test_computation_within_document_model_fires_needs_update_event_when_data_changes(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.ones((2, 2), numpy.double)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "-a", map)
-        needs_update_ref = [False]
-        def needs_update():
-            needs_update_ref[0] = True
-        needs_update_event_listener = computation.needs_update_event.listen(needs_update)
-        with contextlib.closing(needs_update_event_listener):
-            with data_item.maybe_data_source.data_ref() as dr:
-                dr.data += 1.5
-        self.assertTrue(needs_update_ref[0])
+        with contextlib.closing(document_model):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "-a", map)
+            needs_update_ref = [False]
+            def needs_update():
+                needs_update_ref[0] = True
+            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            with contextlib.closing(needs_update_event_listener):
+                with data_item.maybe_data_source.data_ref() as dr:
+                    dr.data += 1.5
+            self.assertTrue(needs_update_ref[0])
 
     def test_computation_within_document_model_fires_needs_update_event_when_metadata_changes(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.ones((2, 2), numpy.double)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "-a", map)
-        needs_update_ref = [False]
-        def needs_update():
-            needs_update_ref[0] = True
-        needs_update_event_listener = computation.needs_update_event.listen(needs_update)
-        with contextlib.closing(needs_update_event_listener):
-            metadata = data_item.maybe_data_source.metadata
-            metadata["abc"] = 1
-            data_item.maybe_data_source.set_metadata(metadata)
-        self.assertTrue(needs_update_ref[0])
+        with contextlib.closing(document_model):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "-a", map)
+            needs_update_ref = [False]
+            def needs_update():
+                needs_update_ref[0] = True
+            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            with contextlib.closing(needs_update_event_listener):
+                metadata = data_item.maybe_data_source.metadata
+                metadata["abc"] = 1
+                data_item.maybe_data_source.set_metadata(metadata)
+            self.assertTrue(needs_update_ref[0])
 
     def test_computation_within_document_model_fires_needs_update_event_when_object_property(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.random.randn(64, 64)
-        data_item = DataItem.DataItem(data)
-        region = Region.RectRegion()
-        region.center = 0.41, 0.51
-        region.size = 0.52, 0.42
-        data_item.maybe_data_source.add_region(region)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item), "regionA": document_model.get_object_specifier(region)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "crop(a, regionA.bounds)", map)
-        needs_update_ref = [False]
-        def needs_update():
-            needs_update_ref[0] = True
-        needs_update_event_listener = computation.needs_update_event.listen(needs_update)
-        with contextlib.closing(needs_update_event_listener):
-            data_item.maybe_data_source.regions[0].size = 0.53, 0.43
-        self.assertTrue(needs_update_ref[0])
+        with contextlib.closing(document_model):
+            data = numpy.random.randn(64, 64)
+            data_item = DataItem.DataItem(data)
+            region = Region.RectRegion()
+            region.center = 0.41, 0.51
+            region.size = 0.52, 0.42
+            data_item.maybe_data_source.add_region(region)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item), "regionA": document_model.get_object_specifier(region)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "crop(a, regionA.bounds)", map)
+            needs_update_ref = [False]
+            def needs_update():
+                needs_update_ref[0] = True
+            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            with contextlib.closing(needs_update_event_listener):
+                data_item.maybe_data_source.regions[0].size = 0.53, 0.43
+            self.assertTrue(needs_update_ref[0])
 
     def test_calculation_handles_data_lookups(self):
         document_model = DocumentModel.DocumentModel()
@@ -305,25 +319,27 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_evaluate_corrupt_computation_within_document_model_gives_sensible_response(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.ones((2, 2), numpy.double)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "(a++)", map)
-        data_and_metadata = computation.evaluate()
-        self.assertIsNone(data_and_metadata)
+        with contextlib.closing(document_model):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "(a++)", map)
+            data_and_metadata = computation.evaluate()
+            self.assertIsNone(data_and_metadata)
 
     def test_evaluate_computation_with_invalid_source_gives_sensible_response(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.ones((2, 2), numpy.double)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "a+e", map)
-        data_and_metadata = computation.evaluate()
-        self.assertIsNone(data_and_metadata)
+        with contextlib.closing(document_model):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a+e", map)
+            data_and_metadata = computation.evaluate()
+            self.assertIsNone(data_and_metadata)
 
     def test_evaluate_computation_with_invalid_function_in_document_fails_cleanly(self):
         document_model = DocumentModel.DocumentModel()
@@ -352,62 +368,66 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_reconstruct_reuses_existing_variables(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.random.randn(2, 2)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "a + a", map)
-        expression = computation.reconstruct(dict())
-        expression_lines = expression.split("\n")
-        self.assertNotEqual(expression_lines[0], expression_lines[1])
-        self.assertEqual(len(expression_lines), 2)
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a + a", map)
+            expression = computation.reconstruct(dict())
+            expression_lines = expression.split("\n")
+            self.assertNotEqual(expression_lines[0], expression_lines[1])
+            self.assertEqual(len(expression_lines), 2)
 
     def test_reconstruct_generates_unique_variables(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.random.randn(2, 2)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
-        document_model.append_data_item(data_item2)
-        map = {"a": document_model.get_object_specifier(data_item), "b": document_model.get_object_specifier(data_item2)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "a + b", map)
-        expression = computation.reconstruct(dict())
-        new_computation = Symbolic.Computation()
-        new_computation.parse_expression(document_model, expression, dict())
-        data_and_metadata = new_computation.evaluate()
-        self.assertTrue(numpy.array_equal(data_and_metadata.data, d + 1))
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item2)
+            map = {"a": document_model.get_object_specifier(data_item), "b": document_model.get_object_specifier(data_item2)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a + b", map)
+            expression = computation.reconstruct(dict())
+            new_computation = Symbolic.Computation()
+            new_computation.parse_expression(document_model, expression, dict())
+            data_and_metadata = new_computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, d + 1))
 
     def test_reconstruct_all_node_types(self):
         document_model = DocumentModel.DocumentModel()
-        d = numpy.random.randn(2, 2)
-        data_item = DataItem.DataItem(d)
-        region = Region.RectRegion()
-        region.center = 0.5, 0.5
-        region.size = 0.6, 0.4
-        data_item.maybe_data_source.add_region(region)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item), "r": document_model.get_object_specifier(region)}
-        computation = Symbolic.Computation()
-        expression_in = "-a / average(a) * 5 + gaussian_blur(a, 0.5) + crop(a, r.bounds)"
-        computation.parse_expression(document_model, expression_in, map)
-        expression_out = computation.reconstruct(map)
-        self.assertEqual(expression_in, expression_out)
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(d)
+            region = Region.RectRegion()
+            region.center = 0.5, 0.5
+            region.size = 0.6, 0.4
+            data_item.maybe_data_source.add_region(region)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item), "r": document_model.get_object_specifier(region)}
+            computation = Symbolic.Computation()
+            expression_in = "-a / average(a) * 5 + gaussian_blur(a, 0.5) + crop(a, r.bounds)"
+            computation.parse_expression(document_model, expression_in, map)
+            expression_out = computation.reconstruct(map)
+            self.assertEqual(expression_in, expression_out)
 
     def test_computation_changed_updates_evaluated_data(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.ones((2, 2), numpy.double)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "-a", map)
-        data_and_metadata = computation.evaluate()
-        self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
-        computation.parse_expression(document_model, "-2 * a", map)
-        data_and_metadata = computation.evaluate()
-        self.assertTrue(numpy.array_equal(data_and_metadata.data, -data*2))
+        with contextlib.closing(document_model):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "-a", map)
+            data_and_metadata = computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
+            computation.parse_expression(document_model, "-2 * a", map)
+            data_and_metadata = computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, -data*2))
 
     def test_changing_computation_updates_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -427,24 +447,26 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_deepcopy_data_item_data_node_does_not_copy_bound_item(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.random.randn(2, 2))
-        document_model.append_data_item(data_item)
-        data_item_node = Symbolic.DataItemDataNode(document_model.get_object_specifier(data_item))
-        data_item_node.bind(document_model, dict())
-        data_item_node_copy = copy.deepcopy(data_item_node)
-        self.assertIsNotNone(data_item_node._bound_item_for_test)
-        self.assertIsNone(data_item_node_copy._bound_item_for_test)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.random.randn(2, 2))
+            document_model.append_data_item(data_item)
+            data_item_node = Symbolic.DataItemDataNode(document_model.get_object_specifier(data_item))
+            data_item_node.bind(document_model, dict())
+            data_item_node_copy = copy.deepcopy(data_item_node)
+            self.assertIsNotNone(data_item_node._bound_item_for_test)
+            self.assertIsNone(data_item_node_copy._bound_item_for_test)
 
     def test_unary_functions_return_correct_dimensions(self):
         document_model = DocumentModel.DocumentModel()
-        data = numpy.random.randn(2, 2)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "sin(a)", map)
-        data_and_metadata = computation.evaluate()
-        self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
+        with contextlib.closing(document_model):
+            data = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "sin(a)", map)
+            data_and_metadata = computation.evaluate()
+            self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
 
     def disabled_test_computations_update_data_item_dependencies_list(self):
         assert False
