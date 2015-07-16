@@ -689,9 +689,46 @@ _function_map = {
     "mean": numpy.mean,
     "std": numpy.std,
     "var": numpy.var,
+    # trig functions
+    "sin": numpy.sin,
+    "cos": numpy.cos,
+    "tan": numpy.tan,
+    "arcsin": numpy.arcsin,
+    "arccos": numpy.arccos,
+    "arctan": numpy.arctan,
+    "hypot": numpy.hypot,
+    "arctan2": numpy.arctan2,
+    "degrees": numpy.degrees,
+    "radians": numpy.radians,
+    "rad2deg": numpy.rad2deg,
+    "deg2rad": numpy.deg2rad,
+    # rounding
+    "around": numpy.around,
+    "round": numpy.round,
+    "rint": numpy.rint,
+    "fix": numpy.fix,
+    "floor": numpy.floor,
+    "ceil": numpy.ceil,
+    "trunc": numpy.trunc,
+    # exponents and logarithms
+    "exp": numpy.exp,
+    "expm1": numpy.expm1,
+    "exp2": numpy.exp2,
     "log": numpy.log,
     "log10": numpy.log10,
     "log2": numpy.log2,
+    "log1p": numpy.log1p,
+    # other functions
+    "reciprocal": numpy.reciprocal,
+    "clip": numpy.clip,
+    "sqrt": numpy.sqrt,
+    "square": numpy.square,
+    "nan_to_num": numpy.nan_to_num,
+    # complex numbers
+    "angle": numpy.angle,
+    "real": numpy.real,
+    "imag": numpy.imag,
+    "conj": numpy.conj,
 }
 
 def reconstruct_inputs(variable_map, inputs):
@@ -1232,9 +1269,41 @@ def parse_expression(expression_lines, variable_map, context):
     g["mean"] = lambda data_node: ScalarOperationDataNode([data_node], "mean")
     g["std"] = lambda data_node: ScalarOperationDataNode([data_node], "std")
     g["var"] = lambda data_node: ScalarOperationDataNode([data_node], "var")
+    g["sin"] = lambda data_node: UnaryOperationDataNode([data_node], "sin")
+    g["cos"] = lambda data_node: UnaryOperationDataNode([data_node], "cos")
+    g["tan"] = lambda data_node: UnaryOperationDataNode([data_node], "tan")
+    g["arcsin"] = lambda data_node: UnaryOperationDataNode([data_node], "arcsin")
+    g["arccos"] = lambda data_node: UnaryOperationDataNode([data_node], "arccos")
+    g["arctan"] = lambda data_node: UnaryOperationDataNode([data_node], "arctan")
+    g["hypot"] = lambda data_node: UnaryOperationDataNode([data_node], "hypot")
+    g["arctan2"] = lambda data_node: UnaryOperationDataNode([data_node], "arctan2")
+    g["degrees"] = lambda data_node: UnaryOperationDataNode([data_node], "degrees")
+    g["radians"] = lambda data_node: UnaryOperationDataNode([data_node], "radians")
+    g["rad2deg"] = lambda data_node: UnaryOperationDataNode([data_node], "rad2deg")
+    g["deg2rad"] = lambda data_node: UnaryOperationDataNode([data_node], "deg2rad")
+    g["around"] = lambda data_node: UnaryOperationDataNode([data_node], "around")
+    g["round"] = lambda data_node: UnaryOperationDataNode([data_node], "round")
+    g["rint"] = lambda data_node: UnaryOperationDataNode([data_node], "rint")
+    g["fix"] = lambda data_node: UnaryOperationDataNode([data_node], "fix")
+    g["floor"] = lambda data_node: UnaryOperationDataNode([data_node], "floor")
+    g["ceil"] = lambda data_node: UnaryOperationDataNode([data_node], "ceil")
+    g["trunc"] = lambda data_node: UnaryOperationDataNode([data_node], "trunc")
+    g["exp"] = lambda data_node: UnaryOperationDataNode([data_node], "exp")
+    g["expm1"] = lambda data_node: UnaryOperationDataNode([data_node], "expm1")
+    g["exp2"] = lambda data_node: UnaryOperationDataNode([data_node], "exp2")
     g["log"] = lambda data_node: UnaryOperationDataNode([data_node], "log")
     g["log10"] = lambda data_node: UnaryOperationDataNode([data_node], "log10")
     g["log2"] = lambda data_node: UnaryOperationDataNode([data_node], "log2")
+    g["log1p"] = lambda data_node: UnaryOperationDataNode([data_node], "log1p")
+    g["reciprocal"] = lambda data_node: UnaryOperationDataNode([data_node], "reciprocal")
+    g["clip"] = lambda data_node: UnaryOperationDataNode([data_node], "clip")
+    g["sqrt"] = lambda data_node: UnaryOperationDataNode([data_node], "sqrt")
+    g["square"] = lambda data_node: UnaryOperationDataNode([data_node], "square")
+    g["nan_to_num"] = lambda data_node: UnaryOperationDataNode([data_node], "nan_to_num")
+    g["angle"] = lambda data_node: UnaryOperationDataNode([data_node], "angle")
+    g["real"] = lambda data_node: UnaryOperationDataNode([data_node], "real")
+    g["imag"] = lambda data_node: UnaryOperationDataNode([data_node], "imag")
+    g["conj"] = lambda data_node: UnaryOperationDataNode([data_node], "conj")
     g["fft"] = lambda data_node: FunctionOperationDataNode([data_node], "fft")
     g["ifft"] = lambda data_node: FunctionOperationDataNode([data_node], "ifft")
     g["autocorrelate"] = lambda data_node: FunctionOperationDataNode([data_node], "autocorrelate")
