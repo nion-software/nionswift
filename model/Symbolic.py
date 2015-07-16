@@ -493,6 +493,10 @@ class DataNode(object):
     def _evaluate_inputs(self, evaluated_inputs, resolve):
         raise NotImplementedError()
 
+    def print_mapping(self, context):
+        for input in self.inputs:
+            input.print_mapping(context)
+
     def __abs__(self):
         return UnaryOperationDataNode([self], "abs")
 
@@ -750,13 +754,14 @@ class FunctionOperationDataNode(DataNode):
         return _function2_map[self.__function_id](*evaluated_inputs, **self.__args)
 
     def __str__(self):
-        return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
+        return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, [str(input) for input in self.inputs], list(self.__args))
 
 
 class DataItemDataNode(DataNode):
 
-    def __init__(self, data_reference=None):
+    def __init__(self, object_specifier=None, data_reference=None):
         super(DataItemDataNode, self).__init__()
+        self.__object_specifier = object_specifier
         self.__data_reference_uuid = data_reference.uuid if data_reference else uuid.uuid4()
 
     def read(self, d):
@@ -779,23 +784,29 @@ class DataItemDataNode(DataNode):
     def _evaluate_inputs(self, evaluated_inputs, resolve):
         return resolve(self.__data_reference_uuid) if self.__data_reference_uuid else None
 
+    def print_mapping(self, context):
+        logging.debug("%s: %s", self.__data_reference_uuid, self.__object_specifier)
+
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__data_reference_uuid)
 
 
 class ReferenceDataNode(DataNode):
 
-    def __init__(self, reference=None):
+    def __init__(self, object_specifier=None, reference=None):
         super(ReferenceDataNode, self).__init__()
+        self.__object_specifier = object_specifier
         self.__reference_uuid = reference.uuid if reference else uuid.uuid4()
 
     def read(self, d):
+        raise NotImplemented()  # should only be used as intermediate node
         super(ReferenceDataNode, self).read(d)
         reference_uuid_str = d.get("reference_uuid")
         if reference_uuid_str:
             self.__reference_uuid = uuid.UUID(reference_uuid_str)
 
     def write(self):
+        raise NotImplemented()  # should only be used as intermediate node
         d = super(ReferenceDataNode, self).write()
         d["data_node_type"] = "reference"
         if self.__reference_uuid:
@@ -806,8 +817,11 @@ class ReferenceDataNode(DataNode):
     def reference_uuid(self):
         return self.__reference_uuid
 
+    def print_mapping(self):
+        raise NotImplemented()  # should only be used as intermediate node
+
     def __getattr__(self, name):
-        return PropertyDataNode(self.__reference_uuid, name)
+        return PropertyDataNode(self.__reference_uuid, self.__object_specifier, name)
 
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__reference_uuid)
@@ -815,8 +829,9 @@ class ReferenceDataNode(DataNode):
 
 class PropertyDataNode(DataNode):
 
-    def __init__(self, reference_uuid=None, property=None):
+    def __init__(self, reference_uuid=None, object_specifier=None, property=None):
         super(PropertyDataNode, self).__init__()
+        self.__object_specifier = object_specifier
         self.__reference_uuid = reference_uuid
         self.__property = str(property)
 
@@ -834,6 +849,9 @@ class PropertyDataNode(DataNode):
 
     def _evaluate_inputs(self, evaluated_inputs, resolve):
         return getattr(resolve(self.__reference_uuid), self.__property)
+
+    def print_mapping(self, context):
+        logging.debug("%s.%s: %s", self.__reference_uuid, self.__property, self.__object_specifier)
 
     def __str__(self):
         return "{0} ({1}.{2})".format(self.__repr__(), self.__reference_uuid, self.__property)
@@ -880,13 +898,13 @@ def parse_expression(calculation_script, variable_map):
     g["crop"] = lambda data_node, bounds_node: FunctionOperationDataNode([data_node, bounds_node], "crop")
     l = dict()
     mapping = dict()
-    for variable_name, value in variable_map.items():
-        if type(value).__name__ == "DataItem":  # avoid importing class
-            reference_node = DataItemDataNode()
-            mapping[reference_node.data_reference_uuid] = value
+    for variable_name, object_specifier in variable_map.items():
+        if object_specifier["type"] == "data_item":  # avoid importing class
+            reference_node = DataItemDataNode(object_specifier=object_specifier)
+            mapping[reference_node.data_reference_uuid] = object_specifier
         else:
-            reference_node = ReferenceDataNode()
-            mapping[reference_node.reference_uuid] = value
+            reference_node = ReferenceDataNode(object_specifier=object_specifier)
+            mapping[reference_node.reference_uuid] = object_specifier
         g[variable_name] = reference_node
     code_lines.append("result = {0}".format(calculation_script))
     code = "\n".join(code_lines)
@@ -895,24 +913,46 @@ def parse_expression(calculation_script, variable_map):
 
 
 class Computation(Observable.Observable, Observable.ManagedObject):
+    """A computation on data and other inputs using symbolic nodes."""
 
     def __init__(self):
         super(Computation, self).__init__()
         self.define_type("computation")
         self.define_property("node")
         self.define_property("specifiers")
+        self.__bound_items = dict()
+        self.__bound_item_listeners = dict()
+        self.needs_update_event = Observable.Event()
 
     def parse_expression(self, context, expression, variable_map):
         data_node, mapping = parse_expression(expression, variable_map)
         object_specifiers = dict()
-        for uuid, object in mapping.items():
-            object_specifiers[str(uuid)] = context.get_object_specifier(object)
+        for uuid, object_specifier in mapping.items():
+            object_specifiers[str(uuid)] = object_specifier
         self.node = data_node.write()
         self.specifiers = object_specifiers
+        self.bind(context)
 
-    def evaluate(self, context):
+    def evaluate(self):
         data_node = DataNode.factory(self.node)
-        object_specifiers = self.specifiers
         def resolve(uuid):
-            return context.resolve_object_specifier(object_specifiers[str(uuid)])
+            bound_item = self.__bound_items[uuid]
+            return bound_item.value
         return data_node.evaluate(resolve)
+
+    def bind(self, context):
+        object_specifiers = self.specifiers
+        for uuid_str, object_specifier in object_specifiers.items():
+            bound_item = context.resolve_object_specifier(object_specifier)
+            bound_item_uuid = uuid.UUID(uuid_str)
+            self.__bound_items[bound_item_uuid] = bound_item
+            def needs_update():
+                self.needs_update_event.fire()
+            self.__bound_item_listeners[bound_item_uuid] = bound_item.changed_event.listen(needs_update)
+
+    def unbind(self, context):
+        for bound_item, bound_item_listener in zip(self.__bound_items.values(), self.__bound_item_listeners.values()):
+            bound_item.close()
+            bound_item_listener.close()
+        self.__bound_items = None
+        self.__bound_item_listeners = None

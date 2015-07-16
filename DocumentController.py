@@ -1065,15 +1065,16 @@ class DocumentController(Observable.Broadcaster):
             for weak_data_item in self.data_item_vars:
                 data_item = weak_data_item()
                 if data_item:
-                    map[self.data_item_vars[weak_data_item]] = data_item
+                    map[self.data_item_vars[weak_data_item]] = self.document_model.get_object_specifier(data_item)
         data_node, mapping = Symbolic.parse_expression(expression, map)
         if data_node:
             operation_item = Operation.OperationItem("node-operation")
             operation_item.set_property("data_node", data_node.write())
-            inverse_mapping = {v: k for k, v in mapping.items()}
+            inverse_mapping = {self.document_model.get_data_item_by_uuid(uuid.UUID(v["uuid"])): k for k, v in mapping.items()}
             index_mapping = dict()  # map reference uuid to an index
             operation_data_sources = list()
-            for data_item in mapping.values():
+            for data_item_specifier in mapping.values():
+                data_item = self.document_model.get_data_item_by_uuid(uuid.UUID(data_item_specifier["uuid"]))
                 data_source = Operation.DataItemDataSource(data_item.maybe_data_source)
                 operation_data_sources.append(data_source)
                 index_mapping[str(inverse_mapping[data_item])] = len(operation_data_sources) - 1

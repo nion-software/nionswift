@@ -1529,7 +1529,7 @@ class TestStorageClass(unittest.TestCase):
         data_item = DataItem.DataItem(data)
         document_model.append_data_item(data_item)
         computation = Symbolic.Computation()
-        map = {"a": data_item}
+        map = {"a": document_model.get_object_specifier(data_item)}
         computation.parse_expression(document_model, "-a", map)
         computed_data_item = DataItem.DataItem(data.copy())
         computed_data_item.maybe_data_source.set_computation(computation)

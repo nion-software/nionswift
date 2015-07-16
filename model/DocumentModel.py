@@ -739,6 +739,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.__buffered_data_source_set.difference_update(set([data_source]))
             self.buffered_data_source_set_changed_event.fire(set(), set([data_source]))
 
+    # TODO: evaluate if buffered_data_source_set is needed
     @property
     def buffered_data_source_set(self):
         return self.__buffered_data_source_set
@@ -976,12 +977,31 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             specifier_type = specifier["type"]
             if specifier_type == "data_item":
                 object_uuid = uuid.UUID(specifier["uuid"])
-                return self.get_data_item_by_uuid(object_uuid).maybe_data_source.data_and_calibration
+                data_item = self.get_data_item_by_uuid(object_uuid)
+                class BoundDataItem(object):
+                    def __init__(self, data_item):
+                        self.__data_item = data_item
+                        self.changed_event = Observable.Event()
+                    @property
+                    def value(self):
+                        return self.__data_item.maybe_data_source.data_and_calibration
+                    def close(self):
+                        pass
+                return BoundDataItem(data_item)
             elif specifier_type == "region":
                 object_uuid = uuid.UUID(specifier["uuid"])
                 for data_item in self.data_items:
                     for data_source in data_item.data_sources:
                         for region in data_source.regions:
                             if region.uuid == object_uuid:
-                                return region
+                                class BoundRegion(object):
+                                    def __init__(self, object):
+                                        self.__object = object
+                                        self.changed_event = Observable.Event()
+                                    @property
+                                    def value(self):
+                                        return self.__object
+                                    def close(self):
+                                        pass
+                                return BoundRegion(region)
         return None
