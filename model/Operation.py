@@ -621,29 +621,9 @@ class CrossCorrelateOperation(Operation):
     def __init__(self):
         super(CrossCorrelateOperation, self).__init__(_("Cross Correlate"), "cross-correlate-operation")
 
-    def get_processed_data(self, data_sources, values):
-        if len(data_sources) == 2:
-            data1 = data_sources[0].data
-            data2 = data_sources[1].data
-            if data1 is None or data2 is None:
-                return None
-            if Image.is_data_2d(data1) and Image.is_data_2d(data2):
-                data_std1 = data1.std(dtype=numpy.float64)
-                if data_std1 != 0.0:
-                    norm1 = (data1 - data1.mean(dtype=numpy.float64)) / data_std1
-                else:
-                    norm1 = data1
-                data_std2 = data2.std(dtype=numpy.float64)
-                if data_std2 != 0.0:
-                    norm2 = (data2 - data2.mean(dtype=numpy.float64)) / data_std2
-                else:
-                    norm2 = data2
-                scaling = 1.0 / (norm1.shape[0] * norm1.shape[1])
-                return numpy.fft.fftshift(numpy.fft.irfft2(numpy.fft.rfft2(norm1) * numpy.conj(numpy.fft.rfft2(norm2)))) * scaling
-                # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
-                # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
-                # return scipy.signal.fftconvolve(data1.copy(), numpy.conj(data2.copy()), mode='same')
-        return None
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_crosscorrelate(*data_and_calibrations)
+        return data_and_metadata if data_and_metadata else None
 
 
 class InvertOperation(Operation):
@@ -672,26 +652,9 @@ class SobelOperation(Operation):
     def __init__(self):
         super(SobelOperation, self).__init__(_("Sobel"), "sobel-operation")
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
-            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
-            rgb[..., 0] = scipy.ndimage.sobel(data[..., 0])
-            rgb[..., 1] = scipy.ndimage.sobel(data[..., 1])
-            rgb[..., 2] = scipy.ndimage.sobel(data[..., 2])
-            return rgb
-        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
-            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-            rgba[..., 0] = scipy.ndimage.sobel(data[..., 0])
-            rgba[..., 1] = scipy.ndimage.sobel(data[..., 1])
-            rgba[..., 2] = scipy.ndimage.sobel(data[..., 2])
-            rgba[..., 3] = data[..., 3]
-            return rgba
-        else:
-            return scipy.ndimage.sobel(data)
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_sobel(*data_and_calibrations)
+        return data_and_metadata if data_and_metadata else None
 
 
 class LaplaceOperation(Operation):
@@ -699,26 +662,18 @@ class LaplaceOperation(Operation):
     def __init__(self):
         super(LaplaceOperation, self).__init__(_("Laplace"), "laplace-operation")
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
-            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
-            rgb[..., 0] = scipy.ndimage.laplace(data[..., 0])
-            rgb[..., 1] = scipy.ndimage.laplace(data[..., 1])
-            rgb[..., 2] = scipy.ndimage.laplace(data[..., 2])
-            return rgb
-        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
-            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-            rgba[..., 0] = scipy.ndimage.laplace(data[..., 0])
-            rgba[..., 1] = scipy.ndimage.laplace(data[..., 1])
-            rgba[..., 2] = scipy.ndimage.laplace(data[..., 2])
-            rgba[..., 3] = data[..., 3]
-            return rgba
-        else:
-            return scipy.ndimage.laplace(data)
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_laplace(*data_and_calibrations)
+        return data_and_metadata if data_and_metadata else None
+
+
+class DataValue(object):
+    def __init__(self, value):
+        self.__value = value
+
+    @property
+    def data(self):
+        return self.__value
 
 
 class GaussianBlurOperation(Operation):
@@ -729,12 +684,9 @@ class GaussianBlurOperation(Operation):
         ]
         super(GaussianBlurOperation, self).__init__(_("Gaussian Blur"), "gaussian-blur-operation", description)
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        return scipy.ndimage.gaussian_filter(data, sigma=10*values.get("sigma"))
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_gaussian_blur(data_and_calibrations[0], DataValue(values.get("sigma") * 10.0))
+        return data_and_metadata if data_and_metadata else None
 
 
 class MedianFilterOperation(Operation):
@@ -745,27 +697,9 @@ class MedianFilterOperation(Operation):
         ]
         super(MedianFilterOperation, self).__init__(_("Median Filter"), "median-filter-operation", description)
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        size = max(min(values.get("size"), 999), 1)
-        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
-            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
-            rgb[..., 0] = scipy.ndimage.median_filter(data[..., 0], size=size)
-            rgb[..., 1] = scipy.ndimage.median_filter(data[..., 1], size=size)
-            rgb[..., 2] = scipy.ndimage.median_filter(data[..., 2], size=size)
-            return rgb
-        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
-            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-            rgba[..., 0] = scipy.ndimage.median_filter(data[..., 0], size=size)
-            rgba[..., 1] = scipy.ndimage.median_filter(data[..., 1], size=size)
-            rgba[..., 2] = scipy.ndimage.median_filter(data[..., 2], size=size)
-            rgba[..., 3] = data[..., 3]
-            return rgba
-        else:
-            return scipy.ndimage.median_filter(data, size=size)
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_median_filter(data_and_calibrations[0], DataValue(values.get("size")))
+        return data_and_metadata if data_and_metadata else None
 
 
 class UniformFilterOperation(Operation):
@@ -776,27 +710,9 @@ class UniformFilterOperation(Operation):
         ]
         super(UniformFilterOperation, self).__init__(_("Uniform Filter"), "uniform-filter-operation", description)
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        size = max(min(values.get("size"), 999), 1)
-        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
-            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
-            rgb[..., 0] = scipy.ndimage.uniform_filter(data[..., 0], size=size)
-            rgb[..., 1] = scipy.ndimage.uniform_filter(data[..., 1], size=size)
-            rgb[..., 2] = scipy.ndimage.uniform_filter(data[..., 2], size=size)
-            return rgb
-        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
-            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-            rgba[..., 0] = scipy.ndimage.uniform_filter(data[..., 0], size=size)
-            rgba[..., 1] = scipy.ndimage.uniform_filter(data[..., 1], size=size)
-            rgba[..., 2] = scipy.ndimage.uniform_filter(data[..., 2], size=size)
-            rgba[..., 3] = data[..., 3]
-            return rgba
-        else:
-            return scipy.ndimage.uniform_filter(data, size=size)
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_uniform_filter(data_and_calibrations[0], DataValue(values.get("size")))
+        return data_and_metadata if data_and_metadata else None
 
 
 class TransposeFlipOperation(Operation):

@@ -21,6 +21,11 @@ import uuid
 # third party libraries
 import numpy
 import scipy
+import scipy.fftpack
+import scipy.ndimage
+import scipy.ndimage.filters
+import scipy.ndimage.fourier
+import scipy.signal
 
 # local libraries
 from nion.swift.model import Calibration
@@ -141,10 +146,179 @@ def function_autocorrelate(data_and_metadata):
                                            datetime.datetime.utcnow())
 
 
+def function_crosscorrelate(*args):
+    if len(args) != 2:
+        return None
+
+    data_and_metadata1, data_and_metadata2 = args[0], args[1]
+
+    def calculate_data():
+        data1 = data_and_metadata1.data
+        data2 = data_and_metadata2.data
+        if data1 is None or data2 is None:
+            return None
+        if Image.is_data_2d(data1) and Image.is_data_2d(data2):
+            data_std1 = data1.std(dtype=numpy.float64)
+            if data_std1 != 0.0:
+                norm1 = (data1 - data1.mean(dtype=numpy.float64)) / data_std1
+            else:
+                norm1 = data1
+            data_std2 = data2.std(dtype=numpy.float64)
+            if data_std2 != 0.0:
+                norm2 = (data2 - data2.mean(dtype=numpy.float64)) / data_std2
+            else:
+                norm2 = data2
+            scaling = 1.0 / (norm1.shape[0] * norm1.shape[1])
+            return numpy.fft.fftshift(numpy.fft.irfft2(numpy.fft.rfft2(norm1) * numpy.conj(numpy.fft.rfft2(norm2)))) * scaling
+            # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
+            # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
+            # return scipy.signal.fftconvolve(data1.copy(), numpy.conj(data2.copy()), mode='same')
+        return None
+
+    if data_and_metadata1 is None or data_and_metadata2 is None:
+        return None
+
+    dimensional_calibrations = [Calibration.Calibration() for _ in data_and_metadata1.data_shape]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata1.data_shape_and_dtype,
+                                           Calibration.Calibration(), dimensional_calibrations, dict(),
+                                           datetime.datetime.utcnow())
+
+
+def function_sobel(data_and_metadata):
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.sobel(data[..., 0])
+            rgb[..., 1] = scipy.ndimage.sobel(data[..., 1])
+            rgb[..., 2] = scipy.ndimage.sobel(data[..., 2])
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.sobel(data[..., 0])
+            rgba[..., 1] = scipy.ndimage.sobel(data[..., 1])
+            rgba[..., 2] = scipy.ndimage.sobel(data[..., 2])
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.sobel(data)
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata.data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration,
+                                           data_and_metadata.dimensional_calibrations, data_and_metadata.metadata,
+                                           datetime.datetime.utcnow())
+
+
+def function_laplace(data_and_metadata):
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.laplace(data[..., 0])
+            rgb[..., 1] = scipy.ndimage.laplace(data[..., 1])
+            rgb[..., 2] = scipy.ndimage.laplace(data[..., 2])
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.laplace(data[..., 0])
+            rgba[..., 1] = scipy.ndimage.laplace(data[..., 1])
+            rgba[..., 2] = scipy.ndimage.laplace(data[..., 2])
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.laplace(data)
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata.data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration,
+                                           data_and_metadata.dimensional_calibrations, data_and_metadata.metadata,
+                                           datetime.datetime.utcnow())
+
+
+def function_gaussian_blur(data_and_metadata, sigma_value):
+    def calculate_data():
+        data = data_and_metadata.data
+        sigma = float(sigma_value.data)
+        if not Image.is_data_valid(data):
+            return None
+        return scipy.ndimage.gaussian_filter(data, sigma=sigma)
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata.data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration,
+                                           data_and_metadata.dimensional_calibrations, data_and_metadata.metadata,
+                                           datetime.datetime.utcnow())
+
+
+def function_median_filter(data_and_metadata, size_value):
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        size = max(min(int(size_value.data), 999), 1)
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.median_filter(data[..., 0], size=size)
+            rgb[..., 1] = scipy.ndimage.median_filter(data[..., 1], size=size)
+            rgb[..., 2] = scipy.ndimage.median_filter(data[..., 2], size=size)
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.median_filter(data[..., 0], size=size)
+            rgba[..., 1] = scipy.ndimage.median_filter(data[..., 1], size=size)
+            rgba[..., 2] = scipy.ndimage.median_filter(data[..., 2], size=size)
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.median_filter(data, size=size)
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata.data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration,
+                                           data_and_metadata.dimensional_calibrations, data_and_metadata.metadata,
+                                           datetime.datetime.utcnow())
+
+
+def function_uniform_filter(data_and_metadata, size_value):
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        size = max(min(int(size_value.data), 999), 1)
+        if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+            rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
+            rgb[..., 0] = scipy.ndimage.uniform_filter(data[..., 0], size=size)
+            rgb[..., 1] = scipy.ndimage.uniform_filter(data[..., 1], size=size)
+            rgb[..., 2] = scipy.ndimage.uniform_filter(data[..., 2], size=size)
+            return rgb
+        elif Image.is_shape_and_dtype_rgba(data.shape, data.dtype):
+            rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
+            rgba[..., 0] = scipy.ndimage.uniform_filter(data[..., 0], size=size)
+            rgba[..., 1] = scipy.ndimage.uniform_filter(data[..., 1], size=size)
+            rgba[..., 2] = scipy.ndimage.uniform_filter(data[..., 2], size=size)
+            rgba[..., 3] = data[..., 3]
+            return rgba
+        else:
+            return scipy.ndimage.uniform_filter(data, size=size)
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata.data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration,
+                                           data_and_metadata.dimensional_calibrations, data_and_metadata.metadata,
+                                           datetime.datetime.utcnow())
+
+
 _function2_map = {
     "fft": function_fft,
     "ifft": function_ifft,
     "autocorrelate": function_autocorrelate,
+    "crosscorrelate": function_crosscorrelate,
+    "sobel": function_sobel,
+    "laplace": function_laplace,
+    "gaussian_blur": function_gaussian_blur,
+    "median_filter": function_median_filter,
+    "uniform_filter": function_uniform_filter,
 }
 
 _function_map = {
@@ -319,11 +493,11 @@ class DataNode(object):
         return UnaryOperationDataNode([self], "slice", {"key": key})
 
 
-def min(data_node):
-    return ScalarOperationDataNode([data_node], "amin")
+# def min(data_node):
+#     return ScalarOperationDataNode([data_node], "amin")
 
-def max(data_node):
-    return ScalarOperationDataNode([data_node], "amax")
+# def max(data_node):
+#     return ScalarOperationDataNode([data_node], "amax")
 
 def range(data_node):
     return ScalarOperationDataNode([data_node], "range")
@@ -360,6 +534,24 @@ def ifft(data_node):
 
 def autocorrelate(data_node):
     return FunctionOperationDataNode([data_node], "autocorrelate")
+
+def crosscorrelate(data_node1, data_node2):
+    return FunctionOperationDataNode([data_node1, data_node2], "crosscorrelate")
+
+def sobel(data_node):
+    return FunctionOperationDataNode([data_node], "sobel")
+
+def laplace(data_node):
+    return FunctionOperationDataNode([data_node], "laplace")
+
+def gaussian_blur(data_node, scalar_node):
+    return FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "gaussian_blur")
+
+def median_filter(data_node, scalar_node):
+    return FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "median_filter")
+
+def uniform_filter(data_node, scalar_node):
+    return FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "uniform_filter")
 
 
 class ConstantDataNode(DataNode):
@@ -591,6 +783,8 @@ def parse_expression(calculation_script, weak_data_item_variable_map):
     code_lines = []
     code_lines.append("from nion.swift.model.Symbolic import *")
     g = dict()
+    g["min"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
+    g["max"] = lambda data_node: ScalarOperationDataNode([data_node], "amax")
     l = dict()
     mapping = dict()
     for data_item_ref in weak_data_item_variable_map:

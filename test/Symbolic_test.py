@@ -128,6 +128,16 @@ class TestSymbolicClass(unittest.TestCase):
         data = data_node.get_data_and_metadata(resolve).data
         assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
+    def test_gaussian_blur_handles_scalar_argument(self):
+        d = numpy.random.randn(64, 64)
+        data_item = DataItem.DataItem(d)
+        map = { weakref.ref(data_item): "a" }
+        data_node, mapping = Symbolic.parse_expression("gaussian_blur(a, 4.0)", map)
+        def resolve(uuid):
+            return mapping[uuid].maybe_data_source
+        data = data_node.get_data_and_metadata(resolve).data
+        assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
