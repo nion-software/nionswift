@@ -185,6 +185,10 @@ class InspectorSection(object):
     def finish_widget_content(self):
         self.__section_content_column.add_stretch()
 
+    @property
+    def _section_content_for_test(self):
+        return self.__section_content_column
+
 
 class InfoInspectorSection(InspectorSection):
 

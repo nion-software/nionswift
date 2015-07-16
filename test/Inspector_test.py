@@ -33,6 +33,14 @@ class TestInspectorClass(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_info_inspector_section_follows_title_change(self):
+        data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
+        data_item.title = "Title1"
+        inspector_section = Inspector.InfoInspectorSection(self.app.ui, data_item)
+        self.assertEqual(inspector_section.info_title_label.text, "Title1")
+        data_item.title = "Title2"
+        self.assertEqual(inspector_section.info_title_label.text, "Title2")
+
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
         cache_name = ":memory:"
         storage_cache = Storage.DbStorageCache(cache_name)
@@ -98,9 +106,12 @@ class TestInspectorClass(unittest.TestCase):
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        self.assertEqual(inspector_section._section_content_for_test.children[0].content_section.children[0].children[0].children[3].text, "mm")
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
+        self.assertEqual(inspector_section._section_content_for_test.children[0].content_section.children[0].children[0].children[3].text, "mmm")
 
     def test_graphic_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))

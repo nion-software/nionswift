@@ -1420,6 +1420,7 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         self.__bound_item_listeners = dict()
         self.__data_node = None
         self.needs_update_event = Observable.Event()
+        self.computation_changed_event = Observable.Event()
 
     @property
     def _data_node_for_test(self):
@@ -1438,6 +1439,7 @@ class Computation(Observable.Observable, Observable.ManagedObject):
             self.bind(context)
         if self.__data_node != old_data_node:
             self.needs_update_event.fire()
+            self.computation_changed_event.fire()
 
     def evaluate(self):
         """Evaluate the computation and return data and metadata."""
