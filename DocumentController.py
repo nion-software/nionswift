@@ -268,9 +268,12 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
         self.processing_menu.add_menu_item(_("Invert"), lambda: self.processing_invert())
         self.processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
-        self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+Shift+S")
+        self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+S")
         self.processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
+        self.processing_menu.add_menu_item(_("Crop (Experimental)"), lambda: self.processing_crop_new())
+        self.processing_menu.add_menu_item(_("Pick (Experimental)"), lambda: self.processing_pick_new())
+        self.processing_menu.add_menu_item(_("Line Profile (Experimental)"), lambda: self.processing_line_profile_new())
 
         self.__dynamic_live_actions = []
 
@@ -1081,6 +1084,76 @@ class DocumentController(Observable.Broadcaster):
         computation.needs_update_event.fire()  # ugh. bootstrap.
         self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
         return data_item
+
+    def processing_crop_new(self, map=None):
+        display_specifier = self.selected_display_specifier
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
+            crop_region = self.__get_crop_region(display_specifier)
+            if map is None:
+                map = self.build_variable_map()
+            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
+            map["crop_region"] = self.document_model.get_object_specifier(crop_region)
+            data_item = DataItem.DataItem()
+            data_item.title = _("New Crop on ") + data_item.title
+            computation = Symbolic.Computation()
+            computation.parse_expression(self.document_model, "crop(src, crop_region.bounds)", map)
+            buffered_data_source = DataItem.BufferedDataSource()
+            data_item.append_data_source(buffered_data_source)
+            buffered_data_source.set_computation(computation)
+            self.document_model.append_data_item(data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            return data_item
+        return None
+
+    def processing_pick_new(self, map=None):
+        display_specifier = self.selected_display_specifier
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
+            pick_region = Region.PointRegion()
+            buffered_data_source.add_region(pick_region)
+            if map is None:
+                map = self.build_variable_map()
+            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
+            map["pick_region"] = self.document_model.get_object_specifier(pick_region)
+            data_item = DataItem.DataItem()
+            data_item.title = _("New Crop on ") + data_item.title
+            computation = Symbolic.Computation()
+            computation.parse_expression(self.document_model, "pick(src, pick_region.position)", map)
+            buffered_data_source = DataItem.BufferedDataSource()
+            data_item.append_data_source(buffered_data_source)
+            buffered_data_source.set_computation(computation)
+            self.document_model.append_data_item(data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            return data_item
+        return None
+
+    def processing_line_profile_new(self, map=None):
+        display_specifier = self.selected_display_specifier
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source:
+            line_region = Region.LineRegion()
+            line_region.start = 0.25, 0.25
+            line_region.end = 0.75, 0.75
+            buffered_data_source.add_region(line_region)
+            if map is None:
+                map = self.build_variable_map()
+            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
+            map["line_region"] = self.document_model.get_object_specifier(line_region)
+            data_item = DataItem.DataItem()
+            data_item.title = _("New Crop on ") + data_item.title
+            computation = Symbolic.Computation()
+            computation.parse_expression(self.document_model, "line_profile(src, line_region.vector, line_region.width)", map)
+            buffered_data_source = DataItem.BufferedDataSource()
+            data_item.append_data_source(buffered_data_source)
+            buffered_data_source.set_computation(computation)
+            self.document_model.append_data_item(data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            return data_item
+        return None
 
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:

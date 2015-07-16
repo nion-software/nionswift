@@ -1274,6 +1274,7 @@ class PropertyDataNode(DataNode):
                 return "{0}.{1}".format(variable, self.__property)
             if variable.startswith("region"):
                 variable_index = max(variable_index, int(variable[1:]) + 1)
+        variable_index = max(variable_index, 0)
         variable_name = "region{0}".format(variable_index)
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
         return "{0}.{1}".format(variable_name, self.__property)
@@ -1374,7 +1375,7 @@ def parse_expression(expression_lines, variable_map, context):
     g["project"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "project")
     g["resample_image"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "resample_image")
     g["histogram"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "histogram")
-    g["line_profile"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "line_profile")
+    g["line_profile"] = lambda data_node, position_node, width_node: FunctionOperationDataNode([data_node, position_node, width_node], "line_profile")
     g["data_by_uuid"] = lambda data_uuid: data_by_uuid(context, data_uuid)
     g["region_by_uuid"] = lambda region_uuid: region_by_uuid(context, region_uuid)
     l = dict()

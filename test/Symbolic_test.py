@@ -493,6 +493,10 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(computation.error_text is not None and len(computation.error_text) > 0)
             self.assertEqual(computation.original_expression, "xyz(a)")
 
+    def disabled_test_computations_handle_constant_values_as_errors(self):
+        # computation.parse_expression(document_model, "7", map)
+        assert False
+
     def disabled_test_computations_update_data_item_dependencies_list(self):
         assert False
 
