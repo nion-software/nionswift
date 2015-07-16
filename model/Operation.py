@@ -725,50 +725,9 @@ class TransposeFlipOperation(Operation):
         ]
         super(TransposeFlipOperation, self).__init__(_("Transpose/Flip"), "transpose-flip-operation", description)
 
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        if len(data_sources) > 0:
-            if values.get("transpose"):
-                dimensional_calibrations = list(reversed(data_sources[0].dimensional_calibrations))
-            else:
-                dimensional_calibrations = data_sources[0].dimensional_calibrations
-            return dimensional_calibrations
-        return None
-
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        if len(data_sources) > 0:
-            data_shape = data_sources[0].data_shape
-            data_dtype = data_sources[0].data_dtype
-            if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-                return None
-            if values.get("transpose"):
-                if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-                    data_shape = list(reversed(data_shape[0:2])) + [data_shape[-1],]
-                else:
-                    data_shape = list(reversed(data_shape))
-            return data_shape, data_dtype
-        return None
-
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        data_id = id(data)
-        if not Image.is_data_valid(data):
-            return None
-        flip_horizontal = values.get("flip_horizontal")
-        flip_vertical = values.get("flip_vertical")
-        transpose = values.get("transpose")
-        if transpose:
-            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
-                data = numpy.transpose(data, [1,0,2])
-            else:
-                data = numpy.transpose(data, [1,0])
-        if flip_horizontal:
-            data = numpy.fliplr(data)
-        if flip_vertical:
-            data = numpy.flipud(data)
-        if id(data) == data_id:  # ensure real data, not a view
-            data = data.copy()
-        return data
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_transpose_flip(data_and_calibrations[0], bool(values.get("transpose")), bool(values.get("flip_horizontal")), bool(values.get("flip_vertical")))
+        return data_and_metadata if data_and_metadata else None
 
 
 class Crop2dOperation(Operation):

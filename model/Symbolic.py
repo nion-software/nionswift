@@ -309,6 +309,47 @@ def function_uniform_filter(data_and_metadata, size_value):
                                            datetime.datetime.utcnow())
 
 
+def function_transpose_flip(data_and_metadata, transpose=False, flip_v=False, flip_h=False):
+    def calculate_data():
+        data = data_and_metadata.data
+        data_id = id(data)
+        if not Image.is_data_valid(data):
+            return None
+        if transpose:
+            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
+                data = numpy.transpose(data, [1, 0, 2])
+            else:
+                data = numpy.transpose(data, [1, 0])
+        if flip_h:
+            data = numpy.fliplr(data)
+        if flip_v:
+            data = numpy.flipud(data)
+        if id(data) == data_id:  # ensure real data, not a view
+            data = data.copy()
+        return data
+
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
+        return None
+
+    if transpose:
+        dimensional_calibrations = list(reversed(data_and_metadata.dimensional_calibrations))
+    else:
+        dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if transpose:
+        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
+            data_shape = list(reversed(data_shape[0:2])) + [data_shape[-1], ]
+        else:
+            data_shape = list(reversed(data_shape))
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, (data_shape, data_dtype),
+                                           data_and_metadata.intensity_calibration, dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
 _function2_map = {
     "fft": function_fft,
     "ifft": function_ifft,
@@ -319,6 +360,7 @@ _function2_map = {
     "gaussian_blur": function_gaussian_blur,
     "median_filter": function_median_filter,
     "uniform_filter": function_uniform_filter,
+    "transpose_flip": function_transpose_flip,
 }
 
 _function_map = {
@@ -741,6 +783,9 @@ def parse_expression(calculation_script, weak_data_item_variable_map):
     g["gaussian_blur"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "gaussian_blur")
     g["median_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "median_filter")
     g["uniform_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "uniform_filter")
+    def transpose_flip(data_node, transpose=False, flip_v=False, flip_h=False):
+        return FunctionOperationDataNode([data_node], "transpose_flip", args={"transpose": transpose, "flip_v": flip_v, "flip_h": flip_h})
+    g["transpose_flip"] = transpose_flip
     l = dict()
     mapping = dict()
     for data_item_ref in weak_data_item_variable_map:

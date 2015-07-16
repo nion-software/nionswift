@@ -138,6 +138,16 @@ class TestSymbolicClass(unittest.TestCase):
         data = data_node.get_data_and_metadata(resolve).data
         assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
 
+    def test_transpose_flip_handles_args(self):
+        d = numpy.random.randn(30, 60)
+        data_item = DataItem.DataItem(d)
+        map = { weakref.ref(data_item): "a" }
+        data_node, mapping = Symbolic.parse_expression("transpose_flip(a, flip_v=True)", map)
+        def resolve(uuid):
+            return mapping[uuid].maybe_data_source
+        data = data_node.get_data_and_metadata(resolve).data
+        assert numpy.array_equal(data, numpy.flipud(d))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
