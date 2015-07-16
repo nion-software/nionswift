@@ -591,41 +591,9 @@ class FFTOperation(Operation):
     def __init__(self):
         super(FFTOperation, self).__init__(_("FFT"), "fft-operation")
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        data_shape = data_sources[0].data_shape
-        if data is None or not Image.is_data_valid(data):
-            return None
-        # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
-        # see https://gist.github.com/endolith/1257010
-        if Image.is_data_1d(data):
-            scaling = 1.0 / numpy.sqrt(data_shape[0])
-            return scipy.fftpack.fftshift(scipy.fftpack.fft(data) * scaling)
-        elif Image.is_data_2d(data):
-            data_copy = data.copy()  # let other threads use data while we're processing
-            scaling = 1.0 / numpy.sqrt(data_shape[1] * data_shape[0])
-            return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_copy) * scaling)
-        else:
-            raise NotImplementedError()
-
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-            return None
-        return data_shape, numpy.dtype(numpy.complex128)
-
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
-            return None
-        assert len(dimensional_calibrations) == len(Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
-        return [Calibration.Calibration(0.0,
-                                     1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
-                                     "1/" + dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_fft(*data_and_calibrations)
+        return data_and_metadata if data_and_metadata else None
 
 
 class IFFTOperation(Operation):
@@ -633,34 +601,9 @@ class IFFTOperation(Operation):
     def __init__(self):
         super(IFFTOperation, self).__init__(_("Inverse FFT"), "inverse-fft-operation")
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        data_shape = data_sources[0].data_shape
-        if data is None or not Image.is_data_valid(data):
-            return None
-        # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
-        # see https://gist.github.com/endolith/1257010
-        if Image.is_data_1d(data):
-            scaling = numpy.sqrt(data_shape[0])
-            return scipy.fftpack.fftshift(scipy.fftpack.ifft(data) * scaling)
-        elif Image.is_data_2d(data):
-            data_copy = data.copy()  # let other threads use data while we're processing
-            scaling = numpy.sqrt(data_shape[1] * data_shape[0])
-            return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data_copy) * scaling)
-        else:
-            raise NotImplementedError()
-
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
-            return None
-        assert len(dimensional_calibrations) == len(Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
-        return [Calibration.Calibration(0.0,
-                                     1.0 / (dimensional_calibrations[i].scale * data_shape[i]),
-                                     "1/" + dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_ifft(*data_and_calibrations)
+        return data_and_metadata if data_and_metadata else None
 
 
 class AutoCorrelateOperation(Operation):
@@ -668,25 +611,9 @@ class AutoCorrelateOperation(Operation):
     def __init__(self):
         super(AutoCorrelateOperation, self).__init__(_("Auto Correlate"), "auto-correlate-operation")
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        if Image.is_data_2d(data):
-            data_copy = data.copy()  # let other threads use data while we're processing
-            data_std = data_copy.std(dtype=numpy.float64)
-            if data_std != 0.0:
-                data_norm = (data_copy - data_copy.mean(dtype=numpy.float64)) / data_std
-            else:
-                data_norm = data_copy
-            scaling = 1.0 / (data_norm.shape[0] * data_norm.shape[1])
-            data_norm = numpy.fft.rfft2(data_norm)
-            return numpy.fft.fftshift(numpy.fft.irfft2(data_norm * numpy.conj(data_norm))) * scaling
-            # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
-            # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
-            # return scipy.signal.fftconvolve(data_copy, numpy.conj(data_copy), mode='same')
-        return None
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_autocorrelate(*data_and_calibrations)
+        return data_and_metadata if data_and_metadata else None
 
 
 class CrossCorrelateOperation(Operation):

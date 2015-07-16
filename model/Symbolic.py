@@ -20,10 +20,12 @@ import uuid
 
 # third party libraries
 import numpy
+import scipy
 
 # local libraries
 from nion.swift.model import Calibration
 from nion.swift.model import DataAndMetadata
+from nion.swift.model import Image
 
 
 def range(data):
@@ -31,6 +33,119 @@ def range(data):
 
 def take_slice(data, key):
     return data[key].copy()
+
+
+def function_fft(data_and_metadata):
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if data is None or not Image.is_data_valid(data):
+            return None
+        # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
+        # see https://gist.github.com/endolith/1257010
+        if Image.is_data_1d(data):
+            scaling = 1.0 / numpy.sqrt(data_shape[0])
+            return scipy.fftpack.fftshift(scipy.fftpack.fft(data) * scaling)
+        elif Image.is_data_2d(data):
+            data_copy = data.copy()  # let other threads use data while we're processing
+            scaling = 1.0 / numpy.sqrt(data_shape[1] * data_shape[0])
+            return scipy.fftpack.fftshift(scipy.fftpack.fft2(data_copy) * scaling)
+        else:
+            raise NotImplementedError()
+
+    src_dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or src_dimensional_calibrations is None:
+        return None
+
+    assert len(src_dimensional_calibrations) == len(
+        Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
+
+    data_shape_and_dtype = data_shape, numpy.dtype(numpy.complex128)
+
+    dimensional_calibrations = [Calibration.Calibration(0.0, 1.0 / (dimensional_calibration.scale * data_shape_n),
+                                                        "1/" + dimensional_calibration.units) for
+        dimensional_calibration, data_shape_n in zip(src_dimensional_calibrations, data_shape)]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype, Calibration.Calibration(),
+                                           dimensional_calibrations, dict(), datetime.datetime.utcnow())
+
+
+def function_ifft(data_and_metadata):
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if data is None or not Image.is_data_valid(data):
+            return None
+        # scaling: numpy.sqrt(numpy.mean(numpy.absolute(data_copy)**2)) == numpy.sqrt(numpy.mean(numpy.absolute(data_copy_fft)**2))
+        # see https://gist.github.com/endolith/1257010
+        if Image.is_data_1d(data):
+            scaling = numpy.sqrt(data_shape[0])
+            return scipy.fftpack.fftshift(scipy.fftpack.ifft(data) * scaling)
+        elif Image.is_data_2d(data):
+            data_copy = data.copy()  # let other threads use data while we're processing
+            scaling = numpy.sqrt(data_shape[1] * data_shape[0])
+            return scipy.fftpack.ifft2(scipy.fftpack.ifftshift(data_copy) * scaling)
+        else:
+            raise NotImplementedError()
+
+    src_dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or src_dimensional_calibrations is None:
+        return None
+
+    assert len(src_dimensional_calibrations) == len(
+        Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype))
+
+    data_shape_and_dtype = data_shape, data_dtype
+
+    dimensional_calibrations = [Calibration.Calibration(0.0, 1.0 / (dimensional_calibration.scale * data_shape_n),
+                                                        "1/" + dimensional_calibration.units) for
+        dimensional_calibration, data_shape_n in zip(src_dimensional_calibrations, data_shape)]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype, Calibration.Calibration(),
+                                           dimensional_calibrations, dict(), datetime.datetime.utcnow())
+
+
+def function_autocorrelate(data_and_metadata):
+    def calculate_data():
+        data = data_and_metadata.data
+        if data is None or not Image.is_data_valid(data):
+            return None
+        if Image.is_data_2d(data):
+            data_copy = data.copy()  # let other threads use data while we're processing
+            data_std = data_copy.std(dtype=numpy.float64)
+            if data_std != 0.0:
+                data_norm = (data_copy - data_copy.mean(dtype=numpy.float64)) / data_std
+            else:
+                data_norm = data_copy
+            scaling = 1.0 / (data_norm.shape[0] * data_norm.shape[1])
+            data_norm = numpy.fft.rfft2(data_norm)
+            return numpy.fft.fftshift(numpy.fft.irfft2(data_norm * numpy.conj(data_norm))) * scaling
+            # this gives different results. why? because for some reason scipy pads out to 1023 and does calculation.
+            # see https://github.com/scipy/scipy/blob/master/scipy/signal/signaltools.py
+            # return scipy.signal.fftconvolve(data_copy, numpy.conj(data_copy), mode='same')
+        return None
+
+    if data_and_metadata is None:
+        return None
+
+    dimensional_calibrations = [Calibration.Calibration() for _ in data_and_metadata.data_shape]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata.data_shape_and_dtype,
+                                           Calibration.Calibration(), dimensional_calibrations, dict(),
+                                           datetime.datetime.utcnow())
+
+
+_function2_map = {
+    "fft": function_fft,
+    "ifft": function_ifft,
+    "autocorrelate": function_autocorrelate,
+}
 
 _function_map = {
     "abs": operator.abs,
@@ -237,6 +352,15 @@ def log10(data_node):
 def log2(data_node):
     return UnaryOperationDataNode([data_node], "log2")
 
+def fft(data_node):
+    return FunctionOperationDataNode([data_node], "fft")
+
+def ifft(data_node):
+    return FunctionOperationDataNode([data_node], "ifft")
+
+def autocorrelate(data_node):
+    return FunctionOperationDataNode([data_node], "autocorrelate")
+
 
 class ConstantDataNode(DataNode):
 
@@ -389,6 +513,36 @@ class BinaryOperationDataNode(DataNode):
         return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, self.inputs[0], self.inputs[1])
 
 
+class FunctionOperationDataNode(DataNode):
+
+    def __init__(self, inputs=None, function_id=None, args=None):
+        super(FunctionOperationDataNode, self).__init__(inputs=inputs)
+        self.__function_id = function_id
+        self.__args = copy.copy(args if args is not None else dict())
+
+    def read(self, d):
+        super(FunctionOperationDataNode, self).read(d)
+        function_id = d.get("function_id")
+        assert function_id in _function2_map
+        self.__function_id = function_id
+        args = d.get("args")
+        self.__args = copy.copy(args if args is not None else dict())
+
+    def write(self):
+        d = super(FunctionOperationDataNode, self).write()
+        d["data_node_type"] = "unary-function"
+        d["function_id"] = self.__function_id
+        if self.__args:
+            d["args"] = self.__args
+        return d
+
+    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+        return _function2_map[self.__function_id](*data_and_metadata_list, **self.__args)
+
+    def __str__(self):
+        return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
+
+
 class DataItemDataNode(DataNode):
 
     def __init__(self, data_reference=None):
@@ -427,6 +581,7 @@ _node_map = {
     "constant": ConstantDataNode,
     "scalar": ScalarOperationDataNode,
     "unary": UnaryOperationDataNode,
+    "unary-function": FunctionOperationDataNode,
     "binary": BinaryOperationDataNode,
     "data": DataItemDataNode
 }

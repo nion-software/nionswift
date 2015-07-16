@@ -9,6 +9,7 @@ import weakref
 
 # third party libraries
 import numpy
+import scipy
 
 # local libraries
 from nion.swift import Application
@@ -116,6 +117,16 @@ class TestSymbolicClass(unittest.TestCase):
         data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
         document_model.recompute_all()
         assert numpy.array_equal(data_item.maybe_data_source.data, -d / numpy.average(d) * 5)
+
+    def test_fft_returns_complex_data(self):
+        d = numpy.random.randn(64, 64)
+        data_item = DataItem.DataItem(d)
+        map = { weakref.ref(data_item): "a" }
+        data_node, mapping = Symbolic.parse_expression("fft(a)", map)
+        def resolve(uuid):
+            return mapping[uuid].maybe_data_source
+        data = data_node.get_data_and_metadata(resolve).data
+        assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
 
 if __name__ == '__main__':
