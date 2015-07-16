@@ -194,6 +194,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.__remove_region_listeners = list()
+        self.__request_remove_listener = None
         self.__data = None
         self.__data_lock = threading.RLock()
         self.__change_count = 0
@@ -210,6 +211,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
         self.metadata_changed_event = Observable.Event()
+        self.request_remove_data_item_because_operation_removed_event = Observable.Event()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
@@ -356,10 +358,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
     def will_remove_operation_region(self, region):
         self.remove_region(region)
 
-    def request_remove_data_item_because_operation_removed(self, region):
-        """Notification from the data source, if any. Just pass it on."""
-        self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to data item
-
     def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
         self.__metadata_changed()
@@ -394,14 +392,17 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             old_data_source.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
         if old_data_source:
             # handle listeners/observers
-            old_data_source.remove_listener(self)
             old_data_source.set_dependent_data_item(None)
             old_data_source.set_data_item_manager(None)
+            self.__request_remove_listener.close()
+            self.__request_remove_listener = None
         if new_data_source:
             # handle listeners/observers
-            new_data_source.add_listener(self)
             new_data_source.set_dependent_data_item(self.__get_dependent_data_item())
             new_data_source.set_data_item_manager(self.__data_item_manager)
+            def notify_request_remove_data_item_because_operation_removed():
+                self.request_remove_data_item_because_operation_removed_event.fire()
+            self.__request_remove_listener = new_data_source.request_remove_data_item_because_operation_removed_event.listen(notify_request_remove_data_item_because_operation_removed)
             subscriber = Observable.Subscriber(self.__handle_next_value)
             publisher = new_data_source.get_data_and_calibration_publisher()
             self.__subscription = publisher.subscribex(subscriber)
@@ -942,6 +943,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("connections", Connection.connection_factory)
+        self.__request_remove_listeners = list()
         self.__subscriptions = list()
         self.__live_count = 0  # specially handled property
         self.__live_count_lock = threading.RLock()
@@ -1305,9 +1307,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         self._set_managed_property("metadata", copy.deepcopy(metadata))
 
     def __insert_data_source(self, name, before_index, data_source):
-        data_source.add_listener(self)
         data_source.set_dependent_data_item(self)
         data_source.set_data_item_manager(self.__data_item_manager)
+        def notify_request_remove_data_item():
+            # this message comes from the operation.
+            # it is generated when the user deletes a operation graphic.
+            # that informs the display which notifies the graphic which
+            # notifies the operation which notifies this data item. ugh.
+            self.notify_listeners("request_remove_data_item", self)
+        request_remove_listener = data_source.request_remove_data_item_because_operation_removed_event.listen(notify_request_remove_data_item)
+        self.__request_remove_listeners.insert(before_index, request_remove_listener)
         # being in transaction state means that data sources have their data loaded.
         # so load data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
@@ -1328,9 +1337,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         del self.__subscriptions[index]
         subscription.close()
         data_source.about_to_be_removed()
-        data_source.remove_listener(self)
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
+        request_remove_listener = self.__request_remove_listeners[index]
+        request_remove_listener.close()
+        self.__request_remove_listeners.remove(request_remove_listener)
         # being in transaction state means that data sources have their data loaded.
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
@@ -1383,13 +1394,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         for data_source in self.data_sources:
             data_sources.extend(data_source.ordered_data_item_data_sources)
         return data_sources
-
-    # this message comes from the operation.
-    # it is generated when the user deletes a operation graphic.
-    # that informs the display which notifies the graphic which
-    # notifies the operation which notifies this data item. ugh.
-    def request_remove_data_item_because_operation_removed(self, operation):
-        self.notify_listeners("request_remove_data_item", self)  # goes to document model
 
     def set_data_item_manager(self, data_item_manager):
         """Set the data item manager. May be called from thread."""

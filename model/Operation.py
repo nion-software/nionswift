@@ -63,6 +63,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
         # set the data item
         self.set_buffered_data_source(buffered_data_source)
+        self.request_remove_data_item_because_operation_removed_event = Observable.Event()  # required, but unused
 
     def close(self):
         self.set_buffered_data_source(None)
@@ -219,6 +220,10 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
             self.__data_source_publisher.notify_next_value(self.data_sources, subscriber)
         self.__data_source_publisher.on_subscribe = send_data_sources
 
+        self.__request_remove_listeners = list()
+
+        self.request_remove_data_item_because_operation_removed_event = Observable.Event()
+
         class UuidMapToStringConverter(object):
             def convert(self, value):
                 d = dict()
@@ -314,22 +319,27 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
     def add_data_source(self, data_source):
         assert isinstance(data_source, DataItemDataSource) or isinstance(data_source, OperationItem)
         self.append_item("data_sources", data_source)
-        data_source.add_listener(self)  # for request_remove_data_item_because_operation_removed
 
     # remove a reference to the given data source
     def remove_data_source(self, data_source):
-        data_source.remove_listener(self)
         self.remove_item("data_sources", data_source)
 
     def __data_source_inserted(self, name, before_index, data_source):
         dependent_data_item = self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
         data_source.set_dependent_data_item(dependent_data_item)
         data_source.set_data_item_manager(self.__data_item_manager)
+        def notify_request_remove_data_item_because_operation_removed():
+            self.request_remove_data_item_because_operation_removed_event.fire()
+        request_remove_listener = data_source.request_remove_data_item_because_operation_removed_event.listen(notify_request_remove_data_item_because_operation_removed)
+        self.__request_remove_listeners.insert(before_index, request_remove_listener)
         self.__data_source_publisher.notify_next_value(self.data_sources)
 
     def __data_source_removed(self, name, index, data_source):
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
+        request_remove_listener = self.__request_remove_listeners[index]
+        request_remove_listener.close()
+        self.__request_remove_listeners.remove(request_remove_listener)
         self.__data_source_publisher.notify_next_value(self.data_sources)
 
     class OperationPublisher(Observable.Publisher):
@@ -407,7 +417,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 self.set_property(operation_property, getattr(region, region_property))
             assert region.type == self.operation.region_types[region_connection_id]
             def notify_request_remove_data_item_because_operation_removed():
-                self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to buffered data source
+                self.request_remove_data_item_because_operation_removed_event.fire()
             remove_region_listener = region.remove_region_because_graphic_removed_event.listen(notify_request_remove_data_item_because_operation_removed)
             self.__remove_region_listeners.append(remove_region_listener)
             # save this to remove region if this object gets removed.
@@ -451,17 +461,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 setattr(region, region_property, self.get_property(operation_property))
             self.region_connections[region_connection_id] = region.uuid
         return region
-
-    # this message comes from the region.
-    # it is generated when the user deletes a region graphic
-    # that informs the display which notifies the graphic which
-    # notifies the operation which notifies this data item. ugh.
-    def remove_region_because_graphic_removed(self, region):
-        self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to buffered data source
-
-    # this message comes from our own data sources. pass it on.
-    def request_remove_data_item_because_operation_removed(self, region):
-        self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to buffered data source
 
     # get a property.
     def get_property(self, property_id, default_value=None):
