@@ -330,6 +330,63 @@ class TestSymbolicClass(unittest.TestCase):
         document_controller.processing_calculation("void(a,2)", map)
         document_model.recompute_all()
 
+    def test_reconstruct_with_variable_works(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        d = numpy.random.randn(2, 2)
+        data_item = DataItem.DataItem(d)
+        document_model.append_data_item(data_item)
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)), dict())
+        expression = computation.reconstruct(dict())
+        data_item = document_controller.processing_calculation(expression, dict())
+        document_model.recompute_all()
+        assert numpy.array_equal(data_item.maybe_data_source.data, -d)
+
+    def test_reconstruct_reuses_existing_variables(self):
+        document_model = DocumentModel.DocumentModel()
+        d = numpy.random.randn(2, 2)
+        data_item = DataItem.DataItem(d)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "a + a", map)
+        expression = computation.reconstruct(dict())
+        expression_lines = expression.split("\n")
+        self.assertNotEqual(expression_lines[0], expression_lines[1])
+        self.assertEqual(len(expression_lines), 2)
+
+    def test_reconstruct_generates_unique_variables(self):
+        document_model = DocumentModel.DocumentModel()
+        d = numpy.random.randn(2, 2)
+        data_item = DataItem.DataItem(d)
+        document_model.append_data_item(data_item)
+        data_item2 = DataItem.DataItem(numpy.ones((2, 2)))
+        document_model.append_data_item(data_item2)
+        map = {"a": document_model.get_object_specifier(data_item), "b": document_model.get_object_specifier(data_item2)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "a + b", map)
+        expression = computation.reconstruct(dict())
+        new_computation = Symbolic.Computation()
+        new_computation.parse_expression(document_model, expression, dict())
+        data_and_metadata = new_computation.evaluate()
+        self.assertTrue(numpy.array_equal(data_and_metadata.data, d + 1))
+
+    def test_reconstruct_all_node_types(self):
+        document_model = DocumentModel.DocumentModel()
+        d = numpy.random.randn(2, 2)
+        data_item = DataItem.DataItem(d)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        expression_in = "-a / average(a) * 5"
+        computation.parse_expression(document_model, expression_in, map)
+        expression_out = computation.reconstruct(map)
+        self.assertEqual(expression_in, expression_out)
+
+    def disabled_test_computation_changed_updates_data(self):
+        pass
+
     def disabled_test_references_named_in_original_text_get_assigned(self):
         assert False
 

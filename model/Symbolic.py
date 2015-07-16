@@ -657,6 +657,17 @@ _function2_map = {
     "line_profile": function_line_profile,
 }
 
+_operator_map = {
+    "neg": "-",
+    "pos": "+",
+    "add": "+",
+    "sub": "-",
+    "mul": "*",
+    "div": "/",
+    "truediv": "/",
+    "floordiv": "//",
+}
+
 _function_map = {
     "abs": operator.abs,
     "neg": operator.neg,
@@ -682,6 +693,13 @@ _function_map = {
     "log10": numpy.log10,
     "log2": numpy.log2,
 }
+
+def reconstruct_inputs(variable_map, inputs):
+    input_texts = list()
+    for input in inputs:
+        text = input.reconstruct(variable_map)
+        input_texts.append(text)
+    return input_texts
 
 
 def extract_data(evaluated_input):
@@ -759,6 +777,9 @@ class DataNode(object):
     def unbind(self):
         for input in self.inputs:
             input.unbind()
+
+    def reconstruct(self, variable_map):
+        raise NotImplemented()
 
     def print_mapping(self, context):
         for input in self.inputs:
@@ -881,6 +902,9 @@ class ConstantDataNode(DataNode):
     def _evaluate_inputs(self, evaluated_inputs, context):
         return self.__scalar
 
+    def reconstruct(self, variable_map):
+        return str(self.__scalar)
+
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__scalar)
 
@@ -914,6 +938,10 @@ class ScalarOperationDataNode(DataNode):
 
         return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
                                                Calibration.Calibration(), list(), dict(), datetime.datetime.utcnow())
+
+    def reconstruct(self, variable_map):
+        input_texts = reconstruct_inputs(variable_map, self.inputs)
+        return "{0}({1})".format(self.__function_id, ", ".join(input_texts))
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -950,6 +978,12 @@ class UnaryOperationDataNode(DataNode):
                                                evaluated_inputs[0].intensity_calibration,
                                                evaluated_inputs[0].dimensional_calibrations,
                                                evaluated_inputs[0].metadata, datetime.datetime.utcnow())
+
+    def reconstruct(self, variable_map):
+        input_texts = reconstruct_inputs(variable_map, self.inputs)
+        if self.__function_id in _operator_map:
+            return "{0}{1}".format(_operator_map[self.__function_id], input_texts[0])
+        return "{0}({1})".format(self.__function_id, input_texts[0])
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -990,6 +1024,12 @@ class BinaryOperationDataNode(DataNode):
                                                src_evaluated_input.dimensional_calibrations,
                                                src_evaluated_input.metadata, datetime.datetime.utcnow())
 
+    def reconstruct(self, variable_map):
+        input_texts = reconstruct_inputs(variable_map, self.inputs)
+        if self.__function_id in _operator_map:
+            return "{1} {0} {2}".format(_operator_map[self.__function_id], input_texts[0], input_texts[1])
+        return "{0}({1}, {2})".format(self.__function_id, input_texts[0], input_texts[1])
+
     def __str__(self):
         return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, self.inputs[0], self.inputs[1])
 
@@ -1020,6 +1060,10 @@ class FunctionOperationDataNode(DataNode):
     def _evaluate_inputs(self, evaluated_inputs, context):
         # don't pass the data; the functions are responsible for extracting the data correctly
         return _function2_map[self.__function_id](*evaluated_inputs, **self.__args)
+
+    def reconstruct(self, variable_map):
+        input_texts = reconstruct_inputs(variable_map, self.inputs)
+        return "{0}({1})".format(self.__function_id, ", ".join(input_texts))
 
     def __str__(self):
         return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, [str(input) for input in self.inputs], list(self.__args))
@@ -1055,6 +1099,18 @@ class DataItemDataNode(DataNode):
 
     def unbind(self):
         self.__bound_item = None
+
+    def reconstruct(self, variable_map):
+        variable_index = -1
+        for variable, object_specifier in variable_map.items():
+            if object_specifier == self.__object_specifier:
+                return variable
+            if variable.startswith("d"):
+                variable_index = max(variable_index, int(variable[1:]) + 1)
+        variable_index = max(variable_index, 0)
+        variable_name = "d{0}".format(variable_index)
+        variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
+        return variable_name
 
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__object_specifier)
@@ -1122,6 +1178,17 @@ class PropertyDataNode(DataNode):
     def unbind(self):
         self.__bound_item = None
 
+    def reconstruct(self, variable_map):
+        variable_index = -1
+        for variable, object_specifier in variable_map.items():
+            if object_specifier == self.__object_specifier:
+                return variable
+            if variable.startswith("region"):
+                variable_index = max(variable_index, int(variable[1:]) + 1)
+        variable_name = "region{0}".format(variable_index)
+        variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
+        return "{0}.{1}".format(variable_name, self.__property)
+
     def __str__(self):
         return "{0} ({1}.{2})".format(self.__repr__(), self.__object_specifier, self.__property)
 
@@ -1153,7 +1220,7 @@ _node_map = {
 }
 
 
-def parse_expression(calculation_script, variable_map, context):
+def parse_expression(expression_lines, variable_map, context):
     code_lines = []
     code_lines.append("import uuid")
     g = dict()
@@ -1196,7 +1263,8 @@ def parse_expression(calculation_script, variable_map, context):
         else:
             reference_node = ReferenceDataNode(object_specifier=object_specifier)
         g[variable_name] = reference_node
-    code_lines.append("result = {0}".format(calculation_script))
+    expression_lines = expression_lines[:-1] + ["result = {0}".format(expression_lines[-1]), ]
+    code_lines.extend(expression_lines)
     code = "\n".join(code_lines)
     try:
         exec(code, g, l)
@@ -1237,7 +1305,7 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         self.__data_node = DataNode.factory(self.node)
 
     def parse_expression(self, context, expression, variable_map):
-        self.__data_node = parse_expression(expression, variable_map, context)
+        self.__data_node = parse_expression(expression.split("\n"), variable_map, context)
         if self.__data_node:
             self.node = self.__data_node.write()
             self.bind(context)
@@ -1264,3 +1332,26 @@ class Computation(Observable.Observable, Observable.ManagedObject):
             bound_item_listener.close()
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
+
+    def __get_object_specifier_expression(self, specifier):
+        if specifier.get("version") == 1:
+            specifier_type = specifier["type"]
+            if specifier_type == "data_item":
+                object_uuid = uuid.UUID(specifier["uuid"])
+                return "data_by_uuid(uuid.UUID('{0}'))".format(object_uuid)
+            elif specifier_type == "region":
+                object_uuid = uuid.UUID(specifier["uuid"])
+                return "region_by_uuid(uuid.UUID('{0}'))".format(object_uuid)
+        return None
+
+    def reconstruct(self, variable_map):
+        if self.__data_node:
+            lines = list()
+            variable_map_copy = copy.deepcopy(variable_map)
+            expression = self.__data_node.reconstruct(variable_map_copy)
+            for variable, object_specifier in variable_map_copy.items():
+                if not variable in variable_map:
+                    lines.append("{0} = {1}".format(variable, self.__get_object_specifier_expression(object_specifier)))
+            lines.append(expression)
+            return "\n".join(lines)
+        return "None"
