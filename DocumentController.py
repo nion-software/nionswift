@@ -1269,7 +1269,7 @@ class SelectedDisplayBinding(Observable.Broadcaster):
     controller will send selected_display_specifier_changed when the data item changes. This object will listen to the
     data item to know when its data changes or when it gets deleted.
 
-    It will fire selected_display_binding_changed_event(display_specifier) when a new display is selected or when the
+    It will fire display_specifier_changed_event(display_specifier) when a new display is selected or when the
     display changes internally.
     """
     def __init__(self, document_controller):
@@ -1277,7 +1277,7 @@ class SelectedDisplayBinding(Observable.Broadcaster):
         self.document_controller = document_controller
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__display_changed_event_listener = None
-        self.selected_display_binding_changed_event = Observable.Event()
+        self.display_specifier_changed_event = Observable.Event()
         self.__selected_display_specifier_changed_event_listener = self.document_controller.selected_display_specifier_changed_event.listen(self.__selected_display_specifier_changed)
         # initialize with the existing value
         self.__selected_display_specifier_changed(document_controller.selected_display_specifier)
@@ -1306,7 +1306,7 @@ class SelectedDisplayBinding(Observable.Broadcaster):
             self.__display_specifier = copy.copy(display_specifier)
             # connect listener to display
             def display_changed():
-                self.selected_display_binding_changed_event.fire(self.__display_specifier)
+                self.display_specifier_changed_event.fire(self.__display_specifier)
             if self.__display_specifier.display:
                 self.__display_changed_event_listener = self.__display_specifier.display.display_changed_event.listen(display_changed)
             # notify our listeners

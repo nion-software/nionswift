@@ -321,17 +321,17 @@ class HistogramPanel(Panel.Panel):
         self.__display_lock = threading.RLock()
 
         # listen for selected display binding changes
-        self.__selected_display_binding_changed_event_listener = self.__selected_display_binding.selected_display_binding_changed_event.listen(self.__selected_display_binding_changed)
+        self.__display_specifier_changed_event_listener = self.__selected_display_binding.display_specifier_changed_event.listen(self.__display_specifier_changed)
         # manually send the first initial data item changed message to set things up.
-        self.__selected_display_binding_changed(self.__selected_display_binding.display_specifier)
+        self.__display_specifier_changed(self.__selected_display_binding.display_specifier)
 
     def close(self):
         self.__root_histogram_canvas_item.close()
         self.__root_histogram_canvas_item = None
         # disconnect data item binding
-        self.__selected_display_binding_changed(DataItem.DisplaySpecifier())
-        self.__selected_display_binding_changed_event_listener.close()
-        self.__selected_display_binding_changed_event_listener = None
+        self.__display_specifier_changed(DataItem.DisplaySpecifier())
+        self.__display_specifier_changed_event_listener.close()
+        self.__display_specifier_changed_event_listener = None
         self.__selected_display_binding.close()
         self.__selected_display_binding = None
         self.__set_display(None, None, None)
@@ -380,7 +380,7 @@ class HistogramPanel(Panel.Panel):
     # in response to a data changed message, this object will update
     # the data and trigger a repaint.
     # thread safe
-    def __selected_display_binding_changed(self, display_specifier):
+    def __display_specifier_changed(self, display_specifier):
         self.__set_display(display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         self.__histogram_canvas_item._set_display(display_specifier.display)
         if display_specifier.display:

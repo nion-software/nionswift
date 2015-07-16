@@ -36,7 +36,7 @@ class ComputationModel(object):
             def update_display_specifier():
                 self.__set_display_specifier(display_specifier)
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__selected_display_binding_changed_event_listener = display_specifier_binding.selected_display_binding_changed_event.listen(display_specifier_changed)
+        self.__display_specifier_changed_event_listener = display_specifier_binding.display_specifier_changed_event.listen(display_specifier_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__computation_changed_event_listener = None
         self.__computation_text = None
@@ -44,8 +44,8 @@ class ComputationModel(object):
 
     def close(self):
         self.document_controller.clear_task("update_display_specifier" + str(id(self)))
-        self.__selected_display_binding_changed_event_listener.close()
-        self.__selected_display_binding_changed_event_listener = None
+        self.__display_specifier_changed_event_listener.close()
+        self.__display_specifier_changed_event_listener = None
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
     @property

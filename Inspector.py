@@ -45,7 +45,7 @@ class InspectorPanel(Panel.Panel):
         # listen for selected display binding changes
         self.__data_item_will_be_removed_event_listener = None
         self.__display_binding = document_controller.create_selected_display_binding()
-        self.__selected_display_binding_changed_event_listener = self.__display_binding.selected_display_binding_changed_event.listen(self.__selected_display_binding_changed)
+        self.__display_specifier_changed_event_listener = self.__display_binding.display_specifier_changed_event.listen(self.__display_specifier_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
         # top level widget in this inspector is a scroll area.
@@ -59,8 +59,8 @@ class InspectorPanel(Panel.Panel):
 
     def close(self):
         # disconnect self as listener
-        self.__selected_display_binding_changed_event_listener.close()
-        self.__selected_display_binding_changed_event_listener = None
+        self.__display_specifier_changed_event_listener.close()
+        self.__display_specifier_changed_event_listener = None
         # close the property controller. note: this will close and create
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
@@ -118,7 +118,7 @@ class InspectorPanel(Panel.Panel):
     # it is established using add_listener. when it is called
     # mark the data item as needing updating.
     # thread safe.
-    def __selected_display_binding_changed(self, display_specifier):
+    def __display_specifier_changed(self, display_specifier):
         def data_item_will_be_removed(data_item):
             self.document_controller.clear_task("update_display" + str(id(self)))
             if self.__data_item_will_be_removed_event_listener:
