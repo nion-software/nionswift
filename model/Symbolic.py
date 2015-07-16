@@ -434,6 +434,11 @@ _function_map = {
 }
 
 
+def extract_data(evaluated_input):
+    if isinstance(evaluated_input, DataAndMetadata.DataAndMetadata):
+        return evaluated_input.data
+    return evaluated_input
+
 class DataNode(object):
 
     def __init__(self, inputs=None):
@@ -654,7 +659,7 @@ class ScalarOperationDataNode(DataNode):
 
     def _evaluate_inputs(self, evaluated_inputs, context):
         def calculate_data():
-            return _function_map[self.__function_id](evaluated_inputs[0].data, **self.__args)
+            return _function_map[self.__function_id](extract_data(evaluated_inputs[0]), **self.__args)
 
         return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
                                                Calibration.Calibration(), list(), dict(), datetime.datetime.utcnow())
@@ -688,7 +693,7 @@ class UnaryOperationDataNode(DataNode):
 
     def _evaluate_inputs(self, evaluated_inputs, context):
         def calculate_data():
-            return _function_map[self.__function_id](evaluated_inputs[0].data, **self.__args)
+            return _function_map[self.__function_id](extract_data(evaluated_inputs[0]), **self.__args)
 
         return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
                                                evaluated_inputs[0].intensity_calibration,
@@ -724,7 +729,7 @@ class BinaryOperationDataNode(DataNode):
 
     def _evaluate_inputs(self, evaluated_inputs, context):
         def calculate_data():
-            return _function_map[self.__function_id](evaluated_inputs[0].data, evaluated_inputs[1].data, **self.__args)
+            return _function_map[self.__function_id](extract_data(evaluated_inputs[0]), extract_data(evaluated_inputs[1]), **self.__args)
 
         # if the first input is not a data_and_metadata, use the second input
         src_evaluated_input = evaluated_inputs[0] if isinstance(evaluated_inputs[0], DataAndMetadata.DataAndMetadata) else evaluated_inputs[1]
@@ -762,6 +767,7 @@ class FunctionOperationDataNode(DataNode):
         return d
 
     def _evaluate_inputs(self, evaluated_inputs, context):
+        # don't pass the data; the functions are responsible for extracting the data correctly
         return _function2_map[self.__function_id](*evaluated_inputs, **self.__args)
 
     def __str__(self):
