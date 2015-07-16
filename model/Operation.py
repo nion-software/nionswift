@@ -814,19 +814,9 @@ class HistogramOperation(Operation):
         super(HistogramOperation, self).__init__(_("Histogram"), "histogram-operation")
         self.bins = 256
 
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        return (self.bins, ), numpy.dtype(numpy.int)
-
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        histogram_data = numpy.histogram(data, bins=self.bins)
-        return histogram_data[0].astype(numpy.int)
-
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        return [Calibration.Calibration()]
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_histogram(data_and_calibrations[0], self.bins)
+        return data_and_metadata if data_and_metadata else None
 
 
 class LineProfileOperation(Operation):
@@ -841,75 +831,9 @@ class LineProfileOperation(Operation):
         self.region_bindings = {"line": [RegionBinding("vector", "vector"),
                                          RegionBinding("integration_width", "width")]}
 
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-            return None
-        start, end = values.get("vector")
-        shape = data_shape
-        start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
-        end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
-        length = int(math.sqrt((end_data[1] - start_data[1])**2 + (end_data[0] - start_data[0])**2))
-        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-            return (length, ), numpy.dtype(numpy.double)
-        else:
-            return (length, ), numpy.dtype(numpy.double)
-
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if dimensional_calibrations is None or len(dimensional_calibrations) != 2:
-            return None
-        return [Calibration.Calibration(0.0, dimensional_calibrations[1].scale, dimensional_calibrations[1].units)]
-
-    # calculate grid of coordinates. returns n coordinate arrays for each row.
-    # start and end are in data coordinates.
-    # n is a positive integer, not zero
-    def __coordinates(self, start, end, n):
-        assert n > 0 and int(n) == n
-        # n=1 => 0
-        # n=2 => -0.5, 0.5
-        # n=3 => -1, 0, 1
-        # n=4 => -1.5, -0.5, 0.5, 1.5
-        length = math.sqrt(math.pow(end[0] - start[0], 2) + math.pow(end[1] - start[1], 2))
-        l = math.floor(length)
-        a = numpy.linspace(0, length, l)  # along
-        t = numpy.linspace(-(n-1)*0.5, (n-1)*0.5, n)  # transverse
-        dy = (end[0] - start[0]) / length
-        dx = (end[1] - start[1]) / length
-        ix, iy = numpy.meshgrid(a, t)
-        yy = start[0] + dy * ix + dx * iy
-        xx = start[1] + dx * ix - dy * iy
-        return xx, yy
-
-    # xx, yy = __coordinates(None, (4,4), (8,4), 3)
-
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        assert Image.is_data_2d(data)
-        if Image.is_data_rgb_type(data):
-            data = Image.convert_to_grayscale(data, numpy.double)
-        start, end = values.get("vector")
-        integration_width = int(values.get("integration_width"))
-        shape = data.shape
-        integration_width = min(max(shape[0], shape[1]), integration_width)  # limit integration width to sensible value
-        start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
-        end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
-        length = math.sqrt(math.pow(end_data[1] - start_data[1], 2) + math.pow(end_data[0] - start_data[0], 2))
-        if length > 1.0:
-            spline_order_lookup = { "nearest": 0, "linear": 1, "quadratic": 2, "cubic": 3 }
-            method = "nearest"
-            spline_order = spline_order_lookup[method]
-            xx, yy = self.__coordinates(start_data, end_data, integration_width)
-            samples = scipy.ndimage.map_coordinates(data, (yy, xx), order=spline_order)
-            if len(samples.shape) > 1:
-                return numpy.sum(samples, 0) / integration_width
-            else:
-                return samples
-        return numpy.zeros((1))
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_line_profile(data_and_calibrations[0], values.get("vector"), values.get("integration_width"))
+        return data_and_metadata if data_and_metadata else None
 
 
 class ConvertToScalarOperation(Operation):

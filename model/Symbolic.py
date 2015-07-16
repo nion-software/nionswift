@@ -533,6 +533,110 @@ def function_resample_2d(data_and_metadata, height, width):
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
+def function_histogram(data_and_metadata, bins):
+    bins = int(bins)
+
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        histogram_data = numpy.histogram(data, bins=bins)
+        return histogram_data[0].astype(numpy.int)
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    data_shape_and_dtype = (bins, ), numpy.dtype(numpy.int)
+
+    dimensional_calibrations = [Calibration.Calibration()]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
+def function_line_profile(data_and_metadata, vector, integration_width):
+    integration_width = int(integration_width)
+
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    # calculate grid of coordinates. returns n coordinate arrays for each row.
+    # start and end are in data coordinates.
+    # n is a positive integer, not zero
+    def get_coordinates(start, end, n):
+        assert n > 0 and int(n) == n
+        # n=1 => 0
+        # n=2 => -0.5, 0.5
+        # n=3 => -1, 0, 1
+        # n=4 => -1.5, -0.5, 0.5, 1.5
+        length = math.sqrt(math.pow(end[0] - start[0], 2) + math.pow(end[1] - start[1], 2))
+        l = math.floor(length)
+        a = numpy.linspace(0, length, l)  # along
+        t = numpy.linspace(-(n-1)*0.5, (n-1)*0.5, n)  # transverse
+        dy = (end[0] - start[0]) / length
+        dx = (end[1] - start[1]) / length
+        ix, iy = numpy.meshgrid(a, t)
+        yy = start[0] + dy * ix + dx * iy
+        xx = start[1] + dx * ix - dy * iy
+        return xx, yy
+
+    # xx, yy = __coordinates(None, (4,4), (8,4), 3)
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        if Image.is_data_rgb_type(data):
+            data = Image.convert_to_grayscale(data, numpy.double)
+        start, end = vector
+        shape = data.shape
+        actual_integration_width = min(max(shape[0], shape[1]), integration_width)  # limit integration width to sensible value
+        start_data = (int(shape[0]*start[0]), int(shape[1]*start[1]))
+        end_data = (int(shape[0]*end[0]), int(shape[1]*end[1]))
+        length = math.sqrt(math.pow(end_data[1] - start_data[1], 2) + math.pow(end_data[0] - start_data[0], 2))
+        if length > 1.0:
+            spline_order_lookup = { "nearest": 0, "linear": 1, "quadratic": 2, "cubic": 3 }
+            method = "nearest"
+            spline_order = spline_order_lookup[method]
+            xx, yy = get_coordinates(start_data, end_data, actual_integration_width)
+            samples = scipy.ndimage.map_coordinates(data, (yy, xx), order=spline_order)
+            if len(samples.shape) > 1:
+                return numpy.sum(samples, 0) / actual_integration_width
+            else:
+                return samples
+        return numpy.zeros((1))
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    if dimensional_calibrations is None or len(dimensional_calibrations) != 2:
+        return None
+
+    import math
+
+    start, end = vector
+    shape = data_shape
+    start_int = (int(shape[0]*start[0]), int(shape[1]*start[1]))
+    end_int = (int(shape[0]*end[0]), int(shape[1]*end[1]))
+    length = int(math.sqrt((end_int[1] - start_int[1])**2 + (end_int[0] - start_int[0])**2))
+    length = max(length, 1)
+    data_shape_and_dtype = (length, ), numpy.dtype(numpy.double)
+
+    dimensional_calibrations = [Calibration.Calibration(0.0, dimensional_calibrations[1].scale, dimensional_calibrations[1].units)]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
 _function2_map = {
     "fft": function_fft,
     "ifft": function_ifft,
@@ -548,6 +652,9 @@ _function2_map = {
     "slice_sum": function_slice_sum,
     "pick": function_pick,
     "project": function_project,
+    "resample_image": function_resample_2d,
+    "histogram": function_histogram,
+    "line_profile": function_line_profile,
 }
 
 _function_map = {
@@ -1060,6 +1167,9 @@ def parse_expression(calculation_script, variable_map):
     g["slice_sum"] = lambda data_node, scalar_node1, scalar_node2: FunctionOperationDataNode([data_node, DataNode.make(scalar_node1), DataNode.make(scalar_node2)], "slice_sum")
     g["pick"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "pick")
     g["project"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "project")
+    g["resample_image"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "resample_image")
+    g["histogram"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "histogram")
+    g["line_profile"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "line_profile")
     l = dict()
     for variable_name, object_specifier in variable_map.items():
         if object_specifier["type"] == "data_item":  # avoid importing class
