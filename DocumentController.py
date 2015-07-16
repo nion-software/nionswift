@@ -1059,13 +1059,17 @@ class DocumentController(Observable.Broadcaster):
         if display:
             display.display_limits = buffered_data_source.data_range
 
+    def build_variable_map(self):
+        map = dict()
+        for weak_data_item in self.data_item_vars:
+            data_item = weak_data_item()
+            if data_item:
+                map[self.data_item_vars[weak_data_item]] = self.document_model.get_object_specifier(data_item)
+        return map
+
     def processing_calculation(self, expression, map=None):
         if map is None:
-            map = dict()
-            for weak_data_item in self.data_item_vars:
-                data_item = weak_data_item()
-                if data_item:
-                    map[self.data_item_vars[weak_data_item]] = self.document_model.get_object_specifier(data_item)
+            map = self.build_variable_map()
         data_item = DataItem.DataItem()
         data_item.title = _("Calculation on ") + data_item.title
         computation = Symbolic.Computation()

@@ -384,16 +384,50 @@ class TestSymbolicClass(unittest.TestCase):
         expression_out = computation.reconstruct(map)
         self.assertEqual(expression_in, expression_out)
 
-    def disabled_test_computation_changed_updates_data(self):
-        pass
+    def test_computation_changed_updates_evaluated_data(self):
+        document_model = DocumentModel.DocumentModel()
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "-a", map)
+        data_and_metadata = computation.evaluate()
+        self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
+        computation.parse_expression(document_model, "-2 * a", map)
+        data_and_metadata = computation.evaluate()
+        self.assertTrue(numpy.array_equal(data_and_metadata.data, -data*2))
 
-    def disabled_test_references_named_in_original_text_get_assigned(self):
+    def test_computation_changed_updates_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data = numpy.random.randn(2, 2)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        document_controller.processing_calculation("-a", map)
+        document_model.recompute_all()
+        computed_data_item = document_model.data_items[1]
+        self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data))
+        computed_data_item.maybe_data_source.computation.parse_expression(document_model, "-a * 2", map)
+        document_model.recompute_all()
+        self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data * 2))
+
+    def test_unary_functions_return_correct_dimensions(self):
+        document_model = DocumentModel.DocumentModel()
+        data = numpy.random.randn(2, 2)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        computation = Symbolic.Computation()
+        computation.parse_expression(document_model, "sin(a)", map)
+        data_and_metadata = computation.evaluate()
+        self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
+
+    def disabled_test_trig_functions_available(self):
         assert False
 
-    def disabled_test_expression_text_can_be_changed(self):
-        assert False
-
-    def disabled_test_expression_text_can_be_reloaded(self):
+    def disabled_test_icol_and_irow_variables_available(self):
         assert False
 
     def disabled_test_knobs_for_computations_appear_in_inspector(self):

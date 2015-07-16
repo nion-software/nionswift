@@ -1374,12 +1374,17 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         self.__data_node = DataNode.factory(self.node)
 
     def parse_expression(self, context, expression, variable_map):
+        self.unbind()
+        old_data_node = copy.deepcopy(self.__data_node)
         self.__data_node = parse_expression(expression.split("\n"), variable_map, context)
         if self.__data_node:
             self.node = self.__data_node.write()
             self.bind(context)
+        if self.__data_node != old_data_node:
+            self.needs_update_event.fire()
 
     def evaluate(self):
+        """Evaluate the computation and return data and metadata."""
         def resolve(uuid):
             bound_item = self.__bound_items[uuid]
             return bound_item.value
