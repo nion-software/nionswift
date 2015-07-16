@@ -3,10 +3,10 @@ from __future__ import absolute_import
 
 # standard libraries
 import contextlib
+import copy
 import logging
 import random
 import unittest
-import uuid
 
 # third party libraries
 import numpy
@@ -421,6 +421,16 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data * 2))
 
+    def test_deepcopy_data_item_data_node_does_not_copy_bound_item(self):
+        document_model = DocumentModel.DocumentModel()
+        data_item = DataItem.DataItem(numpy.random.randn(2, 2))
+        document_model.append_data_item(data_item)
+        data_item_node = Symbolic.DataItemDataNode(document_model.get_object_specifier(data_item))
+        data_item_node.bind(document_model, dict())
+        data_item_node_copy = copy.deepcopy(data_item_node)
+        self.assertIsNotNone(data_item_node._bound_item_for_test)
+        self.assertIsNone(data_item_node_copy._bound_item_for_test)
+
     def test_unary_functions_return_correct_dimensions(self):
         document_model = DocumentModel.DocumentModel()
         data = numpy.random.randn(2, 2)
@@ -431,6 +441,9 @@ class TestSymbolicClass(unittest.TestCase):
         computation.parse_expression(document_model, "sin(a)", map)
         data_and_metadata = computation.evaluate()
         self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
+
+    def disabled_test_all_node_types_reconstruct_properly(self):
+        assert False
 
     def disabled_test_computations_update_data_item_dependencies_list(self):
         assert False

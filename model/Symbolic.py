@@ -751,6 +751,16 @@ class DataNode(object):
         self.uuid = uuid.uuid4()
         self.inputs = inputs if inputs is not None else list()
 
+    def __deepcopy__(self, memo):
+        new = self.__class__()
+        new.deepcopy_from(self, memo)
+        memo[id(self)] = new
+        return new
+
+    def deepcopy_from(self, node, memo):
+        self.uuid = node.uuid
+        self.inputs = [copy.deepcopy(input, memo) for input in node.inputs]
+
     @classmethod
     def factory(cls, d):
         data_node_type = d["data_node_type"]
@@ -911,6 +921,10 @@ class ConstantDataNode(DataNode):
         # else:
         #     raise Exception("Invalid constant type [{}].".format(type(value)))
 
+    def deepcopy_from(self, node, memo):
+        super(ConstantDataNode, self).deepcopy_from(node, memo)
+        self.__scalar = copy.deepcopy(node.__scalar)
+
     def read(self, d):
         super(ConstantDataNode, self).read(d)
         scalar_type = d.get("scalar_type")
@@ -953,6 +967,11 @@ class ScalarOperationDataNode(DataNode):
         self.__function_id = function_id
         self.__args = copy.copy(args if args is not None else dict())
 
+    def deepcopy_from(self, node, memo):
+        super(ScalarOperationDataNode, self).deepcopy_from(memo)
+        self.__function_id = node.__function_id
+        self.__args = [copy.deepcopy(arg, memo) for arg in node.__args]
+
     def read(self, d):
         super(ScalarOperationDataNode, self).read(d)
         function_id = d.get("function_id")
@@ -990,6 +1009,11 @@ class UnaryOperationDataNode(DataNode):
         super(UnaryOperationDataNode, self).__init__(inputs=inputs)
         self.__function_id = function_id
         self.__args = copy.copy(args if args is not None else dict())
+
+    def deepcopy_from(self, node, memo):
+        super(UnaryOperationDataNode, self).deepcopy_from(node, memo)
+        self.__function_id = node.__function_id
+        self.__args = [copy.deepcopy(arg, memo) for arg in node.__args]
 
     def read(self, d):
         super(UnaryOperationDataNode, self).read(d)
@@ -1032,6 +1056,11 @@ class BinaryOperationDataNode(DataNode):
         super(BinaryOperationDataNode, self).__init__(inputs=inputs)
         self.__function_id = function_id
         self.__args = copy.copy(args if args is not None else dict())
+
+    def deepcopy_from(self, node, memo):
+        super(BinaryOperationDataNode, self).deepcopy_from(node, memo)
+        self.__function_id = node.__function_id
+        self.__args = [copy.deepcopy(arg, memo) for arg in node.__args]
 
     def read(self, d):
         super(BinaryOperationDataNode, self).read(d)
@@ -1078,6 +1107,11 @@ class FunctionOperationDataNode(DataNode):
         self.__function_id = function_id
         self.__args = copy.copy(args if args is not None else dict())
 
+    def deepcopy_from(self, node, memo):
+        super(FunctionOperationDataNode, self).deepcopy_from(node, memo)
+        self.__function_id = node.__function_id
+        self.__args = [copy.deepcopy(arg, memo) for arg in node.__args]
+
     def read(self, d):
         super(FunctionOperationDataNode, self).read(d)
         function_id = d.get("function_id")
@@ -1112,6 +1146,15 @@ class DataItemDataNode(DataNode):
         super(DataItemDataNode, self).__init__()
         self.__object_specifier = object_specifier
         self.__bound_item = None
+
+    def deepcopy_from(self, node, memo):
+        super(DataItemDataNode, self).deepcopy_from(node, memo)
+        self.__object_specifier = copy.deepcopy(node.__object_specifier, memo)
+        self.__bound_item = None
+
+    @property
+    def _bound_item_for_test(self):
+        return self.__bound_item
 
     def read(self, d):
         super(DataItemDataNode, self).read(d)
@@ -1159,6 +1202,9 @@ class ReferenceDataNode(DataNode):
         super(ReferenceDataNode, self).__init__()
         self.__object_specifier = object_specifier
 
+    def deepcopy_from(self, node, memo):
+        raise NotImplemented()  # should only be used as intermediate node
+
     def read(self, d):
         raise NotImplemented()  # should only be used as intermediate node
 
@@ -1187,6 +1233,12 @@ class PropertyDataNode(DataNode):
         super(PropertyDataNode, self).__init__()
         self.__object_specifier = object_specifier
         self.__property = str(property)
+        self.__bound_item = None
+
+    def deepcopy_from(self, node, memo):
+        super(PropertyDataNode, self).deepcopy_from(node, memo)
+        self.__object_specifier = copy.deepcopy(node.__object_specifier, memo)
+        self.__property = node.__property
         self.__bound_item = None
 
     def read(self, d):
@@ -1368,6 +1420,10 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         self.__bound_item_listeners = dict()
         self.__data_node = None
         self.needs_update_event = Observable.Event()
+
+    @property
+    def _data_node_for_test(self):
+        return self.__data_node
 
     def read_from_dict(self, properties):
         super(Computation, self).read_from_dict(properties)
