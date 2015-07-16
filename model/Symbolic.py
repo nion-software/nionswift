@@ -1271,7 +1271,7 @@ class PropertyDataNode(DataNode):
         variable_index = -1
         for variable, object_specifier in variable_map.items():
             if object_specifier == self.__object_specifier:
-                return variable
+                return "{0}.{1}".format(variable, self.__property)
             if variable.startswith("region"):
                 variable_index = max(variable_index, int(variable[1:]) + 1)
         variable_name = "region{0}".format(variable_index)

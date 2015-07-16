@@ -383,10 +383,14 @@ class TestSymbolicClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         d = numpy.random.randn(2, 2)
         data_item = DataItem.DataItem(d)
+        region = Region.RectRegion()
+        region.center = 0.5, 0.5
+        region.size = 0.6, 0.4
+        data_item.maybe_data_source.add_region(region)
         document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
+        map = {"a": document_model.get_object_specifier(data_item), "r": document_model.get_object_specifier(region)}
         computation = Symbolic.Computation()
-        expression_in = "-a / average(a) * 5"
+        expression_in = "-a / average(a) * 5 + gaussian_blur(a, 0.5) + crop(a, r.bounds)"
         computation.parse_expression(document_model, expression_in, map)
         expression_out = computation.reconstruct(map)
         self.assertEqual(expression_in, expression_out)
@@ -441,9 +445,6 @@ class TestSymbolicClass(unittest.TestCase):
         computation.parse_expression(document_model, "sin(a)", map)
         data_and_metadata = computation.evaluate()
         self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
-
-    def disabled_test_all_node_types_reconstruct_properly(self):
-        assert False
 
     def disabled_test_computations_update_data_item_dependencies_list(self):
         assert False
