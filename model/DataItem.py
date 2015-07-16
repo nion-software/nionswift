@@ -25,6 +25,7 @@ from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Storage
+from nion.swift.model import Symbolic
 from nion.ui import Observable
 from nion.ui import Unicode
 
@@ -157,6 +158,10 @@ def data_source_factory(lookup_id):
         return None
 
 
+def computation_factory(lookup_id):
+    return Symbolic.Computation()
+
+
 class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
 
     """
@@ -191,6 +196,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_property("data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True)
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
+        self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
         self.__remove_region_listeners = list()
@@ -212,6 +218,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
         self.metadata_changed_event = Observable.Event()
         self.request_remove_data_item_because_operation_removed_event = Observable.Event()
+        self.computation_changed_event = Observable.Event()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
@@ -385,6 +392,19 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     def set_data_source(self, data_source):
         self.set_item("data_source", data_source)
+
+    def set_computation(self, computation):
+        self.set_item("computation", computation)
+
+    def __computation_changed(self, name, old_computation, new_computation):
+        self.computation_changed_event.fire()
+        # if old_computation:
+        #     self.__computation_needs_update_event_listener.close()
+        #     self.__computation_needs_update_event_listener = None
+        # if new_computation:
+        #     def computation_needs_update():
+        #         pass
+        #     self.__computation_needs_update_event_listener = new_computation.computation_needs_update_event.listen(computation_needs_update)
 
     def __data_source_changed(self, name, old_data_source, new_data_source):
         # and about to be removed messages

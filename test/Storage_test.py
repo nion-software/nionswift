@@ -30,6 +30,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Storage
+from nion.swift.model import Symbolic
 from nion.ui import Test
 
 
@@ -1520,6 +1521,27 @@ class TestStorageClass(unittest.TestCase):
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
+
+    def test_reloading_computation_evaluates_when_reloaded(self):
+        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        computation = Symbolic.Computation()
+        map = {"a": data_item}
+        computation.parse_expression(document_model, "-a", map)
+        computed_data_item = DataItem.DataItem(data.copy())
+        computed_data_item.maybe_data_source.set_computation(computation)
+        document_model.append_data_item(computed_data_item)
+        document_model.close()
+        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        read_computation = document_model.data_items[1].maybe_data_source.computation
+        self.assertIsNotNone(read_computation)
+        self.assertNotEqual(id(read_computation.node), id(computation.node))
+        self.assertNotEqual(id(read_computation.specifiers), id(computation.specifiers))
+        self.assertEqual(read_computation.node, computation.node)
+        self.assertEqual(read_computation.specifiers, computation.specifiers)
 
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()

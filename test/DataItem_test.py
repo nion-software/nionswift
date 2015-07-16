@@ -27,6 +27,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
+from nion.swift.model import Symbolic
 from nion.ui import Binding
 from nion.ui import Observable
 from nion.ui import Test

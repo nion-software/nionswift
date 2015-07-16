@@ -156,8 +156,6 @@ class TestSymbolicClass(unittest.TestCase):
         region.size = 0.52, 0.42
         map = {"a": data_item, "regionA": region}
         data_node, mapping = Symbolic.parse_expression("crop(a, regionA.bounds)", map)
-        logging.debug(data_node)
-        logging.debug(mapping)
         def resolve(uuid):
             resolved_value = mapping[uuid]
             if isinstance(resolved_value, DataItem.DataItem):
@@ -166,6 +164,17 @@ class TestSymbolicClass(unittest.TestCase):
                 return mapping[uuid]
         data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, d[9:42, 19:45])
+
+    def test_evaluate_computation_within_document_model_gives_correct_value(self):
+        document_model = DocumentModel.DocumentModel()
+        data = numpy.ones((2, 2), numpy.double)
+        data_item = DataItem.DataItem(data)
+        document_model.append_data_item(data_item)
+        computation = Symbolic.Computation()
+        map = {"a": data_item}
+        computation.parse_expression(document_model, "-a", map)
+        data_and_metadata = computation.evaluate(document_model)
+        self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
 
 
 if __name__ == '__main__':

@@ -2,7 +2,6 @@
 from __future__ import absolute_import
 
 # standard libraries
-import collections
 import copy
 import datetime
 import gettext
@@ -14,13 +13,6 @@ import threading
 import uuid
 import weakref
 
-# conditional imports
-import sys
-if sys.version < '3':
-    import Queue as queue
-else:
-    import queue
-
 # third party libraries
 import scipy
 
@@ -30,6 +22,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import HardwareSource
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Region
 from nion.swift.model import Storage
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
@@ -970,3 +963,25 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def start_dispatcher(self):
         self.__thread_pool.start(16)
+
+    def get_object_specifier(self, object):
+        if isinstance(object, DataItem.DataItem):
+            return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+        elif isinstance(object, Region.Region):
+            return {"version": 1, "type": "region", "uuid": str(object.uuid)}
+        return None
+
+    def resolve_object_specifier(self, specifier):
+        if specifier.get("version") == 1:
+            specifier_type = specifier["type"]
+            if specifier_type == "data_item":
+                object_uuid = uuid.UUID(specifier["uuid"])
+                return self.get_data_item_by_uuid(object_uuid).maybe_data_source.data_and_calibration
+            elif specifier_type == "region":
+                object_uuid = uuid.UUID(specifier["uuid"])
+                for data_item in self.data_items:
+                    for data_source in data_item.data_sources:
+                        for region in data_source.regions:
+                            if region.uuid == object_uuid:
+                                return region
+        return None

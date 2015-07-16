@@ -31,6 +31,7 @@ import scipy.signal
 from nion.swift.model import Calibration
 from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
+from nion.ui import Observable
 
 
 def range(data):
@@ -893,14 +894,25 @@ def parse_expression(calculation_script, variable_map):
     return l["result"], mapping
 
 
-#d1 = DataNode(title="data1")
-#d2 = DataNode(title="data2")
+class Computation(Observable.Observable, Observable.ManagedObject):
 
-#print((d1 + d2).crop(((0.25, 0.25), (0.5, 0.5))) - 120)
-#print d1
-#print 3 + d1 + d2
-#print -d1
+    def __init__(self):
+        super(Computation, self).__init__()
+        self.define_type("computation")
+        self.define_property("node")
+        self.define_property("specifiers")
 
-# -r100
-# r100 * 10
-# r100 - min(r100)
+    def parse_expression(self, context, expression, variable_map):
+        data_node, mapping = parse_expression(expression, variable_map)
+        object_specifiers = dict()
+        for uuid, object in mapping.items():
+            object_specifiers[str(uuid)] = context.get_object_specifier(object)
+        self.node = data_node.write()
+        self.specifiers = object_specifiers
+
+    def evaluate(self, context):
+        data_node = DataNode.factory(self.node)
+        object_specifiers = self.specifiers
+        def resolve(uuid):
+            return context.resolve_object_specifier(object_specifiers[str(uuid)])
+        return data_node.evaluate(resolve)
