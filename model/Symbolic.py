@@ -31,6 +31,7 @@ import scipy.signal
 from nion.swift.model import Calibration
 from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
+from nion.ui import Geometry
 from nion.ui import Observable
 
 
@@ -393,6 +394,107 @@ def function_crop(data_and_metadata, bounds):
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
+def function_slice_sum(data_and_metadata, slice_center, slice_width):
+    slice_center = int(slice_center)
+    slice_width = int(slice_width)
+
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        shape = data.shape
+        slice_start = slice_center + 1 - slice_width
+        slice_start = max(slice_start, 0)
+        slice_end = slice_start + slice_width
+        slice_end = min(shape[0], slice_end)
+        return numpy.sum(data[slice_start:slice_end,:], 0)
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    data_shape_and_dtype = data_shape[1:], data_dtype
+
+    dimensional_calibrations = dimensional_calibrations[1:]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
+def function_pick(data_and_metadata, position):
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        data_shape = data_and_metadata.data_shape
+        position_f = Geometry.FloatPoint.make(position)
+        position_i = Geometry.IntPoint(y=position_f.y * data_shape[1], x=position_f.x * data_shape[2])
+        if position_i.y >= 0 and position_i.y < data_shape[1] and position_i.x >= 0 and position_i.x < data_shape[2]:
+            return data[:, position_i[0], position_i[1]].copy()
+        else:
+            return numpy.zeros((data_shape[:-2], ), dtype=data.dtype)
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    data_shape_and_dtype = data_shape[:-2], data_dtype
+
+    dimensional_calibrations = dimensional_calibrations[0:-2]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
+def function_project(data_and_metadata):
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
+            if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
+                rgb_image = numpy.empty(data.shape[1:], numpy.uint8)
+                rgb_image[:,0] = numpy.average(data[...,0], 0)
+                rgb_image[:,1] = numpy.average(data[...,1], 0)
+                rgb_image[:,2] = numpy.average(data[...,2], 0)
+                return rgb_image
+            else:
+                rgba_image = numpy.empty(data.shape[1:], numpy.uint8)
+                rgba_image[:,0] = numpy.average(data[...,0], 0)
+                rgba_image[:,1] = numpy.average(data[...,1], 0)
+                rgba_image[:,2] = numpy.average(data[...,2], 0)
+                rgba_image[:,3] = numpy.average(data[...,3], 0)
+                return rgba_image
+        else:
+            return numpy.sum(data, 0)
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    data_shape_and_dtype = data_shape[1:], data_dtype
+
+    dimensional_calibrations = dimensional_calibrations[1:]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
 _function2_map = {
     "fft": function_fft,
     "ifft": function_ifft,
@@ -405,6 +507,9 @@ _function2_map = {
     "uniform_filter": function_uniform_filter,
     "transpose_flip": function_transpose_flip,
     "crop": function_crop,
+    "slice_sum": function_slice_sum,
+    "pick": function_pick,
+    "project": function_project,
 }
 
 _function_map = {
@@ -914,6 +1019,9 @@ def parse_expression(calculation_script, variable_map):
         return FunctionOperationDataNode([data_node], "transpose_flip", args={"transpose": transpose, "flip_v": flip_v, "flip_h": flip_h})
     g["transpose_flip"] = transpose_flip
     g["crop"] = lambda data_node, bounds_node: FunctionOperationDataNode([data_node, bounds_node], "crop")
+    g["slice_sum"] = lambda data_node, scalar_node1, scalar_node2: FunctionOperationDataNode([data_node, DataNode.make(scalar_node1), DataNode.make(scalar_node2)], "slice_sum")
+    g["pick"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "pick")
+    g["project"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "project")
     l = dict()
     for variable_name, object_specifier in variable_map.items():
         if object_specifier["type"] == "data_item":  # avoid importing class

@@ -750,29 +750,9 @@ class Slice3dOperation(Operation):
         ]
         super(Slice3dOperation, self).__init__(_("Slice"), "slice-operation", description)
 
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-            return None
-        return data_shape[1:], data_dtype
-
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        shape = data.shape
-        slice_center = values.get("slice_center")
-        slice_width = values.get("slice_width")
-        slice_start = slice_center + 1 - slice_width
-        slice_start = max(slice_start, 0)
-        slice_end = slice_start + slice_width
-        slice_end = min(shape[0], slice_end)
-        return numpy.average(data[slice_start:slice_end,:], 0)
-
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        return data_sources[0].dimensional_calibrations[1:]
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_slice_sum(data_and_calibrations[0], values.get("slice_center"), values.get("slice_width"))
+        return data_and_metadata if data_and_metadata else None
 
 
 class Pick3dOperation(Operation):
@@ -785,29 +765,9 @@ class Pick3dOperation(Operation):
         self.region_types = {"pick": "point-region"}
         self.region_bindings = {"pick": [RegionBinding("position", "position")]}
 
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-            return None
-        return (data_shape[0], ), data_dtype
-
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        data_shape = data_sources[0].data_shape
-        position = values.get("position")
-        position = Geometry.FloatPoint.make(position)
-        position_i = Geometry.IntPoint(y=position.y * data_shape[1], x=position.x * data_shape[2])
-        if position_i.y >= 0 and position_i.y < data_shape[1] and position_i.x >= 0 and position_i.x < data_shape[2]:
-            return data[:, position_i[0], position_i[1]].copy()
-        else:
-            return numpy.zeros((data_shape[0], ), dtype=data.dtype)
-
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        return data_sources[0].dimensional_calibrations[0:-2]
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_pick(data_and_calibrations[0], values.get("position"))
+        return data_and_metadata if data_and_metadata else None
 
 
 class Projection2dOperation(Operation):
@@ -816,40 +776,9 @@ class Projection2dOperation(Operation):
         # hardcoded to axis 0 right now
         super(Projection2dOperation, self).__init__(_("Projection"), "projection-operation")
 
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if dimensional_calibrations is None:
-            return None
-        return copy.deepcopy(dimensional_calibrations)[1:]
-
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-            return None
-        return data_shape[1:], data_dtype
-
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
-            if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
-                rgb_image = numpy.empty(data.shape[1:], numpy.uint8)
-                rgb_image[:,0] = numpy.average(data[...,0], 0)
-                rgb_image[:,1] = numpy.average(data[...,1], 0)
-                rgb_image[:,2] = numpy.average(data[...,2], 0)
-                return rgb_image
-            else:
-                rgba_image = numpy.empty(data.shape[1:], numpy.uint8)
-                rgba_image[:,0] = numpy.average(data[...,0], 0)
-                rgba_image[:,1] = numpy.average(data[...,1], 0)
-                rgba_image[:,2] = numpy.average(data[...,2], 0)
-                rgba_image[:,3] = numpy.average(data[...,3], 0)
-                return rgba_image
-        else:
-            return numpy.average(data, 0)
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_project(data_and_calibrations[0])
+        return data_and_metadata if data_and_metadata else None
 
 
 class Resample2dOperation(Operation):

@@ -7,7 +7,6 @@ from __future__ import absolute_import
 from __future__ import division
 
 # standard libraries
-import collections
 import copy
 import functools
 import math
@@ -23,8 +22,8 @@ from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
-from nion.swift.model import Operation
 from nion.swift.model import Storage
+from nion.swift.model import Symbolic
 from nion.ui import Model
 from nion.ui import Observable
 
@@ -226,12 +225,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
                     data_2d = Image.scalar_from_array(data)
                 # TODO: fix me 3d
                 elif Image.is_data_3d(data):
-                    slice_operation = Operation.Slice3dOperation()
-                    slice_operation.slice_center = self.slice_center
-                    slice_operation.slice_width = self.slice_width
-                    DataSourceTuple = collections.namedtuple("DataSourceTuple", ["data"])
-                    data_source = DataSourceTuple(data=data)  # quite a hack
-                    data_2d = slice_operation.get_processed_data([data_source], {"slice_center": self.slice_center, "slice_width": self.slice_width})
+                    data_2d = Symbolic.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data
                 else:
                     data_2d = None
                 self.__preview_data = data_2d
