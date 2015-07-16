@@ -850,7 +850,7 @@ _node_map = {
 }
 
 
-def parse_expression(calculation_script, weak_data_item_variable_map, reference_var_map=None):
+def parse_expression(calculation_script, variable_map):
     code_lines = []
     g = dict()
     g["min"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
@@ -879,17 +879,13 @@ def parse_expression(calculation_script, weak_data_item_variable_map, reference_
     g["crop"] = lambda data_node, bounds_node: FunctionOperationDataNode([data_node, bounds_node], "crop")
     l = dict()
     mapping = dict()
-    for data_item_ref in weak_data_item_variable_map:
-        data_item = data_item_ref()
-        if data_item:
-            data_item_var = weak_data_item_variable_map[data_item_ref]
-            data_reference = DataItemDataNode()
-            mapping[data_reference.data_reference_uuid] = data_item
-            g[data_item_var] = data_reference
-    for reference in reference_var_map or list():
-        variable_name = reference_var_map[reference]
-        reference_node = ReferenceDataNode()
-        mapping[reference_node.reference_uuid] = reference
+    for variable_name, value in variable_map.items():
+        if type(value).__name__ == "DataItem":  # avoid importing class
+            reference_node = DataItemDataNode()
+            mapping[reference_node.data_reference_uuid] = value
+        else:
+            reference_node = ReferenceDataNode()
+            mapping[reference_node.reference_uuid] = value
         g[variable_name] = reference_node
     code_lines.append("result = {0}".format(calculation_script))
     code = "\n".join(code_lines)

@@ -5,7 +5,6 @@ from __future__ import absolute_import
 import logging
 import random
 import unittest
-import weakref
 
 # third party libraries
 import numpy
@@ -33,7 +32,7 @@ class TestSymbolicClass(unittest.TestCase):
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node, mapping = Symbolic.parse_expression("-a", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source.data_and_calibration
@@ -47,7 +46,7 @@ class TestSymbolicClass(unittest.TestCase):
         d2 = numpy.zeros((8, 8), dtype=numpy.uint32)
         d2[:] = random.randint(0, 100)
         data_item2 = DataItem.DataItem(d2)
-        map = { weakref.ref(data_item1): "a", weakref.ref(data_item2): "b" }
+        map = {"a": data_item1, "b": data_item2}
         data_node, mapping = Symbolic.parse_expression("a+b", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source.data_and_calibration
@@ -58,7 +57,7 @@ class TestSymbolicClass(unittest.TestCase):
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node1, mapping1 = Symbolic.parse_expression("a * 5", map)
         def resolve1(uuid):
             return mapping1[uuid].maybe_data_source.data_and_calibration
@@ -74,7 +73,7 @@ class TestSymbolicClass(unittest.TestCase):
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node, mapping = Symbolic.parse_expression("a - min(a)", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source.data_and_calibration
@@ -85,7 +84,7 @@ class TestSymbolicClass(unittest.TestCase):
         d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node, mapping = Symbolic.parse_expression("a[:,4,4]", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source.data_and_calibration
@@ -96,7 +95,7 @@ class TestSymbolicClass(unittest.TestCase):
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node, mapping = Symbolic.parse_expression("-a / average(a) * 5", map)
         data_node_dict = data_node.write()
         def resolve(uuid):
@@ -114,7 +113,7 @@ class TestSymbolicClass(unittest.TestCase):
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
         document_model.append_data_item(data_item)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
         document_model.recompute_all()
         assert numpy.array_equal(data_item.maybe_data_source.data, -d / numpy.average(d) * 5)
@@ -122,7 +121,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_fft_returns_complex_data(self):
         d = numpy.random.randn(64, 64)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node, mapping = Symbolic.parse_expression("fft(a)", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source.data_and_calibration
@@ -132,7 +131,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_gaussian_blur_handles_scalar_argument(self):
         d = numpy.random.randn(64, 64)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node, mapping = Symbolic.parse_expression("gaussian_blur(a, 4.0)", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source.data_and_calibration
@@ -142,7 +141,7 @@ class TestSymbolicClass(unittest.TestCase):
     def test_transpose_flip_handles_args(self):
         d = numpy.random.randn(30, 60)
         data_item = DataItem.DataItem(d)
-        map = { weakref.ref(data_item): "a" }
+        map = {"a": data_item}
         data_node, mapping = Symbolic.parse_expression("transpose_flip(a, flip_v=True)", map)
         def resolve(uuid):
             return mapping[uuid].maybe_data_source.data_and_calibration
@@ -155,9 +154,10 @@ class TestSymbolicClass(unittest.TestCase):
         region = Region.RectRegion()
         region.center = 0.41, 0.51
         region.size = 0.52, 0.42
-        map = { weakref.ref(data_item): "a" }
-        rmap = { region: "regionA" }
-        data_node, mapping = Symbolic.parse_expression("crop(a, regionA.bounds)", map, rmap)
+        map = {"a": data_item, "regionA": region}
+        data_node, mapping = Symbolic.parse_expression("crop(a, regionA.bounds)", map)
+        logging.debug(data_node)
+        logging.debug(mapping)
         def resolve(uuid):
             resolved_value = mapping[uuid]
             if isinstance(resolved_value, DataItem.DataItem):

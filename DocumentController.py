@@ -1060,7 +1060,12 @@ class DocumentController(Observable.Broadcaster):
             display.display_limits = buffered_data_source.data_range
 
     def processing_calculation(self, expression, map=None):
-        map = map if map else self.data_item_vars
+        if map is None:
+            map = dict()
+            for weak_data_item in self.data_item_vars:
+                data_item = weak_data_item()
+                if data_item:
+                    map[self.data_item_vars[weak_data_item]] = data_item
         data_node, mapping = Symbolic.parse_expression(expression, map)
         if data_node:
             operation_item = Operation.OperationItem("node-operation")
