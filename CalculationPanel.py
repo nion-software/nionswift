@@ -66,6 +66,11 @@ class ComputationModel(object):
             computation.parse_expression(self.document_controller.document_model, computation_text, self.document_controller.build_variable_map())
             buffered_data_source.computation = computation
 
+    def clear(self):
+        buffered_data_source = self.__display_specifier.buffered_data_source
+        if buffered_data_source:
+            buffered_data_source.set_computation(None)
+
     # not thread safe
     def __set_display_specifier(self, display_specifier):
         if self.__display_specifier != display_specifier:
@@ -80,9 +85,12 @@ class ComputationModel(object):
                 computation = buffered_data_source.computation
                 if computation:
                     def computation_changed():
-                        self.__computation_text = computation.reconstruct(self.document_controller.build_variable_map())
-                        self.computation_text_changed_event.fire(self.__computation_text)
-                    self.__computation_changed_event_listener = computation.computation_changed_event.listen(computation_changed)
+                        computation = buffered_data_source.computation
+                        expression = None
+                        if computation:
+                            expression = computation.reconstruct(self.document_controller.build_variable_map())
+                        self.computation_text_changed_event.fire(expression)
+                    self.__computation_changed_event_listener = buffered_data_source.computation_changed_event.listen(computation_changed)
                     expression = computation.reconstruct(self.document_controller.build_variable_map())
             self.__computation_text = expression
             self.computation_text_changed_event.fire(self.__computation_text)
@@ -131,7 +139,10 @@ class CalculationPanel(Panel.Panel):
             document_controller.processing_calculation(text_edit.text)
 
         def update_pressed():
-            self.__computation_model.computation_text = text_edit.text
+            if text_edit.text:
+                self.__computation_model.computation_text = text_edit.text
+            else:
+                self.__computation_model.clear()
 
         def clear():
             text_edit.text = None
