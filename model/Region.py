@@ -28,6 +28,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
         self.define_property("is_position_locked", False, changed=self._property_changed)
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
+        self.remove_region_because_graphic_removed_event = Observable.Event()
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     def about_to_be_removed(self):
@@ -42,7 +43,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
 
     def remove_region_graphic(self, region_graphic):
         # message from the graphic when its being removed
-        self.notify_listeners("remove_region_because_graphic_removed", self)  # goes to operation
+        self.remove_region_because_graphic_removed_event.fire()
 
 
 class PointRegion(Region):

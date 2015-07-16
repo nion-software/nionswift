@@ -208,7 +208,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         self.__weak_dependent_data_item = None
 
-        self.__weak_regions = []
+        self.__regions = list()
+        self.__remove_region_listeners = list()
 
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
@@ -264,13 +265,15 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         """ When the operation is about to be removed, remove the region on data source, if any. """
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
-        for region in [weak_region() for weak_region in self.__weak_regions]:
+        for region in self.__regions:
             # this is a hack because graphics can cause operations to be
             # deleted in multiple ways. there are tests to account for the
             # various ways, but there is probably a better way to handle this
             # in the long run.
-            if region:
-                self.will_remove_operation_region(region)
+            self.will_remove_operation_region(region)
+        for remove_region_listener in self.__remove_region_listeners:
+            remove_region_listener.close()
+        self.__remove_region_listeners = None
 
     def will_remove_operation_region(self, region):
         for data_source in self.data_sources:
@@ -403,9 +406,12 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 self.__bindings.append(OperationPropertyToRegionBinding(self, operation_property, region, region_property))
                 self.set_property(operation_property, getattr(region, region_property))
             assert region.type == self.operation.region_types[region_connection_id]
-            region.add_listener(self)
+            def notify_request_remove_data_item_because_operation_removed():
+                self.notify_listeners("request_remove_data_item_because_operation_removed", self)  # goes to buffered data source
+            remove_region_listener = region.remove_region_because_graphic_removed_event.listen(notify_request_remove_data_item_because_operation_removed)
+            self.__remove_region_listeners.append(remove_region_listener)
             # save this to remove region if this object gets removed.
-            self.__weak_regions.append(weakref.ref(region))
+            self.__regions.append(region)
 
     def establish_associated_region(self, region_connection_id, buffered_data_source, region=None):
         """

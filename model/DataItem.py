@@ -193,6 +193,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
+        self.__remove_region_listeners = list()
         self.__data = None
         self.__data_lock = threading.RLock()
         self.__change_count = 0
@@ -225,8 +226,9 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.__subscription = None
         for display in self.displays:
             display.close()
-        for region in self.regions:
-            region.remove_listener(self)
+        for remove_region_listener in self.__remove_region_listeners:
+            remove_region_listener.close()
+        self.__remove_region_listeners = None
         if self.data_source:
             self.data_source.close()
         self.__publisher.close()
@@ -546,7 +548,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 
     def __insert_region(self, name, before_index, region):
         # listen
-        region.add_listener(self)  # remove_region_because_graphic_removed
+        remove_region_listener = region.remove_region_because_graphic_removed_event.listen(functools.partial(self.remove_region, region))
+        self.__remove_region_listeners.insert(before_index, remove_region_listener)
         # connect to the displays
         region_graphic = region.graphic
         if region_graphic:
@@ -560,18 +563,15 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             for display in self.displays:
                 display.remove_region_graphic(region_graphic)
         # and unlisten
-        region.remove_listener(self)
+        remove_region_listener = self.__remove_region_listeners[index]
+        remove_region_listener.close()
+        self.__remove_region_listeners.remove(remove_region_listener)
 
     def add_region(self, region):
         self.append_item("regions", region)
 
     def remove_region(self, region):
         self.remove_item("regions", region)
-
-    # this message comes from the region.
-    # it is generated when the user deletes a graphic.
-    def remove_region_because_graphic_removed(self, region):
-        self.remove_region(region)
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
