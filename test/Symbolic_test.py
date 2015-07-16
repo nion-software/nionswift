@@ -260,6 +260,17 @@ class TestSymbolicClass(unittest.TestCase):
         self.assertEqual(new_data_item.maybe_data_source.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
         self.assertEqual(new_data_item.maybe_data_source.dimensional_calibrations, data_item.maybe_data_source.dimensional_calibrations)
 
+    def test_remove_data_item_with_computation_succeeds(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        d = numpy.ones((8, 8), dtype=numpy.uint32)
+        data_item = DataItem.DataItem(d)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        new_data_item = document_controller.processing_calculation("-a", map)
+        document_model.recompute_all()
+        document_model.remove_data_item(new_data_item)
+
     def disabled_test_references_named_in_original_text_get_assigned(self):
         assert False
 
@@ -273,6 +284,9 @@ class TestSymbolicClass(unittest.TestCase):
         assert False
 
     def disabled_test_all_old_operations_are_available_as_symbolic_nodes(self):
+        assert False
+
+    def disabled_test_knobs_for_computations_appear_in_inspector(self):
         assert False
 
 

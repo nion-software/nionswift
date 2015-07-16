@@ -975,18 +975,19 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
         if existing_computation_changed_listener:
             existing_computation_changed_listener.close()
-            del self.__computation_changed_listeners[self.buffered_data_source.uuid]
-        def computation_needs_update():
-            def compute():
-                with buffered_data_source.data_ref() as data_ref:
-                    data_and_metadata = computation.evaluate()
-                    data_ref.data = data_and_metadata.data
-                    buffered_data_source.set_metadata(data_and_metadata.metadata)
-                    buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-                    buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
-            self.dispatch_task(compute)
-        computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
-        self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
+            del self.__computation_changed_listeners[buffered_data_source.uuid]
+        if computation:
+            def computation_needs_update():
+                def compute():
+                    with buffered_data_source.data_ref() as data_ref:
+                        data_and_metadata = computation.evaluate()
+                        data_ref.data = data_and_metadata.data
+                        buffered_data_source.set_metadata(data_and_metadata.metadata)
+                        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+                        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+                self.dispatch_task(compute)
+            computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
+            self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
 
     def get_object_specifier(self, object):
         if isinstance(object, DataItem.DataItem):
