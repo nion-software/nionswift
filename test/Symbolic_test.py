@@ -468,6 +468,31 @@ class TestSymbolicClass(unittest.TestCase):
             data_and_metadata = computation.evaluate()
             self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
 
+    def test_computation_stores_original_text(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "sin(a)", map)
+            self.assertEqual(computation.original_expression, "sin(a)")
+
+    def test_computation_stores_error_and_original_text(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "xyz(a)", map)
+            data_and_metadata = computation.evaluate()
+            self.assertIsNone(data_and_metadata)
+            self.assertTrue(computation.error_text is not None and len(computation.error_text) > 0)
+            self.assertEqual(computation.original_expression, "xyz(a)")
+
     def disabled_test_computations_update_data_item_dependencies_list(self):
         assert False
 

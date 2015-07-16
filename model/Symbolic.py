@@ -1390,9 +1390,8 @@ def parse_expression(expression_lines, variable_map, context):
     try:
         exec(code, g, l)
     except Exception as e:
-        # print(e)
-        return None
-    return l["result"]
+        return None, str(e)
+    return l["result"], None
 
 
 class Computation(Observable.Observable, Observable.ManagedObject):
@@ -1416,6 +1415,8 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         super(Computation, self).__init__()
         self.define_type("computation")
         self.define_property("node")
+        self.define_property("original_expression")
+        self.define_property("error_text")
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
         self.__data_node = None
@@ -1433,11 +1434,13 @@ class Computation(Observable.Observable, Observable.ManagedObject):
     def parse_expression(self, context, expression, variable_map):
         self.unbind()
         old_data_node = copy.deepcopy(self.__data_node)
-        self.__data_node = parse_expression(expression.split("\n"), variable_map, context)
+        old_error_text = self.error_text
+        self.original_expression = expression
+        self.__data_node, self.error_text = parse_expression(expression.split("\n"), variable_map, context)
         if self.__data_node:
             self.node = self.__data_node.write()
             self.bind(context)
-        if self.__data_node != old_data_node:
+        if self.__data_node != old_data_node or old_error_text != self.error_text:
             self.needs_update_event.fire()
             self.computation_changed_event.fire()
 
