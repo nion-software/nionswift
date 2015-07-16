@@ -34,9 +34,9 @@ else:
 
 # local imports
 from nion.swift.model import Calibration
+from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Operation
 from nion.swift.model import Utility
 from nion.ui import Observable
 from nion.ui import Unicode
@@ -781,8 +781,8 @@ def convert_data_element_to_data_and_metadata(data_element):
         hardware_source_metadata = metadata.setdefault("hardware_source", dict())
         hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
     timestamp = datetime.datetime.utcnow()
-    return Operation.DataAndCalibration(lambda: data.copy(), data_shape_and_dtype, intensity_calibration,
-                                        dimensional_calibrations, metadata, timestamp)
+    return DataAndMetadata.DataAndMetadata(lambda: data.copy(), data_shape_and_dtype, intensity_calibration,
+                                           dimensional_calibrations, metadata, timestamp)
 
 
 @contextmanager
@@ -828,7 +828,8 @@ def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
                 hardware_source_metadata = metadata.setdefault("hardware_source", dict())
                 hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
             timestamp = datetime.datetime.utcnow()
-            return Operation.DataAndCalibration(lambda: data.copy(), data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+            return DataAndMetadata.DataAndMetadata(lambda: data.copy(), data_shape_and_dtype, intensity_calibration,
+                                                      dimensional_calibrations, metadata, timestamp)
         # error handling not necessary here - occurs above with get_data_element_generator_by_id function
         yield get_last_data
 

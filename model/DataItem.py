@@ -18,6 +18,7 @@ import numpy
 # local libraries
 from nion.swift.model import Calibration
 from nion.swift.model import Connection
+from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItemProcessor
 from nion.swift.model import Display
 from nion.swift.model import Image
@@ -86,7 +87,7 @@ class CalibrationList(object):
     *Primary Functionality*
 
     Data sources provide a get_data_and_calibration_publisher method to return a publisher of
-    DataAndCalibration objects.
+    DataAndMetadata objects.
 
     *Secondary Functionality*
 
@@ -439,7 +440,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
             dimensional_calibrations = self.dimensional_calibrations
             metadata = self.metadata
             created = self.created
-            return Operation.DataAndCalibration(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, created)
+            return DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration,
+                                                   dimensional_calibrations, metadata, created)
         except Exception as e:
             import traceback
             traceback.print_exc()

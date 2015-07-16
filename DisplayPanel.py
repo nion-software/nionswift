@@ -19,6 +19,7 @@ from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
+from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import Operation
 from nion.swift.model import Region
@@ -833,10 +834,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
                 metadata = data_and_calibration.metadata
                 timestamp = data_and_calibration.timestamp
-                preview_data_and_calibration = Operation.DataAndCalibration(lambda: display.preview_2d,
-                                                                            data_shape_and_dtype, intensity_calibration,
-                                                                            dimensional_calibrations, metadata,
-                                                                            timestamp)
+                preview_data_and_calibration = DataAndMetadata.DataAndMetadata(lambda: display.preview_2d,
+                                                                               data_shape_and_dtype,
+                                                                               intensity_calibration,
+                                                                               dimensional_calibrations, metadata,
+                                                                               timestamp)
                 self.display_canvas_item.update_display_state(preview_data_and_calibration)
             elif display_type == "line_plot":
                 display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style,

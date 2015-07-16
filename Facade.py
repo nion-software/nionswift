@@ -23,6 +23,7 @@ import uuid
 
 # local libraries
 from nion.swift.model import Calibration as CalibrationModule
+from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import Image
@@ -635,9 +636,11 @@ class DataItem(object):
                 dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
                 metadata = data_and_calibration.metadata
                 timestamp = data_and_calibration.timestamp
-                preview_data_and_calibration = Operation.DataAndCalibration(lambda: display.preview_2d,
-                                                                            data_shape_and_dtype, intensity_calibration,
-                                                                            dimensional_calibrations, metadata, timestamp)
+                preview_data_and_calibration = DataAndMetadata.DataAndMetadata(lambda: display.preview_2d,
+                                                                               data_shape_and_dtype,
+                                                                               intensity_calibration,
+                                                                               dimensional_calibrations, metadata,
+                                                                               timestamp)
                 display_canvas_item.update_display_state(preview_data_and_calibration)
             elif display_type == "line_plot":
                 display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style,
@@ -1091,7 +1094,9 @@ class Library(object):
             dimensional_calibrations.append(CalibrationModule.Calibration())
         metadata = dict()
         timestamp = datetime.datetime.utcnow()
-        data_and_metadata = Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+        data_and_metadata = DataAndMetadata.DataAndMetadata(lambda: data, data_shape_and_dtype,
+                                                               intensity_calibration, dimensional_calibrations,
+                                                               metadata, timestamp)
         return self.create_data_item_from_data_and_metadata(data_and_metadata, title)
 
     def create_data_item_from_data_and_metadata(self, data_and_metadata, title=None):
@@ -1393,7 +1398,7 @@ class DataAndMetadataIOHandlerInterface(object):
 
         .. versionadded:: 1.0
 
-        :param data_and_metadata: A :py:class:`DataAndCalibration` object.
+        :param data_and_metadata: A :py:class:`DataAndMetadata` object.
         :param file_path: The path to the file.
         :param extension: The extension of the file, e.g. "tif".
         """
@@ -1467,7 +1472,8 @@ class API_1(object):
         if metadata is None:
             metadata = dict()
         timestamp = timestamp if timestamp else datetime.datetime.utcnow()
-        return Operation.DataAndCalibration(lambda: data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+        return DataAndMetadata.DataAndMetadata(lambda: data, data_shape_and_dtype, intensity_calibration,
+                                                  dimensional_calibrations, metadata, timestamp)
 
     def create_data_and_metadata_from_data(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
         """Create a data_and_metadata object from data.
