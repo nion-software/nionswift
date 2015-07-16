@@ -493,67 +493,6 @@ class DataNode(object):
         return UnaryOperationDataNode([self], "slice", {"key": key})
 
 
-# def min(data_node):
-#     return ScalarOperationDataNode([data_node], "amin")
-
-# def max(data_node):
-#     return ScalarOperationDataNode([data_node], "amax")
-
-def range(data_node):
-    return ScalarOperationDataNode([data_node], "range")
-
-def median(data_node):
-    return ScalarOperationDataNode([data_node], "median")
-
-def average(data_node):
-    return ScalarOperationDataNode([data_node], "average")
-
-def mean(data_node):
-    return ScalarOperationDataNode([data_node], "mean")
-
-def std(data_node):
-    return ScalarOperationDataNode([data_node], "std")
-
-def var(data_node):
-    return ScalarOperationDataNode([data_node], "var")
-
-def log(data_node):
-    return UnaryOperationDataNode([data_node], "log")
-
-def log10(data_node):
-    return UnaryOperationDataNode([data_node], "log10")
-
-def log2(data_node):
-    return UnaryOperationDataNode([data_node], "log2")
-
-def fft(data_node):
-    return FunctionOperationDataNode([data_node], "fft")
-
-def ifft(data_node):
-    return FunctionOperationDataNode([data_node], "ifft")
-
-def autocorrelate(data_node):
-    return FunctionOperationDataNode([data_node], "autocorrelate")
-
-def crosscorrelate(data_node1, data_node2):
-    return FunctionOperationDataNode([data_node1, data_node2], "crosscorrelate")
-
-def sobel(data_node):
-    return FunctionOperationDataNode([data_node], "sobel")
-
-def laplace(data_node):
-    return FunctionOperationDataNode([data_node], "laplace")
-
-def gaussian_blur(data_node, scalar_node):
-    return FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "gaussian_blur")
-
-def median_filter(data_node, scalar_node):
-    return FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "median_filter")
-
-def uniform_filter(data_node, scalar_node):
-    return FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "uniform_filter")
-
-
 class ConstantDataNode(DataNode):
 
     def __init__(self, value=None):
@@ -781,10 +720,27 @@ _node_map = {
 
 def parse_expression(calculation_script, weak_data_item_variable_map):
     code_lines = []
-    code_lines.append("from nion.swift.model.Symbolic import *")
     g = dict()
     g["min"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
     g["max"] = lambda data_node: ScalarOperationDataNode([data_node], "amax")
+    g["range"] = lambda data_node: ScalarOperationDataNode([data_node], "range")
+    g["median"] = lambda data_node: ScalarOperationDataNode([data_node], "median")
+    g["average"] = lambda data_node: ScalarOperationDataNode([data_node], "average")
+    g["mean"] = lambda data_node: ScalarOperationDataNode([data_node], "mean")
+    g["std"] = lambda data_node: ScalarOperationDataNode([data_node], "std")
+    g["var"] = lambda data_node: ScalarOperationDataNode([data_node], "var")
+    g["log"] = lambda data_node: UnaryOperationDataNode([data_node], "log")
+    g["log10"] = lambda data_node: UnaryOperationDataNode([data_node], "log10")
+    g["log2"] = lambda data_node: UnaryOperationDataNode([data_node], "log2")
+    g["fft"] = lambda data_node: FunctionOperationDataNode([data_node], "fft")
+    g["ifft"] = lambda data_node: FunctionOperationDataNode([data_node], "ifft")
+    g["autocorrelate"] = lambda data_node: FunctionOperationDataNode([data_node], "autocorrelate")
+    g["crosscorrelate"] = lambda data_node1, data_node2: FunctionOperationDataNode([data_node1, data_node2], "crosscorrelate")
+    g["sobel"] = lambda data_node: FunctionOperationDataNode([data_node], "sobel")
+    g["laplace"] = lambda data_node: FunctionOperationDataNode([data_node], "laplace")
+    g["gaussian_blur"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "gaussian_blur")
+    g["median_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "median_filter")
+    g["uniform_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "uniform_filter")
     l = dict()
     mapping = dict()
     for data_item_ref in weak_data_item_variable_map:
