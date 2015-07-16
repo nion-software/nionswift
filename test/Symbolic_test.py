@@ -120,14 +120,15 @@ class TestSymbolicClass(unittest.TestCase):
     def test_make_operation_works_without_exception_and_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        d = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
-        document_model.recompute_all()
-        assert numpy.array_equal(data_item.maybe_data_source.data, -d / numpy.average(d) * 5)
+        with contextlib.closing(document_controller):
+            d = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
+            document_model.recompute_all()
+            assert numpy.array_equal(data_item.maybe_data_source.data, -d / numpy.average(d) * 5)
 
     def test_fft_returns_complex_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -246,57 +247,61 @@ class TestSymbolicClass(unittest.TestCase):
     def test_calculation_handles_data_lookups(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        d = numpy.random.randn(2, 2)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        expression = "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid))
-        data_item = document_controller.processing_calculation(expression, dict())
-        document_model.recompute_all()
-        assert numpy.array_equal(data_item.maybe_data_source.data, -d)
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            expression = "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid))
+            data_item = document_controller.processing_calculation(expression, dict())
+            document_model.recompute_all()
+            assert numpy.array_equal(data_item.maybe_data_source.data, -d)
 
     def test_calculation_handles_region_lookups(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        d = numpy.random.randn(100, 100)
-        data_item = DataItem.DataItem(d)
-        region = Region.RectRegion()
-        region.center = 0.5, 0.5
-        region.size = 0.6, 0.4
-        data_item.maybe_data_source.add_region(region)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        expression = "crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid))
-        data_item = document_controller.processing_calculation(expression, map)
-        document_model.recompute_all()
-        assert numpy.array_equal(data_item.maybe_data_source.data, d[20:80, 30:70])
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(100, 100)
+            data_item = DataItem.DataItem(d)
+            region = Region.RectRegion()
+            region.center = 0.5, 0.5
+            region.size = 0.6, 0.4
+            data_item.maybe_data_source.add_region(region)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            expression = "crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid))
+            data_item = document_controller.processing_calculation(expression, map)
+            document_model.recompute_all()
+            assert numpy.array_equal(data_item.maybe_data_source.data, d[20:80, 30:70])
 
     def test_computation_copies_metadata_during_computation(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        d = numpy.zeros((8, 8), dtype=numpy.uint32)
-        d[:] = random.randint(0, 100)
-        data_item = DataItem.DataItem(d)
-        data_item.maybe_data_source.set_metadata({"abc": 1})
-        data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
-        data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        new_data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
-        document_model.recompute_all()
-        self.assertEqual(new_data_item.maybe_data_source.metadata, data_item.maybe_data_source.metadata)
-        self.assertEqual(new_data_item.maybe_data_source.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
-        self.assertEqual(new_data_item.maybe_data_source.dimensional_calibrations, data_item.maybe_data_source.dimensional_calibrations)
+        with contextlib.closing(document_controller):
+            d = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(d)
+            data_item.maybe_data_source.set_metadata({"abc": 1})
+            data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
+            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            new_data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
+            document_model.recompute_all()
+            self.assertEqual(new_data_item.maybe_data_source.metadata, data_item.maybe_data_source.metadata)
+            self.assertEqual(new_data_item.maybe_data_source.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
+            self.assertEqual(new_data_item.maybe_data_source.dimensional_calibrations, data_item.maybe_data_source.dimensional_calibrations)
 
     def test_remove_data_item_with_computation_succeeds(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        d = numpy.ones((8, 8), dtype=numpy.uint32)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        new_data_item = document_controller.processing_calculation("-a", map)
-        document_model.recompute_all()
-        document_model.remove_data_item(new_data_item)
+        with contextlib.closing(document_controller):
+            d = numpy.ones((8, 8), dtype=numpy.uint32)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            new_data_item = document_controller.processing_calculation("-a", map)
+            document_model.recompute_all()
+            document_model.remove_data_item(new_data_item)
 
     def test_evaluate_corrupt_computation_within_document_model_gives_sensible_response(self):
         document_model = DocumentModel.DocumentModel()
@@ -323,25 +328,27 @@ class TestSymbolicClass(unittest.TestCase):
     def test_evaluate_computation_with_invalid_function_in_document_fails_cleanly(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data = numpy.ones((2, 2), numpy.double)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        document_controller.processing_calculation("void(a,2)", map)
-        document_model.recompute_all()
+        with contextlib.closing(document_controller):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            document_controller.processing_calculation("void(a,2)", map)
+            document_model.recompute_all()
 
     def test_reconstruct_with_variable_works(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        d = numpy.random.randn(2, 2)
-        data_item = DataItem.DataItem(d)
-        document_model.append_data_item(data_item)
-        computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)), dict())
-        expression = computation.reconstruct(dict())
-        data_item = document_controller.processing_calculation(expression, dict())
-        document_model.recompute_all()
-        assert numpy.array_equal(data_item.maybe_data_source.data, -d)
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)), dict())
+            expression = computation.reconstruct(dict())
+            data_item = document_controller.processing_calculation(expression, dict())
+            document_model.recompute_all()
+            assert numpy.array_equal(data_item.maybe_data_source.data, -d)
 
     def test_reconstruct_reuses_existing_variables(self):
         document_model = DocumentModel.DocumentModel()
@@ -398,20 +405,21 @@ class TestSymbolicClass(unittest.TestCase):
         data_and_metadata = computation.evaluate()
         self.assertTrue(numpy.array_equal(data_and_metadata.data, -data*2))
 
-    def test_computation_changed_updates_data_item(self):
+    def test_changing_computation_updates_data_item(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data = numpy.random.randn(2, 2)
-        data_item = DataItem.DataItem(data)
-        document_model.append_data_item(data_item)
-        map = {"a": document_model.get_object_specifier(data_item)}
-        document_controller.processing_calculation("-a", map)
-        document_model.recompute_all()
-        computed_data_item = document_model.data_items[1]
-        self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data))
-        computed_data_item.maybe_data_source.computation.parse_expression(document_model, "-a * 2", map)
-        document_model.recompute_all()
-        self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data * 2))
+        with contextlib.closing(document_controller):
+            data = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            document_controller.processing_calculation("-a", map)
+            document_model.recompute_all()
+            computed_data_item = document_model.data_items[1]
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data))
+            computed_data_item.maybe_data_source.computation.parse_expression(document_model, "-a * 2", map)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data * 2))
 
     def test_unary_functions_return_correct_dimensions(self):
         document_model = DocumentModel.DocumentModel()
@@ -424,13 +432,10 @@ class TestSymbolicClass(unittest.TestCase):
         data_and_metadata = computation.evaluate()
         self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
 
-    def disabled_test_trig_functions_available(self):
+    def disabled_test_computations_update_data_item_dependencies_list(self):
         assert False
 
     def disabled_test_icol_and_irow_variables_available(self):
-        assert False
-
-    def disabled_test_knobs_for_computations_appear_in_inspector(self):
         assert False
 
 
