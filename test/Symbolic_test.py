@@ -68,6 +68,21 @@ class TestSymbolicClass(unittest.TestCase):
         data = data_node.data
         assert numpy.array_equal(data, d[:,4,4])
 
+    def test_ability_to_write_read_basic_nodes(self):
+        d = numpy.zeros((8, 8), dtype=numpy.uint32)
+        d[:] = random.randint(0, 100)
+        data_item = DataItem.DataItem(d)
+        map = { weakref.ref(data_item): "a" }
+        data_node = Symbolic.calculate("-a * 5", map)
+        dd = data_node.write()
+        def resolve(uuid):
+            return {data_item.uuid: data_item}[uuid]
+        data_node2 = Symbolic.DataNode.factory(dd, resolve)
+        data = data_node.data
+        data2 = data_node2.data
+        assert numpy.array_equal(data, -d * 5)
+        assert numpy.array_equal(data, data2)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
