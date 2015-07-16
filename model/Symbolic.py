@@ -35,7 +35,7 @@ from nion.ui import Geometry
 from nion.ui import Observable
 
 
-def range(data):
+def arange(data):
     return numpy.amax(data) - numpy.amin(data)
 
 def take_slice(data, key):
@@ -495,6 +495,44 @@ def function_project(data_and_metadata):
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
+def function_resample_2d(data_and_metadata, height, width):
+    height = int(height)
+    width = int(width)
+
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        if not Image.is_data_2d(data):
+            return None
+        if data.shape[0] == height and data.shape[1] == width:
+            return data.copy()
+        return Image.scaled(data, (height, width))
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    if not Image.is_shape_and_dtype_2d(data_shape, data_dtype):
+        return None
+
+    if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
+        data_shape_and_dtype = (height, width, data_shape[-1]), data_dtype
+    else:
+        data_shape_and_dtype = (height, width), data_dtype
+
+    dimensions = height, width
+    resampled_dimensional_calibrations = [Calibration.Calibration(dimensional_calibrations[i].offset, dimensional_calibrations[i].scale * data_shape[i] / dimensions[i], dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, resampled_dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
 _function2_map = {
     "fft": function_fft,
     "ifft": function_ifft,
@@ -527,7 +565,7 @@ _function_map = {
     "slice": take_slice,
     "amin": numpy.amin,
     "amax": numpy.amax,
-    "range": range,
+    "arange": arange,
     "median": numpy.median,
     "average": numpy.average,
     "mean": numpy.mean,
@@ -995,9 +1033,9 @@ _node_map = {
 def parse_expression(calculation_script, variable_map):
     code_lines = []
     g = dict()
-    g["min"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
-    g["max"] = lambda data_node: ScalarOperationDataNode([data_node], "amax")
-    g["range"] = lambda data_node: ScalarOperationDataNode([data_node], "range")
+    g["amin"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
+    g["amax"] = lambda data_node: ScalarOperationDataNode([data_node], "amax")
+    g["arange"] = lambda data_node: ScalarOperationDataNode([data_node], "arange")
     g["median"] = lambda data_node: ScalarOperationDataNode([data_node], "median")
     g["average"] = lambda data_node: ScalarOperationDataNode([data_node], "average")
     g["mean"] = lambda data_node: ScalarOperationDataNode([data_node], "mean")

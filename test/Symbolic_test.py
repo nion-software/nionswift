@@ -83,7 +83,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         map = {"a": document_model.get_object_specifier(data_item)}
         computation = Symbolic.Computation()
-        computation.parse_expression(document_model, "a - min(a)", map)
+        computation.parse_expression(document_model, "a - amin(a)", map)
         data = computation.evaluate().data
         assert numpy.array_equal(data, d - numpy.amin(d))
 

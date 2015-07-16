@@ -790,44 +790,13 @@ class Resample2dOperation(Operation):
         ]
         super(Resample2dOperation, self).__init__(_("Resample"), "resample-operation", description)
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        if Image.is_data_2d(data):
-            height = values.get("height", data.shape[0])
-            width = values.get("width", data.shape[1])
-            if data.shape[1] == width and data.shape[0] == height:
-                return data.copy()
-            return Image.scaled(data, (height, width))
-        return None
-
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
-            return None
-        assert len(dimensional_calibrations) == 2
-        height = values.get("height", data_shape[0])
-        width = values.get("width", data_shape[1])
-        dimensions = (height, width)
-        return [Calibration.Calibration(dimensional_calibrations[i].offset,
-                                     dimensional_calibrations[i].scale * data_shape[i] / dimensions[i],
-                                     dimensional_calibrations[i].units) for i in range(len(dimensional_calibrations))]
-
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-            return None
-        height = values.get("height", data_shape[0])
-        width = values.get("width", data_shape[1])
-        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-            return (height, width, data_shape[-1]), data_dtype
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        dimensional_shape = data_and_calibrations[0].dimensional_shape
+        if dimensional_shape and len(dimensional_shape) == 2:
+            data_and_metadata = Symbolic.function_resample_2d(data_and_calibrations[0], values.get("height", dimensional_shape[0]), values.get("width", dimensional_shape[1]))
+            return data_and_metadata if data_and_metadata else None
         else:
-            return (height, width), data_dtype
+            return None
 
     def property_defaults_for_data_shape_and_dtype(self, data_sources):
         property_defaults = super(Resample2dOperation, self).property_defaults_for_data_shape_and_dtype(data_sources)
