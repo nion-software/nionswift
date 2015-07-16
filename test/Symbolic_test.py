@@ -16,6 +16,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.ui import Test
 
@@ -35,8 +36,8 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item): "a" }
         data_node, mapping = Symbolic.parse_expression("-a", map)
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
-        data = data_node.get_data_and_metadata(resolve).data
+            return mapping[uuid].maybe_data_source.data_and_calibration
+        data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, -d)
 
     def test_binary_addition_returns_added_data(self):
@@ -49,8 +50,8 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item1): "a", weakref.ref(data_item2): "b" }
         data_node, mapping = Symbolic.parse_expression("a+b", map)
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
-        data = data_node.get_data_and_metadata(resolve).data
+            return mapping[uuid].maybe_data_source.data_and_calibration
+        data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, d1 + d2)
 
     def test_binary_multiplication_with_scalar_returns_multiplied_data(self):
@@ -60,12 +61,12 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item): "a" }
         data_node1, mapping1 = Symbolic.parse_expression("a * 5", map)
         def resolve1(uuid):
-            return mapping1[uuid].maybe_data_source
-        data1 = data_node1.get_data_and_metadata(resolve1).data
+            return mapping1[uuid].maybe_data_source.data_and_calibration
+        data1 = data_node1.evaluate(resolve1).data
         data_node2, mapping2 = Symbolic.parse_expression("5 * a", map)
         def resolve2(uuid):
-            return mapping2[uuid].maybe_data_source
-        data2 = data_node2.get_data_and_metadata(resolve2).data
+            return mapping2[uuid].maybe_data_source.data_and_calibration
+        data2 = data_node2.evaluate(resolve2).data
         assert numpy.array_equal(data1, d * 5)
         assert numpy.array_equal(data2, d * 5)
 
@@ -76,8 +77,8 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item): "a" }
         data_node, mapping = Symbolic.parse_expression("a - min(a)", map)
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
-        data = data_node.get_data_and_metadata(resolve).data
+            return mapping[uuid].maybe_data_source.data_and_calibration
+        data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, d - numpy.amin(d))
 
     def test_ability_to_take_slice(self):
@@ -87,8 +88,8 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item): "a" }
         data_node, mapping = Symbolic.parse_expression("a[:,4,4]", map)
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
-        data = data_node.get_data_and_metadata(resolve).data
+            return mapping[uuid].maybe_data_source.data_and_calibration
+        data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, d[:,4,4])
 
     def test_ability_to_write_read_basic_nodes(self):
@@ -99,10 +100,10 @@ class TestSymbolicClass(unittest.TestCase):
         data_node, mapping = Symbolic.parse_expression("-a / average(a) * 5", map)
         data_node_dict = data_node.write()
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
+            return mapping[uuid].maybe_data_source.data_and_calibration
         data_node2 = Symbolic.DataNode.factory(data_node_dict)
-        data = data_node.get_data_and_metadata(resolve).data
-        data2 = data_node2.get_data_and_metadata(resolve).data
+        data = data_node.evaluate(resolve).data
+        data2 = data_node2.evaluate(resolve).data
         assert numpy.array_equal(data, -d / numpy.average(d) * 5)
         assert numpy.array_equal(data, data2)
 
@@ -124,8 +125,8 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item): "a" }
         data_node, mapping = Symbolic.parse_expression("fft(a)", map)
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
-        data = data_node.get_data_and_metadata(resolve).data
+            return mapping[uuid].maybe_data_source.data_and_calibration
+        data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
     def test_gaussian_blur_handles_scalar_argument(self):
@@ -134,8 +135,8 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item): "a" }
         data_node, mapping = Symbolic.parse_expression("gaussian_blur(a, 4.0)", map)
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
-        data = data_node.get_data_and_metadata(resolve).data
+            return mapping[uuid].maybe_data_source.data_and_calibration
+        data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
 
     def test_transpose_flip_handles_args(self):
@@ -144,9 +145,27 @@ class TestSymbolicClass(unittest.TestCase):
         map = { weakref.ref(data_item): "a" }
         data_node, mapping = Symbolic.parse_expression("transpose_flip(a, flip_v=True)", map)
         def resolve(uuid):
-            return mapping[uuid].maybe_data_source
-        data = data_node.get_data_and_metadata(resolve).data
+            return mapping[uuid].maybe_data_source.data_and_calibration
+        data = data_node.evaluate(resolve).data
         assert numpy.array_equal(data, numpy.flipud(d))
+
+    def test_crop_handles_args(self):
+        d = numpy.random.randn(64, 64)
+        data_item = DataItem.DataItem(d)
+        region = Region.RectRegion()
+        region.center = 0.41, 0.51
+        region.size = 0.52, 0.42
+        map = { weakref.ref(data_item): "a" }
+        rmap = { region: "regionA" }
+        data_node, mapping = Symbolic.parse_expression("crop(a, regionA.bounds)", map, rmap)
+        def resolve(uuid):
+            resolved_value = mapping[uuid]
+            if isinstance(resolved_value, DataItem.DataItem):
+                return mapping[uuid].maybe_data_source.data_and_calibration
+            else:
+                return mapping[uuid]
+        data = data_node.evaluate(resolve).data
+        assert numpy.array_equal(data, d[9:42, 19:45])
 
 
 if __name__ == '__main__':

@@ -239,10 +239,11 @@ def function_laplace(data_and_metadata):
                                            datetime.datetime.utcnow())
 
 
-def function_gaussian_blur(data_and_metadata, sigma_value):
+def function_gaussian_blur(data_and_metadata, sigma):
+    sigma = float(sigma)
+
     def calculate_data():
         data = data_and_metadata.data
-        sigma = float(sigma_value.data)
         if not Image.is_data_valid(data):
             return None
         return scipy.ndimage.gaussian_filter(data, sigma=sigma)
@@ -253,12 +254,13 @@ def function_gaussian_blur(data_and_metadata, sigma_value):
                                            datetime.datetime.utcnow())
 
 
-def function_median_filter(data_and_metadata, size_value):
+def function_median_filter(data_and_metadata, size):
+    size = max(min(int(size), 999), 1)
+
     def calculate_data():
         data = data_and_metadata.data
         if not Image.is_data_valid(data):
             return None
-        size = max(min(int(size_value.data), 999), 1)
         if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
             rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
             rgb[..., 0] = scipy.ndimage.median_filter(data[..., 0], size=size)
@@ -281,12 +283,13 @@ def function_median_filter(data_and_metadata, size_value):
                                            datetime.datetime.utcnow())
 
 
-def function_uniform_filter(data_and_metadata, size_value):
+def function_uniform_filter(data_and_metadata, size):
+    size = max(min(int(size), 999), 1)
+
     def calculate_data():
         data = data_and_metadata.data
         if not Image.is_data_valid(data):
             return None
-        size = max(min(int(size_value.data), 999), 1)
         if Image.is_shape_and_dtype_rgb(data.shape, data.dtype):
             rgb = numpy.empty(data.shape[:-1] + (3,), numpy.uint8)
             rgb[..., 0] = scipy.ndimage.uniform_filter(data[..., 0], size=size)
@@ -350,6 +353,45 @@ def function_transpose_flip(data_and_metadata, transpose=False, flip_v=False, fl
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
+def function_crop(data_and_metadata, bounds):
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        data_shape = data_and_metadata.data_shape
+        bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])),
+            (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
+        return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0],
+            bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])),
+        (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
+
+    if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
+        data_shape_and_dtype = bounds_int[1] + (data_shape[-1], ), data_dtype
+    else:
+        data_shape_and_dtype = bounds_int[1], data_dtype
+
+    cropped_dimensional_calibrations = list()
+    for index, dimensional_calibration in enumerate(dimensional_calibrations):
+        cropped_calibration = Calibration.Calibration(
+            dimensional_calibration.offset + data_shape[index] * bounds[0][index] * dimensional_calibration.scale,
+            dimensional_calibration.scale, dimensional_calibration.units)
+        cropped_dimensional_calibrations.append(cropped_calibration)
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, cropped_dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
 _function2_map = {
     "fft": function_fft,
     "ifft": function_ifft,
@@ -361,6 +403,7 @@ _function2_map = {
     "median_filter": function_median_filter,
     "uniform_filter": function_uniform_filter,
     "transpose_flip": function_transpose_flip,
+    "crop": function_crop,
 }
 
 _function_map = {
@@ -394,7 +437,6 @@ class DataNode(object):
 
     def __init__(self, inputs=None):
         self.inputs = inputs if inputs is not None else list()
-        self.scalar = None
 
     @classmethod
     def factory(cls, d):
@@ -440,27 +482,15 @@ class DataNode(object):
         assert False
         return None
 
-    def get_data_and_metadata(self, resolve):
-        data_and_metadata_list = list()
+    def evaluate(self, resolve):
+        evaluated_inputs = list()
         for input in self.inputs:
-            data_and_metadata = input.get_data_and_metadata(resolve)
-            if data_and_metadata is None:
-                data = numpy.array(input.scalar)
-                data_and_metadata = DataAndMetadata.DataAndMetadata(lambda: data, (data.shape, data.dtype),
-                                                                    Calibration.Calibration(), list(), dict(),
-                                                                    datetime.datetime.utcnow())
-            data_and_metadata_list.append(data_and_metadata)
-        return self._get_data_and_metadata(data_and_metadata_list, resolve)
+            evaluated_input = input.evaluate(resolve)
+            evaluated_inputs.append(evaluated_input)
+        return self._evaluate_inputs(evaluated_inputs, resolve)
 
-    @property
-    def data_reference_uuids(self):
-        data_reference_uuids = list()
-        for input in self.inputs:
-            data_reference_uuids.extend(input.data_reference_uuids)
-        return data_reference_uuids
-
-    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
-        return None  # fall back on scalar
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
+        raise NotImplementedError()
 
     def __abs__(self):
         return UnaryOperationDataNode([self], "abs")
@@ -539,15 +569,15 @@ class ConstantDataNode(DataNode):
 
     def __init__(self, value=None):
         super(ConstantDataNode, self).__init__()
-        self.scalar = numpy.array(value)
+        self.__scalar = numpy.array(value)
         if isinstance(value, numbers.Integral):
-            self.scalar_type = "integral"
+            self.__scalar_type = "integral"
         elif isinstance(value, numbers.Rational):
-            self.scalar_type = "rational"
+            self.__scalar_type = "rational"
         elif isinstance(value, numbers.Real):
-            self.scalar_type = "real"
+            self.__scalar_type = "real"
         elif isinstance(value, numbers.Complex):
-            self.scalar_type = "complex"
+            self.__scalar_type = "complex"
         # else:
         #     raise Exception("Invalid constant type [{}].".format(type(value)))
 
@@ -555,29 +585,32 @@ class ConstantDataNode(DataNode):
         super(ConstantDataNode, self).read(d)
         scalar_type = d.get("scalar_type")
         if scalar_type == "integral":
-            self.scalar = numpy.array(int(d["value"]))
+            self.__scalar = numpy.array(int(d["value"]))
         elif scalar_type == "real":
-            self.scalar = numpy.array(float(d["value"]))
+            self.__scalar = numpy.array(float(d["value"]))
         elif scalar_type == "complex":
-            self.scalar = numpy.array(complex(*d["value"]))
+            self.__scalar = numpy.array(complex(*d["value"]))
 
     def write(self):
         d = super(ConstantDataNode, self).write()
         d["data_node_type"] = "constant"
-        d["scalar_type"] = self.scalar_type
-        value = self.scalar
-        if self.scalar_type == "integral":
+        d["scalar_type"] = self.__scalar_type
+        value = self.__scalar
+        if self.__scalar_type == "integral":
             d["value"] = int(value)
         elif isinstance(value, numbers.Rational):
             pass
-        elif self.scalar_type == "real":
+        elif self.__scalar_type == "real":
             d["value"] = float(value)
-        elif self.scalar_type == "complex":
+        elif self.__scalar_type == "complex":
             d["value"] = complex(float(value.real), float(value.imag))
         return d
 
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
+        return self.__scalar
+
     def __str__(self):
-        return "{0} ({1})".format(self.__repr__(), self.scalar)
+        return "{0} ({1})".format(self.__repr__(), self.__scalar)
 
 
 class ScalarOperationDataNode(DataNode):
@@ -603,11 +636,11 @@ class ScalarOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
         def calculate_data():
-            return _function_map[self.__function_id](data_and_metadata_list[0].data, **self.__args)
+            return _function_map[self.__function_id](evaluated_inputs[0].data, **self.__args)
 
-        return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata_list[0].data_shape_and_dtype,
+        return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
                                                Calibration.Calibration(), list(), dict(), datetime.datetime.utcnow())
 
     def __str__(self):
@@ -637,14 +670,14 @@ class UnaryOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
         def calculate_data():
-            return _function_map[self.__function_id](data_and_metadata_list[0].data, **self.__args)
+            return _function_map[self.__function_id](evaluated_inputs[0].data, **self.__args)
 
-        return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata_list[0].data_shape_and_dtype,
-                                               data_and_metadata_list[0].intensity_calibration,
-                                               data_and_metadata_list[0].dimensional_calibrations,
-                                               data_and_metadata_list[0].metadata, datetime.datetime.utcnow())
+        return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
+                                               evaluated_inputs[0].intensity_calibration,
+                                               evaluated_inputs[0].dimensional_calibrations,
+                                               evaluated_inputs[0].metadata, datetime.datetime.utcnow())
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -673,14 +706,17 @@ class BinaryOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
         def calculate_data():
-            return _function_map[self.__function_id](data_and_metadata_list[0].data, data_and_metadata_list[1].data, **self.__args)
+            return _function_map[self.__function_id](evaluated_inputs[0].data, evaluated_inputs[1].data, **self.__args)
 
-        return DataAndMetadata.DataAndMetadata(calculate_data, data_and_metadata_list[0].data_shape_and_dtype,
-                                               data_and_metadata_list[0].intensity_calibration,
-                                               data_and_metadata_list[0].dimensional_calibrations,
-                                               data_and_metadata_list[0].metadata, datetime.datetime.utcnow())
+        # if the first input is not a data_and_metadata, use the second input
+        src_evaluated_input = evaluated_inputs[0] if isinstance(evaluated_inputs[0], DataAndMetadata.DataAndMetadata) else evaluated_inputs[1]
+
+        return DataAndMetadata.DataAndMetadata(calculate_data, src_evaluated_input.data_shape_and_dtype,
+                                               src_evaluated_input.intensity_calibration,
+                                               src_evaluated_input.dimensional_calibrations,
+                                               src_evaluated_input.metadata, datetime.datetime.utcnow())
 
     def __str__(self):
         return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, self.inputs[0], self.inputs[1])
@@ -703,14 +739,14 @@ class FunctionOperationDataNode(DataNode):
 
     def write(self):
         d = super(FunctionOperationDataNode, self).write()
-        d["data_node_type"] = "unary-function"
+        d["data_node_type"] = "function"
         d["function_id"] = self.__function_id
         if self.__args:
             d["args"] = self.__args
         return d
 
-    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
-        return _function2_map[self.__function_id](*data_and_metadata_list, **self.__args)
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
+        return _function2_map[self.__function_id](*evaluated_inputs, **self.__args)
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -739,28 +775,82 @@ class DataItemDataNode(DataNode):
     def data_reference_uuid(self):
         return self.__data_reference_uuid
 
-    @property
-    def data_reference_uuids(self):
-        return [self.__data_reference_uuid]
-
-    def _get_data_and_metadata(self, data_and_metadata_list, resolve):
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
         return resolve(self.__data_reference_uuid) if self.__data_reference_uuid else None
 
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__data_reference_uuid)
 
 
+class ReferenceDataNode(DataNode):
+
+    def __init__(self, reference=None):
+        super(ReferenceDataNode, self).__init__()
+        self.__reference_uuid = reference.uuid if reference else uuid.uuid4()
+
+    def read(self, d):
+        super(ReferenceDataNode, self).read(d)
+        reference_uuid_str = d.get("reference_uuid")
+        if reference_uuid_str:
+            self.__reference_uuid = uuid.UUID(reference_uuid_str)
+
+    def write(self):
+        d = super(ReferenceDataNode, self).write()
+        d["data_node_type"] = "reference"
+        if self.__reference_uuid:
+            d["reference_uuid"] = str(self.__reference_uuid)
+        return d
+
+    @property
+    def reference_uuid(self):
+        return self.__reference_uuid
+
+    def __getattr__(self, name):
+        return PropertyDataNode(self.__reference_uuid, name)
+
+    def __str__(self):
+        return "{0} ({1})".format(self.__repr__(), self.__reference_uuid)
+
+
+class PropertyDataNode(DataNode):
+
+    def __init__(self, reference_uuid=None, property=None):
+        super(PropertyDataNode, self).__init__()
+        self.__reference_uuid = reference_uuid
+        self.__property = str(property)
+
+    def read(self, d):
+        super(PropertyDataNode, self).read(d)
+        self.__reference_uuid = uuid.UUID(d.get("reference_uuid"))
+        self.__property = str(d.get("property"))
+
+    def write(self):
+        d = super(PropertyDataNode, self).write()
+        d["data_node_type"] = "property"
+        d["reference_uuid"] = str(self.__reference_uuid)
+        d["property"] = str(self.__property)
+        return d
+
+    def _evaluate_inputs(self, evaluated_inputs, resolve):
+        return getattr(resolve(self.__reference_uuid), self.__property)
+
+    def __str__(self):
+        return "{0} ({1}.{2})".format(self.__repr__(), self.__reference_uuid, self.__property)
+
+
 _node_map = {
     "constant": ConstantDataNode,
     "scalar": ScalarOperationDataNode,
     "unary": UnaryOperationDataNode,
-    "unary-function": FunctionOperationDataNode,
     "binary": BinaryOperationDataNode,
-    "data": DataItemDataNode
+    "function": FunctionOperationDataNode,
+    "property": PropertyDataNode,
+    "reference": ReferenceDataNode,
+    "data": DataItemDataNode,
 }
 
 
-def parse_expression(calculation_script, weak_data_item_variable_map):
+def parse_expression(calculation_script, weak_data_item_variable_map, reference_var_map=None):
     code_lines = []
     g = dict()
     g["min"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
@@ -786,6 +876,7 @@ def parse_expression(calculation_script, weak_data_item_variable_map):
     def transpose_flip(data_node, transpose=False, flip_v=False, flip_h=False):
         return FunctionOperationDataNode([data_node], "transpose_flip", args={"transpose": transpose, "flip_v": flip_v, "flip_h": flip_h})
     g["transpose_flip"] = transpose_flip
+    g["crop"] = lambda data_node, bounds_node: FunctionOperationDataNode([data_node, bounds_node], "crop")
     l = dict()
     mapping = dict()
     for data_item_ref in weak_data_item_variable_map:
@@ -795,6 +886,11 @@ def parse_expression(calculation_script, weak_data_item_variable_map):
             data_reference = DataItemDataNode()
             mapping[data_reference.data_reference_uuid] = data_item
             g[data_item_var] = data_reference
+    for reference in reference_var_map or list():
+        variable_name = reference_var_map[reference]
+        reference_node = ReferenceDataNode()
+        mapping[reference_node.reference_uuid] = reference
+        g[variable_name] = reference_node
     code_lines.append("result = {0}".format(calculation_script))
     code = "\n".join(code_lines)
     exec(code, g, l)

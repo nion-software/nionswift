@@ -667,15 +667,6 @@ class LaplaceOperation(Operation):
         return data_and_metadata if data_and_metadata else None
 
 
-class DataValue(object):
-    def __init__(self, value):
-        self.__value = value
-
-    @property
-    def data(self):
-        return self.__value
-
-
 class GaussianBlurOperation(Operation):
 
     def __init__(self):
@@ -685,7 +676,7 @@ class GaussianBlurOperation(Operation):
         super(GaussianBlurOperation, self).__init__(_("Gaussian Blur"), "gaussian-blur-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_gaussian_blur(data_and_calibrations[0], DataValue(values.get("sigma") * 10.0))
+        data_and_metadata = Symbolic.function_gaussian_blur(data_and_calibrations[0], values.get("sigma") * 10.0)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -698,7 +689,7 @@ class MedianFilterOperation(Operation):
         super(MedianFilterOperation, self).__init__(_("Median Filter"), "median-filter-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_median_filter(data_and_calibrations[0], DataValue(values.get("size")))
+        data_and_metadata = Symbolic.function_median_filter(data_and_calibrations[0], values.get("size"))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -711,7 +702,7 @@ class UniformFilterOperation(Operation):
         super(UniformFilterOperation, self).__init__(_("Uniform Filter"), "uniform-filter-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_uniform_filter(data_and_calibrations[0], DataValue(values.get("size")))
+        data_and_metadata = Symbolic.function_uniform_filter(data_and_calibrations[0], values.get("size"))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -740,42 +731,9 @@ class Crop2dOperation(Operation):
         self.region_types = {"crop": "rectangle-region"}
         self.region_bindings = {"crop": [RegionBinding("bounds", "bounds")]}
 
-    def get_processed_dimensional_calibrations(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        dimensional_calibrations = data_sources[0].dimensional_calibrations
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
-            return None
-        cropped_dimensional_calibrations = list()
-        bounds = values.get("bounds")
-        for index, dimensional_calibration in enumerate(dimensional_calibrations):
-            cropped_calibration = Calibration.Calibration(dimensional_calibration.offset + data_shape[index] * bounds[0][index] * dimensional_calibration.scale,
-                                                          dimensional_calibration.scale,
-                                                          dimensional_calibration.units)
-            cropped_dimensional_calibrations.append(cropped_calibration)
-        return cropped_dimensional_calibrations
-
-    def get_processed_data_shape_and_dtype(self, data_sources, values):
-        data_shape = data_sources[0].data_shape
-        data_dtype = data_sources[0].data_dtype
-        if not Image.is_shape_and_dtype_valid(data_shape, data_dtype):
-            return None
-        bounds = values.get("bounds")
-        bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])), (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
-        if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-            return bounds_int[1] + (data_shape[-1], ), data_dtype
-        else:
-            return bounds_int[1], data_dtype
-
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        data_shape = data_sources[0].data_shape
-        bounds = values.get("bounds")
-        bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])), (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
-        return data[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0], bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]].copy()
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Symbolic.function_crop(data_and_calibrations[0], values.get("bounds"))
+        return data_and_metadata if data_and_metadata else None
 
 
 class Slice3dOperation(Operation):
@@ -1093,10 +1051,10 @@ class NodeOperation(Operation):
         index_mapping = values.get("data_mapping")
 
         def resolve(uuid):
-            return data_sources[index_mapping[str(uuid)]]
+            return data_sources[index_mapping[str(uuid)]]  # data_sources are instances of DataAndMetadata
 
         data_node = Symbolic.DataNode.factory(values.get("data_node"))
-        return data_node.get_data_and_metadata(resolve).data
+        return data_node.evaluate(resolve).data
 
 
 class OperationManager(Utility.Singleton("OperationManagerSingleton", (object, ), {})):
