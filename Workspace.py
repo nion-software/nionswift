@@ -630,11 +630,22 @@ class Workspace(object):
         data_item_states = []
         for channel_data in channels_data:
             channel_index = channel_data.index
+            channel_id = channel_data.channel_id
+            channel_name = channel_data.name
             data_item = channel_to_data_item_dict[channel_index]
             # until the whole pipeline is cleaned up, recreate the data_element. guh.
             data_element = HardwareSource.convert_data_and_metadata_to_data_element(channel_data.data_and_calibration)
             if channel_data.sub_area:
                 data_element["sub_area"] = channel_data.sub_area
+            hardware_source_metadata = data_element.setdefault("properties", dict())
+            hardware_source_metadata["hardware_source_id"] = hardware_source_id
+            hardware_source_metadata["channel_index"] = channel_index
+            if channel_id is not None:
+                hardware_source_metadata["channel_id"] = channel_id
+            if channel_name is not None:
+                hardware_source_metadata["channel_name"] = channel_name
+            if view_id:
+                hardware_source_metadata["view_id"] = view_id
             ImportExportManager.update_data_item_from_data_element(data_item, data_element)
             # make sure to send out the complete frame
             data_elements.append(HardwareSource.convert_data_and_metadata_to_data_element(data_item.data_sources[0].data_and_calibration))
@@ -748,18 +759,6 @@ class Workspace(object):
             if do_copy:
                 data_item_copy = copy.deepcopy(data_item)
                 data_item.session_id = session_id  # immediately update the session id
-                buffered_data_source = data_item.data_sources[0]
-                metadata = buffered_data_source.metadata
-                hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-                hardware_source_metadata["hardware_source_id"] = hardware_source_id
-                hardware_source_metadata["channel_index"] = channel_index
-                if channel_id is not None:
-                    hardware_source_metadata["channel_id"] = channel_id
-                if channel_name is not None:
-                    hardware_source_metadata["channel_name"] = channel_name
-                if view_id:
-                    hardware_source_metadata["view_id"] = view_id
-                buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_task(functools.partial(append_data_item, data_item_copy))
             # if we still don't have a data item, create it.
             if not data_item:
@@ -771,17 +770,6 @@ class Workspace(object):
                     data_item.set_metadata(metadata)
                 buffered_data_source = DataItem.BufferedDataSource()
                 data_item.append_data_source(buffered_data_source)
-                metadata = buffered_data_source.metadata
-                hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-                hardware_source_metadata["hardware_source_id"] = hardware_source_id
-                hardware_source_metadata["channel_index"] = channel_index
-                if channel_id is not None:
-                    hardware_source_metadata["channel_id"] = channel_id
-                if channel_name is not None:
-                    hardware_source_metadata["channel_name"] = channel_name
-                if view_id:
-                    hardware_source_metadata["view_id"] = view_id
-                buffered_data_source.set_metadata(metadata)
                 self.document_controller.queue_task(functools.partial(append_data_item, data_item))
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
             if data_item.session_id != session_id:

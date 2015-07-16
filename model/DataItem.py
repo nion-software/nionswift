@@ -194,7 +194,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("source_data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
-        self.define_property("metadata", dict(), hidden=True)
+        self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
         self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
