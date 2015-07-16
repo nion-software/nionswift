@@ -243,6 +243,33 @@ class TestSymbolicClass(unittest.TestCase):
             data_item.maybe_data_source.regions[0].size = 0.53, 0.43
         self.assertTrue(needs_update_ref[0])
 
+    def test_calculation_handles_data_lookups(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        d = numpy.random.randn(2, 2)
+        data_item = DataItem.DataItem(d)
+        document_model.append_data_item(data_item)
+        expression = "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid))
+        data_item = document_controller.processing_calculation(expression, dict())
+        document_model.recompute_all()
+        assert numpy.array_equal(data_item.maybe_data_source.data, -d)
+
+    def test_calculation_handles_region_lookups(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        d = numpy.random.randn(100, 100)
+        data_item = DataItem.DataItem(d)
+        region = Region.RectRegion()
+        region.center = 0.5, 0.5
+        region.size = 0.6, 0.4
+        data_item.maybe_data_source.add_region(region)
+        document_model.append_data_item(data_item)
+        map = {"a": document_model.get_object_specifier(data_item)}
+        expression = "crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid))
+        data_item = document_controller.processing_calculation(expression, map)
+        document_model.recompute_all()
+        assert numpy.array_equal(data_item.maybe_data_source.data, d[20:80, 30:70])
+
     def test_computation_copies_metadata_during_computation(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

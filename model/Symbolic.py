@@ -1126,6 +1126,21 @@ class PropertyDataNode(DataNode):
         return "{0} ({1}.{2})".format(self.__repr__(), self.__object_specifier, self.__property)
 
 
+def data_by_uuid(context, data_uuid):
+    object_specifier = context.get_object_specifier(context.get_data_item_by_uuid(data_uuid))
+    return DataItemDataNode(object_specifier)
+
+
+def region_by_uuid(context, region_uuid):
+    for data_item in context.data_items:
+        for data_source in data_item.data_sources:
+            for region in data_source.regions:
+                if region.uuid == region_uuid:
+                    object_specifier = context.get_object_specifier(region)
+                    return ReferenceDataNode(object_specifier)
+    return None
+
+
 _node_map = {
     "constant": ConstantDataNode,
     "scalar": ScalarOperationDataNode,
@@ -1138,8 +1153,9 @@ _node_map = {
 }
 
 
-def parse_expression(calculation_script, variable_map):
+def parse_expression(calculation_script, variable_map, context):
     code_lines = []
+    code_lines.append("import uuid")
     g = dict()
     g["amin"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
     g["amax"] = lambda data_node: ScalarOperationDataNode([data_node], "amax")
@@ -1171,6 +1187,8 @@ def parse_expression(calculation_script, variable_map):
     g["resample_image"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "resample_image")
     g["histogram"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "histogram")
     g["line_profile"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "line_profile")
+    g["data_by_uuid"] = lambda data_uuid: data_by_uuid(context, data_uuid)
+    g["region_by_uuid"] = lambda region_uuid: region_by_uuid(context, region_uuid)
     l = dict()
     for variable_name, object_specifier in variable_map.items():
         if object_specifier["type"] == "data_item":  # avoid importing class
@@ -1183,6 +1201,7 @@ def parse_expression(calculation_script, variable_map):
     try:
         exec(code, g, l)
     except Exception as e:
+        # print(e)
         return None
     return l["result"]
 
@@ -1218,7 +1237,7 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         self.__data_node = DataNode.factory(self.node)
 
     def parse_expression(self, context, expression, variable_map):
-        self.__data_node = parse_expression(expression, variable_map)
+        self.__data_node = parse_expression(expression, variable_map, context)
         if self.__data_node:
             self.node = self.__data_node.write()
             self.bind(context)
