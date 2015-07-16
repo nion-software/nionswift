@@ -29,10 +29,14 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.remove_region_because_graphic_removed_event = Observable.Event()
+        self.__graphic = None
+        self.__remove_region_graphic_listener = None
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     def about_to_be_removed(self):
-        pass
+        if self.__remove_region_graphic_listener:
+            self.__remove_region_graphic_listener.close()
+            self.__remove_region_graphic_listener = None
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -41,7 +45,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
     def graphic(self):
         return None
 
-    def remove_region_graphic(self, region_graphic):
+    def remove_region_graphic(self):
         # message from the graphic when its being removed
         self.remove_region_because_graphic_removed_event.fire()
 
@@ -54,7 +58,7 @@ class PointRegion(Region):
         self.__graphic = Graphics.PointGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__graphic.add_listener(self)
+        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
         self.__position_binding = RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
         self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
@@ -94,7 +98,7 @@ class LineRegion(Region):
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.end_arrow_enabled = True
-        self.__graphic.add_listener(self)
+        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
         self.__vector_binding = RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector")
         self.__width_binding = RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
@@ -154,7 +158,7 @@ class RectRegion(Region):
         self.__graphic = Graphics.RectangleGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__graphic.add_listener(self)
+        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
         self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
@@ -204,7 +208,7 @@ class EllipseRegion(Region):
         self.__graphic = Graphics.EllipseGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__graphic.add_listener(self)
+        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
         self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
         self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
@@ -248,7 +252,7 @@ class IntervalRegion(Region):
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__graphic.add_listener(self)
+        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
         self.__interval_binding = RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval")
         self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
         self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")

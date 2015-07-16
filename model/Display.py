@@ -9,6 +9,7 @@ from __future__ import division
 # standard libraries
 import collections
 import copy
+import functools
 import math
 import logging
 import gettext
@@ -144,6 +145,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         self.__lookup = None  # temporary for experimentation
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
+        self.__graphic_changed_listeners = list()
+        self.__remove_region_graphic_listeners = list()
         self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
         self.__data_properties = dict()
         self.__preview_data = None
@@ -374,6 +377,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         region_graphic.add_listener(self)
         before_index = len(self.__drawn_graphics)
         self.__drawn_graphics.insert(before_index, region_graphic)
+        graphic_changed_listener = region_graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, region_graphic))
+        self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
+        remove_region_graphic_listener = region_graphic.remove_region_graphic_event.listen(functools.partial(self.remove_region_graphic, region_graphic))
+        self.__remove_region_graphic_listeners.insert(before_index, remove_region_graphic_listener)
         self.graphic_selection.insert_index(before_index)
         self.display_changed_event.fire()
 
@@ -387,6 +394,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
             region_graphic.about_to_be_removed()
             index = self.__drawn_graphics.index(region_graphic)
             self.__drawn_graphics.remove(region_graphic)
+            graphic_changed_listener = self.__graphic_changed_listeners[index]
+            graphic_changed_listener.close()
+            self.__graphic_changed_listeners.remove(graphic_changed_listener)
+            remove_region_graphic_listener = self.__remove_region_graphic_listeners[index]
+            remove_region_graphic_listener.close()
+            self.__remove_region_graphic_listeners.remove(remove_region_graphic_listener)
             self.graphic_selection.remove_index(index)
             self.display_changed_event.fire()
 
@@ -394,6 +407,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         item.add_listener(self)
         item.add_observer(self)
         self.__drawn_graphics.insert(before_index, item)
+        graphic_changed_listener = item.graphic_changed_event.listen(functools.partial(self.graphic_changed, item))
+        self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
+        remove_region_graphic_listener = item.remove_region_graphic_event.listen(functools.partial(self.remove_region_graphic, item))
+        self.__remove_region_graphic_listeners.insert(before_index, remove_region_graphic_listener)
         self.graphic_selection.insert_index(before_index)
         self.display_changed_event.fire()
 
@@ -402,6 +419,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, 
         item.remove_observer(self)
         index = self.__drawn_graphics.index(item)
         self.__drawn_graphics.remove(item)
+        graphic_changed_listener = self.__graphic_changed_listeners[index]
+        graphic_changed_listener.close()
+        self.__graphic_changed_listeners.remove(graphic_changed_listener)
+        remove_region_graphic_listener = self.__remove_region_graphic_listeners[index]
+        remove_region_graphic_listener.close()
+        self.__remove_region_graphic_listeners.remove(remove_region_graphic_listener)
         self.graphic_selection.remove_index(index)
         self.display_changed_event.fire()
 

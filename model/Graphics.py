@@ -260,6 +260,8 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.__region = None
+        self.graphic_changed_event = Observable.Event()
+        self.remove_region_graphic_event = Observable.Event()
         self.about_to_be_removed_event = Observable.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
@@ -367,11 +369,11 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
             ctx.fill_text(self.label, text_pos.x, text_pos.y)
     def notify_set_property(self, key, value):
         super(Graphic, self).notify_set_property(key, value)
-        self.notify_listeners("graphic_changed", self)
+        self.graphic_changed_event.fire()
     def nudge(self, mapping, delta):
         raise NotImplementedError()
     def notify_remove_region_graphic(self):
-        self.notify_listeners("remove_region_graphic", self)  # goes to region
+        self.remove_region_graphic_event.fire()
     def label_position(self, mapping, font_metrics, padding):
         raise NotImplementedError()
 
