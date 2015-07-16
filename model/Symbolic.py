@@ -15,6 +15,7 @@ import copy
 import logging
 import numbers
 import operator
+import uuid
 
 # third party libraries
 import numpy
@@ -22,6 +23,9 @@ import numpy
 # local libraries
 # from nion.swift.model import DataItem
 
+
+def range(data):
+    return numpy.amax(data) - numpy.amin(data)
 
 def take_slice(data, key):
     return data[key].copy()
@@ -33,12 +37,20 @@ _function_map = {
     "add": operator.add,
     "sub": operator.sub,
     "mul": operator.mul,
-    "div": operator.div,
+    "div": operator.truediv,
     "truediv": operator.truediv,
     "floordiv": operator.floordiv,
     "mod": operator.mod,
     "pow": operator.pow,
     "slice": take_slice,
+    "amin": numpy.amin,
+    "amax": numpy.amax,
+    "range": range,
+    "median": numpy.median,
+    "average": numpy.average,
+    "mean": numpy.mean,
+    "std": numpy.std,
+    "var": numpy.var,
     "log": numpy.log,
     "log10": numpy.log10,
     "log2": numpy.log2,
@@ -52,19 +64,19 @@ class DataNode(object):
         self.scalar = None
 
     @classmethod
-    def factory(cls, d, resolve):
+    def factory(cls, d):
         data_node_type = d["data_node_type"]
         assert data_node_type in _node_map
         node = _node_map[data_node_type]()
-        node.read(d, resolve)
+        node.read(d)
         return node
 
-    def read(self, d, resolve):
+    def read(self, d):
         inputs = list()
         input_dicts = d.get("inputs", list())
         for input_dict in input_dicts:
-            node = DataNode.factory(input_dict, resolve)
-            node.read(input_dict, resolve)
+            node = DataNode.factory(input_dict)
+            node.read(input_dict)
             inputs.append(node)
         self.inputs = inputs
         return d
@@ -83,36 +95,34 @@ class DataNode(object):
         if isinstance(value, DataNode):
             return value
         elif isinstance(value, numbers.Integral):
-            return ScalarDataNode(value)
+            return ConstantDataNode(value)
         elif isinstance(value, numbers.Rational):
-            return ScalarDataNode(value)
+            return ConstantDataNode(value)
         elif isinstance(value, numbers.Real):
-            return ScalarDataNode(value)
+            return ConstantDataNode(value)
         elif isinstance(value, numbers.Complex):
-            return ScalarDataNode(value)
-        # avoid circular imports.
-        elif value.__class__.__name__ == "DataItem":  # isinstance(value, DataItem.DataItem):
-            return DataItemDataNode(value)
+            return ConstantDataNode(value)
+        elif isinstance(value, DataItemDataNode):
+            return value
         assert False
         return None
 
-    @property
-    def data(self):
+    def get_data(self, resolve):
         data_list = list()
         for input in self.inputs:
-            data = input.data
+            data = input.get_data(resolve)
             data = data if data is not None else input.scalar
             data_list.append(data)
-        return self._get_data(data_list)
+        return self._get_data(data_list, resolve)
 
     @property
-    def data_sources(self):
-        data_sources = list()
+    def data_reference_uuids(self):
+        data_reference_uuids = list()
         for input in self.inputs:
-            data_sources.extend(input.data_sources)
-        return data_sources
+            data_reference_uuids.extend(input.data_reference_uuids)
+        return data_reference_uuids
 
-    def _get_data(self, data_list):
+    def _get_data(self, data_list, resolve):
         return None  # fall back on scalar
 
     def __abs__(self):
@@ -173,44 +183,44 @@ class DataNode(object):
         return BinaryOperationDataNode([DataNode.make(other), self], "pow")
 
     def __complex__(self):
-        return ScalarDataNode(numpy.astype(numpy.complex128))
+        return ConstantDataNode(numpy.astype(numpy.complex128))
 
     def __int__(self):
-        return ScalarDataNode(numpy.astype(numpy.uint32))
+        return ConstantDataNode(numpy.astype(numpy.uint32))
 
     def __long__(self):
-        return ScalarDataNode(numpy.astype(numpy.int64))
+        return ConstantDataNode(numpy.astype(numpy.int64))
 
     def __float__(self):
-        return ScalarDataNode(numpy.astype(numpy.float64))
+        return ConstantDataNode(numpy.astype(numpy.float64))
 
     def __getitem__(self, key):
         return UnaryOperationDataNode([self], "slice", {"key": key})
 
 
 def min(data_node):
-    return ScalarDataNode(numpy.amin(data_node.data))
+    return ScalarOperationDataNode([data_node], "amin")
 
 def max(data_node):
-    return ScalarDataNode(numpy.amax(data_node.data))
+    return ScalarOperationDataNode([data_node], "amax")
 
 def range(data_node):
-    return ScalarDataNode(numpy.amax(data_node.data) - numpy.amin(data_node.data))
+    return ScalarOperationDataNode([data_node], "range")
 
 def median(data_node):
-    return ScalarDataNode(numpy.median(data_node.data))
+    return ScalarOperationDataNode([data_node], "median")
 
 def average(data_node):
-    return ScalarDataNode(numpy.average(data_node.data))
+    return ScalarOperationDataNode([data_node], "average")
 
 def mean(data_node):
-    return ScalarDataNode(numpy.mean(data_node.data))
+    return ScalarOperationDataNode([data_node], "mean")
 
 def std(data_node):
-    return ScalarDataNode(numpy.std(data_node.data))
+    return ScalarOperationDataNode([data_node], "std")
 
 def var(data_node):
-    return ScalarDataNode(numpy.var(data_node.data))
+    return ScalarOperationDataNode([data_node], "var")
 
 def log(data_node):
     return UnaryOperationDataNode([data_node], "log")
@@ -222,14 +232,14 @@ def log2(data_node):
     return UnaryOperationDataNode([data_node], "log2")
 
 
-class ScalarDataNode(DataNode):
+class ConstantDataNode(DataNode):
 
     def __init__(self, value=None):
-        super(ScalarDataNode, self).__init__()
+        super(ConstantDataNode, self).__init__()
         self.scalar = value
 
-    def read(self, d, resolve):
-        super(ScalarDataNode, self).read(d, resolve)
+    def read(self, d):
+        super(ConstantDataNode, self).read(d)
         scalar_type = d.get("scalar_type")
         if scalar_type == "integral":
             self.scalar = int(d["value"])
@@ -239,8 +249,8 @@ class ScalarDataNode(DataNode):
             self.scalar = complex(*d["value"])
 
     def write(self):
-        d = super(ScalarDataNode, self).write()
-        d["data_node_type"] = "scalar"
+        d = super(ConstantDataNode, self).write()
+        d["data_node_type"] = "constant"
         value = self.scalar
         if isinstance(value, numbers.Integral):
             d["scalar_type"] = "integral"
@@ -259,6 +269,36 @@ class ScalarDataNode(DataNode):
         return "{0} ({1})".format(self.__repr__(), self.scalar)
 
 
+class ScalarOperationDataNode(DataNode):
+
+    def __init__(self, inputs=None, function_id=None, args=None):
+        super(ScalarOperationDataNode, self).__init__(inputs=inputs)
+        self.__function_id = function_id
+        self.__args = copy.copy(args if args is not None else dict())
+
+    def read(self, d):
+        super(ScalarOperationDataNode, self).read(d)
+        function_id = d.get("function_id")
+        assert function_id in _function_map
+        self.__function_id = function_id
+        args = d.get("args")
+        self.__args = copy.copy(args if args is not None else dict())
+
+    def write(self):
+        d = super(ScalarOperationDataNode, self).write()
+        d["data_node_type"] = "scalar"
+        d["function_id"] = self.__function_id
+        if self.__args:
+            d["args"] = self.__args
+        return d
+
+    def _get_data(self, data_list, resolve):
+        return _function_map[self.__function_id](data_list[0], **self.__args)
+
+    def __str__(self):
+        return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
+
+
 class UnaryOperationDataNode(DataNode):
 
     def __init__(self, inputs=None, function_id=None, args=None):
@@ -266,8 +306,8 @@ class UnaryOperationDataNode(DataNode):
         self.__function_id = function_id
         self.__args = copy.copy(args if args is not None else dict())
 
-    def read(self, d, resolve):
-        super(UnaryOperationDataNode, self).read(d, resolve)
+    def read(self, d):
+        super(UnaryOperationDataNode, self).read(d)
         function_id = d.get("function_id")
         assert function_id in _function_map
         self.__function_id = function_id
@@ -282,7 +322,7 @@ class UnaryOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data(self, data_list):
+    def _get_data(self, data_list, resolve):
         return _function_map[self.__function_id](data_list[0], **self.__args)
 
     def __str__(self):
@@ -296,8 +336,8 @@ class BinaryOperationDataNode(DataNode):
         self.__function_id = function_id
         self.__args = copy.copy(args if args is not None else dict())
 
-    def read(self, d, resolve):
-        super(BinaryOperationDataNode, self).read(d, resolve)
+    def read(self, d):
+        super(BinaryOperationDataNode, self).read(d)
         function_id = d.get("function_id")
         assert function_id in _function_map
         self.__function_id = function_id
@@ -312,7 +352,7 @@ class BinaryOperationDataNode(DataNode):
             d["args"] = self.__args
         return d
 
-    def _get_data(self, data_list):
+    def _get_data(self, data_list, resolve):
         return _function_map[self.__function_id](data_list[0], data_list[1],  **self.__args)
 
     def __str__(self):
@@ -321,61 +361,64 @@ class BinaryOperationDataNode(DataNode):
 
 class DataItemDataNode(DataNode):
 
-    def __init__(self, data_item=None):
+    def __init__(self, data_reference=None):
         super(DataItemDataNode, self).__init__()
-        self.__data_source = data_item.maybe_data_source if data_item else None
+        self.__data_reference_uuid = data_reference.uuid if data_reference else uuid.uuid4()
 
-    def read(self, d, resolve):
-        super(DataItemDataNode, self).read(d, resolve)
-        data_source_uuid = d.get("data_source_uuid")
-        if data_source_uuid:
-            self.__data_source = resolve(uuid.UUID(data_source_uuid))
+    def read(self, d):
+        super(DataItemDataNode, self).read(d)
+        data_reference_uuid_str = d.get("data_reference_uuid")
+        if data_reference_uuid_str:
+            self.__data_reference_uuid = uuid.UUID(data_reference_uuid_str)
 
     def write(self):
         d = super(DataItemDataNode, self).write()
         d["data_node_type"] = "data"
-        if self.__data_source:
-            d["data_source_uuid"] = str(self.__data_source.uuid)
+        if self.__data_reference_uuid:
+            d["data_reference_uuid"] = str(self.__data_reference_uuid)
         return d
 
     @property
-    def data_sources(self):
-        return [self.__data_source]
+    def data_reference_uuid(self):
+        return self.__data_reference_uuid
 
-    def _get_data(self, data_list):
-        return self.__data_source.data if self.__data_source else None
+    @property
+    def data_reference_uuids(self):
+        return [self.__data_reference_uuid]
+
+    def _get_data(self, data_list, resolve):
+        return resolve(self.__data_reference_uuid).data if self.__data_reference_uuid else None
 
     def __str__(self):
-        return "{0} ({1})".format(self.__repr__(), id(self.__data_source))
+        return "{0} ({1})".format(self.__repr__(), self.__data_reference_uuid)
 
 
 _node_map = {
-    "scalar": ScalarDataNode,
+    "constant": ConstantDataNode,
+    "scalar": ScalarOperationDataNode,
     "unary": UnaryOperationDataNode,
     "binary": BinaryOperationDataNode,
     "data": DataItemDataNode
 }
 
 
-def execute_code_lines(code_lines, g, l):
-    """ Execute a list of code lines in the g, l globals, locals context. """
-
-
-def calculate(calculation_script, weak_data_item_variable_map):
+def parse_expression(calculation_script, weak_data_item_variable_map):
     code_lines = []
     code_lines.append("from nion.swift.model.Symbolic import *")
     g = dict()
     l = dict()
+    mapping = dict()
     for data_item_ref in weak_data_item_variable_map:
         data_item = data_item_ref()
         if data_item:
             data_item_var = weak_data_item_variable_map[data_item_ref]
-            g[data_item_var] = DataNode.make(data_item)
+            data_reference = DataItemDataNode()
+            mapping[data_reference.data_reference_uuid] = data_item
+            g[data_item_var] = data_reference
     code_lines.append("result = {0}".format(calculation_script))
     code = "\n".join(code_lines)
     exec(code, g, l)
-    return l["result"]
-
+    return l["result"], mapping
 
 
 #d1 = DataNode(title="data1")

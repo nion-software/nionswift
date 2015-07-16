@@ -30,6 +30,7 @@ from nion.swift.model import DataItemsBinding
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
 from nion.swift.model import Region
+from nion.swift.model import Symbolic
 from nion.ui import Dialog
 from nion.ui import Observable
 from nion.ui import Process
@@ -1057,6 +1058,30 @@ class DocumentController(Observable.Broadcaster):
         display = display_specifier.display
         if display:
             display.display_limits = buffered_data_source.data_range
+
+    def processing_calculation(self, expression, map=None):
+        map = map if map else self.data_item_vars
+        data_node, mapping = Symbolic.parse_expression(expression, map)
+        if data_node:
+            operation_item = Operation.OperationItem("node-operation")
+            operation_item.set_property("data_node", data_node.write())
+            inverse_mapping = {v: k for k, v in mapping.items()}
+            index_mapping = dict()  # map reference uuid to an index
+            operation_data_sources = list()
+            for data_item in mapping.values():
+                data_source = Operation.DataItemDataSource(data_item.maybe_data_source)
+                operation_data_sources.append(data_source)
+                index_mapping[str(inverse_mapping[data_item])] = len(operation_data_sources) - 1
+            operation_item.set_property("data_mapping", index_mapping)
+            for operation_data_source in operation_data_sources:
+                operation_item.add_data_source(operation_data_source)
+            data_item = DataItem.DataItem()
+            data_item.title = _("Calculation on ") + data_item.title
+            data_item.set_operation(operation_item)
+            self.document_model.append_data_item(data_item)
+            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            return data_item
+        return None
 
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:

@@ -15,8 +15,8 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Operation
 from nion.swift.model import Symbolic
+from nion.ui import Test
 
 
 class TestSymbolicClass(unittest.TestCase):
@@ -32,8 +32,10 @@ class TestSymbolicClass(unittest.TestCase):
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
         map = { weakref.ref(data_item): "a" }
-        data_node = Symbolic.calculate("-a", map)
-        data = data_node.data
+        data_node, mapping = Symbolic.parse_expression("-a", map)
+        def resolve(uuid):
+            return mapping[uuid].maybe_data_source
+        data = data_node.get_data(resolve)
         assert numpy.array_equal(data, -d)
 
     def test_binary_addition_returns_added_data(self):
@@ -44,8 +46,10 @@ class TestSymbolicClass(unittest.TestCase):
         d2[:] = random.randint(0, 100)
         data_item2 = DataItem.DataItem(d2)
         map = { weakref.ref(data_item1): "a", weakref.ref(data_item2): "b" }
-        data_node = Symbolic.calculate("a+b", map)
-        data = data_node.data
+        data_node, mapping = Symbolic.parse_expression("a+b", map)
+        def resolve(uuid):
+            return mapping[uuid].maybe_data_source
+        data = data_node.get_data(resolve)
         assert numpy.array_equal(data, d1 + d2)
 
     def test_binary_multiplication_with_scalar_returns_multiplied_data(self):
@@ -53,10 +57,14 @@ class TestSymbolicClass(unittest.TestCase):
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
         map = { weakref.ref(data_item): "a" }
-        data_node1 = Symbolic.calculate("a * 5", map)
-        data1 = data_node1.data
-        data_node2 = Symbolic.calculate("5 * a", map)
-        data2 = data_node2.data
+        data_node1, mapping1 = Symbolic.parse_expression("a * 5", map)
+        def resolve1(uuid):
+            return mapping1[uuid].maybe_data_source
+        data1 = data_node1.get_data(resolve1)
+        data_node2, mapping2 = Symbolic.parse_expression("5 * a", map)
+        def resolve2(uuid):
+            return mapping2[uuid].maybe_data_source
+        data2 = data_node2.get_data(resolve2)
         assert numpy.array_equal(data1, d * 5)
         assert numpy.array_equal(data2, d * 5)
 
@@ -65,8 +73,10 @@ class TestSymbolicClass(unittest.TestCase):
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
         map = { weakref.ref(data_item): "a" }
-        data_node = Symbolic.calculate("a - min(a)", map)
-        data = data_node.data
+        data_node, mapping = Symbolic.parse_expression("a - min(a)", map)
+        def resolve(uuid):
+            return mapping[uuid].maybe_data_source
+        data = data_node.get_data(resolve)
         assert numpy.array_equal(data, d - numpy.amin(d))
 
     def test_ability_to_take_slice(self):
@@ -74,8 +84,10 @@ class TestSymbolicClass(unittest.TestCase):
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
         map = { weakref.ref(data_item): "a" }
-        data_node = Symbolic.calculate("a[:,4,4]", map)
-        data = data_node.data
+        data_node, mapping = Symbolic.parse_expression("a[:,4,4]", map)
+        def resolve(uuid):
+            return mapping[uuid].maybe_data_source
+        data = data_node.get_data(resolve)
         assert numpy.array_equal(data, d[:,4,4])
 
     def test_ability_to_write_read_basic_nodes(self):
@@ -83,17 +95,17 @@ class TestSymbolicClass(unittest.TestCase):
         d[:] = random.randint(0, 100)
         data_item = DataItem.DataItem(d)
         map = { weakref.ref(data_item): "a" }
-        data_node = Symbolic.calculate("-a * 5", map)
-        dd = data_node.write()
+        data_node, mapping = Symbolic.parse_expression("-a / average(a) * 5", map)
+        data_node_dict = data_node.write()
         def resolve(uuid):
-            return {data_item.maybe_data_source.uuid: data_item.maybe_data_source}[uuid]
-        data_node2 = Symbolic.DataNode.factory(dd, resolve)
-        data = data_node.data
-        data2 = data_node2.data
-        assert numpy.array_equal(data, -d * 5)
+            return mapping[uuid].maybe_data_source
+        data_node2 = Symbolic.DataNode.factory(data_node_dict)
+        data = data_node.get_data(resolve)
+        data2 = data_node2.get_data(resolve)
+        assert numpy.array_equal(data, -d / numpy.average(d) * 5)
         assert numpy.array_equal(data, data2)
 
-    def test_x(self):
+    def test_make_operation_works_without_exception_and_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         d = numpy.zeros((8, 8), dtype=numpy.uint32)
@@ -101,22 +113,9 @@ class TestSymbolicClass(unittest.TestCase):
         data_item = DataItem.DataItem(d)
         document_model.append_data_item(data_item)
         map = { weakref.ref(data_item): "a" }
-        data_node = Symbolic.calculate("-a * 5", map)
-        if data_node:
-            operation_item = Operation.OperationItem("node-operation")
-            operation_item.set_property("data_node", data_node.write())
-            data_sources = data_node.data_sources
-            operation_data_sources = list()
-            for data_source in data_sources:
-                data_source = Operation.DataItemDataSource(data_source)
-                operation_data_sources.append(data_source)
-            for operation_data_source in operation_data_sources:
-                operation_item.add_data_source(operation_data_source)
-            data_item = DataItem.DataItem()
-            data_item.set_operation(operation_item)
-            document_controller.document_model.append_data_item(data_item)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
-            document_model.recompute_all()
+        data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
+        document_model.recompute_all()
+        assert numpy.array_equal(data_item.maybe_data_source.data, -d / numpy.average(d) * 5)
 
 
 if __name__ == '__main__':

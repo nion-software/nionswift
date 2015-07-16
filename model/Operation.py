@@ -1445,13 +1445,11 @@ class NodeOperation(Operation):
         super(NodeOperation, self).__init__(_("Calculation"), "node-operation")
 
     def get_processed_data(self, data_sources, values):
+        index_mapping = values.get("data_mapping")
         def resolve(uuid):
-            for data_source in data_sources:
-                if data_source.uuid == uuid:
-                    return data_source
-            return None
-        data_node = Symbolic.DataNode.factory(values.get("data_node"), resolve)
-        return data_node.data
+            return data_sources[index_mapping[str(uuid)]]
+        data_node = Symbolic.DataNode.factory(values.get("data_node"))
+        return data_node.get_data(resolve)
 
 
 class OperationManager(Utility.Singleton("OperationManagerSingleton", (object, ), {})):
