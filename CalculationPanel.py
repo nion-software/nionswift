@@ -11,6 +11,7 @@ import logging
 # local libraries
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
+from nion.swift.model import Operation
 from nion.swift import Panel
 
 
@@ -47,15 +48,20 @@ class CalculationPanel(Panel.Panel):
         def calculate():
             data_node = Symbolic.calculate(line_edit.text, self.document_controller.data_item_vars)
             if data_node:
-                data = data_node.data
-                if data is not None:
-                    data_item = DataItem.DataItem(data)
-                    self.document_controller.document_model.append_data_item(data_item)
-                    self.document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
-                    logging.info("Calculated %s", line_edit.text)
-                else:
-                    scalar = data_node.scalar if data_node else None
-                    logging.info("%s <= %s", scalar, line_edit.text)
+                operation_item = Operation.OperationItem("node-operation")
+                operation_item.set_property("data_node", data_node.write())
+                data_sources = data_node.data_sources
+                operation_data_sources = list()
+                for data_source in data_sources:
+                    data_source = Operation.DataItemDataSource(data_source)
+                    operation_data_sources.append(data_source)
+                for operation_data_source in operation_data_sources:
+                    operation_item.add_data_source(operation_data_source)
+                data_item = DataItem.DataItem()
+                data_item.title = _("Calculation on ") + data_item.title
+                data_item.set_operation(operation_item)
+                self.document_controller.document_model.append_data_item(data_item)
+                self.document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
             line_edit.text = None
 
         def clear():

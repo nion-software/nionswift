@@ -20,7 +20,7 @@ import operator
 import numpy
 
 # local libraries
-from nion.swift.model import DataItem
+# from nion.swift.model import DataItem
 
 
 def take_slice(data, key):
@@ -90,19 +90,27 @@ class DataNode(object):
             return ScalarDataNode(value)
         elif isinstance(value, numbers.Complex):
             return ScalarDataNode(value)
-        elif isinstance(value, DataItem.DataItem):
+        # avoid circular imports.
+        elif value.__class__.__name__ == "DataItem":  # isinstance(value, DataItem.DataItem):
             return DataItemDataNode(value)
         assert False
         return None
 
-    def __get_data(self):
+    @property
+    def data(self):
         data_list = list()
         for input in self.inputs:
             data = input.data
             data = data if data is not None else input.scalar
             data_list.append(data)
         return self._get_data(data_list)
-    data = property(__get_data)
+
+    @property
+    def data_sources(self):
+        data_sources = list()
+        for input in self.inputs:
+            data_sources.extend(input.data_sources)
+        return data_sources
 
     def _get_data(self, data_list):
         return None  # fall back on scalar
@@ -315,26 +323,30 @@ class DataItemDataNode(DataNode):
 
     def __init__(self, data_item=None):
         super(DataItemDataNode, self).__init__()
-        self.__data_item = data_item
+        self.__data_source = data_item.maybe_data_source if data_item else None
 
     def read(self, d, resolve):
         super(DataItemDataNode, self).read(d, resolve)
-        data_item_uuid = d.get("data_item_uuid")
-        if data_item_uuid:
-            self.__data_item = resolve(uuid.UUID(data_item_uuid))
+        data_source_uuid = d.get("data_source_uuid")
+        if data_source_uuid:
+            self.__data_source = resolve(uuid.UUID(data_source_uuid))
 
     def write(self):
         d = super(DataItemDataNode, self).write()
         d["data_node_type"] = "data"
-        if self.__data_item:
-            d["data_item_uuid"] = str(self.__data_item.uuid)
+        if self.__data_source:
+            d["data_source_uuid"] = str(self.__data_source.uuid)
         return d
 
+    @property
+    def data_sources(self):
+        return [self.__data_source]
+
     def _get_data(self, data_list):
-        return self.__data_item.maybe_data_source.data if self.__data_item.maybe_data_source else None
+        return self.__data_source.data if self.__data_source else None
 
     def __str__(self):
-        return "{0} ({1})".format(self.__repr__(), self.__data_item.r_var)
+        return "{0} ({1})".format(self.__repr__(), id(self.__data_source))
 
 
 _node_map = {

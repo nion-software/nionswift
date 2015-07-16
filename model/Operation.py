@@ -29,6 +29,7 @@ import scipy.signal
 from nion.swift.model import Calibration
 from nion.swift.model import Image
 from nion.swift.model import Region
+from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import Binding
 from nion.ui import Geometry
@@ -1438,6 +1439,21 @@ class ConvertToScalarOperation(Operation):
             return data_shape, data_dtype
 
 
+class NodeOperation(Operation):
+
+    def __init__(self):
+        super(NodeOperation, self).__init__(_("Calculation"), "node-operation")
+
+    def get_processed_data(self, data_sources, values):
+        def resolve(uuid):
+            for data_source in data_sources:
+                if data_source.uuid == uuid:
+                    return data_source
+            return None
+        data_node = Symbolic.DataNode.factory(values.get("data_node"), resolve)
+        return data_node.data
+
+
 class OperationManager(Utility.Singleton("OperationManagerSingleton", (object, ), {})):
     # __metaclass__ = Utility.Singleton
     # TODO: Fix metaclass in Python 3
@@ -1565,6 +1581,7 @@ OperationManager().register_operation("resample-operation", lambda: Resample2dOp
 OperationManager().register_operation("histogram-operation", lambda: HistogramOperation())
 OperationManager().register_operation("line-profile-operation", lambda: LineProfileOperation())
 OperationManager().register_operation("convert-to-scalar-operation", lambda: ConvertToScalarOperation())
+OperationManager().register_operation("node-operation", lambda: NodeOperation())
 
 
 def operation_item_factory(lookup_id):
