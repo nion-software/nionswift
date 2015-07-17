@@ -1309,6 +1309,8 @@ _node_map = {
     "data": DataItemDataNode,
 }
 
+def transpose_flip(data_node, transpose=False, flip_v=False, flip_h=False):
+    return FunctionOperationDataNode([data_node], "transpose_flip", args={"transpose": transpose, "flip_v": flip_v, "flip_h": flip_h})
 
 def parse_expression(expression_lines, variable_map, context):
     code_lines = []
@@ -1366,8 +1368,6 @@ def parse_expression(expression_lines, variable_map, context):
     g["gaussian_blur"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "gaussian_blur")
     g["median_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "median_filter")
     g["uniform_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "uniform_filter")
-    def transpose_flip(data_node, transpose=False, flip_v=False, flip_h=False):
-        return FunctionOperationDataNode([data_node], "transpose_flip", args={"transpose": transpose, "flip_v": flip_v, "flip_h": flip_h})
     g["transpose_flip"] = transpose_flip
     g["crop"] = lambda data_node, bounds_node: FunctionOperationDataNode([data_node, bounds_node], "crop")
     g["slice_sum"] = lambda data_node, scalar_node1, scalar_node2: FunctionOperationDataNode([data_node, DataNode.make(scalar_node1), DataNode.make(scalar_node2)], "slice_sum")
