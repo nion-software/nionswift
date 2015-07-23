@@ -386,9 +386,9 @@ class UserInterface(object):
     def create_scroll_area_widget(self):
         raise NotImplemented()
 
-    def create_combo_box_widget(self, items=list(), text_for_item=None):
+    def create_combo_box_widget(self, items=None, text_for_item=None):
         combo_box_widget = ComboBoxWidget(self.__ui)
-        combo_box_widget.items = items
+        combo_box_widget.items = items if items is not None else list()
         combo_box_widget.text_for_item = text_for_item
         return combo_box_widget
 
