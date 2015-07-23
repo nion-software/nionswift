@@ -172,6 +172,49 @@ class RowWidget(object):
         self.__row_widget.add(widget._widget)
 
 
+class ComboBoxWidget(object):
+
+    def __init__(self, ui):
+        self.__ui = ui
+        self.__combo_box_widget = self.__ui.create_combo_box_widget()
+
+    @property
+    def _widget(self):
+        return self.__combo_box_widget
+
+    @property
+    def items(self):
+        return self.__combo_box_widget.items
+
+    @items.setter
+    def items(self, value):
+        self.__combo_box_widget.items = value
+
+    @property
+    def text_for_item(self):
+        return self.__combo_box_widget.item_getter
+
+    @text_for_item.setter
+    def text_for_item(self, value):
+        self.__combo_box_widget.item_getter = value
+
+    @property
+    def on_current_text_changed(self):
+        return self.__combo_box_widget.on_current_text_changed
+
+    @on_current_text_changed.setter
+    def on_current_text_changed(self, value):
+        self.__combo_box_widget.on_current_text_changed = value
+
+    @property
+    def on_current_item_changed(self):
+        return self.__combo_box_widget.on_current_item_changed
+
+    @on_current_item_changed.setter
+    def on_current_item_changed(self, value):
+        self.__combo_box_widget.on_current_item_changed = value
+
+
 class LabelWidget(object):
 
     def __init__(self, ui):
@@ -343,8 +386,11 @@ class UserInterface(object):
     def create_scroll_area_widget(self):
         raise NotImplemented()
 
-    def create_combo_box_widget(self):
-        raise NotImplemented()
+    def create_combo_box_widget(self, items=list(), text_for_item=None):
+        combo_box_widget = ComboBoxWidget(self.__ui)
+        combo_box_widget.items = items
+        combo_box_widget.text_for_item = text_for_item
+        return combo_box_widget
 
     def create_label_widget(self, text=None):
         label_widget = LabelWidget(self.__ui)
