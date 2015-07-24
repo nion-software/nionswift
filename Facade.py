@@ -1285,6 +1285,14 @@ class DocumentController(object):
     def create_task_context_manager(self, title, task_type):
         return self.__document_controller.create_task_context_manager(title, task_type)
 
+    def show_get_string_message_box(self, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None):
+        workspace = self.__document_controller.workspace_controller
+        workspace.pose_get_string_message_box(caption, text, accepted_fn, rejected_fn, accepted_text, rejected_text)
+
+    def show_confirmation_message_box(self, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=False):
+        workspace = self.__document_controller.workspace_controller
+        workspace.pose_confirmation_message_box(caption, accepted_fn, rejected_fn, accepted_text, rejected_text, display_rejected)
+
     def queue_task(self, fn):
         self.__document_controller.queue_task(fn)
 

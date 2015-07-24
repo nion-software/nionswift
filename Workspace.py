@@ -415,7 +415,8 @@ class Workspace(object):
         self.pose_confirmation_message_box("remove_workspace", caption, confirm_clicked,
                                            accepted_text=_("Remove Workspace"))
 
-    def pose_get_string_message_box(self, message_box_id, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None):
+    def pose_get_string_message_box(self, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None):
+        message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
         if accepted_text is None: accepted_text = _("OK")
@@ -463,7 +464,8 @@ class Workspace(object):
         self.__message_boxes[message_box_id] = message_box_widget
         return message_box_widget
 
-    def pose_confirmation_message_box(self, message_box_id, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True):
+    def pose_confirmation_message_box(self, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None, display_rejected=True):
+        message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
         if accepted_text is None: accepted_text = _("OK")
