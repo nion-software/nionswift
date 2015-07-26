@@ -728,7 +728,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             if key.text == "-":
                 self.zoom_out()
                 return True
-            if key.text == "+":
+            if key.text == "+" or key.text == "=":
                 self.zoom_in()
                 return True
             if key.text == "j":
