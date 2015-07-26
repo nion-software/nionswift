@@ -387,9 +387,9 @@ class Workspace(object):
             if len(text) > 0:
                 self.change_workspace(self.new_workspace(name=text))
 
-        self.pose_get_string_message_box("create_workspace", caption=_("Enter a name for the workspace"),
-                                         text=_("Workspace"), accepted_fn=create_clicked,
-                                         accepted_text=_("Create"))
+        self.pose_get_string_message_box(caption=_("Enter a name for the workspace"), text=_("Workspace"),
+                                         accepted_fn=create_clicked, accepted_text=_("Create"),
+                                         message_box_id="create_workspace")
 
     def rename_workspace(self):
         """ Pose a dialog to rename the workspace. """
@@ -398,9 +398,9 @@ class Workspace(object):
             if len(text) > 0:
                 self.__workspace.name = text
 
-        self.pose_get_string_message_box("rename_workspace", caption=_("Enter new name for workspace"),
-                                         text=self.__workspace.name, accepted_fn=rename_clicked,
-                                         accepted_text=_("Rename"))
+        self.pose_get_string_message_box(caption=_("Enter new name for workspace"), text=self.__workspace.name,
+                                         accepted_fn=rename_clicked, accepted_text=_("Rename"),
+                                         message_box_id="rename_workspace")
 
     def remove_workspace(self):
         """ Pose a dialog to confirm removal then remove workspace. """
@@ -412,8 +412,8 @@ class Workspace(object):
                 self.document_controller.document_model.remove_workspace(workspace)
 
         caption = _("Remove workspace named '{0}'?").format(self.__workspace.name)
-        self.pose_confirmation_message_box("remove_workspace", caption, confirm_clicked,
-                                           accepted_text=_("Remove Workspace"))
+        self.pose_confirmation_message_box(caption, confirm_clicked, accepted_text=_("Remove Workspace"),
+                                           message_box_id="remove_workspace")
 
     def pose_get_string_message_box(self, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None):
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
@@ -464,7 +464,7 @@ class Workspace(object):
         self.__message_boxes[message_box_id] = message_box_widget
         return message_box_widget
 
-    def pose_confirmation_message_box(self, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None, display_rejected=True):
+    def pose_confirmation_message_box(self, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True, message_box_id=None):
         message_box_id = message_box_id if message_box_id else str(uuid.uuid4())
         if message_box_id in self.__message_boxes:
             return None
