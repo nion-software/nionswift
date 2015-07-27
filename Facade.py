@@ -191,11 +191,11 @@ class ComboBoxWidget(object):
         self.__combo_box_widget.items = value
 
     @property
-    def text_for_item(self):
+    def item_text_getter(self):
         return self.__combo_box_widget.item_getter
 
-    @text_for_item.setter
-    def text_for_item(self, value):
+    @item_text_getter.setter
+    def item_text_getter(self, value):
         self.__combo_box_widget.item_getter = value
 
     @property
@@ -386,10 +386,10 @@ class UserInterface(object):
     def create_scroll_area_widget(self):
         raise NotImplemented()
 
-    def create_combo_box_widget(self, items=None, text_for_item=None):
+    def create_combo_box_widget(self, items=None, item_text_getter=None):
         combo_box_widget = ComboBoxWidget(self.__ui)
         combo_box_widget.items = items if items is not None else list()
-        combo_box_widget.text_for_item = text_for_item
+        combo_box_widget.item_text_getter = item_text_getter
         return combo_box_widget
 
     def create_label_widget(self, text=None):
