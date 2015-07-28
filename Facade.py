@@ -1045,17 +1045,84 @@ class HardwareSource(object):
 
 class Instrument(object):
 
+    """Represents an instrument with controls and properties.
+
+    A control is part of a network of dependent properties where the output is the weighted sum of inputs with an added
+    value.
+
+    A property is a simple value with a specific type that can be set or read.
+
+    The instrument class provides the ability to have temporary states where changes to the instrument are recorded and
+    restored when finished. Calls to begin/end temporary state should be matched.
+
+    The class also provides the ability to group a set of operations and have them be applied together. Calls to
+    begin/end transaction should be matched.
+    """
+
     def __init__(self, instrument):
         self.__instrument = instrument
 
     def close(self):
         pass
 
-    def get_property(self, property_name):
-        return self.__instrument.values[property_name]
+    def set_control_output(self, name, value, options=None):
+        """Set the value of a control asynchronously.
 
-    def set_property(self, property_name, value):
-        self.__instrument.values[property_name] = value
+        :param name: The name of the control (string).
+        :param value: The control value (float).
+        :param options: A dict of custom options to pass to the instrument for setting the value.
+
+        Current options are:
+            value_type: local, delta, output. output is default.
+            inform: True to keep dependent control outputs constant by adjusting their internal values. False is default.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__instrument.set_control_output(name, value, options)
+
+    def get_control_output(self, name):
+        """Return the value of a control.
+
+        :return: The control value.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__instrument.get_control_value(name)
+
+    def get_property_as_float(self, name):
+        """Return the value of a float property.
+
+        :return: The property value (float).
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__instrument.get_property_as_float(name)
+
+    def set_property_as_float(self, name, value):
+        """Set the value of a float property.
+
+        :param name: The name of the property (string).
+        :param value: The property value (float).
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__instrument.set_property_as_float(name, value)
+
+    def get_property(self, name):
+        # deprecated
+        return self.get_property_as_float(name)
+
+    def set_property(self, name, value):
+        # deprecated
+        self.set_property_as_float(name, value)
 
 
 class Library(object):
