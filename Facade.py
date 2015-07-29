@@ -100,6 +100,8 @@ class ObjectSpecifier(object):
                                 return graphic
         elif object_type == "hardware_source":
             return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
+        elif object_type == "instrument":
+            return Instrument(HardwareSourceModule.HardwareSourceManager().get_instrument_by_id(object_id))
         return None
 
 
@@ -1073,6 +1075,10 @@ class Instrument(object):
     def close(self):
         pass
 
+    @property
+    def specifier(self):
+        return ObjectSpecifier("instrument", object_id=self.__instrument.instrument_id)
+
     def set_control_output(self, name, value, options=None):
         """Set the value of a control asynchronously.
 
@@ -1099,7 +1105,7 @@ class Instrument(object):
 
         Scriptable: Yes
         """
-        return self.__instrument.get_control_value(name)
+        return self.__instrument.get_control_output(name)
 
     def get_property_as_float(self, name):
         """Return the value of a float property.
@@ -1131,6 +1137,13 @@ class Instrument(object):
     def set_property(self, name, value):
         # deprecated
         self.set_property_as_float(name, value)
+
+    def execute_command(self, command, args_str, kwargs_str):
+        args = pickle.loads(args_str)
+        kwargs = pickle.loads(kwargs_str)
+        result = getattr(self.__instrument, command)(*args, **kwargs)
+        result_str = pickle.dumps(result)
+        return result_str
 
 
 class Library(object):
