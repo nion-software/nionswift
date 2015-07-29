@@ -15,6 +15,7 @@ from __future__ import division
 # standard libraries
 import datetime
 import gettext
+import pickle
 import threading
 import uuid
 
@@ -1041,6 +1042,13 @@ class HardwareSource(object):
         """
         data_elements = self.__hardware_source.get_next_data_elements_to_finish()
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+
+    def execute_command(self, command, args_str, kwargs_str):
+        args = pickle.loads(args_str)
+        kwargs = pickle.loads(kwargs_str)
+        result = getattr(self.__hardware_source, command)(*args, **kwargs)
+        result_str = pickle.dumps(result)
+        return result_str
 
 
 class Instrument(object):
