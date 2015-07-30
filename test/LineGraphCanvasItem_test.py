@@ -3,14 +3,17 @@ from __future__ import absolute_import
 
 # standard libraries
 import logging
-import numpy
 import unittest
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DocumentController
+from nion.swift import Panel
+from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import LineGraphCanvasItem
 from nion.ui import Test
 
@@ -42,6 +45,28 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, None, None)
             self.assertEqual(data_info.y_properties.uncalibrated_data_min, expected_uncalibrated_data_min)
             self.assertEqual(data_info.y_properties.uncalibrated_data_max, expected_uncalibrated_data_max)
+
+    # make sure we can remove a single operation
+    def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
+        # setup
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item = DataItem.DataItem(numpy.zeros((100,)))
+        document_model.append_data_item(data_item)
+        display_panel.set_displayed_data_item(data_item)
+        header_height = Panel.HeaderCanvasItem().header_height
+        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+        # run test
+        self.assertEqual(document_controller.tool_mode, "pointer")
+        for tool_mode in ["interval"]:
+            document_controller.tool_mode = tool_mode
+            display_panel.display_canvas_item.simulate_press((100,125))
+            display_panel.display_canvas_item.simulate_move((100,125))
+            self.assertEqual(document_controller.tool_mode, tool_mode)
+            display_panel.display_canvas_item.simulate_move((250,200))
+            display_panel.display_canvas_item.simulate_release((250,200))
+            self.assertEqual(document_controller.tool_mode, "pointer")
 
 
 if __name__ == '__main__':

@@ -74,8 +74,12 @@ class ToolbarPanel(Panel.Panel):
 
         modes = "pointer", "hand", "line", "rectangle", "ellipse", "point", "line-profile", "interval"
         self.__tool_button_group = CanvasItem.RadioButtonGroup([pointer_tool_button, hand_tool_button, line_tool_button, rectangle_tool_button, ellipse_tool_button, point_tool_button, line_profile_tool_button, interval_tool_button])
+        def tool_mode_changed(tool_mode):
+            self.__tool_button_group.current_index = modes.index(tool_mode)
+        self.__tool_mode_changed_event_listener = document_controller.tool_mode_changed_event.listen(tool_mode_changed)
         self.__tool_button_group.current_index = modes.index(document_controller.tool_mode)
         self.__tool_button_group.on_current_index_changed = lambda index: setattr(document_controller_weak_ref(), "tool_mode", modes[index])
+        tool_mode_changed(document_controller.tool_mode)
 
         new_group_button = self.ui.create_push_button_widget()
         new_group_button.tool_tip = _("New Group")
@@ -152,6 +156,8 @@ class ToolbarPanel(Panel.Panel):
         self.__view_palette_canvas_item = view_palette_canvas_item
 
     def close(self):
+        self.__tool_mode_changed_event_listener.close()
+        self.__tool_mode_changed_event_listener = None
         self.__tool_palette_canvas_item.close()
         self.__tool_palette_canvas_item = None
         self.__view_palette_canvas_item.close()

@@ -72,6 +72,7 @@ class DocumentController(Observable.Broadcaster):
         self.cursor_changed_event = Observable.Event()
         self.did_close_event = Observable.Event()
         self.create_new_document_controller_event = Observable.Event()
+        self.tool_mode_changed_event = Observable.Event()
 
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
@@ -585,6 +586,7 @@ class DocumentController(Observable.Broadcaster):
     @tool_mode.setter
     def tool_mode(self, tool_mode):
         self.__tool_mode = tool_mode
+        self.tool_mode_changed_event.fire(tool_mode)
 
     def new_window(self, workspace_id, data_item=None):
         # hack to work around Application <-> DocumentController interdependency.

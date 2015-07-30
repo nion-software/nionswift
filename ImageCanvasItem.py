@@ -503,7 +503,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.delegate.tool_mode = "pointer"
         elif self.delegate.tool_mode == "rectangle":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -525,7 +524,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.delegate.tool_mode = "pointer"
         elif self.delegate.tool_mode == "ellipse":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -547,7 +545,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.delegate.tool_mode = "pointer"
         elif self.delegate.tool_mode == "point":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -569,7 +566,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.delegate.tool_mode = "pointer"
         elif self.delegate.tool_mode == "line-profile":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -591,7 +587,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
-                self.delegate.tool_mode = "pointer"
         elif self.delegate.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
@@ -627,6 +622,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__start_drag_pos = None
         self.__last_drag_pos = None
         self.__is_dragging = False
+        if self.delegate.tool_mode != "hand":
+            self.delegate.tool_mode = "pointer"
         return True
 
     def mouse_entered(self):

@@ -604,7 +604,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__graphic_drag_item = None
             self.__graphic_part_data = {}
             self.__graphic_drag_indexes = []
-            self.delegate.tool_mode = "pointer"
+        self.delegate.tool_mode = "pointer"
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
         self.__tracking_selections = False
