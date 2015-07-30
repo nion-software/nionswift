@@ -396,7 +396,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
                 self.begin_tracking_vertical(pos, rescale=modifiers.control)
                 return True
-        elif self.delegate.tool_mode == "interval":
+        if self.delegate.tool_mode == "interval":
             if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
                 data_size = self.__get_dimensional_shape()
                 if data_size and len(data_size) == 1:
@@ -454,18 +454,20 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return LinePlotCanvasItemMapping(data_size, plot_rect, left_channel, right_channel)
 
     def begin_tracking_regions(self, pos, modifiers):
+        # keep track of general drag information
+        self.__graphic_drag_start_pos = Geometry.IntPoint.make(pos)
+        self.__graphic_drag_changed = False
         data_size = self.__get_dimensional_shape()
         if self.__data_and_calibration and data_size and len(data_size) == 1:
             self.__tracking_selections = True
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
             for graphic_index, graphic in enumerate(graphics):
-                start_drag_pos = Geometry.IntPoint.make(pos)
                 already_selected = graphic_index in selection_indexes
                 multiple_items_selected = len(selection_indexes) > 1
                 move_only = not already_selected or multiple_items_selected
                 widget_mapping = self.__get_mouse_mapping()
-                part = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
+                part = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, move_only)
                 if part:
                     # select item and prepare for drag
                     self.graphic_drag_item_was_selected = already_selected
@@ -477,11 +479,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                             self.delegate.set_selection(graphic_index)
                             selection_indexes.clear()
                             selection_indexes.add(graphic_index)
-                    # keep track of general drag information
-                    self.__graphic_drag_start_pos = start_drag_pos
-                    self.__graphic_drag_changed = False
                     # keep track of info for the specific item that was clicked
-                    self.__graphic_drag_item = graphics[graphic_index]
+                    self.__graphic_drag_item = graphic
                     self.__graphic_drag_part = part
                     # keep track of drag information for each item in the set
                     self.__graphic_drag_indexes = selection_indexes
@@ -490,8 +489,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         self.__graphic_drag_items.append(graphic)
                         self.__graphic_part_data[index] = graphic.begin_drag()
                     break
-            if not self.__graphic_drag_items and not modifiers.shift:
-                self.delegate.clear_selection()
 
     def begin_tracking_horizontal(self, pos, rescale):
         plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
@@ -529,6 +526,28 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     def continue_tracking(self, pos, modifiers):
         if self.__tracking_selections:
+            if self.__graphic_drag_item is None and not self.__graphic_drag_changed:
+                pos = self.__graphic_drag_start_pos
+                widget_mapping = self.__get_mouse_mapping()
+                x = widget_mapping.map_point_widget_to_channel_norm(pos)
+                region = Region.IntervalRegion()
+                region.start = x
+                region.end = x
+                self.delegate.add_and_select_region(region)
+                selection_indexes = self.__graphic_selection.indexes
+                for graphic_index, graphic in enumerate(self.__graphics):
+                    if graphic.region == region:
+                        part = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, False)
+                        if part:
+                            self.graphic_drag_item_was_selected = False
+                            self.delegate.set_selection(graphic_index)
+                            selection_indexes.clear()
+                            selection_indexes.add(graphic_index)
+                            self.__graphic_drag_item = graphic
+                            self.__graphic_drag_part = part
+                            self.__graphic_drag_indexes = selection_indexes
+                            self.__graphic_drag_items.append(graphic)
+                            self.__graphic_part_data[graphic_index] = graphic.begin_drag()
             # x,y already have transform applied
             self.__last_mouse = copy.copy(pos)
             self.__update_cursor_info()
@@ -581,6 +600,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return False
 
     def end_tracking(self, modifiers):
+        if not self.__graphic_drag_items and not modifiers.shift:
+            self.delegate.clear_selection()
         if self.__tracking_selections:
             if self.__data_and_calibration:
                 graphics = self.__graphics
