@@ -41,27 +41,35 @@ class ToolbarPanel(Panel.Panel):
 
         pointer_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/pointer_icon.png"), border_color=border_color)
         pointer_tool_button.size = icon_size
+        pointer_tool_button.tool_tip = _("Pointer tool for selecting graphics")
 
         hand_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/hand_icon.png"), border_color=border_color)
         hand_tool_button.size = icon_size
+        hand_tool_button.tool_tip = _("Hand tool for dragging images within panel")
 
         line_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/line_icon.png"), border_color=border_color)
         line_tool_button.size = icon_size
+        line_tool_button.tool_tip = _("Line tool for making line regions on images")
 
         rectangle_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/rectangle_icon.png"), border_color=border_color)
         rectangle_tool_button.size = icon_size
+        rectangle_tool_button.tool_tip = _("Rectangle tool for making rectangle regions on images")
 
         ellipse_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/ellipse_icon.png"), border_color=border_color)
         ellipse_tool_button.size = icon_size
+        ellipse_tool_button.tool_tip = _("Ellipse tool for making ellipse regions on images")
 
         point_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/point_icon.png"), border_color=border_color)
         point_tool_button.size = icon_size
+        point_tool_button.tool_tip = _("Point tool for making point regions on images")
 
         line_profile_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/line_profile_icon.png"), border_color=border_color)
         line_profile_tool_button.size = icon_size
+        line_profile_tool_button.tool_tip = _("Line profile tool for making line profiles on images")
 
         interval_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/interval_icon.png"), border_color=border_color)
         interval_tool_button.size = icon_size
+        interval_tool_button.tool_tip = _("Interval tool for making intervals on line plots")
 
         tool_palette_canvas_item.add_canvas_item(pointer_tool_button, Geometry.IntPoint(x=0, y=0))
         tool_palette_canvas_item.add_canvas_item(hand_tool_button, Geometry.IntPoint(x=0, y=1))
@@ -102,18 +110,22 @@ class ToolbarPanel(Panel.Panel):
         fit_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/fit_icon.png"), border_color=border_color)
         fit_view_button.size = icon_size
         fit_view_button.on_button_clicked = lambda: document_controller_weak_ref().fit_view_action.trigger()
+        fit_view_button.tool_tip = _("Zoom to fit to enclosing space")
 
         fill_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/fill_icon.png"), border_color=border_color)
         fill_view_button.size = icon_size
         fill_view_button.on_button_clicked = lambda: document_controller_weak_ref().fill_view_action.trigger()
+        fill_view_button.tool_tip = _("Zoom to fill enclosing space")
 
         one_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/1x1_icon.png"), border_color=border_color)
         one_to_one_view_button.size = icon_size
         one_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref().one_to_one_view_action.trigger()
+        one_to_one_view_button.tool_tip = _("Zoom to one image pixel per screen pixel")
 
         two_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/2x1_icon.png"), border_color=border_color)
         two_to_one_view_button.size = icon_size
         two_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref().two_to_one_view_action.trigger()
+        two_to_one_view_button.tool_tip = _("Zoom to two image pixels per screen pixel")
 
         view_palette_canvas_item.add_canvas_item(fit_view_button, Geometry.IntPoint(x=0, y=0))
         view_palette_canvas_item.add_canvas_item(fill_view_button, Geometry.IntPoint(x=0, y=1))
