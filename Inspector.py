@@ -876,6 +876,13 @@ class GraphicsInspectorSection(InspectorSection):
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
         list_widget.bind_items(Binding.ListBinding(display, "selected_graphics" if selected_only else "drawn_graphics"))
         self.add_widget_to_content(list_widget)
+        # create the display calibrations check box row
+        display_calibrations_row = self.ui.create_row_widget()
+        display_calibrations_checkbox = self.ui.create_check_box_widget(_("Use Calibrated Units"))
+        display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(display, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
+        display_calibrations_row.add(display_calibrations_checkbox)
+        display_calibrations_row.add_stretch()
+        self.add_widget_to_content(display_calibrations_row)
         self.finish_widget_content()
 
     def __create_header_widget(self):
