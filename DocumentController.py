@@ -250,30 +250,41 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Add Interval Region"), lambda: self.add_interval_region())
         self.processing_menu.add_separator()
 
+        self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+S")
+        self.processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
+        self.processing_menu.add_separator()
+
         self.processing_menu.add_menu_item(_("FFT"), lambda: self.processing_fft(), key_sequence="Ctrl+F")
         self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.processing_ifft(), key_sequence="Ctrl+Shift+F")
         self.processing_menu.add_menu_item(_("Auto Correlate"), lambda: self.processing_auto_correlate())
         self.processing_menu.add_menu_item(_("Cross Correlate"), lambda: self.processing_cross_correlate())
+        self.processing_menu.add_separator()
+
         self.processing_menu.add_menu_item(_("Sobel Filter"), lambda: self.processing_sobel())
         self.processing_menu.add_menu_item(_("Laplace Filter"), lambda: self.processing_laplace())
         self.processing_menu.add_menu_item(_("Gaussian Blur"), lambda: self.processing_gaussian_blur())
         self.processing_menu.add_menu_item(_("Median Filter"), lambda: self.processing_median_filter())
         self.processing_menu.add_menu_item(_("Uniform Filter"), lambda: self.processing_uniform_filter())
+        self.processing_menu.add_separator()
+
         self.processing_menu.add_menu_item(_("Transpose and Flip"), lambda: self.processing_transpose_flip())
         self.processing_menu.add_menu_item(_("Resample"), lambda: self.processing_resample())
         self.processing_menu.add_menu_item(_("Crop"), lambda: self.processing_crop())
         self.processing_menu.add_menu_item(_("Slice"), lambda: self.processing_slice())
         self.processing_menu.add_menu_item(_("Pick"), lambda: self.processing_pick())
         self.processing_menu.add_menu_item(_("Projection"), lambda: self.processing_projection())
-        self.processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
         self.processing_menu.add_menu_item(_("Invert"), lambda: self.processing_invert())
-        self.processing_menu.add_menu_item(_("Duplicate"), lambda: self.processing_duplicate(), key_sequence="Ctrl+D")
-        self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+S")
+        self.processing_menu.add_separator()
+
+        self.processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
         self.processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
+        self.processing_menu.add_separator()
+
         self.processing_menu.add_menu_item(_("Crop (Experimental)"), lambda: self.processing_crop_new())
         self.processing_menu.add_menu_item(_("Pick (Experimental)"), lambda: self.processing_pick_new())
         self.processing_menu.add_menu_item(_("Line Profile (Experimental)"), lambda: self.processing_line_profile_new())
+        self.processing_menu.add_separator()
 
         self.__dynamic_live_actions = []
 
