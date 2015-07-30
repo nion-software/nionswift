@@ -901,6 +901,7 @@ class GraphicsInspectorSection(InspectorSection):
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
+        # create the widgets for each graphic
         # TODO: do not use dynamic list object in graphics inspector; the dynamic aspect is not utilized.
         list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
         list_widget.bind_items(Binding.ListBinding(display, "selected_graphics" if selected_only else "drawn_graphics"))
@@ -925,31 +926,37 @@ class GraphicsInspectorSection(InspectorSection):
         # NOTE: it is not valid to access self.__graphics here. graphic may or may not be in that list due to threading.
         # graphic_section_index = self.__graphics.index(graphic)
         image_size = self.__image_size
-        graphic_title_row = self.ui.create_row_widget()
-        # graphic_title_index_label = self.ui.create_label_widget(str(graphic_section_index), properties={"width": 20})
-        graphic_title_type_label = self.ui.create_label_widget()
-        # graphic_title_row.add(graphic_title_index_label)
-        graphic_title_row.add(graphic_title_type_label)
-        graphic_title_row.add_stretch()
         graphic_widget = self.ui.create_column_widget()
-        graphic_widget.add(graphic_title_row)
+        # create the title row
+        title_row = self.ui.create_row_widget()
+        graphic_type_label = self.ui.create_label_widget(properties={"width": 100})
+        label_line_edit = self.ui.create_line_edit_widget()
+        label_line_edit.placeholder_text = _("None")
+        label_line_edit.bind_text(Binding.PropertyBinding(graphic, "label"))
+        title_row.add(graphic_type_label)
+        title_row.add_spacing(8)
+        title_row.add(label_line_edit)
+        title_row.add_stretch()
+        graphic_widget.add(title_row)
+        graphic_widget.add_spacing(4)
+        # create the graphic specific widget
         if isinstance(graphic, Graphics.PointGraphic):
-            graphic_title_type_label.text = _("Point")
+            graphic_type_label.text = _("Point")
             make_point_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
-        if isinstance(graphic, Graphics.LineGraphic):
-            graphic_title_type_label.text = _("Line")
-            make_line_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
-        if isinstance(graphic, Graphics.LineProfileGraphic):
-            graphic_title_type_label.text = _("Line Profile")
+        elif isinstance(graphic, Graphics.LineProfileGraphic):
+            graphic_type_label.text = _("Line Profile")
             make_line_profile_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
-        if isinstance(graphic, Graphics.RectangleGraphic):
-            graphic_title_type_label.text = _("Rectangle")
+        elif isinstance(graphic, Graphics.LineGraphic):
+            graphic_type_label.text = _("Line")
+            make_line_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+        elif isinstance(graphic, Graphics.RectangleGraphic):
+            graphic_type_label.text = _("Rectangle")
             make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
-        if isinstance(graphic, Graphics.EllipseGraphic):
-            graphic_title_type_label.text = _("Ellipse")
+        elif isinstance(graphic, Graphics.EllipseGraphic):
+            graphic_type_label.text = _("Ellipse")
             make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
-        if isinstance(graphic, Graphics.IntervalGraphic):
-            graphic_title_type_label.text = _("Interval")
+        elif isinstance(graphic, Graphics.IntervalGraphic):
+            graphic_type_label.text = _("Interval")
             make_interval_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)

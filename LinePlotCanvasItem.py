@@ -218,8 +218,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 left_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_value(left_channel))
                 right_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_value(right_channel))
                 middle_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_size(right_channel - left_channel))
-                RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text"])
-                region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text)
+                RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label"])
+                region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label)
                 regions.append(region)
 
         if self.__line_graph_regions_canvas_item.regions is None or self.__line_graph_regions_canvas_item.regions != regions:

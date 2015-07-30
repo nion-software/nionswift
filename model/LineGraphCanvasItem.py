@@ -471,6 +471,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                 left_text = region.left_text
                 right_text = region.right_text
                 middle_text = region.middle_text
+                label = region.label
                 level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
                 with drawing_context.saver():
                     drawing_context.begin_path()
@@ -510,6 +511,13 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                                     drawing_context.fill_text(right_text, x + 4, level)
                             else:
                                 draw_marker(drawing_context, (level, mid_x), stroke='#F00')
+                            if label:
+                                drawing_context.line_dash = 0
+                                drawing_context.fill_style = '#F00'
+                                drawing_context.font = "{0:d}px".format(self.font_size)
+                                drawing_context.text_align = "center"
+                                drawing_context.text_baseline = "top"
+                                drawing_context.fill_text(label, mid_x, level + 6)
                         last_x = x
 
 
