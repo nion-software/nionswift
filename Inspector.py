@@ -857,6 +857,35 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_s
     graphic_widget.add_spacing(4)
 
 
+def make_interval_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+    def new_display_calibrated_values_binding():
+        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
+    # configure the bindings
+    converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+    start_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "start"), new_display_calibrated_values_binding(), converter)
+    end_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "end"), new_display_calibrated_values_binding(), converter)
+    # create the ui
+    graphic_start_row = ui.create_row_widget()
+    graphic_start_row.add_spacing(20)
+    graphic_start_row.add(ui.create_label_widget(_("Start"), properties={"width": 52}))
+    graphic_start_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_start_line_edit.bind_text(start_binding)
+    graphic_start_row.add(graphic_start_line_edit)
+    graphic_start_row.add_stretch()
+    graphic_end_row = ui.create_row_widget()
+    graphic_end_row.add_spacing(20)
+    graphic_end_row.add(ui.create_label_widget(_("End"), properties={"width": 52}))
+    graphic_end_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_end_line_edit.bind_text(end_binding)
+    graphic_end_row.add(graphic_end_line_edit)
+    graphic_end_row.add_stretch()
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_start_row)
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_end_row)
+    graphic_widget.add_spacing(4)
+
+
 class GraphicsInspectorSection(InspectorSection):
 
     """
@@ -919,6 +948,9 @@ class GraphicsInspectorSection(InspectorSection):
         if isinstance(graphic, Graphics.EllipseGraphic):
             graphic_title_type_label.text = _("Ellipse")
             make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+        if isinstance(graphic, Graphics.IntervalGraphic):
+            graphic_title_type_label.text = _("Interval")
+            make_interval_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
@@ -1056,6 +1088,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(LinePlotInspectorSection(self.ui, display))
+            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
