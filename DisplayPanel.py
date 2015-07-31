@@ -892,7 +892,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
     def __init__(self, document_controller):
         super(BrowserDisplayPanelContent, self).__init__(document_controller)
 
-        self.header_canvas_item.end_header_color = "#FDFD96"
+        self.header_canvas_item.end_header_color = "#FFC"
         self.header_canvas_item.title = _("Browser")
         self.content_canvas_item.focused_style = None
         self.content_canvas_item.selected_style = None
