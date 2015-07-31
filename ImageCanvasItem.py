@@ -449,37 +449,49 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if self.delegate.tool_mode == "pointer":
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
+            start_drag_pos = Geometry.IntPoint(y=y, x=x)
+            multiple_items_selected = len(selection_indexes) > 1
+            widget_mapping = self.__get_mouse_mapping()
+            part_specs = list()
+            specific_part_spec = None
             for graphic_index, graphic in enumerate(graphics):
-                start_drag_pos = Geometry.IntPoint(y=y, x=x)
                 already_selected = graphic_index in selection_indexes
-                multiple_items_selected = len(selection_indexes) > 1
                 move_only = not already_selected or multiple_items_selected
-                widget_mapping = self.__get_mouse_mapping()
-                part = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
+                part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
                 if part:
-                    # select item and prepare for drag
-                    self.graphic_drag_item_was_selected = already_selected
-                    if not self.graphic_drag_item_was_selected:
-                        if modifiers.shift:
-                            self.delegate.add_index_to_selection(graphic_index)
-                            selection_indexes.add(graphic_index)
-                        elif not already_selected:
-                            self.delegate.set_selection(graphic_index)
-                            selection_indexes.clear()
-                            selection_indexes.add(graphic_index)
-                    # keep track of general drag information
-                    self.__graphic_drag_start_pos = start_drag_pos
-                    self.__graphic_drag_changed = False
-                    # keep track of info for the specific item that was clicked
-                    self.__graphic_drag_item = graphics[graphic_index]
-                    self.__graphic_drag_part = part
-                    # keep track of drag information for each item in the set
-                    self.__graphic_drag_indexes = selection_indexes
-                    for index in self.__graphic_drag_indexes:
-                        graphic = graphics[index]
-                        self.__graphic_drag_items.append(graphic)
-                        self.__graphic_part_data[index] = graphic.begin_drag()
-                    break
+                    part_spec = graphic_index, graphic, already_selected, "all" if move_only else part
+                    part_specs.append(part_spec)
+                    if specific:
+                        specific_part_spec = part_spec
+            # import logging
+            # logging.debug(specific_part_spec)
+            # logging.debug(part_specs)
+            part_spec = specific_part_spec if specific_part_spec is not None else part_specs[-1] if len(part_specs) > 0 else None
+            if part_spec is not None:
+                graphic_index, graphic, already_selected, part = part_spec
+                part = part if specific_part_spec is not None else "all"
+                # select item and prepare for drag
+                self.graphic_drag_item_was_selected = already_selected
+                if not self.graphic_drag_item_was_selected:
+                    if modifiers.shift:
+                        self.delegate.add_index_to_selection(graphic_index)
+                        selection_indexes.add(graphic_index)
+                    elif not already_selected:
+                        self.delegate.set_selection(graphic_index)
+                        selection_indexes.clear()
+                        selection_indexes.add(graphic_index)
+                # keep track of general drag information
+                self.__graphic_drag_start_pos = start_drag_pos
+                self.__graphic_drag_changed = False
+                # keep track of info for the specific item that was clicked
+                self.__graphic_drag_item = graphics[graphic_index]
+                self.__graphic_drag_part = part
+                # keep track of drag information for each item in the set
+                self.__graphic_drag_indexes = selection_indexes
+                for index in self.__graphic_drag_indexes:
+                    graphic = graphics[index]
+                    self.__graphic_drag_items.append(graphic)
+                    self.__graphic_part_data[index] = graphic.begin_drag()
             if not self.__graphic_drag_items and not modifiers.shift:
                 self.delegate.clear_selection()
         elif self.delegate.tool_mode == "line":

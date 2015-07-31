@@ -467,7 +467,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 multiple_items_selected = len(selection_indexes) > 1
                 move_only = not already_selected or multiple_items_selected
                 widget_mapping = self.__get_mouse_mapping()
-                part = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, move_only)
+                part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, move_only)
                 if part:
                     # select item and prepare for drag
                     self.graphic_drag_item_was_selected = already_selected
@@ -537,7 +537,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 selection_indexes = self.__graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if graphic.region == region:
-                        part = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, False)
+                        part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, False)
                         if part:
                             self.graphic_drag_item_was_selected = False
                             self.delegate.set_selection(graphic_index)

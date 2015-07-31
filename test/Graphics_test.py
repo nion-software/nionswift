@@ -48,6 +48,24 @@ class TestGraphicsClass(unittest.TestCase):
         line_graphic = Graphics.LineGraphic()
         copy.deepcopy(line_graphic)
 
+    def test_rect_test(self):
+        mapping = TestGraphicsClass.Mapping((1000, 1000))
+        rect_graphic = Graphics.RectangleGraphic()
+        rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
+        def get_font_metrics(font, text):
+            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (500, 500), move_only=False), ("all", False))
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (250, 250), move_only=False)[0], "top-left")
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (750, 750), move_only=False)[0], "bottom-right")
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (250, 750), move_only=False)[0], "top-right")
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (750, 250), move_only=False)[0], "bottom-left")
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (250, 500), move_only=False), ("all", True))
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (750, 500), move_only=False), ("all", True))
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (500, 250), move_only=False), ("all", True))
+        self.assertEqual(rect_graphic.test(mapping, get_font_metrics, (500, 750), move_only=False), ("all", True))
+        self.assertIsNone(rect_graphic.test(mapping, get_font_metrics, (0, 0), move_only=False)[0])
+
     def test_line_test(self):
         mapping = TestGraphicsClass.Mapping((1000, 1000))
         line_graphic = Graphics.LineGraphic()
@@ -56,14 +74,14 @@ class TestGraphicsClass(unittest.TestCase):
         def get_font_metrics(font, text):
             FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
             return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (500, 500), move_only=True), "all")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (250, 250), move_only=True), "all")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (750, 750), move_only=True), "all")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (250, 250), move_only=False), "start")
-        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (750, 750), move_only=False), "end")
-        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (240, 240), move_only=False))
-        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (760, 760), move_only=False))
-        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (0, 0), move_only=False))
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (500, 500), move_only=True)[0], "all")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (250, 250), move_only=True)[0], "start")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (750, 750), move_only=True)[0], "end")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (250, 250), move_only=False)[0], "start")
+        self.assertEqual(line_graphic.test(mapping, get_font_metrics, (750, 750), move_only=False)[0], "end")
+        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (240, 240), move_only=False)[0])
+        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (760, 760), move_only=False)[0])
+        self.assertIsNone(line_graphic.test(mapping, get_font_metrics, (0, 0), move_only=False)[0])
 
     def test_point_test(self):
         mapping = TestGraphicsClass.Mapping((1000, 1000))
@@ -72,10 +90,10 @@ class TestGraphicsClass(unittest.TestCase):
         def get_font_metrics(font, text):
             FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
             return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
-        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250, 250), move_only=True), "all")
-        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250 - 18, 250), move_only=True), None)
+        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250, 250), move_only=True)[0], "all")
+        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250 - 18, 250), move_only=True)[0], None)
         point_graphic.label = "Test"
-        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250 - 18 - 6, 250), move_only=True), "all")
+        self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250 - 18 - 6, 250), move_only=True)[0], "all")
 
     def assertAlmostEqualPoint(self, p1, p2, e=0.00001):
         if not(Geometry.distance(p1, p2) < e):

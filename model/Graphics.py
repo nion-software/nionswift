@@ -444,26 +444,42 @@ class RectangleTypeGraphic(Graphic):
         # are specified in widget coordinates
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
         size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        top_left = origin
+        top_right = origin[0], origin[1] + size[1]
+        bottom_right = origin[0] + size[0], origin[1] + size[1]
+        bottom_left = origin[0] + size[0], origin[1]
         # top left
-        if not move_only and self.test_point(origin, test_point, 4):
-            return "top-left"
+        if self.test_point(origin, test_point, 4):
+            return "top-left", True
         # top right
-        if not move_only and self.test_point((origin[0], origin[1] + size[1]), test_point, 4):
-            return "top-right"
+        if self.test_point(top_right, test_point, 4):
+            return "top-right", True
         # bottom right
-        if not move_only and self.test_point((origin[0] + size[0], origin[1] + size[1]), test_point, 4):
-            return "bottom-right"
+        if self.test_point(bottom_right, test_point, 4):
+            return "bottom-right", True
         # bottom left
-        if not move_only and self.test_point((origin[0] + size[0], origin[1]), test_point, 4):
-            return "bottom-left"
+        if self.test_point(bottom_left, test_point, 4):
+            return "bottom-left", True
+        # top line
+        if self.test_line(top_left, top_right, test_point, 4):
+            return "all", True
+        # bottom line
+        if self.test_line(bottom_left, bottom_right, test_point, 4):
+            return "all", True
+        # left line
+        if self.test_line(top_left, bottom_left, test_point, 4):
+            return "all", True
+        # right line
+        if self.test_line(top_right, bottom_right, test_point, 4):
+            return "all", True
         # center
         if self.test_inside_bounds((origin, size), test_point, 4):
-            return "all"
+            return "all", False
         # label
         if self.test_label(get_font_metrics_fn, mapping, test_point):
-            return "all"
+            return "all", False
         # didn't find anything
-        return None
+        return None, None
 
     def begin_drag(self):
         return (self.bounds, )
@@ -632,19 +648,19 @@ class LineTypeGraphic(Graphic):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
         # start point
-        if not move_only and self.test_point(p1, test_point, 4):
-            return "start"
+        if self.test_point(p1, test_point, 4):
+            return "start", True
         # end point
-        if not move_only and self.test_point(p2, test_point, 4):
-            return "end"
+        if self.test_point(p2, test_point, 4):
+            return "end", True
         # along the line
         if self.test_line(p1, p2, test_point, 4):
-            return "all"
+            return "all", True
         # label
         if self.test_label(get_font_metrics_fn, mapping, test_point):
-            return "all"
+            return "all", False
         # didn't find anything
-        return None
+        return None, None
 
     def begin_drag(self):
         return (self.start, self.end)
@@ -706,7 +722,7 @@ class LineTypeGraphic(Graphic):
             if "bounds" in constraints:
                 end = min(max(end[0], 0.0), 1.0), min(max(end[1], 0.0), 1.0)
             self.end = end
-        elif part[0] == "all" or "shape" in constraints:
+        elif part[0] in ["all", "line"] or "shape" in constraints:
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
             delta_v = p[0] - o[0]
@@ -823,27 +839,33 @@ class PointTypeGraphic(Graphic):
         super(PointTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value))
+        self.define_property("position", (0.5, 0.5), changed=self._property_changed,
+                             validate=lambda value: tuple(value))
+
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         cross_hair_size = 12
         p = mapping.map_point_image_norm_to_widget(self.position)
-        bounds = Geometry.FloatRect.from_center_and_size(p, Geometry.FloatSize(width=cross_hair_size*2, height=cross_hair_size*2))
+        bounds = Geometry.FloatRect.from_center_and_size(p, Geometry.FloatSize(width=cross_hair_size * 2,
+                                                                               height=cross_hair_size * 2))
         if self.test_inside_bounds(bounds, test_point, 2):
-            return "all"
+            return "all", True
         # check the label
         if self.test_label(get_font_metrics_fn, mapping, test_point):
-            return "all"
+            return "all", False
         # didn't find anything
-        return None
+        return None, None
+
     def begin_drag(self):
-        return (self.position, )
+        return (self.position,)
+
     def end_drag(self, part_data):
         pass
+
     def adjust_part(self, mapping, original, current, part, modifiers):
-        if part[0] == "all":
+        if part[0] in ["all", "point"]:
             o = mapping.map_point_widget_to_image_norm(original)
             p = mapping.map_point_widget_to_image_norm(current)
             delta_v = p[0] - o[0]
@@ -858,11 +880,13 @@ class PointTypeGraphic(Graphic):
             if "bounds" in self._constraints:
                 pos = min(max(pos[0], 0.0), 1.0), min(max(pos[1], 0.0), 1.0)
             self.position = pos
+
     def nudge(self, mapping, delta):
         pos_image = mapping.map_point_image_norm_to_image(self.position)
         original = pos_image
         current = original + delta
-        self.adjust_part(mapping, original, current, ("all", ) + self.begin_drag(), NullModifiers())
+        self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
+
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         raise NotImplementedError()
 
@@ -949,19 +973,19 @@ class IntervalGraphic(Graphic):
         p1 = mapping.map_point_channel_norm_to_widget(self.start)
         p2 = mapping.map_point_channel_norm_to_widget(self.end)
         # start point
-        if not move_only and abs(test_point.x - p1) < 4:
-            return "start"
+        if abs(test_point.x - p1) < 4:
+            return "start", True
         # end point
-        if not move_only and abs(test_point.x - p2) < 4:
-            return "end"
+        if abs(test_point.x - p2) < 4:
+            return "end", True
         # along the line
         if test_point.x > p1 - 4 and test_point.x < p2 + 4:
-            return "all"
+            return "all", False
         # label
         if self.test_label(get_font_metrics_fn, mapping, test_point):
-            return "all"
+            return "all", False
         # didn't find anything
-        return None
+        return None, None
 
     def begin_drag(self):
         return (self.start, self.end)
