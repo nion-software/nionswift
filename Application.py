@@ -101,7 +101,7 @@ class Application(object):
         version = library_storage.get_version()
         logging.debug("Library at version %s.", version)
 
-    def start(self, skip_choose=False):
+    def start(self, skip_choose=False, fixed_workspace_dir=None):
         """
             Start a new document model.
 
@@ -118,9 +118,12 @@ class Application(object):
 
             Creates document model, resources path, etc.
         """
-        documents_dir = self.ui.get_document_location()
-        workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
-        workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
+        if fixed_workspace_dir:
+            workspace_dir = fixed_workspace_dir
+        else:
+            documents_dir = self.ui.get_document_location()
+            workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
+            workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
         library_filename = "Nion Swift Workspace.nslib"
         cache_filename = "Nion Swift Cache.nscache"
         library_path = os.path.join(workspace_dir, library_filename)
@@ -136,15 +139,20 @@ class Application(object):
         self.workspace_dir = workspace_dir
         data_reference_handler = DataReferenceHandler(workspace_dir)
         create_new_document = not os.path.exists(library_path)
+        welcome_message = fixed_workspace_dir is None
         if create_new_document:
-            logging.debug("Creating new document: %s", library_path)
+            if welcome_message:
+                logging.debug("Creating new document: %s", library_path)
             library_storage = DocumentModel.FilePersistentStorage(library_path)
         else:
-            logging.debug("Using existing document %s", library_path)
+            if welcome_message:
+                logging.debug("Using existing document %s", library_path)
             library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
         managed_object_context = DocumentModel.ManagedDataItemContext(data_reference_handler, False, False)
         counts = managed_object_context.read_data_items_version_stats()
         if counts[2] > 0:
+
+            assert fixed_workspace_dir is None
 
             def do_ignore():
                 self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
@@ -205,11 +213,11 @@ class Application(object):
             upgrade_dialog.show()
 
         else:
-            self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
+            self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, True, welcome_message=welcome_message)
 
         return True
 
-    def continue_start(self, cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, ignore_older_files):
+    def continue_start(self, cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
         storage_cache = Storage.DbStorageCache(cache_path)
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
                                                      data_reference_handler=data_reference_handler,
@@ -226,7 +234,8 @@ class Application(object):
         workspace_history.insert(0, workspace_dir)
         self.ui.set_persistent_object("workspace_history", workspace_history)
         self.ui.set_persistent_string("workspace_location", workspace_dir)
-        logging.info("Welcome to Nion Swift.")
+        if welcome_message:
+            logging.info("Welcome to Nion Swift.")
         if create_new_document and len(document_model.data_items) > 0:
             document_controller.selected_display_panel.set_displayed_data_item(document_model.data_items[0])
             document_controller.selected_display_panel.perform_action("set_fill_mode")
@@ -236,11 +245,11 @@ class Application(object):
         # workspace_history = ["/Users/cmeyer/Movies/Crap/Test1", "/Users/cmeyer/Movies/Crap/Test7_new"]
         return [file_path for file_path in workspace_history if file_path != self.workspace_dir and os.path.exists(file_path)]
 
-    def switch_library(self, recent_workspace_file_path, skip_choose=False):
+    def switch_library(self, recent_workspace_file_path, skip_choose=False, fixed_workspace_dir=None):
         for document_controller in self.__document_controllers:
-            document_controller.document_window.close()
+            document_controller.close()
         self.ui.set_persistent_string("workspace_location", recent_workspace_file_path)
-        self.start(skip_choose=skip_choose)
+        self.start(skip_choose=skip_choose, fixed_workspace_dir=fixed_workspace_dir)
 
     def other_libraries(self):
         workspace_dir = self.choose_workspace()

@@ -1935,7 +1935,8 @@ class QtDocumentWindow(object):
         self.__title = Unicode.u()
 
     def close(self):
-        self.proxy.DocumentWindow_close(self.native_document_window)
+        # this is a callback and should not be invoked directly from Python;
+        # call request_close instead.
         self.native_document_window = None
         self.root_widget.close()
         self.root_widget = None
@@ -1947,6 +1948,9 @@ class QtDocumentWindow(object):
         self.on_about_to_close = None
         self.on_activation_changed = None
         self.proxy = None
+
+    def request_close(self):
+        self.proxy.DocumentWindow_close(self.native_document_window)
 
     # attach the root widget to this window
     # the root widget must respond to _set_root_container

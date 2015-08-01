@@ -139,11 +139,11 @@ class DocumentController(Observable.Broadcaster):
         self.window_menu = None
         self.help_menu = None
         self.library_menu = None
+        self.document_window.request_close()
+        self.document_window = None
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
-        self.document_window.close()
-        self.document_window = None
         # get rid of the bindings
         self.__data_item_will_be_removed_event_listener.close()
         self.__data_item_will_be_removed_event_listener = None
@@ -162,14 +162,16 @@ class DocumentController(Observable.Broadcaster):
         self.did_close_event.fire(self)
         self.did_close_event = None
         self.ui.destroy_document_window(self)
+        self.__periodic_queue = None
+        self.__periodic_set = None
 
     def about_to_show(self):
         geometry, state = self.workspace_controller.restore_geometry_state()
         self.document_window.restore(geometry, state)
 
     def about_to_close(self, geometry, state):
-        self.workspace_controller.save_geometry_state(geometry, state)
-        self.close()
+        if self.workspace_controller:
+            self.workspace_controller.save_geometry_state(geometry, state)
 
     def register_console(self, console):
         self.console = console
@@ -207,7 +209,7 @@ class DocumentController(Observable.Broadcaster):
 
         self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window("library"), key_sequence="new")
         #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
-        self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.document_window.close(), key_sequence="close")
+        self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.close(), key_sequence="close")
         self.file_menu.add_separator()
         self.new_action = self.file_menu.add_sub_menu(_("Switch Library"), self.library_menu)
         self.file_menu.add_separator()

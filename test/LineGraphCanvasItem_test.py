@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 # standard libraries
+import contextlib
 import logging
 import unittest
 
@@ -51,60 +52,63 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         # setup
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((100,)))
-        document_model.append_data_item(data_item)
-        display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
-        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
-        # run test
-        self.assertEqual(document_controller.tool_mode, "pointer")
-        for tool_mode in ["interval"]:
-            document_controller.tool_mode = tool_mode
-            display_panel.display_canvas_item.simulate_press((100,125))
-            display_panel.display_canvas_item.simulate_move((100,125))
-            self.assertEqual(document_controller.tool_mode, tool_mode)
-            display_panel.display_canvas_item.simulate_move((250,200))
-            display_panel.display_canvas_item.simulate_release((250,200))
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((100,)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            header_height = Panel.HeaderCanvasItem().header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+            # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
+            for tool_mode in ["interval"]:
+                document_controller.tool_mode = tool_mode
+                display_panel.display_canvas_item.simulate_press((100,125))
+                display_panel.display_canvas_item.simulate_move((100,125))
+                self.assertEqual(document_controller.tool_mode, tool_mode)
+                display_panel.display_canvas_item.simulate_move((250,200))
+                display_panel.display_canvas_item.simulate_release((250,200))
+                self.assertEqual(document_controller.tool_mode, "pointer")
 
     def test_pointer_tool_makes_intervals(self):
         # setup
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((100,)))
-        document_model.append_data_item(data_item)
-        display_panel.set_displayed_data_item(data_item)
-        display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
-        display_panel.display_canvas_item.prepare_display()  # force layout
-        # test
-        document_controller.tool_mode = "pointer"
-        display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
-        interval_region = data_item.maybe_data_source.regions[0]
-        self.assertEqual(interval_region.type, "interval-region")
-        self.assertTrue(interval_region.end > interval_region.start)
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((100,)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            # test
+            document_controller.tool_mode = "pointer"
+            display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
+            interval_region = data_item.maybe_data_source.regions[0]
+            self.assertEqual(interval_region.type, "interval-region")
+            self.assertTrue(interval_region.end > interval_region.start)
 
     def test_pointer_tool_makes_intervals_when_other_intervals_exist(self):
         # setup
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((100,)))
-        region = Region.IntervalRegion()
-        region.start = 0.9
-        region.end = 0.95
-        data_item.maybe_data_source.add_region(region)
-        document_model.append_data_item(data_item)
-        display_panel.set_displayed_data_item(data_item)
-        display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
-        display_panel.display_canvas_item.prepare_display()  # force layout
-        # test
-        document_controller.tool_mode = "pointer"
-        display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
-        interval_region = data_item.maybe_data_source.regions[1]
-        self.assertEqual(interval_region.type, "interval-region")
-        self.assertTrue(interval_region.end > interval_region.start)
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((100,)))
+            region = Region.IntervalRegion()
+            region.start = 0.9
+            region.end = 0.95
+            data_item.maybe_data_source.add_region(region)
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            # test
+            document_controller.tool_mode = "pointer"
+            display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
+            interval_region = data_item.maybe_data_source.regions[1]
+            self.assertEqual(interval_region.type, "interval-region")
+            self.assertTrue(interval_region.end > interval_region.start)
 
 
 if __name__ == '__main__':
