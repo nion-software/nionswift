@@ -89,17 +89,23 @@ class Application(object):
             did_close_event_listener.close()
         for create_new_event_listener in self.__create_new_event_listeners.values():
             create_new_event_listener.close()
+        for document_controller in copy.copy(self.__document_controllers):
+            document_controller.close()
+            self.__document_controllers.remove(document_controller)
+        # document model is reference counted; when the no document controller holds a reference to the
+        # document model, it will be closed.
 
     def choose_workspace(self):
         documents_dir = self.ui.get_document_location()
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
         return workspace_dir
 
-    def migrate_library(self, workspace_dir, library_path):
+    def migrate_library(self, workspace_dir, library_path, welcome_message=True):
         """ Migrate library to latest version. """
         library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
         version = library_storage.get_version()
-        logging.debug("Library at version %s.", version)
+        if welcome_message:
+            logging.debug("Library at version %s.", version)
 
     def start(self, skip_choose=False, fixed_workspace_dir=None):
         """
@@ -134,12 +140,12 @@ class Application(object):
                 return False
             library_path = os.path.join(workspace_dir, library_filename)
             cache_path = os.path.join(workspace_dir, cache_filename)
+        welcome_message = fixed_workspace_dir is None
         if os.path.exists(library_path):
-            self.migrate_library(workspace_dir, library_path)
+            self.migrate_library(workspace_dir, library_path, welcome_message)
         self.workspace_dir = workspace_dir
         data_reference_handler = DataReferenceHandler(workspace_dir)
         create_new_document = not os.path.exists(library_path)
-        welcome_message = fixed_workspace_dir is None
         if create_new_document:
             if welcome_message:
                 logging.debug("Creating new document: %s", library_path)
@@ -246,8 +252,7 @@ class Application(object):
         return [file_path for file_path in workspace_history if file_path != self.workspace_dir and os.path.exists(file_path)]
 
     def switch_library(self, recent_workspace_file_path, skip_choose=False, fixed_workspace_dir=None):
-        for document_controller in self.__document_controllers:
-            document_controller.close()
+        self.__close()
         self.ui.set_persistent_string("workspace_location", recent_workspace_file_path)
         self.start(skip_choose=skip_choose, fixed_workspace_dir=fixed_workspace_dir)
 
