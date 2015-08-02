@@ -989,7 +989,7 @@ class DisplayPanel(object):
         # self.__canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__canvas_item.wants_mouse_events = True
         self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
-        self.identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(4)]))
+        self.identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
@@ -1100,6 +1100,8 @@ class DisplayPanel(object):
         if is_focused:
             self.__display_panel_content.canvas_item.request_focus()
 
+        self.__display_panel_type = d.get("display-panel-type")
+
     @property
     def canvas_item(self):
         return self.__canvas_item
@@ -1149,6 +1151,13 @@ class DisplayPanel(object):
         else:
             d = {"type": "image"}
         self.change_display_panel_content(d)
+
+    @property
+    def is_result_panel(self):
+        if self.__display_panel_type == "empty-display-panel":
+            return True
+        if self.__display_panel_type is None and self.__display_panel_content.display_specifier.display is None:
+            return True
 
     def perform_action(self, fn, *args, **keywords):
         if self.__display_panel_content:

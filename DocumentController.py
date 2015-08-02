@@ -576,6 +576,12 @@ class DocumentController(Observable.Broadcaster):
             return self.selected_display_panel.display_specifier
         return DataItem.DisplaySpecifier()
 
+    def next_result_display_panel(self):
+        for display_panel in self.workspace.display_panels:
+            if display_panel.is_result_panel:
+                return display_panel
+        return None
+
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
     def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
@@ -843,6 +849,10 @@ class DocumentController(Observable.Broadcaster):
     def display_data_item(self, display_specifier, source_data_item=None):
         data_item = display_specifier.data_item
         assert data_item is not None
+        result_display_panel = self.next_result_display_panel()
+        if result_display_panel:
+            result_display_panel.set_displayed_data_item(data_item)
+            result_display_panel.request_focus()
         self.select_data_item_in_data_panel(data_item)
         self.notify_selected_display_specifier_changed(display_specifier)
         inspector_panel = self.find_dock_widget("inspector-panel").panel

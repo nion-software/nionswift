@@ -562,6 +562,22 @@ class TestWorkspaceClass(unittest.TestCase):
         DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
         document_controller.close()
 
+    def test_processing_puts_new_data_into_empty_display_panel_if_possible(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+        document_model.append_data_item(source_data_item)
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        document_controller.workspace_controller.display_panels[0].set_displayed_data_item(source_data_item)
+        document_controller.workspace_controller.display_panels[0].request_focus()
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].display_specifier.data_item, source_data_item)
+        self.assertIsNone(document_controller.workspace_controller.display_panels[1].display_specifier.data_item)
+        document_controller.processing_invert()
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].display_specifier.data_item, source_data_item)
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].display_specifier.data_item, document_model.data_items[1])
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
