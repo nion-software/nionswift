@@ -834,10 +834,11 @@ class Monitor(object):
 
 
 class RecordTask(object):
+
     def __init__(self, hardware_source, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
         if frame_parameters:
-            self.__hardware_source.set_record_frame_parameters(frame_parameters)
+            self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
             self.__hardware_source.set_record_channels_enabled(channels_enabled)
 
@@ -894,7 +895,7 @@ class ViewTask(object):
         self.__hardware_source = hardware_source
         self.__was_playing = self.__hardware_source.is_playing
         if frame_parameters:
-            self.__hardware_source.set_current_frame_parameters(frame_parameters)
+            self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
             self.__hardware_source.set_current_channels_enabled(channels_enabled)
         if not self.__was_playing:
@@ -964,14 +965,14 @@ class HardwareSource(object):
         return ObjectSpecifier("hardware_source", object_id=self.__hardware_source.hardware_source_id)
 
     def get_default_frame_parameters(self):
-        return self.__hardware_source.get_default_frame_parameters()
+        return self.__hardware_source.get_frame_parameters_from_dict(dict()).as_dict()
 
     def get_frame_parameters_for_profile_by_index(self, profile_index):
-        return self.__hardware_source.get_frame_parameters(profile_index)
+        return self.__hardware_source.get_frame_parameters(profile_index).as_dict()
 
     def start_playing(self, frame_parameters=None, channels_enabled=None):
         if frame_parameters:
-            self.__hardware_source.set_current_frame_parameters(frame_parameters)
+            self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
             self.__hardware_source.set_current_channels_enabled(channels_enabled)
         self.__hardware_source.start_playing()
@@ -989,7 +990,7 @@ class HardwareSource(object):
         :rtype: list of :py:class:`DataAndMetadata`
         """
         if frame_parameters:
-            self.__hardware_source.set_record_frame_parameters(frame_parameters)
+            self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
             self.__hardware_source.set_record_channels_enabled(channels_enabled)
         self.__hardware_source.start_recording()
