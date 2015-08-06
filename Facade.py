@@ -964,11 +964,28 @@ class HardwareSource(object):
     def specifier(self):
         return ObjectSpecifier("hardware_source", object_id=self.__hardware_source.hardware_source_id)
 
+    @property
+    def profile_index(self):
+        return self.__hardware_source.selected_profile_index
+
+    @profile_index.setter
+    def profile_index(self, value):
+        self.__hardware_source.set_selected_profile_index(value)
+
     def get_default_frame_parameters(self):
         return self.__hardware_source.get_frame_parameters_from_dict(dict()).as_dict()
 
+    def get_frame_parameters(self):
+        return self.__hardware_source.get_current_frame_parameters().as_dict()
+
     def get_frame_parameters_for_profile_by_index(self, profile_index):
         return self.__hardware_source.get_frame_parameters(profile_index).as_dict()
+
+    def set_frame_parameters(self, frame_parameters):
+        self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
+
+    def set_frame_parameters_for_profile_by_index(self, profile_index, frame_parameters):
+        self.__hardware_source.set_frame_parameters(profile_index, frame_parameters)
 
     def start_playing(self, frame_parameters=None, channels_enabled=None):
         if frame_parameters:
@@ -976,6 +993,22 @@ class HardwareSource(object):
         if channels_enabled:
             self.__hardware_source.set_current_channels_enabled(channels_enabled)
         self.__hardware_source.start_playing()
+
+    def stop_playing(self):
+        self.__hardware_source.start_playing()
+
+    def abort_playing(self):
+        self.__hardware_source.abort_playing()
+
+    @property
+    def is_playing(self):
+        return self.__hardware_source.is_playing
+
+    def start_recording(self, frame_parameters=None, channels_enabled=None):
+        self.__proxy.exec_void(self.hardware_source_specifier, "start_recording", [], {"frame_parameters": frame_parameters, "channels_enabled": channels_enabled})
+
+    def abort_recording(self):
+        self.__proxy.exec_void(self.hardware_source_specifier, "abort_recording", [], {})
 
     def record(self, frame_parameters=None, channels_enabled=None):
         """Record data and return a data_and_metadata object.
@@ -1044,6 +1077,10 @@ class HardwareSource(object):
         Scriptable: Yes
         """
         data_elements = self.__hardware_source.get_next_data_elements_to_finish()
+        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+
+    def grab_next_to_start(self):
+        data_elements = self.__hardware_source.get_next_data_elements_to_start()
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
     def execute_command(self, command, args_str, kwargs_str):
