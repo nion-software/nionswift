@@ -978,11 +978,17 @@ class HardwareSource(object):
     def get_frame_parameters(self):
         return self.__hardware_source.get_current_frame_parameters().as_dict()
 
+    def get_record_frame_parameters(self):
+        return self.__hardware_source.get_record_frame_parameters().as_dict()
+
     def get_frame_parameters_for_profile_by_index(self, profile_index):
         return self.__hardware_source.get_frame_parameters(profile_index).as_dict()
 
     def set_frame_parameters(self, frame_parameters):
         self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
+
+    def set_record_frame_parameters(self, frame_parameters):
+        self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
     def set_frame_parameters_for_profile_by_index(self, profile_index, frame_parameters):
         self.__hardware_source.set_frame_parameters(profile_index, frame_parameters)
@@ -1010,7 +1016,11 @@ class HardwareSource(object):
     def abort_recording(self):
         self.__proxy.exec_void(self.hardware_source_specifier, "abort_recording", [], {})
 
-    def record(self, frame_parameters=None, channels_enabled=None):
+    @property
+    def is_recording(self):
+        return self.__hardware_source.is_recording
+
+    def record(self, frame_parameters=None, channels_enabled=None, timeout=None):
         """Record data and return a data_and_metadata object.
 
         .. versionadded:: 1.0
@@ -1019,6 +1029,7 @@ class HardwareSource(object):
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the record. Pass None for defaults.
         :type channels_enabled: Array of booleans.
+        :param timeout: The timeout in seconds. Pass None to use default.
         :return: The array of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
@@ -1027,7 +1038,7 @@ class HardwareSource(object):
         if channels_enabled:
             self.__hardware_source.set_record_channels_enabled(channels_enabled)
         self.__hardware_source.start_recording()
-        data_elements = self.__hardware_source.get_next_data_elements_to_finish()
+        data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
     def create_record_task(self, frame_parameters=None, channels_enabled=None):
@@ -1066,21 +1077,26 @@ class HardwareSource(object):
         """
         return ViewTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def grab_next_to_finish(self):
+    def grab_next_to_finish(self, timeout=None):
         """Grabs the next frame to finish and returns it as data and metadata.
 
         .. versionadded:: 1.0
 
+        :param timeout: The timeout in seconds. Pass None to use default.
         :return: The array of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
 
+        If the view is not already started, it will be started automatically.
+
         Scriptable: Yes
         """
-        data_elements = self.__hardware_source.get_next_data_elements_to_finish()
+        self.start_playing()
+        data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-    def grab_next_to_start(self):
-        data_elements = self.__hardware_source.get_next_data_elements_to_start()
+    def grab_next_to_start(self, frame_parameters=None, channels_enabled=None, timeout=None):
+        self.start_playing(frame_parameters, channels_enabled)
+        data_elements = self.__hardware_source.get_next_data_elements_to_start(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
     def execute_command(self, command, args_str, kwargs_str):
