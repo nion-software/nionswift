@@ -35,7 +35,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
-            d[:] = random.randint(0, 100)
+            d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
@@ -48,10 +48,10 @@ class TestSymbolicClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d1 = numpy.zeros((8, 8), dtype=numpy.uint32)
-            d1[:] = random.randint(0, 100)
+            d1[:] = random.randint(1, 100)
             data_item1 = DataItem.DataItem(d1)
             d2 = numpy.zeros((8, 8), dtype=numpy.uint32)
-            d2[:] = random.randint(0, 100)
+            d2[:] = random.randint(1, 100)
             data_item2 = DataItem.DataItem(d2)
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
@@ -65,7 +65,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
-            d[:] = random.randint(0, 100)
+            d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
@@ -82,7 +82,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
-            d[:] = random.randint(0, 100)
+            d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
@@ -95,7 +95,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
-            d[:] = random.randint(0, 100)
+            d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
@@ -108,7 +108,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
-            src_data[:] = random.randint(0, 100)
+            src_data[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
@@ -128,7 +128,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
-            d[:] = random.randint(0, 100)
+            d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
@@ -292,7 +292,7 @@ class TestSymbolicClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
-            d[:] = random.randint(0, 100)
+            d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             data_item.maybe_data_source.set_metadata({"abc": 1})
             data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
