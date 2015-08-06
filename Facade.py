@@ -1106,6 +1106,36 @@ class HardwareSource(object):
         result_str = pickle.dumps(result)
         return result_str
 
+    def get_property_as_float(self, name):
+        return float(getattr(self.__hardware_source, name))
+
+    def set_property_as_float(self, name, value):
+        setattr(self.__hardware_source, name, float(value))
+
+    def get_property_as_int(self, name):
+        return int(getattr(self.__hardware_source, name))
+
+    def set_property_as_int(self, name, value):
+        setattr(self.__hardware_source, name, int(value))
+
+    def get_property_as_bool(self, name):
+        return bool(getattr(self.__hardware_source, name))
+
+    def set_property_as_bool(self, name, value):
+        setattr(self.__hardware_source, name, bool(value))
+
+    def get_property_as_string(self, name):
+        return str(getattr(self.__hardware_source, name))
+
+    def set_property_as_string(self, name, value):
+        setattr(self.__hardware_source, name, str(value))
+
+    def get_property_as_float_point(self, name):
+        return tuple(Geometry.FloatPoint.make(getattr(self.__hardware_source, name)))
+
+    def set_property_as_float_point(self, name, value):
+        setattr(self.__hardware_source, name, tuple(Geometry.FloatPoint.make(value)))
+
 
 class Instrument(object):
 
@@ -1144,6 +1174,8 @@ class Instrument(object):
             value_type: local, delta, output. output is default.
             inform: True to keep dependent control outputs constant by adjusting their internal values. False is default.
 
+        Raises exception if control with name doesn't exist.
+
         .. versionadded:: 1.0
 
         Scriptable: Yes
@@ -1155,22 +1187,30 @@ class Instrument(object):
 
         :return: The control value.
 
+        Raises exception if control with name doesn't exist.
+
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
         return self.__instrument.get_control_output(name)
 
+    def get_control_state(self, name):
+        # return None if value does not exist
+        return self.__instrument.get_control_state(name)
+
     def get_property_as_float(self, name):
         """Return the value of a float property.
 
         :return: The property value (float).
 
+        Raises exception if property with name doesn't exist.
+
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        return self.__instrument.get_property_as_float(name)
+        return float(self.__instrument.get_property_as_float(name))
 
     def set_property_as_float(self, name, value):
         """Set the value of a float property.
@@ -1178,11 +1218,37 @@ class Instrument(object):
         :param name: The name of the property (string).
         :param value: The property value (float).
 
+        Raises exception if property with name doesn't exist.
+
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        self.__instrument.set_property_as_float(name, value)
+        self.__instrument.set_property_as_float(name, float(value))
+
+    def get_property_as_int(self, name):
+        return int(self.__instrument.get_property_as_int(name))
+
+    def set_property_as_int(self, name, value):
+        self.__instrument.set_property_as_int(name, int(value))
+
+    def get_property_as_bool(self, name):
+        return bool(self.__instrument.get_property_as_bool(name))
+
+    def set_property_as_bool(self, name, value):
+        self.__instrument.set_property_as_bool(name, bool(value))
+
+    def get_property_as_string(self, name):
+        return str(self.__instrument.get_property_as_string(name))
+
+    def set_property_as_string(self, name, value):
+        self.__instrument.set_property_as_string(name, str(value))
+
+    def get_property_as_float_point(self, name):
+        return tuple(Geometry.FloatPoint.make(self.__instrument.get_property_as_point(name)))
+
+    def set_property_as_float_point(self, name, value):
+        self.__instrument.set_property_as_point(name, tuple(Geometry.FloatPoint.make(value)))
 
     def get_property(self, name):
         # deprecated
