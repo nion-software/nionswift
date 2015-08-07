@@ -685,18 +685,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 4.0)
         document_controller.close()
 
-    def test_assessed_flag_is_not_set_for_viewed_data(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        self.__acquire_one(document_controller, hardware_source)
-        self.assertIsNone(document_model.data_items[0].metadata.get("assessed"))
-        document_controller.close()
-
-    def test_assessed_flag_is_false_for_recorded_data(self):
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        self.__record_one(document_controller, hardware_source)
-        self.assertFalse(document_model.data_items[0].metadata.get("assessed", True))
-        document_controller.close()
-
     def test_restarting_view_in_same_session_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         self.__acquire_one(document_controller, hardware_source)
