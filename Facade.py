@@ -1107,34 +1107,34 @@ class HardwareSource(object):
         return result_str
 
     def get_property_as_float(self, name):
-        return float(getattr(self.__hardware_source, name))
+        return float(self.__hardware_source.get_property(name))
 
     def set_property_as_float(self, name, value):
-        setattr(self.__hardware_source, name, float(value))
+        self.__hardware_source.set_property(name, float(value))
 
     def get_property_as_int(self, name):
-        return int(getattr(self.__hardware_source, name))
+        return int(self.__hardware_source.get_property(name))
 
     def set_property_as_int(self, name, value):
-        setattr(self.__hardware_source, name, int(value))
+        self.__hardware_source.set_property(name, int(value))
 
     def get_property_as_bool(self, name):
-        return bool(getattr(self.__hardware_source, name))
+        return bool(self.__hardware_source.get_property(name))
 
     def set_property_as_bool(self, name, value):
-        setattr(self.__hardware_source, name, bool(value))
+        self.__hardware_source.set_property(name, bool(value))
 
-    def get_property_as_string(self, name):
-        return str(getattr(self.__hardware_source, name))
+    def get_property_as_str(self, name):
+        return str(self.__hardware_source.get_property(name))
 
-    def set_property_as_string(self, name, value):
-        setattr(self.__hardware_source, name, str(value))
+    def set_property_as_str(self, name, value):
+        self.__hardware_source.set_property(name, str(value))
 
     def get_property_as_float_point(self, name):
-        return tuple(Geometry.FloatPoint.make(getattr(self.__hardware_source, name)))
+        return tuple(Geometry.FloatPoint.make(self.__hardware_source.get_property(name)))
 
     def set_property_as_float_point(self, name, value):
-        setattr(self.__hardware_source, name, tuple(Geometry.FloatPoint.make(value)))
+        self.__hardware_source.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
 
 class Instrument(object):
@@ -1210,7 +1210,7 @@ class Instrument(object):
 
         Scriptable: Yes
         """
-        return float(self.__instrument.get_property_as_float(name))
+        return float(self.__instrument.get_property(name))
 
     def set_property_as_float(self, name, value):
         """Set the value of a float property.
@@ -1224,31 +1224,31 @@ class Instrument(object):
 
         Scriptable: Yes
         """
-        self.__instrument.set_property_as_float(name, float(value))
+        self.__instrument.set_property(name, float(value))
 
     def get_property_as_int(self, name):
-        return int(self.__instrument.get_property_as_int(name))
+        return int(self.__instrument.get_property(name))
 
     def set_property_as_int(self, name, value):
-        self.__instrument.set_property_as_int(name, int(value))
+        self.__instrument.set_property(name, int(value))
 
     def get_property_as_bool(self, name):
-        return bool(self.__instrument.get_property_as_bool(name))
+        return bool(self.__instrument.get_property(name))
 
-    def set_property_as_bool(self, name, value):
-        self.__instrument.set_property_as_bool(name, bool(value))
+    def set_property(self, name, value):
+        self.__instrument.set_property(name, bool(value))
 
-    def get_property_as_string(self, name):
-        return str(self.__instrument.get_property_as_string(name))
+    def get_property_as_str(self, name):
+        return str(self.__instrument.get_property(name))
 
-    def set_property_as_string(self, name, value):
-        self.__instrument.set_property_as_string(name, str(value))
+    def set_property(self, name, value):
+        self.__instrument.set_property(name, str(value))
 
     def get_property_as_float_point(self, name):
-        return tuple(Geometry.FloatPoint.make(self.__instrument.get_property_as_point(name)))
+        return tuple(Geometry.FloatPoint.make(self.__instrument.get_property(name)))
 
     def set_property_as_float_point(self, name, value):
-        self.__instrument.set_property_as_point(name, tuple(Geometry.FloatPoint.make(value)))
+        self.__instrument.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
     def get_property(self, name):
         # deprecated

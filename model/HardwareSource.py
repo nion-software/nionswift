@@ -696,6 +696,12 @@ class HardwareSource(object):
 
         yield get_data_element
 
+    def get_property(self, name):
+        return getattr(self, name)
+
+    def set_property(self, name, value):
+        setattr(self, name, value)
+
     def get_api(self, version):
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
