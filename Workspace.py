@@ -618,7 +618,7 @@ class Workspace(object):
         # sync to data items
         hardware_source_id = hardware_source.hardware_source_id
         display_name = hardware_source.display_name
-        channel_to_data_item_dict = self.__sync_channels_to_data_items(channels_data, hardware_source_id, view_id, display_name)
+        channel_to_data_item_dict = self.__sync_channels_to_data_items(channels_data, hardware_source_id, view_id, display_name, is_recording)
 
         # these items are now live if we're playing right now. mark as such.
         for data_item in channel_to_data_item_dict.values():
@@ -704,7 +704,7 @@ class Workspace(object):
                 return True
         return False
 
-    def __sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name):
+    def __sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name, is_recording):
 
         # TODO: self.__channel_data_items never gets cleared
 
@@ -723,7 +723,7 @@ class Workspace(object):
                 if display_panel.display_specifier.data_item == data_item:
                     is_data_item_displayed = True
                     break
-            if not is_data_item_displayed:
+            if is_recording and not is_data_item_displayed:
                 result_display_panel = self.document_controller.next_result_display_panel()
                 if result_display_panel:
                     result_display_panel.set_displayed_data_item(data_item)
