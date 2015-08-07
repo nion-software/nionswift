@@ -718,6 +718,16 @@ class Workspace(object):
         # be careful about binding the parameter. cannot use 'data_item' directly.
         def append_data_item(append_data_item):
             document_model.append_data_item(append_data_item)
+            is_data_item_displayed = False
+            for display_panel in self.display_panels:
+                if display_panel.display_specifier.data_item == data_item:
+                    is_data_item_displayed = True
+                    break
+            if not is_data_item_displayed:
+                result_display_panel = self.document_controller.next_result_display_panel()
+                if result_display_panel:
+                    result_display_panel.set_displayed_data_item(data_item)
+                    result_display_panel.request_focus()
 
         data_items = {}
 
