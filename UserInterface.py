@@ -2224,6 +2224,23 @@ class QtUserInterface(object):
         key = "/".join([self.persistence_root, key])
         self.proxy.Settings_remove(key)
 
+    # clipboard
+
+    def clipboard_clear(self):
+        self.proxy.Clipboard_clear()
+
+    def clipboard_mime_data(self):
+        return QtMimeData(self.proxy, self.proxy.Clipboard_mimeData())
+
+    def clipboard_set_mime_data(self, mime_data):
+        self.proxy.Clipboard_setMimeData(mime_data.raw_mime_data)
+
+    def clipboard_set_text(self, text):
+        self.proxy.Clipboard_setText(text)
+
+    def clipboard_text(self):
+        return self.proxy.Clipboard_text()
+
     # misc
 
     def create_offscreen_drawing_context(self):
