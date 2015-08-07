@@ -1087,6 +1087,7 @@ class DisplayPanel(object):
             self.__display_panel_content.canvas_item.request_focus()
 
         self.__display_panel_type = d.get("display-panel-type")
+        self.__controller_type = d.get("controller_type")
 
     @property
     def canvas_item(self):
@@ -1142,8 +1143,11 @@ class DisplayPanel(object):
     def is_result_panel(self):
         if self.__display_panel_type == "empty-display-panel":
             return True
+        if self.__display_panel_type is None and self.__controller_type is not None:  # has a controller, don't use it
+            return False
         if self.__display_panel_type is None and self.__display_panel_content.display_specifier.display is None:
             return True
+        return False
 
     def perform_action(self, fn, *args, **keywords):
         if self.__display_panel_content:

@@ -576,6 +576,18 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.processing_invert()
         self.assertEqual(document_controller.workspace_controller.display_panels[0].display_specifier.data_item, source_data_item)
         self.assertEqual(document_controller.workspace_controller.display_panels[1].display_specifier.data_item, document_model.data_items[1])
+        document_controller.close()
+
+    def test_data_display_panel_with_controller_not_treated_as_potential_result_panel(self):
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image", "controller_type": "test"})
+        # note: this workspace does not have "display-panel-type": "data-display-panel". Backwards compatibility check.
+        document_controller.workspace_controller.change_workspace(workspace)
+        self.assertIsNone(document_controller.next_result_display_panel())
+        DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+        document_controller.close()
 
 
 if __name__ == '__main__':
