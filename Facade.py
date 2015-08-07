@@ -1478,6 +1478,19 @@ class DocumentController(object):
             display_panel.identifier.lower() == identifier.lower()), None)
         return DisplayPanel(display_panel) if display_panel else None
 
+    def display_data_item(self, data_item, source_display_panel=None, source_data_item=None):
+        """Display a new data item.
+
+        .. versionadded:: 1.0
+
+        Status: Provisional
+        Scriptable: Yes
+        """
+        result_display_panel = self.__document_controller.next_result_display_panel()
+        if result_display_panel:
+            result_display_panel.set_displayed_data_item(data_item._data_item)
+            result_display_panel.request_focus()
+
     @property
     def target_display_panel(self):
         raise AttributeError()
