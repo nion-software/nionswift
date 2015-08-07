@@ -355,9 +355,6 @@ class BaseDisplayPanelContent(object):
         self.on_focused = None
         self.on_close = None
 
-    def prepare_to_close(self):
-        pass
-
     def periodic(self):
         pass
 
@@ -491,6 +488,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_type = None
 
     def close(self):
+        self.__set_display_panel_controller(None)
         if self.display_canvas_item:
             self.display_canvas_item.about_to_close()
             self.display_canvas_item = None
@@ -498,11 +496,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__data_item_deleted_event_listener = None
         self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
         super(DataDisplayPanelContent, self).close()
-
-    def prepare_to_close(self):
-        # the display panel controller needs a chance to remove its canvas items
-        # before the actual close process starts. here is its chance to do so.
-        self.__set_display_panel_controller(None)
 
     @property
     def _display_panel_controller_for_test(self):
@@ -949,9 +942,6 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         self.__selection_changed_event_listener = None
         super(BrowserDisplayPanelContent, self).close()
 
-    def prepare_to_close(self):
-        pass
-
     @property
     def _display_items_for_test(self):
         return self.__display_items
@@ -993,13 +983,9 @@ class DisplayPanel(object):
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
-        # the display panel content needs to let its display panel controller
-        # shut down nicely before it gets closed. let prepare_to_close handle
-        # that.
-        # TODO: Closing display panels reeks of bad design.
-        self.__display_panel_content.prepare_to_close()
-        self.__display_panel_content.close()
-        self.__display_panel_content = None
+        if self.__display_panel_content:
+            self.__display_panel_content.close()
+            self.__display_panel_content = None
         self.__document_controller.unregister_display_panel(self)
         self.__weak_document_controller = None
 
