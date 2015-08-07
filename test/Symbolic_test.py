@@ -651,14 +651,75 @@ class TestSymbolicClass(unittest.TestCase):
             computation2.bind(document_model)
             self.assertIsNone(computation2.evaluate())
 
+    def test_computation_can_extract_item_from_scalar_tuple(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.random.randn(4, 2) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a + data_shape(a)[1] + data_shape(a)[0]", map)
+            data_and_metadata = computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, data + 6))
+
+    def test_slice_reconstructs_expression_correctly(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a[2:5, 2:5] + 8 + 10", map)
+            data_and_metadata = computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, data[2:5, 2:5] + 18))
+            expression_out = computation.reconstruct(map)
+            new_computation = Symbolic.Computation()
+            new_computation.parse_expression(document_model, expression_out, map)
+            data_and_metadata = new_computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, data[2:5, 2:5] + 18))
+
+    def test_item_reconstructs_expression_correctly(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a + data_shape(a)[1] + data_shape(a)[0]", map)
+            data_and_metadata = computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, data + 18))
+            expression_out = computation.reconstruct(map)
+            new_computation = Symbolic.Computation()
+            new_computation.parse_expression(document_model, expression_out, map)
+            data_and_metadata = new_computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, data + 18))
+
+    def test_columns_and_rows_and_radius_functions_return_correct_values(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "row(a, -1, 1) + column(a, -1, 1) + radius(a)", map)
+            data_and_metadata = computation.evaluate()
+            icol, irow = numpy.meshgrid(numpy.linspace(-1, 1, 8), numpy.linspace(-1, 1, 10))
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, icol + irow + numpy.sqrt(pow(icol, 2) + pow(irow, 2))))
+            expression_out = computation.reconstruct(map)
+            new_computation = Symbolic.Computation()
+            new_computation.parse_expression(document_model, expression_out, map)
+            data_and_metadata = new_computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, icol + irow + numpy.sqrt(pow(icol, 2) + pow(irow, 2))))
+
     def disabled_test_computations_handle_constant_values_as_errors(self):
         # computation.parse_expression(document_model, "7", map)
         assert False
 
     def disabled_test_computations_update_data_item_dependencies_list(self):
-        assert False
-
-    def disabled_test_icol_and_irow_variables_available(self):
         assert False
 
 

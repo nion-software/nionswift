@@ -38,8 +38,36 @@ from nion.ui import Observable
 def arange(data):
     return numpy.amax(data) - numpy.amin(data)
 
-def take_slice(data, key):
+def data_slice(data, key):
     return data[key].copy()
+
+def column(data, start, stop):
+    start_0 = start if start is not None else 0
+    stop_0 = stop if stop is not None else data_shape(data)[0]
+    start_1 = start if start is not None else 0
+    stop_1 = stop if stop is not None else data_shape(data)[1]
+    return numpy.meshgrid(numpy.linspace(start_1, stop_1, data_shape(data)[1]), numpy.linspace(start_0, stop_0, data_shape(data)[0]), sparse=True)[0]
+
+def row(data, start, stop):
+    start_0 = start if start is not None else 0
+    stop_0 = stop if stop is not None else data_shape(data)[0]
+    start_1 = start if start is not None else 0
+    stop_1 = stop if stop is not None else data_shape(data)[1]
+    return numpy.meshgrid(numpy.linspace(start_1, stop_1, data_shape(data)[1]), numpy.linspace(start_0, stop_0, data_shape(data)[0]), sparse=True)[1]
+
+def radius(data, normalize):
+    start_0 = -1 if normalize else -data_shape(data)[0] * 0.5
+    stop_0 = -start_0
+    start_1 = -1 if normalize else -data_shape(data)[1] * 0.5
+    stop_1 = -start_1
+    icol, irow = numpy.meshgrid(numpy.linspace(start_1, stop_1, data_shape(data)[1]), numpy.linspace(start_0, stop_0, data_shape(data)[0]), sparse=True)
+    return numpy.sqrt(icol * icol + irow * irow)
+
+def take_item(data, key):
+    return data[key]
+
+def data_shape(data):
+    return Image.spatial_shape_from_data(data)
 
 
 def function_fft(data_and_metadata):
@@ -680,7 +708,11 @@ _function_map = {
     "floordiv": operator.floordiv,
     "mod": operator.mod,
     "pow": operator.pow,
-    "slice": take_slice,
+    "data_slice": data_slice,
+    "column": column,
+    "row": row,
+    "radius": radius,
+    "item": take_item,
     "amin": numpy.amin,
     "amax": numpy.amax,
     "arange": arange,
@@ -729,6 +761,8 @@ _function_map = {
     "real": numpy.real,
     "imag": numpy.imag,
     "conj": numpy.conj,
+    # data functions
+    "data_shape": data_shape,
 }
 
 def reconstruct_inputs(variable_map, inputs):
@@ -902,7 +936,7 @@ class DataNode(object):
         return ConstantDataNode(numpy.astype(numpy.float64))
 
     def __getitem__(self, key):
-        return UnaryOperationDataNode([self], "slice", {"key": key})
+        return UnaryOperationDataNode([self], "data_slice", {"key": key})
 
 
 class ConstantDataNode(DataNode):
@@ -968,7 +1002,7 @@ class ScalarOperationDataNode(DataNode):
         self.__args = copy.copy(args if args is not None else dict())
 
     def deepcopy_from(self, node, memo):
-        super(ScalarOperationDataNode, self).deepcopy_from(memo)
+        super(ScalarOperationDataNode, self).deepcopy_from(node, memo)
         self.__function_id = node.__function_id
         self.__args = [copy.deepcopy(arg, memo) for arg in node.__args]
 
@@ -999,7 +1033,15 @@ class ScalarOperationDataNode(DataNode):
 
     def reconstruct(self, variable_map):
         input_texts = reconstruct_inputs(variable_map, self.inputs)
-        return "{0}({1})".format(self.__function_id, ", ".join(input_texts))
+        if self.__function_id == "item":
+            return "{0}[{1}]".format(input_texts[0], self.__args["key"])
+        args_str = ", ".join([k + "=" + str(v) for k, v in self.__args.items()])
+        if len(self.__args) > 0:
+            args_str = ", " + args_str
+        return "{0}({1}{2})".format(self.__function_id, ", ".join(input_texts), args_str)
+
+    def __getitem__(self, key):
+        return ScalarOperationDataNode([self], "item", {"key": key})
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -1047,7 +1089,24 @@ class UnaryOperationDataNode(DataNode):
         input_texts = reconstruct_inputs(variable_map, self.inputs)
         if self.__function_id in _operator_map:
             return "{0}{1}".format(_operator_map[self.__function_id], input_texts[0])
-        return "{0}({1})".format(self.__function_id, input_texts[0])
+        if self.__function_id == "data_slice":
+            slice_strs = list()
+            for slice in self.__args["key"]:
+                slice_str = str(slice.start) if slice.start is not None else ""
+                slice_str += ":" + str(slice.stop) if slice.stop is not None else ":"
+                slice_str += ":" + str(slice.step) if slice.step is not None else ""
+                slice_strs.append(slice_str)
+            return "{0}[{1}]".format(input_texts[0], ", ".join(slice_strs))
+        if self.__function_id in ("column", "row"):
+            if self.__args["start"] is None and self.__args["stop"] is None:
+                return "{0}({1})".format(self.__function_id, input_texts[0])
+        if self.__function_id == "radius":
+            if self.__args["normalize"] is True:
+                return "{0}({1})".format(self.__function_id, input_texts[0])
+        args_str = ", ".join([k + "=" + str(v) for k, v in self.__args.items()])
+        if len(self.__args) > 0:
+            args_str = ", " + args_str
+        return "{0}({1}{2})".format(self.__function_id, input_texts[0], args_str)
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -1325,6 +1384,11 @@ def parse_expression(expression_lines, variable_map, context):
     code_lines = []
     code_lines.append("import uuid")
     g = dict()
+    g["data_slice"] = lambda data_node, key: UnaryOperationDataNode([data_node], "data_slice", {"key": key})
+    g["item"] = lambda data_node, key: ScalarOperationDataNode([data_node], "item", {"key": key})
+    g["column"] = lambda data_node, start=None, stop=None: UnaryOperationDataNode([data_node], "column", {"start": start, "stop": stop})
+    g["row"] = lambda data_node, start=None, stop=None: UnaryOperationDataNode([data_node], "row", {"start": start, "stop": stop})
+    g["radius"] = lambda data_node, normalize=True: UnaryOperationDataNode([data_node], "radius", {"normalize": normalize})
     g["amin"] = lambda data_node: ScalarOperationDataNode([data_node], "amin")
     g["amax"] = lambda data_node: ScalarOperationDataNode([data_node], "amax")
     g["arange"] = lambda data_node: ScalarOperationDataNode([data_node], "arange")
@@ -1387,6 +1451,7 @@ def parse_expression(expression_lines, variable_map, context):
     g["line_profile"] = lambda data_node, position_node, width_node: FunctionOperationDataNode([data_node, position_node, width_node], "line_profile")
     g["data_by_uuid"] = lambda data_uuid: data_by_uuid(context, data_uuid)
     g["region_by_uuid"] = lambda region_uuid: region_by_uuid(context, region_uuid)
+    g["data_shape"] = lambda data_node: ScalarOperationDataNode([data_node], "data_shape")
     l = dict()
     for variable_name, object_specifier in variable_map.items():
         if object_specifier["type"] == "data_item":  # avoid importing class
