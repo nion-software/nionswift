@@ -1065,6 +1065,13 @@ class UnaryOperationDataNode(DataNode):
         self.__function_id = function_id
         args = d.get("args")
         self.__args = copy.copy(args if args is not None else dict())
+        # TODO: fix this special case by providing default arguments
+        # the issue is that JSON is not able to store dict's with None
+        # values. this is OK in most cases, but in this case, it prevents
+        # the argument from being passed to column/row.
+        if self.__function_id in ("column", "row"):
+            self.__args.setdefault("start", None)
+            self.__args.setdefault("stop", None)
 
     def write(self):
         d = super(UnaryOperationDataNode, self).write()
@@ -1098,10 +1105,10 @@ class UnaryOperationDataNode(DataNode):
                 slice_strs.append(slice_str)
             return "{0}[{1}]".format(input_texts[0], ", ".join(slice_strs))
         if self.__function_id in ("column", "row"):
-            if self.__args["start"] is None and self.__args["stop"] is None:
+            if self.__args.get("start") is None and self.__args.get("stop") is None:
                 return "{0}({1})".format(self.__function_id, input_texts[0])
         if self.__function_id == "radius":
-            if self.__args["normalize"] is True:
+            if self.__args.get("normalize", True) is True:
                 return "{0}({1})".format(self.__function_id, input_texts[0])
         args_str = ", ".join([k + "=" + str(v) for k, v in self.__args.items()])
         if len(self.__args) > 0:
