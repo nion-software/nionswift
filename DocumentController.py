@@ -241,6 +241,7 @@ class DocumentController(Observable.Broadcaster):
         #self.select_all_action = self.edit_menu.add_menu_item(_("Select All"), lambda: self.no_operation(), key_sequence="select-all")
         #self.edit_menu.add_separator()
         self.script_action = self.edit_menu.add_menu_item(_("Script"), lambda: self.prepare_data_item_script(), key_sequence="Ctrl+Shift+K")
+        self.copy_uuid_action = self.edit_menu.add_menu_item(_("Copy Item UUID"), lambda: self.copy_uuid(), key_sequence="Ctrl+Shift+U")
         #self.edit_menu.add_separator()
         #self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
 
@@ -1205,6 +1206,22 @@ class DocumentController(Observable.Broadcaster):
         if self.console:
             self.console.insert_lines(lines)
         weak_data_item().set_r_value(data_item_var)  # this triggers the update of the title
+
+    def copy_uuid(self):
+        display_specifier = self.selected_display_specifier
+        display = display_specifier.display
+        data_item = display_specifier.data_item
+        if display:
+            current_index = display.graphic_selection.current_index
+            if current_index is not None:
+                region = display.drawn_graphics[current_index].region
+                uuid_str = str(region.uuid)
+                self.ui.clipboard_set_text(uuid_str)
+                return
+        if data_item:
+            uuid_str = str(data_item.uuid)
+            self.ui.clipboard_set_text(uuid_str)
+            return
 
     @property
     def data_item_vars(self):
