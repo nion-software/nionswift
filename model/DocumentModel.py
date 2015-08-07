@@ -1016,7 +1016,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None
-                return BoundDataItem(data_item)
+                if data_item:
+                    return BoundDataItem(data_item)
             elif specifier_type == "region":
                 object_uuid = uuid.UUID(specifier["uuid"])
                 for data_item in self.data_items:
@@ -1037,5 +1038,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                                         return getattr(self.__object, self.__property)
                                     def close(self):
                                         self.__object.remove_observer(self)
-                                return BoundRegion(region, property_name)
+                                if region:
+                                    return BoundRegion(region, property_name)
         return None

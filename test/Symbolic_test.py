@@ -7,6 +7,7 @@ import copy
 import logging
 import random
 import unittest
+import uuid
 
 # third party libraries
 import numpy
@@ -492,6 +493,163 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertIsNone(data_and_metadata)
             self.assertTrue(computation.error_text is not None and len(computation.error_text) > 0)
             self.assertEqual(computation.original_expression, "xyz(a)")
+
+    def test_computation_reloads_missing_scalar_function(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "average(a)", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['function_id'] = 'missing'
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_data_item_in_scalar(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "average(a)", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['inputs'][0]['object_specifier']['uuid'] = str(uuid.uuid4())
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_unary_function(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "abs(a)", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['function_id'] = 'missing'
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_data_item_in_unary(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "abs(a)", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['inputs'][0]['object_specifier']['uuid'] = str(uuid.uuid4())
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_binary_function(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a + a", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['function_id'] = 'missing'
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_data_item_in_binary(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a + a", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['inputs'][0]['object_specifier']['uuid'] = str(uuid.uuid4())
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_function(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "sobel(a)", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['function_id'] = 'missing'
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_data_item_in_function(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "sobel(a)", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['inputs'][0]['object_specifier']['uuid'] = str(uuid.uuid4())
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
+
+    def test_computation_reloads_missing_property(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = numpy.zeros((8, 8), dtype=numpy.uint32)
+            src_data[:] = random.randint(0, 100)
+            data_item = DataItem.DataItem(src_data)
+            region = Region.RectRegion()
+            region.center = 0.41, 0.51
+            region.size = 0.52, 0.42
+            data_item.maybe_data_source.add_region(region)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item), "regionA": document_model.get_object_specifier(region)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "crop(a, regionA.bounds)", map)
+            data_node_dict = computation.write_to_dict()
+            data_node_dict['node']['inputs'][1]['object_specifier']['uuid'] = str(uuid.uuid4())
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            self.assertIsNone(computation2.evaluate())
 
     def disabled_test_computations_handle_constant_values_as_errors(self):
         # computation.parse_expression(document_model, "7", map)

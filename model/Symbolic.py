@@ -975,7 +975,6 @@ class ScalarOperationDataNode(DataNode):
     def read(self, d):
         super(ScalarOperationDataNode, self).read(d)
         function_id = d.get("function_id")
-        assert function_id in _function_map
         self.__function_id = function_id
         args = d.get("args")
         self.__args = copy.copy(args if args is not None else dict())
@@ -992,8 +991,11 @@ class ScalarOperationDataNode(DataNode):
         def calculate_data():
             return _function_map[self.__function_id](extract_data(evaluated_inputs[0]), **self.__args)
 
-        return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
-                                               Calibration.Calibration(), list(), dict(), datetime.datetime.utcnow())
+        if self.__function_id in _function_map and all(evaluated_input is not None for evaluated_input in evaluated_inputs):
+            return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
+                                                   Calibration.Calibration(), list(), dict(),
+                                                   datetime.datetime.utcnow())
+        return None
 
     def reconstruct(self, variable_map):
         input_texts = reconstruct_inputs(variable_map, self.inputs)
@@ -1018,7 +1020,6 @@ class UnaryOperationDataNode(DataNode):
     def read(self, d):
         super(UnaryOperationDataNode, self).read(d)
         function_id = d.get("function_id")
-        assert function_id in _function_map
         self.__function_id = function_id
         args = d.get("args")
         self.__args = copy.copy(args if args is not None else dict())
@@ -1035,10 +1036,12 @@ class UnaryOperationDataNode(DataNode):
         def calculate_data():
             return _function_map[self.__function_id](extract_data(evaluated_inputs[0]), **self.__args)
 
-        return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
-                                               evaluated_inputs[0].intensity_calibration,
-                                               evaluated_inputs[0].dimensional_calibrations,
-                                               evaluated_inputs[0].metadata, datetime.datetime.utcnow())
+        if self.__function_id in _function_map and all(evaluated_input is not None for evaluated_input in evaluated_inputs):
+            return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
+                                                   evaluated_inputs[0].intensity_calibration,
+                                                   evaluated_inputs[0].dimensional_calibrations,
+                                                   evaluated_inputs[0].metadata, datetime.datetime.utcnow())
+        return None
 
     def reconstruct(self, variable_map):
         input_texts = reconstruct_inputs(variable_map, self.inputs)
@@ -1065,7 +1068,6 @@ class BinaryOperationDataNode(DataNode):
     def read(self, d):
         super(BinaryOperationDataNode, self).read(d)
         function_id = d.get("function_id")
-        assert function_id in _function_map
         self.__function_id = function_id
         args = d.get("args")
         self.__args = copy.copy(args if args is not None else dict())
@@ -1085,10 +1087,12 @@ class BinaryOperationDataNode(DataNode):
         # if the first input is not a data_and_metadata, use the second input
         src_evaluated_input = evaluated_inputs[0] if isinstance(evaluated_inputs[0], DataAndMetadata.DataAndMetadata) else evaluated_inputs[1]
 
-        return DataAndMetadata.DataAndMetadata(calculate_data, src_evaluated_input.data_shape_and_dtype,
-                                               src_evaluated_input.intensity_calibration,
-                                               src_evaluated_input.dimensional_calibrations,
-                                               src_evaluated_input.metadata, datetime.datetime.utcnow())
+        if self.__function_id in _function_map and all(evaluated_input is not None for evaluated_input in evaluated_inputs):
+            return DataAndMetadata.DataAndMetadata(calculate_data, src_evaluated_input.data_shape_and_dtype,
+                                                   src_evaluated_input.intensity_calibration,
+                                                   src_evaluated_input.dimensional_calibrations,
+                                                   src_evaluated_input.metadata, datetime.datetime.utcnow())
+        return None
 
     def reconstruct(self, variable_map):
         input_texts = reconstruct_inputs(variable_map, self.inputs)
@@ -1115,7 +1119,6 @@ class FunctionOperationDataNode(DataNode):
     def read(self, d):
         super(FunctionOperationDataNode, self).read(d)
         function_id = d.get("function_id")
-        assert function_id in _function2_map
         self.__function_id = function_id
         args = d.get("args")
         self.__args = copy.copy(args if args is not None else dict())
@@ -1130,7 +1133,9 @@ class FunctionOperationDataNode(DataNode):
 
     def _evaluate_inputs(self, evaluated_inputs, context):
         # don't pass the data; the functions are responsible for extracting the data correctly
-        return _function2_map[self.__function_id](*evaluated_inputs, **self.__args)
+        if self.__function_id in _function2_map and all(evaluated_input is not None for evaluated_input in evaluated_inputs):
+            return _function2_map[self.__function_id](*evaluated_inputs, **self.__args)
+        return None
 
     def reconstruct(self, variable_map):
         input_texts = reconstruct_inputs(variable_map, self.inputs)
@@ -1167,15 +1172,17 @@ class DataItemDataNode(DataNode):
         return d
 
     def _evaluate_inputs(self, evaluated_inputs, context):
-        return self.__bound_item.value
+        if self.__bound_item:
+            return self.__bound_item.value
+        return None
 
     def print_mapping(self, context):
         logging.debug("%s: %s", self.__data_reference_uuid, self.__object_specifier)
 
     def bind(self, context, bound_items):
         self.__bound_item = context.resolve_object_specifier(self.__object_specifier)
-        assert self.__bound_item is not None
-        bound_items[self.uuid] = self.__bound_item
+        if self.__bound_item is not None:
+            bound_items[self.uuid] = self.__bound_item
 
     def unbind(self):
         self.__bound_item = None
@@ -1254,15 +1261,17 @@ class PropertyDataNode(DataNode):
         return d
 
     def _evaluate_inputs(self, evaluated_inputs, resolve):
-        return self.__bound_item.value
+        if self.__bound_item:
+            return self.__bound_item.value
+        return None
 
     def print_mapping(self, context):
         logging.debug("%s.%s: %s", self.__reference_uuid, self.__property, self.__object_specifier)
 
     def bind(self, context, bound_items):
         self.__bound_item = context.resolve_object_specifier(self.__object_specifier, self.__property)
-        assert self.__bound_item is not None
-        bound_items[self.uuid] = self.__bound_item
+        if self.__bound_item is not None:
+            bound_items[self.uuid] = self.__bound_item
 
     def unbind(self):
         self.__bound_item = None
