@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 # standard libraries
 import contextlib
+import copy
 import logging
 import unittest
 
@@ -75,6 +76,11 @@ class TestRegionClass(unittest.TestCase):
                 self.assertEqual(region.is_shape_locked, drawn_graphic.is_shape_locked)
                 self.assertEqual(region.is_bounds_constrained, drawn_graphic.is_bounds_constrained)
 
+    def test_copying_region_with_empty_label_copies_it_correctly(self):
+        region = Region.PointRegion()
+        region_copy = copy.deepcopy(region)
+        self.assertIsNone(region.label)
+        self.assertIsNone(region_copy.label)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

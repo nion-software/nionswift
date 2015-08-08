@@ -24,7 +24,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
     def __init__(self, type):
         super(Region, self).__init__()
         self.define_type(type)
-        self.define_property("label", changed=self._property_changed, validate=lambda s: str(s))
+        self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("is_position_locked", False, changed=self._property_changed)
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
