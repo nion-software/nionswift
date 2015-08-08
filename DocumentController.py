@@ -1060,7 +1060,9 @@ class DocumentController(Observable.Broadcaster):
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
-            return DataItem.DisplaySpecifier.from_data_item(new_data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
+            self.display_data_item(display_specifier, source_data_item=data_item)
+            return display_specifier
         return DataItem.DisplaySpecifier()
 
     def processing_snapshot(self):
@@ -1075,7 +1077,9 @@ class DocumentController(Observable.Broadcaster):
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
-            return DataItem.DisplaySpecifier.from_data_item(data_item_copy)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
+            self.display_data_item(display_specifier, source_data_item=data_item)
+            return display_specifier
         return DataItem.DisplaySpecifier()
 
     def processing_convert_to_scalar(self):
