@@ -206,7 +206,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         graph_left, graph_right, ticks, division, precision = Geometry.make_pretty_range(calibrated_data_left, calibrated_data_right)
 
         def convert_to_calibrated_value_str(f):
-            return (u"{0:0." + u"{0:d}".format(precision + 2) + "f}").format(f)
+            return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_length), samples=data_length, include_units=False))
+
+        def convert_to_calibrated_size_str(f):
+            return u"{0}".format(dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_length), samples=data_length, include_units=False))
 
         regions = list()
         for graphic_index, graphic in enumerate(graphics):
@@ -215,9 +218,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
                 left_channel = graphic_start * data_length
                 right_channel = graphic_end * data_length
-                left_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_value(left_channel))
-                right_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_value(right_channel))
-                middle_text = convert_to_calibrated_value_str(dimensional_calibration.convert_to_calibrated_size(right_channel - left_channel))
+                left_text = convert_to_calibrated_value_str(left_channel)
+                right_text = convert_to_calibrated_value_str(right_channel)
+                middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
                 RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label"])
                 region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label)
                 regions.append(region)
