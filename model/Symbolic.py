@@ -1505,6 +1505,10 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         self.needs_update_event = Observable.Event()
         self.computation_changed_event = Observable.Event()
 
+    def deepcopy_from(self, item, memo):
+        super(Computation, self).deepcopy_from(item, memo)
+        self.__data_node = DataNode.factory(self.node)
+
     @property
     def _data_node_for_test(self):
         return self.__data_node
@@ -1536,12 +1540,16 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         return None
 
     def bind(self, context):
-        assert len(self.__bound_items) == 0
-        self.__data_node.bind(context, self.__bound_items)
-        def needs_update():
-            self.needs_update_event.fire()
-        for bound_item_uuid, bound_item in self.__bound_items.items():
-            self.__bound_item_listeners[bound_item_uuid] = bound_item.changed_event.listen(needs_update)
+        # normally I would think re-bind should not be valid; but for testing, the expression
+        # is often evaluated and bound. it also needs to be bound a new data item is added to a document
+        # model. so special case to see if it already exists. this may prove troublesome down the road.
+        if len(self.__bound_items) == 0:  # check if already bound
+            if self.__data_node:  # error condition
+                self.__data_node.bind(context, self.__bound_items)
+                def needs_update():
+                    self.needs_update_event.fire()
+                for bound_item_uuid, bound_item in self.__bound_items.items():
+                    self.__bound_item_listeners[bound_item_uuid] = bound_item.changed_event.listen(needs_update)
 
     def unbind(self):
         for bound_item, bound_item_listener in zip(self.__bound_items.values(), self.__bound_item_listeners.values()):
@@ -1571,4 +1579,4 @@ class Computation(Observable.Observable, Observable.ManagedObject):
                     lines.append("{0} = {1}".format(variable, self.__get_object_specifier_expression(object_specifier)))
             lines.append(expression)
             return "\n".join(lines)
-        return "None"
+        return None

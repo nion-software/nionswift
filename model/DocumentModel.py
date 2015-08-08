@@ -687,6 +687,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # fire buffered_data_source_set_changed_event
         self.__buffered_data_source_set.update(set(data_item.data_sources))
         self.buffered_data_source_set_changed_event.fire(set(data_item.data_sources), set())
+        # handle computation
+        for data_source in data_item.data_sources:
+            self.computation_changed(data_source, data_source.computation)
+            if data_source.computation:
+                data_source.computation.bind(self)
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have managed_object_context cleared upon return. """
