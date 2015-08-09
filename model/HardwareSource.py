@@ -108,6 +108,24 @@ class HardwareSourceManager(Utility.Singleton("HardwareSourceManagerSingleton", 
         for hardware_source in copy.copy(self.hardware_sources):
             hardware_source.abort_playing()
 
+    def get_all_instrument_ids(self):
+        instrument_ids = set()
+        instrument_ids.update(list(instrument.instrument_id for instrument in self.instruments))
+        for alias in self.__aliases.keys():
+            resolved_alias = self.get_instrument_by_id(alias)
+            if resolved_alias:
+                instrument_ids.add(alias)
+        return instrument_ids
+
+    def get_all_hardware_source_ids(self):
+        hardware_source_ids = set()
+        hardware_source_ids.update(list(hardware_source.hardware_source_id for hardware_source in self.hardware_sources))
+        for alias in self.__aliases.keys():
+            resolved_alias = self.get_hardware_source_for_hardware_source_id(alias)
+            if resolved_alias:
+                hardware_source_ids.add(alias)
+        return hardware_source_ids
+
     def __get_info_for_instrument_id(self, instrument_id):
         display_name = Unicode.u()
         seen_instrument_ids = []  # prevent loops, just so we don't get into endless loop in case of user error

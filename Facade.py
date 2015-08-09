@@ -2003,6 +2003,12 @@ class API_1(object):
 
         return OperationReference()
 
+    def get_all_hardware_source_ids(self):
+        return HardwareSourceModule.HardwareSourceManager().get_all_hardware_source_ids()
+
+    def get_all_instrument_ids(self):
+        return HardwareSourceModule.HardwareSourceManager().get_all_instrument_ids()
+
     def get_hardware_source_by_id(self, hardware_source_id, version):
         """Return the hardware source API matching the hardware_source_id and version.
 
