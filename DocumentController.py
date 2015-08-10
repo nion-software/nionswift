@@ -616,7 +616,13 @@ class DocumentController(Observable.Broadcaster):
         import_dir = self.ui.get_persistent_string("import_directory", "")
         paths, selected_filter, selected_directory = self.document_window.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
-        self.receive_files(paths)
+        def import_complete(data_items):
+            if len(data_items) > 0:
+                result_display_panel = self.next_result_display_panel()
+                if result_display_panel:
+                    result_display_panel.set_displayed_data_item(data_items[-1])
+                    result_display_panel.request_focus()
+        self.receive_files(paths, completion_fn=import_complete)
 
     def export_file(self, data_item):
         # present a loadfile dialog to the user
