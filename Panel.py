@@ -3,7 +3,7 @@ from __future__ import absolute_import
 
 # standard libraries
 import code
-from contextlib import contextmanager
+import contextlib
 import gettext
 import logging
 import sys
@@ -97,7 +97,7 @@ class OutputPanel(Panel):
         super(OutputPanel, self).close()
 
 
-@contextmanager
+@contextlib.contextmanager
 def reassign_stdout(new_stdout, new_stderr):
     oldstdout, oldtsderr = sys.stdout, sys.stderr
     sys.stdout, sys.stderr = new_stdout, new_stderr
@@ -114,8 +114,6 @@ class ConsolePanel(Panel):
         properties["min-height"] = 180
         self.widget = self.ui.create_console_widget(properties)
         self.widget.on_interpret_command = lambda command: self.interpret_command(command)
-        self.other_stdout = io.StringIO()
-        self.other_stderr = io.StringIO()
         # sys.ps1/2 is not always defined, we'll use it if it is
         self.ps1 = getattr(sys, "ps1", ">>> ")
         self.ps2 = getattr(sys, "ps2", "... ")
@@ -147,18 +145,17 @@ class ConsolePanel(Panel):
 
     # interpretCommand is called from the intrinsic widget.
     def interpret_command(self, command):
-        with reassign_stdout(self.other_stdout, self.other_stderr):
+        output = io.StringIO()
+        error = io.StringIO()
+        with reassign_stdout(output, error):
             incomplete = self.console.push(command)
-
         prompt = self.ps2 if incomplete else self.ps1
-        if self.other_stderr.getvalue():
-            result =  self.other_stderr.getvalue()
+        if error.getvalue():
+            result =  error.getvalue()
             error_code = -1
         else:
-            result =  self.other_stdout.getvalue()
+            result = output.getvalue()
             error_code = 0
-        self.other_stdout.truncate(0)
-        self.other_stderr.truncate(0)
         return result, error_code, prompt
 
 
