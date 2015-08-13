@@ -1250,7 +1250,7 @@ class DocumentController(Observable.Broadcaster):
             received_data_items = list()
 
             with self.create_task_context_manager(_("Import Data Items"), "table", logging=threaded) as task:
-                task.update_progress(_("Starting import."), (0, str()))
+                task.update_progress(_("Starting import."), (0, len(file_paths)))
                 task_data = {"headers": ["Number", "File"]}
 
                 class IntRef(object):

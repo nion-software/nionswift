@@ -540,7 +540,7 @@ class Workspace(object):
                 def update_displayed_data_item():
                     self.__replace_displayed_data_item(display_panel, received_data_items[0])
                 if len(received_data_items) > 0:
-                    self.queue_task(update_displayed_data_item)
+                    self.document_controller.queue_task(update_displayed_data_item)
             index = len(self.document_controller.document_model.data_items)
             self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
