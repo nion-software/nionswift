@@ -421,6 +421,14 @@ class UserInterface(object):
     def create_text_edit_widget(self):
         raise NotImplemented()
 
+    @property
+    def data_file_path(self):
+        return self.__ui.get_data_location()
+
+    @property
+    def document_file_path(self):
+        return self.__ui.get_document_location()
+
 
 class Panel(PanelModule.Panel):
 
