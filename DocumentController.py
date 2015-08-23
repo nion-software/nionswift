@@ -78,7 +78,7 @@ class DocumentController(Observable.Broadcaster):
         # to determine when to close it.
         self.document_model = document_model
         self.document_model.add_ref()
-        self.document_window = self.ui.create_document_window()
+        self.document_window = self.ui.create_document_window(_("Nion Swift"))
         self.document_window.on_periodic = self.periodic
         self.document_window.on_queue_task = self.queue_task
         self.document_window.on_add_task = self.add_task

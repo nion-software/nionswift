@@ -1919,9 +1919,9 @@ class QtMenu(object):
 
 class QtDocumentWindow(object):
 
-    def __init__(self, proxy):
+    def __init__(self, proxy, title):
         self.proxy = proxy
-        self.native_document_window = self.proxy.DocumentWindow_create()
+        self.native_document_window = self.proxy.DocumentWindow_create(title)
         self.proxy.DocumentWindow_connect(self.native_document_window, self)
         self.root_widget = None
         self.has_event_loop = True
@@ -2110,8 +2110,8 @@ class QtUserInterface(object):
 
     # window elements
 
-    def create_document_window(self):
-        document_window = QtDocumentWindow(self.proxy)
+    def create_document_window(self, title=None):
+        document_window = QtDocumentWindow(self.proxy, title)
         self.periodic_items.append(document_window)
         return document_window
 
