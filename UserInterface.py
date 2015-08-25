@@ -28,6 +28,7 @@ else:
 
 # local libraries
 from nion.ui import DrawingContext
+from nion.ui import Geometry
 from nion.ui import Unicode
 
 
@@ -582,6 +583,10 @@ class QtWidget(object):
     def focusOut(self):
         if self.on_focus_changed:
             self.on_focus_changed(False)
+
+    def map_to_global(self, p):
+        gx, gy = self.proxy.Widget_mapToGlobal(self.widget, p.x, p.y)
+        return Geometry.IntPoint(x=gx, y=gy)
 
 
 class QtBoxWidget(QtWidget):
@@ -1359,6 +1364,7 @@ class QtCanvasWidget(QtWidget):
         self.on_mouse_pressed = None
         self.on_mouse_released = None
         self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
         self.on_key_pressed = None
         self.on_size_changed = None
@@ -1381,6 +1387,7 @@ class QtCanvasWidget(QtWidget):
             self.on_mouse_pressed = None
             self.on_mouse_released = None
             self.on_mouse_position_changed = None
+            self.on_grabbed_mouse_position_changed = None
             self.on_wheel_changed = None
             self.on_key_pressed = None
             self.on_size_changed = None
@@ -1452,6 +1459,10 @@ class QtCanvasWidget(QtWidget):
         if self.on_mouse_position_changed:
             self.on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
 
+    def grabbedMousePositionChanged(self, dx, dy, raw_modifiers):
+        if self.on_grabbed_mouse_position_changed:
+            self.on_grabbed_mouse_position_changed(dx, dy, QtKeyboardModifiers(raw_modifiers))
+
     def wheelChanged(self, dx, dy, is_horizontal):
         if self.on_wheel_changed:
             self.on_wheel_changed(dx, dy, is_horizontal)
@@ -1496,6 +1507,12 @@ class QtCanvasWidget(QtWidget):
     def panGesture(self, delta_x, delta_y):
         if self.on_pan_gesture:
             self.on_pan_gesture(delta_x, delta_y)
+
+    def grab_mouse(self):
+        self.proxy.Canvas_grabMouse(self.widget)
+
+    def release_mouse(self):
+        self.proxy.Canvas_releaseMouse(self.widget)
 
 
 # pobj
@@ -1925,6 +1942,7 @@ class QtDocumentWindow(object):
         self.proxy.DocumentWindow_connect(self.native_document_window, self)
         self.root_widget = None
         self.has_event_loop = True
+        self.window_style = "window"
         self.on_periodic = None
         self.on_queue_task = None
         self.on_add_task = None
@@ -1993,8 +2011,12 @@ class QtDocumentWindow(object):
         self.proxy.DocumentWindow_tabifyDockWidgets(self.native_document_window, dock_widget1.native_dock_widget, dock_widget2.native_dock_widget)
 
     # call show to display the window.
-    def show(self):
-        self.proxy.DocumentWindow_show(self.native_document_window)
+    def show(self, size=None, position=None):
+        if size is not None:
+            self.proxy.DocumentWindow_setSize(self.native_document_window, size.width, size.height)
+        if position is not None:
+            self.proxy.DocumentWindow_setPosition(self.native_document_window, position.x, position.y)
+        self.proxy.DocumentWindow_show(self.native_document_window, self.window_style)
 
     @property
     def title(self):
