@@ -35,6 +35,7 @@ class TestApplicationClass(unittest.TestCase):
             app = Application.Application(Test.UserInterface(), set_global=False)
             app.start(True, fixed_workspace_dir=workspace1_dir)
             app.switch_library(workspace2_dir, skip_choose=True, fixed_workspace_dir=workspace2_dir)
+            app.exit()
             app.deinitialize()
         finally:
             #logging.debug("rmtree %s", workspace_dir)
