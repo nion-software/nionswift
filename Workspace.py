@@ -169,6 +169,9 @@ class Workspace(object):
         return geometry, state
 
     def save_geometry_state(self, geometry, state):
+        # ugh. this has the side effect of saving the layout when the geometry state is saved.
+        # TODO: make the saving of internal layout independent of _deconstruct
+        self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
         self.ui.set_persistent_string("Workspace/%s/Geometry" % self.workspace_id, geometry)
         self.ui.set_persistent_string("Workspace/%s/State" % self.workspace_id, state)
 
