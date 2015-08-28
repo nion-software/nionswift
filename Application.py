@@ -76,15 +76,17 @@ class Application(object):
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):
+        # load plug-ins
         PlugInManager.load_plug_ins(self, get_root_dir())
 
     def deinitialize(self):
-        self.__close()
+        # shut down hardware source manager, unload plug-ins, and really exit ui
         HardwareSource.HardwareSourceManager().close()
         PlugInManager.unload_plug_ins()
         self.ui.close()
 
-    def __close(self):
+    def exit(self):
+        # close all document windows, but can be started again.
         for did_close_event_listener in self.__did_close_event_listeners.values():
             did_close_event_listener.close()
         for create_new_event_listener in self.__create_new_event_listeners.values():
@@ -246,13 +248,17 @@ class Application(object):
             document_controller.selected_display_panel.set_displayed_data_item(document_model.data_items[0])
             document_controller.selected_display_panel.perform_action("set_fill_mode")
 
+    def stop(self):
+        # program is really stopping, clean up.
+        self.deinitialize()
+
     def get_recent_workspace_file_paths(self):
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
         # workspace_history = ["/Users/cmeyer/Movies/Crap/Test1", "/Users/cmeyer/Movies/Crap/Test7_new"]
         return [file_path for file_path in workspace_history if file_path != self.workspace_dir and os.path.exists(file_path)]
 
     def switch_library(self, recent_workspace_file_path, skip_choose=False, fixed_workspace_dir=None):
-        self.__close()
+        self.exit()
         self.ui.set_persistent_string("workspace_location", recent_workspace_file_path)
         self.start(skip_choose=skip_choose, fixed_workspace_dir=fixed_workspace_dir)
 
