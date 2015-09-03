@@ -1208,6 +1208,15 @@ class DisplayPanelManager(Decorators.Singleton("DisplayPanelManagerSingleton", (
         return None
 
     def build_menu(self, display_type_menu, selected_display_panel):
+        """Build the dynamic menu for the selected display panel.
+
+        The user accesses this menu by right-clicking on the display panel.
+
+        The basic menu items are to an empty display panel or a browser display panel.
+
+        After that, each display controller factory is given a chance to add to the menu. The display
+        controllers (for instance, a scan acquisition controller), may add its own menu items.
+        """
         dynamic_live_actions = list()
 
         def switch_to_display_content(display_panel_type):
