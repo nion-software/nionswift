@@ -83,6 +83,8 @@ class Application(object):
         # shut down hardware source manager, unload plug-ins, and really exit ui
         HardwareSource.HardwareSourceManager().close()
         PlugInManager.unload_plug_ins()
+        # with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
+        #     f.write(sys.prefix + '\n')
         self.ui.close()
 
     def exit(self):
