@@ -619,27 +619,47 @@ class LineTypeGraphic(Graphic):
         self.define_property("start_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
         self.define_property("end_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
 
-    # accessors
-    def __get_start(self):
+    @property
+    def start(self):
         return self.vector[0]
 
-    def __set_start(self, start):
-        self.vector = start, self.vector[1]
+    @start.setter
+    def start(self, value):
+        self.vector = value, self.vector[1]
 
-    start = property(__get_start, __set_start)
-
-    def __get_end(self):
+    @property
+    def end(self):
         return self.vector[1]
 
-    def __set_end(self, end):
-        self.vector = self.vector[0], end
+    @end.setter
+    def end(self, value):
+        self.vector = self.vector[0], value
 
-    end = property(__get_end, __set_end)
+    @property
+    def length(self):
+        return Geometry.distance(self.start, self.end)
+
+    @length.setter
+    def length(self, value):
+        angle = self.angle
+        self.end = Geometry.FloatPoint.make(self.start) + value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
+
+    @property
+    def angle(self):
+        delta = Geometry.FloatPoint.make(self.end) - Geometry.FloatPoint.make(self.start)
+        return -math.atan2(delta.y, delta.x)
+
+    @angle.setter
+    def angle(self, value):
+        self.end = Geometry.FloatPoint.make(self.start) + self.length * Geometry.FloatSize(height=-math.sin(value), width=math.cos(value))
+
     # dependent properties
     def __vector_changed(self, name, value):
         self._property_changed(name, value)
         self.notify_set_property("start", value[0])
         self.notify_set_property("end", value[1])
+        self.notify_set_property("length", self.length)
+        self.notify_set_property("angle", self.angle)
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):

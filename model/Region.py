@@ -6,7 +6,7 @@
 from __future__ import absolute_import
 
 # standard libraries
-# None
+import math
 
 # third party libraries
 # None
@@ -110,6 +110,8 @@ class LineRegion(Region):
         self._property_changed(name, value)
         self.notify_set_property("start", value[0])
         self.notify_set_property("end", value[1])
+        self.notify_set_property("length", self.length)
+        self.notify_set_property("angle", self.angle)
 
     @property
     def start(self):
@@ -142,6 +144,24 @@ class LineRegion(Region):
     @_end.setter
     def _end(self, value):
         self.end = value
+
+    @property
+    def length(self):
+        return Geometry.distance(self.start, self.end)
+
+    @length.setter
+    def length(self, value):
+        angle = self.angle
+        self.end = self._start + value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
+
+    @property
+    def angle(self):
+        delta = self._end - self._start
+        return -math.atan2(delta.y, delta.x)
+
+    @angle.setter
+    def angle(self, value):
+        self.end = self._start + self.length * Geometry.FloatSize(height=-math.sin(value), width=math.cos(value))
 
     @property
     def graphic(self):

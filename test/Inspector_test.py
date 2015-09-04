@@ -121,9 +121,9 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.display.display_calibrated_values = True
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
         Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
-        self.assertEqual(graphic_widget.children[0].children[1].text, "128.0 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "128.0 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
-        self.assertEqual(graphic_widget.children[0].children[1].text, "128.0 mmm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "128.0 mmm")
 
     def test_graphic_inspector_section_displays_sensible_units(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -133,15 +133,15 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.display.display_calibrated_values = True
         Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), units="mm"))
-        self.assertEqual(graphic_widget.children[0].children[1].text, "181.0 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "181.0 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), offset=5.55555, units="mm"))
-        self.assertEqual(graphic_widget.children[0].children[1].text, "186.6 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "186.6 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, units="mm"))
-        self.assertEqual(graphic_widget.children[0].children[1].text, "18.10 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "18.10 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0)/10, offset=0.55555, units="mm"))
-        self.assertEqual(graphic_widget.children[0].children[1].text, "18.66 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "18.66 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=-math.sqrt(2.0)/10, units="mm"))
-        self.assertEqual(graphic_widget.children[0].children[1].text, "-18.10 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "-18.10 mm")
 
     def test_float_to_string_converter_strips_units(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))

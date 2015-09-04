@@ -7,6 +7,7 @@ import copy
 import functools
 import gettext
 import logging
+import math
 import operator
 
 # third party libraries
@@ -661,6 +662,16 @@ class SliceInspectorSection(InspectorSection):
         self.finish_widget_content()
 
 
+class RadianToDegreeStringConverter(object):
+    """
+        Converter object to convert from radian value to degree string and back.
+    """
+    def convert(self, value):
+        return "{0:.4f}°".format(math.degrees(value))
+    def convert_back(self, str):
+        return math.radians(Converter.FloatToStringConverter().convert_back(str))
+
+
 class CalibratedValueFloatToStringConverter(object):
     """
         Converter object to convert from calibrated value to string and back.
@@ -731,6 +742,25 @@ class CalibratedValueBinding(Binding.Binding):
 
 
 def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+    # create the ui
+    graphic_position_row = ui.create_row_widget()
+    graphic_position_row.add_spacing(20)
+    graphic_position_x_row = ui.create_row_widget()
+    graphic_position_x_row.add(ui.create_label_widget(_("X"), properties={"width": 26}))
+    graphic_position_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_position_x_row.add(graphic_position_x_line_edit)
+    graphic_position_y_row = ui.create_row_widget()
+    graphic_position_y_row.add(ui.create_label_widget(_("Y"), properties={"width": 26}))
+    graphic_position_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_position_y_row.add(graphic_position_y_line_edit)
+    graphic_position_row.add(graphic_position_x_row)
+    graphic_position_row.add_spacing(8)
+    graphic_position_row.add(graphic_position_y_row)
+    graphic_position_row.add_stretch()
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_position_row)
+    graphic_widget.add_spacing(4)
+
     def new_display_calibrated_values_binding():
         return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
     # calculate values from rectangle type graphic
@@ -738,61 +768,80 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size,
     y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
     position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
     position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
-    # create the ui
-    graphic_position_row = ui.create_row_widget()
-    graphic_position_row.add_spacing(20)
-    graphic_position_row.add(ui.create_label_widget(_("X, Y"), properties={"width": 52}))
-    graphic_position_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-    graphic_position_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
     graphic_position_x_line_edit.bind_text(position_x_binding)
     graphic_position_y_line_edit.bind_text(position_y_binding)
-    graphic_position_row.add(graphic_position_x_line_edit)
-    graphic_position_row.add_spacing(8)
-    graphic_position_row.add(graphic_position_y_line_edit)
-    graphic_position_row.add_stretch()
-    graphic_widget.add_spacing(4)
-    graphic_widget.add(graphic_position_row)
-    graphic_widget.add_spacing(4)
 
 
 def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
-    def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
-    # configure the bindings
-    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-    start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
-    start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
-    end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
-    end_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
-    graphic_start_row.add(ui.create_label_widget(_("Start"), properties={"width": 52}))
+    graphic_start_x_row = ui.create_row_widget()
+    graphic_start_x_row.add(ui.create_label_widget(_("X0"), properties={"width": 26}))
     graphic_start_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_start_x_row.add(graphic_start_x_line_edit)
+    graphic_start_y_row = ui.create_row_widget()
+    graphic_start_y_row.add(ui.create_label_widget(_("Y0"), properties={"width": 26}))
     graphic_start_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-    graphic_start_x_line_edit.bind_text(start_x_binding)
-    graphic_start_y_line_edit.bind_text(start_y_binding)
-    graphic_start_row.add(graphic_start_x_line_edit)
+    graphic_start_y_row.add(graphic_start_y_line_edit)
+    graphic_start_row.add(graphic_start_x_row)
     graphic_start_row.add_spacing(8)
-    graphic_start_row.add(graphic_start_y_line_edit)
+    graphic_start_row.add(graphic_start_y_row)
     graphic_start_row.add_stretch()
     graphic_end_row = ui.create_row_widget()
     graphic_end_row.add_spacing(20)
-    graphic_end_row.add(ui.create_label_widget(_("End"), properties={"width": 52}))
+    graphic_end_x_row = ui.create_row_widget()
+    graphic_end_x_row.add(ui.create_label_widget(_("X1"), properties={"width": 26}))
     graphic_end_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_end_x_row.add(graphic_end_x_line_edit)
+    graphic_end_y_row = ui.create_row_widget()
+    graphic_end_y_row.add(ui.create_label_widget(_("Y1"), properties={"width": 26}))
     graphic_end_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-    graphic_end_x_line_edit.bind_text(end_x_binding)
-    graphic_end_y_line_edit.bind_text(end_y_binding)
-    graphic_end_row.add(graphic_end_x_line_edit)
+    graphic_end_y_row.add(graphic_end_y_line_edit)
+    graphic_end_row.add(graphic_end_x_row)
     graphic_end_row.add_spacing(8)
-    graphic_end_row.add(graphic_end_y_line_edit)
+    graphic_end_row.add(graphic_end_y_row)
     graphic_end_row.add_stretch()
+    graphic_param_row = ui.create_row_widget()
+    graphic_param_row.add_spacing(20)
+    graphic_param_l_row = ui.create_row_widget()
+    graphic_param_l_row.add(ui.create_label_widget(_("L"), properties={"width": 26}))
+    graphic_param_l_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_param_l_row.add(graphic_param_l_line_edit)
+    graphic_param_a_row = ui.create_row_widget()
+    graphic_param_a_row.add(ui.create_label_widget(_("A"), properties={"width": 26}))
+    graphic_param_a_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_param_a_row.add(graphic_param_a_line_edit)
+    graphic_param_row.add(graphic_param_l_row)
+    graphic_param_row.add_spacing(8)
+    graphic_param_row.add(graphic_param_a_row)
+    graphic_param_row.add_stretch()
     graphic_widget.add_spacing(4)
     graphic_widget.add(graphic_start_row)
     graphic_widget.add_spacing(4)
     graphic_widget.add(graphic_end_row)
     graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_param_row)
+    graphic_widget.add_spacing(4)
+
+    def new_display_calibrated_values_binding():
+        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
+    # configure the bindings
+    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+    l_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+    start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
+    start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
+    end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
+    end_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
+    length_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "length"), new_display_calibrated_values_binding(), l_converter)
+    angle_binding = Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter())
+    graphic_start_x_line_edit.bind_text(start_x_binding)
+    graphic_start_y_line_edit.bind_text(start_y_binding)
+    graphic_end_x_line_edit.bind_text(end_x_binding)
+    graphic_end_y_line_edit.bind_text(end_y_binding)
+    graphic_param_l_line_edit.bind_text(length_binding)
+    graphic_param_a_line_edit.bind_text(angle_binding)
 
 
 def make_line_profile_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
@@ -816,9 +865,45 @@ def make_line_profile_inspector(ui, graphic_widget, display_specifier, image_siz
 
 
 def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+    # create the ui
+    graphic_center_row = ui.create_row_widget()
+    graphic_center_row.add_spacing(20)
+    graphic_center_x_row = ui.create_row_widget()
+    graphic_center_x_row.add(ui.create_label_widget(_("X"), properties={"width": 26}))
+    graphic_center_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_x_row.add(graphic_center_x_line_edit)
+    graphic_center_y_row = ui.create_row_widget()
+    graphic_center_y_row.add(ui.create_label_widget(_("Y"), properties={"width": 26}))
+    graphic_center_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_y_row.add(graphic_center_y_line_edit)
+    graphic_center_row.add(graphic_center_x_row)
+    graphic_center_row.add_spacing(8)
+    graphic_center_row.add(graphic_center_y_row)
+    graphic_center_row.add_stretch()
+    graphic_size_row = ui.create_row_widget()
+    graphic_size_row.add_spacing(20)
+    graphic_center_w_row = ui.create_row_widget()
+    graphic_center_w_row.add(ui.create_label_widget(_("W"), properties={"width": 26}))
+    graphic_size_width_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_w_row.add(graphic_size_width_line_edit)
+    graphic_center_h_row = ui.create_row_widget()
+    graphic_center_h_row.add(ui.create_label_widget(_("H"), properties={"width": 26}))
+    graphic_size_height_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_h_row.add(graphic_size_height_line_edit)
+    graphic_size_row.add(graphic_center_w_row)
+    graphic_size_row.add_spacing(8)
+    graphic_size_row.add(graphic_center_h_row)
+    graphic_size_row.add_stretch()
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_center_row)
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_size_row)
+    graphic_widget.add_spacing(4)
+
+    # calculate values from rectangle type graphic
     def new_display_calibrated_values_binding():
         return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
-    # calculate values from rectangle type graphic
+
     x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
     y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
     width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
@@ -827,34 +912,10 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_s
     center_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
     size_width_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
     size_height_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
-    # create the ui
-    graphic_center_row = ui.create_row_widget()
-    graphic_center_row.add_spacing(20)
-    graphic_center_row.add(ui.create_label_widget(_("Center"), properties={"width": 52}))
-    graphic_center_x_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-    graphic_center_y_line_edit = ui.create_line_edit_widget(properties={"width": 98})
     graphic_center_x_line_edit.bind_text(center_x_binding)
     graphic_center_y_line_edit.bind_text(center_y_binding)
-    graphic_center_row.add(graphic_center_x_line_edit)
-    graphic_center_row.add_spacing(8)
-    graphic_center_row.add(graphic_center_y_line_edit)
-    graphic_center_row.add_stretch()
-    graphic_size_row = ui.create_row_widget()
-    graphic_size_row.add_spacing(20)
-    graphic_size_row.add(ui.create_label_widget(_("Size"), properties={"width": 52}))
-    graphic_size_width_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-    graphic_size_height_line_edit = ui.create_line_edit_widget(properties={"width": 98})
     graphic_size_width_line_edit.bind_text(size_width_binding)
     graphic_size_height_line_edit.bind_text(size_height_binding)
-    graphic_size_row.add(graphic_size_width_line_edit)
-    graphic_size_row.add_spacing(8)
-    graphic_size_row.add(graphic_size_height_line_edit)
-    graphic_size_row.add_stretch()
-    graphic_widget.add_spacing(4)
-    graphic_widget.add(graphic_center_row)
-    graphic_widget.add_spacing(4)
-    graphic_widget.add(graphic_size_row)
-    graphic_widget.add_spacing(4)
 
 
 def make_interval_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
