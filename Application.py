@@ -343,6 +343,10 @@ class DataReferenceHandler(object):
         self.__file_handler = NDataHandler.NDataHandler(self.__data_dir)
         assert self.workspace_dir
 
+    @property
+    def file_handler(self):
+        return self.__file_handler
+
     def find_data_item_tuples(self):
         tuples = []
         #logging.debug("data_dir %s", self.__data_dir)
