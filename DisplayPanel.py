@@ -101,6 +101,14 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
         The overlay has a focused property, but this is not the same as the canvas focused_item.
         The focused property here is just a flag to indicate whether to draw the focus ring.
+
+        Clients can connect to the following messages:
+            on_context_menu_event(x, y, gx, gy)
+            on_drag_enter(mime_data)
+            on_drag_leave()
+            on_drag_move(mime_data, x, y)
+            on_drop(mime_data, drop_region, x, y)
+            on_key_pressed(key)
     """
 
     def __init__(self):
@@ -321,6 +329,7 @@ class BaseDisplayPanelContent(object):
                 return self.on_drop(mime_data, region, x, y)
             return "ignore"
 
+        # list to the content_canvas_item messages and pass them along to listeners of this class.
         self.__content_canvas_item.on_drag_enter = drag_enter
         self.__content_canvas_item.on_drag_leave = drag_leave
         self.__content_canvas_item.on_drag_move = drag_move
@@ -479,6 +488,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             if data_item == self.display_specifier.data_item:
                 self.__set_display(DataItem.DisplaySpecifier())
 
+        # when a data item gets deleted from the data model, need to ask the display whether
+        # it is still valid.
         document_model = self.document_controller.document_model
         self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(data_item_deleted)
 
@@ -500,20 +511,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     @property
     def _display_panel_controller_for_test(self):
         return self.__display_panel_controller
-
-    # tasks can be added in two ways, queued or added
-    # queued tasks are guaranteed to be executed in the order queued.
-    # added tasks are only executed if not replaced before execution.
-    # added tasks do not guarantee execution order or execution at all.
-
-    def add_task(self, key, task):
-        self.document_controller.add_task(key + str(id(self)), task)
-
-    def clear_task(self, key):
-        self.document_controller.clear_task(key + str(id(self)))
-
-    def queue_task(self, task):
-        self.document_controller.queue_task(task)
 
     # save and restore the contents of the image panel
 
@@ -550,14 +547,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         """Return the display specifier for the Display in this image panel."""
         return self.__display_specifier
 
-    # sets the data item that this panel displays
-    # not thread safe
-    def __set_displayed_data_item_and_display(self, display_specifier):
-        self.__set_display(display_specifier)
-
     # set the default display for the data item. just a simpler method to call.
     def set_displayed_data_item(self, data_item):
-        self.__set_displayed_data_item_and_display(DataItem.DisplaySpecifier.from_data_item(data_item))
+        self.__set_display(DataItem.DisplaySpecifier.from_data_item(data_item))
 
     def __set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -566,8 +558,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_panel_controller = display_panel_controller
         if not display_panel_controller:
             self.header_canvas_item.reset_header_colors()
-        self.__set_displayed_data_item_and_display(self.display_specifier)
+        self.__set_display(self.display_specifier)
 
+    # sets the data item that this panel displays
     # not thread safe
     def __set_display(self, display_specifier):
         if display_specifier.buffered_data_source:

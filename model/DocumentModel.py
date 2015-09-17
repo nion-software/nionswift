@@ -611,8 +611,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__read()
         self.__library_storage.set_value(self, "uuid", str(self.uuid))
         self.__library_storage.set_value(self, "version", 0)
-        self.data_item_deleted_event = Observable.Event()
-        self.data_item_will_be_removed_event = Observable.Event()
+        self.data_item_deleted_event = Observable.Event()  # will be called after the item is deleted
+        self.data_item_will_be_removed_event = Observable.Event()  # will be called before the item is deleted
 
     def __read(self):
         # first read the items
