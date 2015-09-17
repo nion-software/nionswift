@@ -1071,13 +1071,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
         if self.managed_object_context:
-            persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
+            persistent_storage = self.managed_object_context._get_persistent_storage_for_object(self)
             if persistent_storage:
                 persistent_storage.write_delayed = True
 
     def __exit_write_delay_state(self):
         if self.managed_object_context:
-            persistent_storage = self.managed_object_context.get_persistent_storage_for_object(self)
+            persistent_storage = self.managed_object_context._get_persistent_storage_for_object(self)
             if persistent_storage:
                 persistent_storage.write_delayed = False
             if self.__pending_write or self.modified_count > self.__write_delay_modified_count:

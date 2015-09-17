@@ -1103,7 +1103,7 @@ class TestDataItemClass(unittest.TestCase):
             # begin the transaction
             with document_model.data_item_transaction(data_item):
                 document_model.append_data_item(data_item)
-                persistent_storage = data_item.managed_object_context.get_persistent_storage_for_object(data_item)
+                persistent_storage = data_item.managed_object_context._get_persistent_storage_for_object(data_item)
                 self.assertTrue(persistent_storage.write_delayed)
 
     def test_data_item_added_to_live_data_item_becomes_live_and_unlive_based_on_parent_item(self):

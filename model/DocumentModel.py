@@ -138,7 +138,7 @@ class FilePersistentStorage(object):
                     del storage_dict[name]
         self.update_properties()
 
-    def set_value(self, object, name, value):
+    def set_property(self, object, name, value):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
@@ -271,7 +271,7 @@ class DataItemPersistentStorage(object):
         with self.__data_reference_handler_lock:
             return self.__data_reference_handler.load_data_reference(self.reference_type, self.reference)
 
-    def set_value(self, object, name, value):
+    def set_property(self, object, name, value):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.properties_lock:
             storage_dict[name] = value
@@ -528,7 +528,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     data_item.begin_reading()
                     persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
                     data_item.read_from_dict(persistent_storage.properties)
-                    self.set_persistent_storage_for_object(data_item, persistent_storage)
+                    self._set_persistent_storage_for_object(data_item, persistent_storage)
                     data_item.managed_object_context = self
                     if self.__log_migrations and data_item.uuid in data_items_by_uuid:
                         logging.info("Warning: Duplicate data item %s", data_item.uuid)
@@ -547,10 +547,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
     def write_data_item(self, data_item):
         """ Write data item to persistent storage. """
         properties = data_item.write_to_dict()
-        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        persistent_storage = self._get_persistent_storage_for_object(data_item)
         if not persistent_storage:
             persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties)
-            self.set_persistent_storage_for_object(data_item, persistent_storage)
+            self._set_persistent_storage_for_object(data_item, persistent_storage)
         data_item.managed_object_context_changed()
         # write the uuid and version explicitly
         self.property_changed(data_item, "uuid", str(data_item.uuid))
@@ -559,20 +559,20 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
             self.rewrite_data_item_data(data_item.maybe_data_source)
 
     def rewrite_data_item_data(self, buffered_data_source):
-        persistent_storage = self.get_persistent_storage_for_object(buffered_data_source)
+        persistent_storage = self._get_persistent_storage_for_object(buffered_data_source)
         persistent_storage.update_data(buffered_data_source.data_shape, buffered_data_source.data_dtype, data=buffered_data_source.data)
 
     def erase_data_item(self, data_item):
-        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        persistent_storage = self._get_persistent_storage_for_object(data_item)
         self.__data_reference_handler.remove_data_reference(persistent_storage.reference_type, persistent_storage.reference)
         data_item.managed_object_context = None
 
     def load_data(self, data_item):
-        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        persistent_storage = self._get_persistent_storage_for_object(data_item)
         return persistent_storage.load_data()
 
     def get_data_item_file_info(self, data_item):
-        persistent_storage = self.get_persistent_storage_for_object(data_item)
+        persistent_storage = self._get_persistent_storage_for_object(data_item)
         return persistent_storage.reference_type, persistent_storage.reference
 
 
@@ -596,7 +596,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_reference_handler = data_reference_handler if data_reference_handler else DataReferenceMemoryHandler()
         self.managed_object_context = ManagedDataItemContext(data_reference_handler, ignore_older_files, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
-        self.managed_object_context.set_persistent_storage_for_object(self, self.__library_storage)
+        self.managed_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
         self.__data_items = list()
         self.define_type("library")
@@ -609,8 +609,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.start_new_session()
         self.__computation_changed_listeners = dict()
         self.__read()
-        self.__library_storage.set_value(self, "uuid", str(self.uuid))
-        self.__library_storage.set_value(self, "version", 0)
+        self.__library_storage.set_property(self, "uuid", str(self.uuid))
+        self.__library_storage.set_property(self, "version", 0)
         self.data_item_deleted_event = Observable.Event()  # will be called after the item is deleted
         self.data_item_will_be_removed_event = Observable.Event()  # will be called before the item is deleted
 

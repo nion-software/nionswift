@@ -688,7 +688,7 @@ class TestStorageClass(unittest.TestCase):
                 with document_model.data_item_transaction(data_item):
                     with display_specifier.buffered_data_source.data_ref() as data_ref:
                         data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
-                    reference = document_model.managed_object_context.get_persistent_storage_for_object(data_item).get_default_reference(data_item)
+                    reference = document_model.managed_object_context._get_persistent_storage_for_object(data_item).get_default_reference(data_item)
                     data_file_path = data_reference_handler.file_handler.get_file_path(reference)
                     # make sure data does NOT exist during the transaction
                     self.assertIsNone(handler.read_data(reference))
