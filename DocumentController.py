@@ -32,6 +32,7 @@ from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
+from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import Process
 from nion.ui import Selection
@@ -67,12 +68,12 @@ class DocumentController(Observable.Broadcaster):
         self.ui = ui
         self.uuid = uuid.uuid4()
 
-        self.task_created_event = Observable.Event()
-        self.selected_display_specifier_changed_event = Observable.Event()
-        self.cursor_changed_event = Observable.Event()
-        self.did_close_event = Observable.Event()
-        self.create_new_document_controller_event = Observable.Event()
-        self.tool_mode_changed_event = Observable.Event()
+        self.task_created_event = Event.Event()
+        self.selected_display_specifier_changed_event = Event.Event()
+        self.cursor_changed_event = Event.Event()
+        self.did_close_event = Event.Event()
+        self.create_new_document_controller_event = Event.Event()
+        self.tool_mode_changed_event = Event.Event()
 
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
@@ -1402,7 +1403,7 @@ class SelectedDisplayBinding(Observable.Broadcaster):
         self.document_controller = document_controller
         self.__display_specifier = DataItem.DisplaySpecifier()
         self.__display_changed_event_listener = None
-        self.display_specifier_changed_event = Observable.Event()
+        self.display_specifier_changed_event = Event.Event()
         self.__selected_display_specifier_changed_event_listener = self.document_controller.selected_display_specifier_changed_event.listen(self.__selected_display_specifier_changed)
         # initialize with the existing value
         self.__selected_display_specifier_changed(document_controller.selected_display_specifier)

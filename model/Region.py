@@ -14,6 +14,7 @@ import math
 # local libraries
 from nion.swift.model import Graphics
 from nion.ui import Binding
+from nion.ui import Event
 from nion.ui import Geometry
 from nion.ui import Observable
 
@@ -28,7 +29,7 @@ class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedOb
         self.define_property("is_position_locked", False, changed=self._property_changed)
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
-        self.remove_region_because_graphic_removed_event = Observable.Event()
+        self.remove_region_because_graphic_removed_event = Event.Event()
         self.__graphic = None
         self.__remove_region_graphic_listener = None
         # TODO: add unit type to region (relative, absolute, calibrated)

@@ -14,8 +14,7 @@ import weakref
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
 from nion.swift import Panel
-from nion.ui import Observable
-
+from nion.ui import Event
 
 _ = gettext.gettext
 
@@ -41,8 +40,8 @@ class ComputationModel(object):
         self.__computation_changed_event_listener = None
         self.__computation_text = None
         self.__error_text = None
-        self.computation_text_changed_event = Observable.Event()
-        self.error_text_changed_event = Observable.Event()
+        self.computation_text_changed_event = Event.Event()
+        self.error_text_changed_event = Event.Event()
 
     def close(self):
         self.document_controller.clear_task("update_display_specifier" + str(id(self)))

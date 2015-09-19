@@ -27,6 +27,7 @@ import uuid
 
 # conditional imports
 import sys
+
 if sys.version < '3':
     import ConfigParser as configparser
 else:
@@ -38,7 +39,7 @@ from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
-from nion.ui import Observable
+from nion.ui import Event
 from nion.ui import Unicode
 
 _ = gettext.gettext
@@ -56,8 +57,8 @@ class HardwareSourceManager(Utility.Singleton("HardwareSourceManagerSingleton", 
         self.instruments = []
         # we create a list of callbacks for when a hardware
         # source is added or removed
-        self.hardware_source_added_event = Observable.Event()
-        self.hardware_source_removed_event = Observable.Event()
+        self.hardware_source_added_event = Event.Event()
+        self.hardware_source_removed_event = Event.Event()
         self.aliases_updated = []
         # aliases are shared between hardware sources and instruments
         self.__aliases = {}
@@ -81,8 +82,8 @@ class HardwareSourceManager(Utility.Singleton("HardwareSourceManagerSingleton", 
     def _reset(self):  # used for testing to start from scratch
         self.hardware_sources = []
         self.instruments = []
-        self.hardware_source_added_event = Observable.Event()
-        self.hardware_source_removed_event = Observable.Event()
+        self.hardware_source_added_event = Event.Event()
+        self.hardware_source_removed_event = Event.Event()
         self.__aliases = {}
 
     def register_hardware_source(self, hardware_source):
@@ -207,8 +208,8 @@ class AcquisitionTask(object):
         self.__minimum_period = 1/1000.0
         self.__frame_index = 0
         self.__view_id = str(uuid.uuid4()) if not continuous else hardware_source.hardware_source_id
-        self.finished_event = Observable.Event()
-        self.data_elements_changed_event = Observable.Event()
+        self.finished_event = Event.Event()
+        self.data_elements_changed_event = Event.Event()
 
     def __mark_as_finished(self):
         self.__finished = True
@@ -403,19 +404,19 @@ class HardwareSource(object):
         self.display_name = display_name
         self.channel_count = 1
         self.features = dict()
-        self.viewed_data_elements_available_event = Observable.Event()
-        self.recorded_data_elements_available_event = Observable.Event()
-        self.abort_event = Observable.Event()
-        self.playing_state_changed_event = Observable.Event()
-        self.recording_state_changed_event = Observable.Event()
-        self.data_item_states_changed_event = Observable.Event()
-        self.channels_data_updated_event = Observable.Event()
+        self.viewed_data_elements_available_event = Event.Event()
+        self.recorded_data_elements_available_event = Event.Event()
+        self.abort_event = Event.Event()
+        self.playing_state_changed_event = Event.Event()
+        self.recording_state_changed_event = Event.Event()
+        self.data_item_states_changed_event = Event.Event()
+        self.channels_data_updated_event = Event.Event()
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
         self.__view_task = None
         self.__record_task = None
-        self.active_view_task_changed_event = Observable.Event()
-        self.active_record_task_changed_event = Observable.Event()
+        self.active_view_task_changed_event = Event.Event()
+        self.active_record_task_changed_event = Event.Event()
         self.__view_task_suspended = False
         self.__view_data_elements_changed_event_listener = None
         self.__record_data_elements_changed_event_listener = None

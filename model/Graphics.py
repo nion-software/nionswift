@@ -11,9 +11,9 @@ import math
 import numpy  # for arange
 
 # local libraries
+from nion.ui import Event
 from nion.ui import Geometry
 from nion.ui import Observable
-
 
 _ = gettext.gettext
 
@@ -258,9 +258,9 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedO
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.__region = None
-        self.graphic_changed_event = Observable.Event()
-        self.remove_region_graphic_event = Observable.Event()
-        self.about_to_be_removed_event = Observable.Event()
+        self.graphic_changed_event = Event.Event()
+        self.remove_region_graphic_event = Event.Event()
+        self.about_to_be_removed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
 

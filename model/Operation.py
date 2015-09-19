@@ -5,32 +5,23 @@ from __future__ import division
 # standard libraries
 import collections
 import copy
-import datetime
 import functools
 import gettext
-import math
 import threading
 import uuid
 import weakref
 
 # third party libraries
 import numpy
-import scipy
-import scipy.fftpack
-import scipy.ndimage
-import scipy.ndimage.filters
-import scipy.ndimage.fourier
-import scipy.signal
 
 # local libraries
-from nion.swift.model import Calibration
 from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import Binding
-from nion.ui import Geometry
+from nion.ui import Event
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -63,7 +54,7 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observab
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration
         # set the data item
         self.set_buffered_data_source(buffered_data_source)
-        self.request_remove_data_item_because_operation_removed_event = Observable.Event()  # required, but unused
+        self.request_remove_data_item_because_operation_removed_event = Event.Event()  # required, but unused
 
     def close(self):
         self.set_buffered_data_source(None)
@@ -222,7 +213,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
 
         self.__request_remove_listeners = list()
 
-        self.request_remove_data_item_because_operation_removed_event = Observable.Event()
+        self.request_remove_data_item_because_operation_removed_event = Event.Event()
 
         class UuidMapToStringConverter(object):
             def convert(self, value):

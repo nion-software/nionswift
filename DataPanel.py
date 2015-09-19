@@ -18,11 +18,10 @@ from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.ui import CanvasItem
+from nion.ui import Event
 from nion.ui import Geometry
 from nion.ui import GridCanvasItem
 from nion.ui import ListCanvasItem
-from nion.ui import Observable
-from nion.ui import Selection
 
 _ = gettext.gettext
 
@@ -55,7 +54,7 @@ class DisplayItem(object):
         display_specifier = data_item.primary_display_specifier
         if display_specifier.display:
             display_specifier.display.add_listener(self)
-        self.needs_update_event = Observable.Event()
+        self.needs_update_event = Event.Event()
 
     def close(self):
         # remove the listener.
@@ -558,9 +557,9 @@ class DataBrowserController(object):
         self.__filter_id = None
         self.__selected_display_items = list()
         self.selection = selection
-        self.filter_changed_event = Observable.Event()
-        self.selection_changed_event = Observable.Event()
-        self.selected_data_items_changed_event = Observable.Event()
+        self.filter_changed_event = Event.Event()
+        self.selection_changed_event = Event.Event()
+        self.selected_data_items_changed_event = Event.Event()
         self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
 
     def close(self):

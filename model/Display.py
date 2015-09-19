@@ -24,6 +24,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Symbolic
+from nion.ui import Event
 from nion.ui import Model
 from nion.ui import Observable
 
@@ -34,7 +35,7 @@ class GraphicSelection(object):
     def __init__(self, indexes=None):
         super(GraphicSelection, self).__init__()
         self.__indexes = copy.copy(indexes) if indexes else set()
-        self.changed_event = Observable.Event()
+        self.changed_event = Event.Event()
 
     def __copy__(self):
         return type(self)(self.__indexes)
@@ -159,9 +160,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Ob
             # relay the message
             self.display_graphic_selection_changed_event.fire(self.graphic_selection)
         self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
-        self.about_to_be_removed_event = Observable.Event()
-        self.display_changed_event = Observable.Event()
-        self.display_graphic_selection_changed_event = Observable.Event()
+        self.about_to_be_removed_event = Event.Event()
+        self.display_changed_event = Event.Event()
+        self.display_graphic_selection_changed_event = Event.Event()
 
     def close(self):
         for processor in self.__processors.values():

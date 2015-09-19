@@ -31,6 +31,7 @@ import scipy.signal
 from nion.swift.model import Calibration
 from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
+from nion.ui import Event
 from nion.ui import Geometry
 from nion.ui import Observable
 
@@ -1502,8 +1503,8 @@ class Computation(Observable.Observable, Observable.ManagedObject):
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
         self.__data_node = None
-        self.needs_update_event = Observable.Event()
-        self.computation_changed_event = Observable.Event()
+        self.needs_update_event = Event.Event()
+        self.computation_changed_event = Event.Event()
 
     def deepcopy_from(self, item, memo):
         super(Computation, self).deepcopy_from(item, memo)

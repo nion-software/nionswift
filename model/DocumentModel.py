@@ -26,6 +26,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Region
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
+from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import ThreadPool
 
@@ -656,15 +657,15 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
         self.define_property("workspace_uuid", converter=UuidToStringConverter())
         self.__buffered_data_source_set = set()
-        self.__buffered_data_source_set_changed_event = Observable.Event()
+        self.__buffered_data_source_set_changed_event = Event.Event()
         self.session_id = None
         self.start_new_session()
         self.__computation_changed_listeners = dict()
         self.__read()
         self.__library_storage.set_property(self, "uuid", str(self.uuid))
         self.__library_storage.set_property(self, "version", 0)
-        self.data_item_deleted_event = Observable.Event()  # will be called after the item is deleted
-        self.data_item_will_be_removed_event = Observable.Event()  # will be called before the item is deleted
+        self.data_item_deleted_event = Event.Event()  # will be called after the item is deleted
+        self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
 
     def __read(self):
         # first read the items
@@ -1063,7 +1064,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 class BoundDataItem(object):
                     def __init__(self, data_item):
                         self.__buffered_data_source = data_item.maybe_data_source
-                        self.changed_event = Observable.Event()
+                        self.changed_event = Event.Event()
                         def data_and_metadata_changed():
                             self.changed_event.fire()
                         self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed)
@@ -1085,7 +1086,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                                     def __init__(self, object, property_name):
                                         self.__object = object
                                         self.__property = property_name
-                                        self.changed_event = Observable.Event()
+                                        self.changed_event = Event.Event()
                                         self.__object.add_observer(self)  # property_changed
                                     def property_changed(self, sender, property_name, value):
                                         if property_name == self.__property:

@@ -26,6 +26,7 @@ from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
+from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import Unicode
 
@@ -217,10 +218,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
         self.__computation_changed_event_listener = None  # incoming to know when the computation changes internally
-        self.computation_changed_event = Observable.Event()  # outgoing message
-        self.data_and_metadata_changed_event = Observable.Event()
-        self.metadata_changed_event = Observable.Event()
-        self.request_remove_data_item_because_operation_removed_event = Observable.Event()
+        self.computation_changed_event = Event.Event()  # outgoing message
+        self.data_and_metadata_changed_event = Event.Event()
+        self.metadata_changed_event = Event.Event()
+        self.request_remove_data_item_because_operation_removed_event = Event.Event()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
@@ -984,7 +985,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, O
         self.__live_count_lock = threading.RLock()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
-        self.metadata_changed_event = Observable.Event()
+        self.metadata_changed_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
