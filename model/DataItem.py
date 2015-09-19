@@ -620,10 +620,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
                 data_sample = None
             elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
                 scalar_data = Image.scalar_from_array(data)
-                data_range = (scalar_data.min(), scalar_data.max())
+                data_range = (numpy.amin(scalar_data), numpy.amax(scalar_data))
                 data_sample = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), 200)))
             else:
-                data_range = (data.min(), data.max())
+                data_range = (numpy.amin(data), numpy.amax(data))
                 data_sample = None
         else:
             data_range = None
