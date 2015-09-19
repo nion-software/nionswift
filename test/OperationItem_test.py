@@ -511,9 +511,9 @@ class TestOperationClass(unittest.TestCase):
     # test to ensure that no duplicate relationships are created
     def test_missing_operations_should_preserve_properties_when_saved(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item)
@@ -525,15 +525,15 @@ class TestOperationClass(unittest.TestCase):
         # unregister and read it back
         Operation.OperationManager().unregister_operation("dummy-operation")
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[0].operation.get_property("param"), 5)
         document_controller.close()
 
     def test_operation_should_reload_properties_when_saved(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((4, 4)))
         document_model.append_data_item(data_item)
@@ -547,7 +547,7 @@ class TestOperationClass(unittest.TestCase):
         data_item2.recompute_data()
         document_controller.close()
         # read it back then make sure parameter was actually updated
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         read_data_item = document_model.data_items[1]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
         self.assertEqual(read_data_item.operation.get_property("param"), 5.2)

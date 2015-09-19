@@ -28,6 +28,7 @@ from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.ui import Event
 from nion.ui import Observable
+from nion.ui import Persistence
 from nion.ui import Unicode
 
 _ = gettext.gettext
@@ -163,7 +164,8 @@ def computation_factory(lookup_id):
     return Symbolic.Computation()
 
 
-class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Observable.ManagedObject):
+class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Cacheable,
+                         Persistence.PersistentObject):
 
     """
     A data source that stores the data directly, with optional source data that gets updated as necessary.
@@ -503,14 +505,14 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
     @property
     def intensity_calibration(self):
         if self.has_data:
-            return copy.deepcopy(self._get_managed_property("intensity_calibration"))
+            return copy.deepcopy(self._get_persistent_property("intensity_calibration"))
         return None
 
     @property
     def dimensional_calibrations(self):
         try:
             if self.has_data:
-                return copy.deepcopy(self._get_managed_property("dimensional_calibrations").list)
+                return copy.deepcopy(self._get_persistent_property("dimensional_calibrations").list)
             return list()
         except Exception as e:
             import traceback
@@ -520,11 +522,11 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     def set_intensity_calibration(self, calibration):
         """ Set the intensity calibration. """
-        self._set_managed_property("intensity_calibration", calibration)
+        self._set_persistent_property("intensity_calibration", calibration)
 
     def set_dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
-        self._set_managed_property("dimensional_calibrations", CalibrationList(dimensional_calibrations))
+        self._set_persistent_property("dimensional_calibrations", CalibrationList(dimensional_calibrations))
 
     def set_dimensional_calibration(self, dimension, calibration):
         dimensional_calibrations = self.dimensional_calibrations
@@ -544,10 +546,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     @property
     def metadata(self):
-        return copy.deepcopy(self._get_managed_property("metadata"))
+        return copy.deepcopy(self._get_persistent_property("metadata"))
 
     def set_metadata(self, metadata):
-        self._set_managed_property("metadata", copy.deepcopy(metadata))
+        self._set_persistent_property("metadata", copy.deepcopy(metadata))
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable
@@ -672,10 +674,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
                 dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
                 self.__sync_dimensional_calibrations(len(dimensional_shape) if dimensional_shape is not None else 0)
                 self.__calculate_data_stats_for_data(data)
-            # tell the managed object context about it
+            # tell the persistent object context about it
             if self.__data is not None:
-                if self.managed_object_context:
-                    self.managed_object_context.rewrite_data_item_data(self)
+                if self.persistent_object_context:
+                    self.persistent_object_context.rewrite_data_item_data(self)
                 data_range = self.data_range
                 data_sample = self.data_sample
                 self.notify_set_property("data_range", data_range)
@@ -686,16 +688,16 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
             self.__notify_next_data_and_calibration()
 
     def __load_data(self):
-        # load data from managed object context if data is not already loaded
+        # load data from persistent object context if data is not already loaded
         if self.has_data and self.__data is None:
-            if self.managed_object_context:
+            if self.persistent_object_context:
                 #logging.debug("loading %s", self)
-                self.__data = self.managed_object_context.load_data(self)
+                self.__data = self.persistent_object_context.load_data(self)
 
     def __unload_data(self):
         # unload data if possible.
-        # data cannot be unloaded if there is no managed object context.
-        if self.managed_object_context:
+        # data cannot be unloaded if there is no persistent object context.
+        if self.persistent_object_context:
             self.__data = None
             #logging.debug("unloading %s", self)
 
@@ -907,7 +909,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Observable.ManagedObject):
+class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Persistence.PersistentObject):
 
     """
     Data items represent a set of data sources + metadata.
@@ -969,7 +971,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, O
         self.__transaction_count = 0
         self.__transaction_count_mutex = threading.RLock()
         self.__pending_write = True
-        self.managed_object_context = None
+        self.persistent_object_context = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
@@ -1071,18 +1073,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, O
 
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
-        if self.managed_object_context:
-            persistent_storage = self.managed_object_context._get_persistent_storage_for_object(self)
+        if self.persistent_object_context:
+            persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
             if persistent_storage:
                 persistent_storage.write_delayed = True
 
     def __exit_write_delay_state(self):
-        if self.managed_object_context:
-            persistent_storage = self.managed_object_context._get_persistent_storage_for_object(self)
+        if self.persistent_object_context:
+            persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
             if persistent_storage:
                 persistent_storage.write_delayed = False
             if self.__pending_write or self.modified_count > self.__write_delay_modified_count:
-                self.managed_object_context.write_data_item(self)
+                self.persistent_object_context.write_data_item(self)
             self.__pending_write = False
 
     def _begin_transaction(self):
@@ -1150,16 +1152,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, O
                 data_source.decrement_data_ref_count()
         #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
 
-    def managed_object_context_changed(self):
-        # handle case where managed object context is set on an item that is already under transaction.
+    def persistent_object_context_changed(self):
+        # handle case where persistent object context is set on an item that is already under transaction.
         # this can occur during acquisition. any other cases?
-        super(DataItem, self).managed_object_context_changed()
+        super(DataItem, self).persistent_object_context_changed()
         if self.__transaction_count > 0:
             self.__enter_write_delay_state()
 
     def _test_get_file_path(self):
-        if self.managed_object_context:
-            return self.managed_object_context._test_get_file_path(self)
+        if self.persistent_object_context:
+            return self.persistent_object_context._test_get_file_path(self)
         return None
 
     # access properties
@@ -1178,8 +1180,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, O
     @property
     def properties(self):
         """ Used for debugging. """
-        if self.managed_object_context:
-            return self.managed_object_context.get_properties(self)
+        if self.persistent_object_context:
+            return self.persistent_object_context.get_properties(self)
         return dict()
 
     @property
@@ -1337,10 +1339,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, O
 
     @property
     def metadata(self):
-        return copy.deepcopy(self._get_managed_property("metadata"))
+        return copy.deepcopy(self._get_persistent_property("metadata"))
 
     def set_metadata(self, metadata):
-        self._set_managed_property("metadata", copy.deepcopy(metadata))
+        self._set_persistent_property("metadata", copy.deepcopy(metadata))
 
     def __insert_data_source(self, name, before_index, data_source):
         data_source.set_dependent_data_item(self)

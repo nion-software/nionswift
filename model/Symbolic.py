@@ -34,6 +34,7 @@ from nion.swift.model import Image
 from nion.ui import Event
 from nion.ui import Geometry
 from nion.ui import Observable
+from nion.ui import Persistence
 
 
 def arange(data):
@@ -1477,7 +1478,7 @@ def parse_expression(expression_lines, variable_map, context):
     return l["result"], None
 
 
-class Computation(Observable.Observable, Observable.ManagedObject):
+class Computation(Observable.Observable, Persistence.PersistentObject):
     """A computation on data and other inputs using symbolic nodes.
 
     Watches for changes to the sources and fires a needs_update_event

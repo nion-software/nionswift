@@ -393,8 +393,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertTrue(time.time() - start_time < 3.0)
         document_controller.periodic()
 
-    def __setup_simple_hardware_source(self, managed_object_handlers=None):
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=managed_object_handlers)
+    def __setup_simple_hardware_source(self, persistent_storage_systems=None):
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=persistent_storage_systems)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SimpleHardwareSource()
         hardware_source.exposure = 0.01
@@ -729,8 +729,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.close()
 
     def test_reloading_restarted_view_after_size_change_produces_data_item_with_unique_uuid(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(persistent_storage_systems=[memory_persistent_storage_system])
         document_model.session_id = "20000630-150200"
         self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(len(document_model.data_items), 1)
@@ -739,7 +739,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 2)
         document_controller.close()
         # reload
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
         self.assertEqual(len(document_model.data_items), 2)

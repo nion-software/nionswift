@@ -147,7 +147,7 @@ class Application(object):
         if os.path.exists(library_path):
             self.migrate_library(workspace_dir, library_path, welcome_message)
         self.workspace_dir = workspace_dir
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([os.path.join(workspace_dir, "Nion Swift Data")])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([os.path.join(workspace_dir, "Nion Swift Data")])
         create_new_document = not os.path.exists(library_path)
         if create_new_document:
             if welcome_message:
@@ -157,17 +157,17 @@ class Application(object):
             if welcome_message:
                 logging.debug("Using existing document %s", library_path)
             library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
-        managed_object_context = DocumentModel.ManagedDataItemContext([file_managed_object_handler], False, False)
-        counts = managed_object_context.read_data_items_version_stats()
+        persistent_object_context = DocumentModel.PersistentDataItemContext([file_persistent_storage_system], False, False)
+        counts = persistent_object_context.read_data_items_version_stats()
         if counts[2] > 0:
 
             assert fixed_workspace_dir is None
 
             def do_ignore():
-                self.continue_start(cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, True)
+                self.continue_start(cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, True)
 
             def do_upgrade():
-                self.continue_start(cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, False)
+                self.continue_start(cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, False)
 
             class UpgradeDialog(Dialog.ActionDialog):
                 def __init__(self, ui):
@@ -222,14 +222,14 @@ class Application(object):
             upgrade_dialog.show()
 
         else:
-            self.continue_start(cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, True, welcome_message=welcome_message)
+            self.continue_start(cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, True, welcome_message=welcome_message)
 
         return True
 
-    def continue_start(self, cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
+    def continue_start(self, cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
         storage_cache = Cache.DbStorageCache(cache_path)
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
-                                                     managed_object_handlers=[file_managed_object_handler],
+                                                     persistent_storage_systems=[file_persistent_storage_system],
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()

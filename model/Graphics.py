@@ -14,6 +14,7 @@ import numpy  # for arange
 from nion.ui import Event
 from nion.ui import Geometry
 from nion.ui import Observable
+from nion.ui import Persistence
 
 _ = gettext.gettext
 
@@ -248,7 +249,7 @@ class NullModifiers(object):
 
 
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
-class Graphic(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+class Graphic(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
     def __init__(self, type):
         super(Graphic, self).__init__()
         self.define_type(type)
@@ -603,14 +604,14 @@ class LineTypeGraphic(Graphic):
         super(LineTypeGraphic, self).__init__(type)
         self.title = title
 
-        def read_vector(managed_property, properties):
-            # read the vector defined by managed_property from the properties dict.
+        def read_vector(persistent_property, properties):
+            # read the vector defined by persistent_property from the properties dict.
             start = properties.get("start", (0.0, 0.0))
             end = properties.get("end", (1.0, 1.0))
             return start, end
 
-        def write_vector(managed_property, properties, value):
-            # write the vector (value) defined by managed_property to the properties dict.
+        def write_vector(persistent_property, properties, value):
+            # write the vector (value) defined by persistent_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
 
@@ -950,14 +951,14 @@ class IntervalGraphic(Graphic):
         super(IntervalGraphic, self).__init__("interval-graphic")
         self.title = _("Interval")
         # start and end points are stored in channel normalized coordinates
-        def read_interval(managed_property, properties):
-            # read the interval defined by managed_property from the properties dict.
+        def read_interval(persistent_property, properties):
+            # read the interval defined by persistent_property from the properties dict.
             start = properties.get("start", 0.0)
             end = properties.get("end", 1.0)
             return start, end
 
-        def write_interval(managed_property, properties, value):
-            # write the interval (value) defined by managed_property to the properties dict.
+        def write_interval(persistent_property, properties, value):
+            # write the interval (value) defined by persistent_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
 

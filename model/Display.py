@@ -27,6 +27,7 @@ from nion.swift.model import Symbolic
 from nion.ui import Event
 from nion.ui import Model
 from nion.ui import Observable
+from nion.ui import Persistence
 
 _ = gettext.gettext
 
@@ -127,7 +128,7 @@ class GraphicSelection(object):
             self.changed_event.fire()
 
 
-class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Observable.ManagedObject):
+class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Persistence.PersistentObject):
     # Displays are associated with exactly one data item.
 
     def __init__(self):

@@ -8,10 +8,10 @@ from __future__ import absolute_import
 # None
 
 # local libraries
-from nion.ui import Observable
+from nion.ui import Persistence
 
 
-class WorkspaceLayout(Observable.ManagedObject):
+class WorkspaceLayout(Persistence.PersistentObject):
     """
         Represents a specific layout available in the workspace.
 

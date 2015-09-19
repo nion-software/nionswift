@@ -15,9 +15,10 @@ import uuid
 # local libraries
 from nion.ui import Binding
 from nion.ui import Observable
+from nion.ui import Persistence
 
 
-class Connection(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+class Connection(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
     """ Represents a connection between two objects. """
 
     def __init__(self, type):
@@ -47,7 +48,7 @@ class PropertyConnection(Connection):
         self.define_property("source_property")
         self.define_property("target_uuid", converter=UuidToStringConverter())
         self.define_property("target_property")
-        # these are only set in managed object context changed
+        # these are only set in persistent object context changed
         self.__source = source
         self.__target = target
         self.__binding = None
@@ -76,9 +77,9 @@ class PropertyConnection(Connection):
                 self.__binding.update_source(value)
             self.__suppress = False
 
-    def managed_object_context_changed(self):
-        super(PropertyConnection, self).managed_object_context_changed()
-        """ Override from ManagedObject. """
+    def persistent_object_context_changed(self):
+        super(PropertyConnection, self).persistent_object_context_changed()
+        """ Override from PersistentObject. """
         def register():
             if self.__source is not None and self.__target is not None:
                 self.__binding = Binding.PropertyBinding(self.__source, self.source_property)
@@ -97,9 +98,9 @@ class PropertyConnection(Connection):
                 self.__binding = None
             if self.__target is not None:
                     self.__target.remove_observer(self)
-        if self.managed_object_context:
-            self.managed_object_context.subscribe(self.source_uuid, source_registered, unregistered)
-            self.managed_object_context.subscribe(self.target_uuid, target_registered, unregistered)
+        if self.persistent_object_context:
+            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
+            self.persistent_object_context.subscribe(self.target_uuid, target_registered, unregistered)
         else:
             unregistered()
 

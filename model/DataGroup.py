@@ -11,8 +11,8 @@ import uuid
 
 # local libraries
 from nion.ui import Observable
+from nion.ui import Persistence
 from nion.ui import Unicode
-
 
 _ = gettext.gettext
 
@@ -74,7 +74,7 @@ _ = gettext.gettext
     """
 
 
-class DataGroup(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+class DataGroup(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
 
     def __init__(self):
         super(DataGroup, self).__init__()

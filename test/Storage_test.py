@@ -126,15 +126,15 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
 
     def test_save_load_document(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         data_items_count = len(document_controller.document_model.data_items)
         data_items_type = type(document_controller.document_model.data_items)
         document_controller.close()
         # # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(data_items_count, len(document_controller.document_model.data_items))
         self.assertEqual(data_items_type, type(document_controller.document_model.data_items))
@@ -150,12 +150,12 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
         try:
             storage_cache = Cache.DictStorageCache()
             library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -163,7 +163,7 @@ class TestStorageClass(unittest.TestCase):
                 data_range = display_specifier.buffered_data_source.data_range
             # read it back
             storage_cache = Cache.DictStorageCache()
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -177,13 +177,13 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
             library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -194,7 +194,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertNotEqual(stats1, stats2)
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -209,13 +209,13 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
             library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -226,7 +226,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse(numpy.array_equal(histogram1, histogram2))
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -241,13 +241,13 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
             library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -256,7 +256,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertFalse(storage_cache.is_cached_value_dirty(display_specifier.display, "thumbnail_data"))
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -267,8 +267,8 @@ class TestStorageClass(unittest.TestCase):
             shutil.rmtree(workspace_dir)
 
     def test_reload_data_item_initializes_display_data_range(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -276,7 +276,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(display_specifier.buffered_data_source.data_range)
             self.assertIsNotNone(display_specifier.display.data_range)
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertIsNotNone(display_specifier.buffered_data_source.data_range)
@@ -286,13 +286,13 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
             library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             self.save_document(document_controller)
             data_items_count = len(document_controller.document_model.data_items)
@@ -304,7 +304,7 @@ class TestStorageClass(unittest.TestCase):
             storage_cache = None
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 self.assertEqual(data_items_count, len(document_model.data_items))
                 self.assertEqual(data_items_type, type(document_model.data_items))
@@ -318,8 +318,8 @@ class TestStorageClass(unittest.TestCase):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
         library_storage = DocumentModel.FilePersistentStorage()
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         document_model_uuid = document_controller.document_model.uuid
@@ -335,7 +335,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         new_data_item0 = document_controller.document_model.get_data_item_by_uuid(data_item0_uuid)
         new_data_item0_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item0)
@@ -362,12 +362,12 @@ class TestStorageClass(unittest.TestCase):
     def test_dependencies_load_correctly_when_initially_loaded(self):
         cache_name = ":memory:"
         library_storage = DocumentModel.FilePersistentStorage()
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         data_item1_uuid = uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6")
         # configure list of data items so that after sorted (on modification) they will still be listed in this order.
         # this makes one dependency (86d982d1) load before the main item (71ab9215) and one (7d3b374e) load after.
         # this tests the get_dependent_data_items after reading data.
-        memory_managed_object_handler.properties = {'86d982d1-6d81-46fa-b19e-574e904902de': {'data_sources': [
+        memory_persistent_storage_system.properties = {'86d982d1-6d81-46fa-b19e-574e904902de': {'data_sources': [
             {'data_dtype': None, 'data_shape': None, 'data_source': {'data_sources': [
                 {'buffered_data_source_uuid': '0a5db801-04d4-4b10-945d-c751b5127950', 'type': 'data-item-data-source',
                     'uuid': '0d0d47a5-2a35-4391-b7a1-a237f90bf432'}], 'operation_id': 'inverse-fft-operation',
@@ -391,7 +391,7 @@ class TestStorageClass(unittest.TestCase):
                 'created': '2015-01-22T17:16:12.308003', 'uuid': '7d3b374e-e48b-460f-91de-7ff4e1a1a63c', 'version': 8}}
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         new_data_item1 = document_controller.document_model.get_data_item_by_uuid(data_item1_uuid)
         new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(new_data_item1))
@@ -402,9 +402,9 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -421,7 +421,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = document_controller.document_model.data_items[0]
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -439,9 +439,9 @@ class TestStorageClass(unittest.TestCase):
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data1 = numpy.zeros((16, 16), numpy.uint32)
         data1[0,0] = 1
@@ -456,7 +456,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -533,9 +533,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_insert_item_with_transaction(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_group = DataGroup.DataGroup()
             document_model.append_data_group(data_group)
@@ -550,7 +550,7 @@ class TestStorageClass(unittest.TestCase):
                 data_group.append_data_item(data_item)
         # make sure it reloads
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
             data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
@@ -568,24 +568,24 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_modification_should_not_change_when_reading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem()
             data_item.append_data_source(DataItem.BufferedDataSource())
             document_model.append_data_item(data_item)
             data_item._set_modified(modified)
         # make sure it reloads
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].modified, modified)
 
     def test_data_item_should_store_modifications_within_transactions(self):
         created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem()
             data_item.append_data_source(DataItem.BufferedDataSource())
@@ -594,7 +594,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item.created = created
         # make sure it reloads
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].created, created)
 
@@ -603,10 +603,10 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.append_data_source(DataItem.BufferedDataSource())
@@ -620,7 +620,7 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(os.path.isfile(data_file_path))
             # make sure the data reloads
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -640,10 +640,10 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.append_data_source(DataItem.BufferedDataSource())
@@ -665,10 +665,10 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.append_data_source(DataItem.BufferedDataSource())
@@ -680,7 +680,7 @@ class TestStorageClass(unittest.TestCase):
                     with display_specifier.buffered_data_source.data_ref() as data_ref:
                         data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                     # make sure data does NOT exist during the transaction
-                    handler = document_model.managed_object_context._get_persistent_storage_for_object(data_item)._persistent_storage_handler
+                    handler = document_model.persistent_object_context._get_persistent_storage_for_object(data_item)._persistent_storage_handler
                     self.assertIsNone(handler.read_data())
                 # make sure it DOES exist after the transaction
                 self.assertTrue(os.path.exists(data_file_path))
@@ -698,10 +698,10 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.append_data_source(DataItem.BufferedDataSource())
@@ -729,8 +729,8 @@ class TestStorageClass(unittest.TestCase):
     def test_reloading_data_item_with_display_builds_drawn_graphics_properly(self):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.save_document(document_controller)
         read_data_item = document_model.data_items[0]
@@ -740,7 +740,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.get_data_item_by_uuid(read_data_item_uuid)
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -752,9 +752,9 @@ class TestStorageClass(unittest.TestCase):
     def test_writing_empty_data_item_followed_by_writing_data_adds_correct_calibrations(self):
         # this failed due to a key aliasing issue.
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # create empty data item
         data_item = DataItem.DataItem()
@@ -768,7 +768,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -779,25 +779,25 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloading_data_item_establishes_display_connection_to_storage(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
 
     def test_reloading_data_item_establishes_operation_connection_to_storage(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -806,14 +806,14 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
 
     def test_changes_to_operation_values_are_saved(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -822,7 +822,7 @@ class TestStorageClass(unittest.TestCase):
         gaussian_operation.set_property("sigma", 1.7)
         document_controller.close()
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # verify that properties read it correctly
         self.assertAlmostEqual(document_model.data_items[0].operation.get_property("sigma"), 1.7)
@@ -831,9 +831,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_line_profile_operation_binds_to_roi(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -848,7 +848,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -867,9 +867,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_graphics_load_properly(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -880,7 +880,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -891,9 +891,9 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_regions_load_properly(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
@@ -904,7 +904,7 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -917,16 +917,16 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_empty_data_groups_load_properly(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_group = DataGroup.DataGroup()
         document_model.append_data_group(data_group)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         # clean up
         document_controller.close()
@@ -946,11 +946,11 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.append_data_source(DataItem.BufferedDataSource())
@@ -975,9 +975,9 @@ class TestStorageClass(unittest.TestCase):
             # delete the original file
             os.remove(data_file_path)
             # read it back the library
-            file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+            file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertTrue(os.path.isfile(data2_file_path))
@@ -992,16 +992,16 @@ class TestStorageClass(unittest.TestCase):
 
     def test_reloaded_display_has_correct_storage_cache(self):
         cache_name = ":memory:"
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1012,22 +1012,22 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
 
     def test_data_items_written_with_newer_version_get_ignored(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             # increment the version on the data item
-            list(memory_managed_object_handler.properties.values())[0]["version"] = data_item.writer_version + 1
+            list(memory_persistent_storage_system.properties.values())[0]["version"] = data_item.writer_version + 1
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 0)
 
     def test_reloading_composite_operation_reconnects_when_reloaded(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
         document_model.append_data_item(data_item)
@@ -1040,7 +1040,7 @@ class TestStorageClass(unittest.TestCase):
         operation = Operation.OperationItem("invert-operation")
         document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)
         document_controller.close()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1049,8 +1049,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(read_display_specifier.buffered_data_source.regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
@@ -1061,15 +1061,15 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item_inverted)
             data_item_inverted.recompute_data()
         # reload and check inverted data item does not need recompute
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
 
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
@@ -1085,13 +1085,13 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
         # reload and check inverted data item does not need recompute
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
 
     def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
@@ -1107,7 +1107,7 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
         # reload and check inverted data item does not need recompute
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             document_model.recompute_all()  # shouldn't be necessary unless other tests fail
             read_data_item = document_model.data_items[0]
@@ -1124,13 +1124,13 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         lib_name = os.path.join(workspace_dir, "Data.nslib")
         cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
             storage_cache = Cache.DbStorageCache(cache_name)
             library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1149,7 +1149,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse(numpy.array_equal(histogram1, histogram2))
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler], library_storage=library_storage, storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[1]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
@@ -1163,16 +1163,16 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v1_migration(self):
         # construct v1 data item
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        data_item_dict = memory_managed_object_handler.properties.setdefault("A", dict())
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
         data_item_dict["spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["data_source_uuid"] = str(uuid.uuid4())
         data_item_dict["properties"] = { "voltage": 200.0, "session_uuid": str(uuid.uuid4()) }
         data_item_dict["version"] = 1
-        memory_managed_object_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+        memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1191,16 +1191,16 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v2_migration(self):
         # construct v2 data item
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        data_item_dict = memory_managed_object_handler.properties.setdefault("A", dict())
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
         data_item_dict["displays"] = [{"graphics": [{"type": "rect-graphic"}]}]
         data_item_dict["operations"] = [{"operation_id": "invert-operation"}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
         data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["version"] = 2
-        memory_managed_object_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+        memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1212,17 +1212,17 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v3_migration(self):
         # construct v3 data item
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        data_item_dict = memory_managed_object_handler.properties.setdefault("A", dict())
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["intrinsic_spatial_calibrations"] = [{ "origin": 1.0, "scale": 2.0, "units": "mm" }, { "origin": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intrinsic_intensity_calibration"] = { "origin": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
         data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["version"] = 3
-        memory_managed_object_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+        memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1236,8 +1236,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v4_migration(self):
         # construct v4 data item
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        data_item_dict = memory_managed_object_handler.properties.setdefault("A", dict())
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         region_uuid_str = str(uuid.uuid4())
         data_item_dict["regions"] = [{"type": "rectangle-region", "uuid": region_uuid_str}]
@@ -1245,9 +1245,9 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
         data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["version"] = 4
-        memory_managed_object_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+        memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
@@ -1259,8 +1259,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v5_migration(self):
         # construct v5 data item
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        data_item_dict = memory_managed_object_handler.properties.setdefault("A", dict())
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
@@ -1268,15 +1268,15 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["intrinsic_spatial_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intrinsic_intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["version"] = 5
-        memory_managed_object_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
-        data_item2_dict = memory_managed_object_handler.properties.setdefault("B", dict())
+        memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+        data_item2_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
         data_item2_dict["uuid"] = str(uuid.uuid4())
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item2_dict["operations"] = [{"operation_id": "invert-operation"}]
         data_item2_dict["data_sources"] = [data_item_dict["uuid"]]
         data_item2_dict["version"] = 5
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
         with contextlib.closing(document_model):
             # check it
             self.assertEqual(len(document_model.data_items), 2)
@@ -1297,8 +1297,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v6_migration(self):
         # construct v6 data item
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        data_item_dict = memory_managed_object_handler.properties.setdefault("A", dict())
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item_dict["master_data_dtype"] = str(numpy.dtype(numpy.uint32))
@@ -1306,13 +1306,13 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         data_item_dict["version"] = 6
-        memory_managed_object_handler.data["A"] = numpy.zeros((8, 8), numpy.uint32)
-        data_item2_dict = memory_managed_object_handler.properties.setdefault("B", dict())
+        memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
+        data_item2_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
         data_item2_dict["uuid"] = str(uuid.uuid4())
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item2_dict["operation"] = {"type": "operation", "operation_id": "invert-operation", "data_sources": [{"type": "data-item-data-source", "data_item_uuid": data_item_dict["uuid"]}]}
         data_item2_dict["version"] = 6
-        data_item3_dict = memory_managed_object_handler.properties.setdefault("C", dict())
+        data_item3_dict = memory_persistent_storage_system.properties.setdefault("C", dict())
         data_item3_dict["uuid"] = str(uuid.uuid4())
         data_item3_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item3_dict["master_data_dtype"] = None
@@ -1321,7 +1321,7 @@ class TestStorageClass(unittest.TestCase):
         data_item3_dict["intensity_calibration"] = {}
         data_item3_dict["version"] = 6
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
         with contextlib.closing(document_model):
             # # check it
             self.assertEqual(len(document_model.data_items), 3)
@@ -1343,8 +1343,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_items_v7_migration(self):
         # construct v7 data item
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        data_item_dict = memory_managed_object_handler.properties.setdefault("A", dict())
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
         data_item_dict["uuid"] = str(uuid.uuid4())
         data_item_dict["version"] = 7
         caption, flag, rating, title = "caption", -1, 3, "title"
@@ -1367,7 +1367,7 @@ class TestStorageClass(unittest.TestCase):
         new_metadata = {"instrument": "a big screwdriver", "autostem": { "high_tension_v": 42}, "extra_high_tension": 42 }
         data_item_dict["hardware_source"] = metadata
         # read it back
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], log_migrations=False)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
@@ -1385,8 +1385,8 @@ class TestStorageClass(unittest.TestCase):
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -1403,7 +1403,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
         # make sure it reloads without changing modification
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
@@ -1413,49 +1413,49 @@ class TestStorageClass(unittest.TestCase):
 
     def test_begin_end_transaction_with_no_change_should_not_write(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             # force a write and verify
             document_model.begin_data_item_transaction(data_item)
             document_model.end_data_item_transaction(data_item)
-            self.assertEqual(len(memory_managed_object_handler.properties.keys()), 1)
+            self.assertEqual(len(memory_persistent_storage_system.properties.keys()), 1)
             # continue with test
             data_item._set_modified(modified)
             self.assertEqual(document_model.data_items[0].modified, modified)
-            # now clear the memory_managed_object_handler and see if it gets written again
-            memory_managed_object_handler.properties.clear()
+            # now clear the memory_persistent_storage_system and see if it gets written again
+            memory_persistent_storage_system.properties.clear()
             document_model.begin_data_item_transaction(data_item)
             document_model.end_data_item_transaction(data_item)
             self.assertEqual(document_model.data_items[0].modified, modified)
             # properties should still be empty, unless it was written again
-            self.assertEqual(memory_managed_object_handler.properties, dict())
+            self.assertEqual(memory_persistent_storage_system.properties, dict())
 
     def test_begin_end_transaction_with_change_should_write(self):
         # converse of previous test
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             data_item._set_modified(modified)
             self.assertEqual(document_model.data_items[0].modified, modified)
-            # now clear the memory_managed_object_handler and see if it gets written again
-            memory_managed_object_handler.properties.clear()
+            # now clear the memory_persistent_storage_system and see if it gets written again
+            memory_persistent_storage_system.properties.clear()
             document_model.begin_data_item_transaction(data_item)
             data_item.set_metadata(data_item.metadata)
             document_model.end_data_item_transaction(data_item)
             self.assertNotEqual(document_model.data_items[0].modified, modified)
             # properties should still be empty, unless it was written again
-            self.assertNotEqual(memory_managed_object_handler.properties, dict())
+            self.assertNotEqual(memory_persistent_storage_system.properties, dict())
 
     def test_storage_cache_disabled_during_transaction(self):
         storage_cache = Cache.DictStorageCache()
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -1496,9 +1496,9 @@ class TestStorageClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
-        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([workspace_dir])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
         try:
-            document_model = DocumentModel.DocumentModel(managed_object_handlers=[file_managed_object_handler])
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
@@ -1508,8 +1508,8 @@ class TestStorageClass(unittest.TestCase):
             shutil.rmtree(workspace_dir)
 
     def test_computation_reconnects_after_reload(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -1523,7 +1523,7 @@ class TestStorageClass(unittest.TestCase):
             computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             read_computation = document_model.data_items[1].maybe_data_source.computation
             self.assertIsNotNone(read_computation)
@@ -1535,8 +1535,8 @@ class TestStorageClass(unittest.TestCase):
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
 
     def test_computation_does_not_recompute_on_reload(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -1550,7 +1550,7 @@ class TestStorageClass(unittest.TestCase):
             computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             changed_ref = [False]
             def changed():
@@ -1562,8 +1562,8 @@ class TestStorageClass(unittest.TestCase):
                 self.assertFalse(changed_ref[0])
 
     def test_computation_with_optional_none_parameters_reloads(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
@@ -1576,7 +1576,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             read_computation = document_model.data_items[1].maybe_data_source.computation
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:

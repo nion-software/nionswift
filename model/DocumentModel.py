@@ -28,6 +28,7 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import Event
 from nion.ui import Observable
+from nion.ui import Persistence
 from nion.ui import ThreadPool
 
 _ = gettext.gettext
@@ -57,19 +58,19 @@ class FilePersistentStorage(object):
     properties = property(__get_properties)
 
     def __get_storage_dict(self, object):
-        managed_parent = object.managed_parent
-        if not managed_parent:
+        persistent_object_parent = object.persistent_object_parent
+        if not persistent_object_parent:
             return self.__properties
         else:
-            parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
+            parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
             return object.get_accessor_in_parent()(parent_storage_dict)
 
     def __update_modified_and_get_storage_dict(self, object):
         storage_dict = self.__get_storage_dict(object)
         with self.__properties_lock:
             storage_dict["modified"] = object.modified.isoformat()
-        managed_parent = object.managed_parent
-        parent = managed_parent.parent if managed_parent else None
+        persistent_object_parent = object.persistent_object_parent
+        parent = persistent_object_parent.parent if persistent_object_parent else None
         if parent:
             self.__update_modified_and_get_storage_dict(parent)
         return storage_dict
@@ -85,7 +86,7 @@ class FilePersistentStorage(object):
             item_list = storage_dict.setdefault(name, list())
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
-            item.managed_object_context = parent.managed_object_context
+            item.persistent_object_context = parent.persistent_object_context
         self.update_properties()
 
     def remove_item(self, parent, name, index, item):
@@ -94,7 +95,7 @@ class FilePersistentStorage(object):
             item_list = storage_dict[name]
             del item_list[index]
         self.update_properties()
-        item.managed_object_context = None
+        item.persistent_object_context = None
 
     def set_item(self, parent, name, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -102,7 +103,7 @@ class FilePersistentStorage(object):
             if item:
                 item_dict = item.write_to_dict()
                 storage_dict[name] = item_dict
-                item.managed_object_context = parent.managed_object_context
+                item.persistent_object_context = parent.persistent_object_context
             else:
                 if name in storage_dict:
                     del storage_dict[name]
@@ -118,7 +119,7 @@ class FilePersistentStorage(object):
 class DataItemPersistentStorage(object):
 
     """
-        Manages persistent storage for data items by caching properties and data, maintaining the ManagedObjectContext
+        Manages persistent storage for data items by caching properties and data, maintaining the PersistentObjectContext
         on contained items, and writing to disk when necessary.
 
         The persistent_storage_handler must respond to these methods:
@@ -153,19 +154,19 @@ class DataItemPersistentStorage(object):
         return self.__persistent_storage_handler
 
     def __get_storage_dict(self, object):
-        managed_parent = object.managed_parent
-        if not managed_parent:
+        persistent_object_parent = object.persistent_object_parent
+        if not persistent_object_parent:
             return self.__properties
         else:
-            parent_storage_dict = self.__get_storage_dict(managed_parent.parent)
+            parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
             return object.get_accessor_in_parent()(parent_storage_dict)
 
     def __update_modified_and_get_storage_dict(self, object):
         storage_dict = self.__get_storage_dict(object)
         with self.__properties_lock:
             storage_dict["modified"] = object.modified.isoformat()
-        managed_parent = object.managed_parent
-        parent = managed_parent.parent if managed_parent else None
+        persistent_object_parent = object.persistent_object_parent
+        parent = persistent_object_parent.parent if persistent_object_parent else None
         if parent:
             self.__update_modified_and_get_storage_dict(parent)
         return storage_dict
@@ -181,7 +182,7 @@ class DataItemPersistentStorage(object):
             item_list = storage_dict.setdefault(name, list())
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
-            item.managed_object_context = parent.managed_object_context
+            item.persistent_object_context = parent.persistent_object_context
         self.update_properties()
 
     def remove_item(self, parent, name, index, item):
@@ -190,7 +191,7 @@ class DataItemPersistentStorage(object):
             item_list = storage_dict[name]
             del item_list[index]
         self.update_properties()
-        item.managed_object_context = None
+        item.persistent_object_context = None
 
     def set_item(self, parent, name, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -198,7 +199,7 @@ class DataItemPersistentStorage(object):
             if item:
                 item_dict = item.write_to_dict()
                 storage_dict[name] = item_dict
-                item.managed_object_context = parent.managed_object_context
+                item.persistent_object_context = parent.persistent_object_context
             else:
                 if name in storage_dict:
                     del storage_dict[name]
@@ -224,7 +225,7 @@ class DataItemPersistentStorage(object):
         self.__persistent_storage_handler.remove()
 
 
-class MemoryManagedObjectHandler(object):
+class MemoryPersistentStorageSystem(object):
 
     def __init__(self):
         self.data = dict()
@@ -260,18 +261,18 @@ class MemoryManagedObjectHandler(object):
     def find_data_items(self):
         persistent_storage_handlers = list()
         for key in sorted(self.properties):
-            uuid_ = self.properties[key].setdefault("uuid", str(uuid.uuid4()))
-            persistent_storage_handlers.append(MemoryManagedObjectHandler.MemoryStorageHandler(key, self.properties, self.data))
+            self.properties[key].setdefault("uuid", str(uuid.uuid4()))
+            persistent_storage_handlers.append(MemoryPersistentStorageSystem.MemoryStorageHandler(key, self.properties, self.data))
         return persistent_storage_handlers
 
     def make_persistent_storage_handler(self, data_item):
         uuid = str(data_item.uuid)
-        return MemoryManagedObjectHandler.MemoryStorageHandler(uuid, self.properties, self.data)
+        return MemoryPersistentStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data)
 
 
 from nion.swift import NDataHandler
 
-class FileManagedObjectHandler(object):
+class FilePersistentStorageSystem(object):
 
     def __init__(self, directories):
         self.__directories = directories
@@ -320,10 +321,10 @@ class FileManagedObjectHandler(object):
         return self.__file_handlers[0].make(os.path.join(self.__directories[0], self.__get_default_path(data_item)))
 
 
-class ManagedDataItemContext(Observable.ManagedObjectContext):
+class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
     """
-        A ManagedObjectContext that adds extra methods for handling data items.
+        A PersistentObjectContext that adds extra methods for handling data items.
 
         Versioning
 
@@ -334,16 +335,16 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
     """
 
-    def __init__(self, managed_object_handlers=None, ignore_older_files=False, log_migrations=True):
-        super(ManagedDataItemContext, self).__init__()
-        self.__managed_object_handlers = managed_object_handlers if managed_object_handlers else [MemoryManagedObjectHandler()]
+    def __init__(self, persistent_storage_systems=None, ignore_older_files=False, log_migrations=True):
+        super(PersistentDataItemContext, self).__init__()
+        self.__persistent_storage_systems = persistent_storage_systems if persistent_storage_systems else [MemoryPersistentStorageSystem()]
         self.__ignore_older_files = ignore_older_files
         self.__log_migrations = log_migrations
 
     def read_data_items_version_stats(self):
         persistent_storage_handlers = list()  # persistent_storage_handler
-        for managed_object_handler in self.__managed_object_handlers:
-            persistent_storage_handlers.extend(managed_object_handler.find_data_items())
+        for persistent_storage_system in self.__persistent_storage_systems:
+            persistent_storage_handlers.extend(persistent_storage_system.find_data_items())
         count = [0, 0, 0]  # data item matches version, data item has higher version, data item has lower version
         writer_version = DataItem.DataItem.writer_version
         for persistent_storage_handler in persistent_storage_handlers:
@@ -361,12 +362,12 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         """
         Read data items from the data reference handler and return as a list.
 
-        Data items will have managed_object_context set upon return, but caller will need to call finish_reading
+        Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
         on each of the data items.
         """
         persistent_storage_handlers = list()  # persistent_storage_handler
-        for managed_object_handler in self.__managed_object_handlers:
-            persistent_storage_handlers.extend(managed_object_handler.find_data_items())
+        for persistent_storage_system in self.__persistent_storage_systems:
+            persistent_storage_handlers.extend(persistent_storage_system.find_data_items())
         data_items_by_uuid = dict()
         v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
         for persistent_storage_handler in persistent_storage_handlers:
@@ -578,7 +579,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
                     data_item.read_from_dict(persistent_storage.properties)
                     self._set_persistent_storage_for_object(data_item, persistent_storage)
-                    data_item.managed_object_context = self
+                    data_item.persistent_object_context = self
                     if self.__log_migrations and data_item.uuid in data_items_by_uuid:
                         logging.info("Warning: Duplicate data item %s", data_item.uuid)
                     data_items_by_uuid[data_item.uuid] = data_item
@@ -599,13 +600,13 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
         if not persistent_storage:
             persistent_storage_handler = None
-            for managed_object_handler in self.__managed_object_handlers:
-                persistent_storage_handler = managed_object_handler.make_persistent_storage_handler(data_item)
+            for persistent_storage_system in self.__persistent_storage_systems:
+                persistent_storage_handler = persistent_storage_system.make_persistent_storage_handler(data_item)
                 if persistent_storage_handler:
                     break
             persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
             self._set_persistent_storage_for_object(data_item, persistent_storage)
-        data_item.managed_object_context_changed()
+        data_item.persistent_object_context_changed()
         # write the uuid and version explicitly
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", data_item.writer_version)
@@ -619,7 +620,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
     def erase_data_item(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
         persistent_storage.remove()
-        data_item.managed_object_context = None
+        data_item.persistent_object_context = None
 
     def load_data(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
@@ -637,19 +638,20 @@ class UuidToStringConverter(object):
         return uuid.UUID(value)
 
 
-class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted, Observable.ManagedObject):
+class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted,
+                    Persistence.PersistentObject):
 
     """The document model manages storage and dependencies between data items and other objects.
 
     The document model provides a dispatcher object which will run tasks in a thread pool.
     """
 
-    def __init__(self, library_storage=None, managed_object_handlers=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
+    def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
         super(DocumentModel, self).__init__()
         self.__thread_pool = ThreadPool.ThreadPool()
-        self.managed_object_context = ManagedDataItemContext(managed_object_handlers, ignore_older_files, log_migrations)
+        self.persistent_object_context = PersistentDataItemContext(persistent_storage_systems, ignore_older_files, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
-        self.managed_object_context._set_persistent_storage_for_object(self, self.__library_storage)
+        self.persistent_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         self.__data_items = list()
         self.define_type("library")
@@ -670,7 +672,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def __read(self):
         # first read the items
         self.read_from_dict(self.__library_storage.properties)
-        data_items = self.managed_object_context.read_data_items()
+        data_items = self.persistent_object_context.read_data_items()
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
             data_item.storage_cache = self.storage_cache
@@ -688,7 +690,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 computation = buffered_data_source.computation
                 if computation:
                     computation.bind(self)
-        # all data items will already have a managed_object_context
+        # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
             data_group.connect_data_items(self.get_data_item_by_uuid)
 
@@ -722,15 +724,15 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.insert_data_item(len(self.data_items), data_item)
 
     def insert_data_item(self, before_index, data_item):
-        """ Insert a new data item into document model. Data item will have managed_object_context set upon return. """
+        """ Insert a new data item into document model. Data item will have persistent_object_context set upon return. """
         assert data_item is not None
         assert data_item not in self.__data_items
         assert before_index <= len(self.__data_items) and before_index >= 0
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
         data_item.storage_cache = self.storage_cache
-        data_item.managed_object_context = self.managed_object_context
-        self.managed_object_context.write_data_item(data_item)
+        data_item.persistent_object_context = self.persistent_object_context
+        self.persistent_object_context.write_data_item(data_item)
         #data_item.write()
         # be a listener. why?
         data_item.add_listener(self)
@@ -747,7 +749,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 data_source.computation.bind(self)
 
     def remove_data_item(self, data_item):
-        """ Remove data item from document model. Data item will have managed_object_context cleared upon return. """
+        """ Remove data item from document model. Data item will have persistent_object_context cleared upon return. """
         # remove data item from any selections
         self.data_item_will_be_removed_event.fire(data_item)
         # remove the data item from any groups
@@ -774,7 +776,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # do actual removal
         del self.__data_items[index]
         # keep storage up-to-date
-        self.managed_object_context.erase_data_item(data_item)
+        self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
         # un-listen to data item
         data_item.remove_listener(self)

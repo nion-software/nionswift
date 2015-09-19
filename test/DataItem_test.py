@@ -1103,7 +1103,7 @@ class TestDataItemClass(unittest.TestCase):
             # begin the transaction
             with document_model.data_item_transaction(data_item):
                 document_model.append_data_item(data_item)
-                persistent_storage = data_item.managed_object_context._get_persistent_storage_for_object(data_item)
+                persistent_storage = data_item.persistent_object_context._get_persistent_storage_for_object(data_item)
                 self.assertTrue(persistent_storage.write_delayed)
 
     def test_data_item_added_to_live_data_item_becomes_live_and_unlive_based_on_parent_item(self):
@@ -1485,8 +1485,8 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_subscribed_to(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -1510,8 +1510,8 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_item_with_operation_with_malformed_values_does_not_changed_when_values_are_updated_with_same_value(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
@@ -1533,39 +1533,39 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[1].modified, modified)
 
     def test_data_item_in_transaction_does_not_write_until_end_of_transaction(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             with document_model.data_item_transaction(data_item):
                 document_model.append_data_item(data_item)
-                self.assertEqual(len(memory_managed_object_handler.data.keys()), 0)
-            self.assertEqual(len(memory_managed_object_handler.data.keys()), 1)
+                self.assertEqual(len(memory_persistent_storage_system.data.keys()), 0)
+            self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
 
     def test_extra_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             with document_model.data_item_transaction(data_item):
                 data_item.session_id = "20000630-150200"
                 document_model.append_data_item(data_item)
-                self.assertEqual(len(memory_managed_object_handler.data.keys()), 0)
+                self.assertEqual(len(memory_persistent_storage_system.data.keys()), 0)
                 data_item.session_id = "20000630-150201"
-            self.assertEqual(len(memory_managed_object_handler.data.keys()), 1)
+            self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
 
     def test_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
             with document_model.data_item_transaction(data_item):
                 data_item.session_id = "20000630-150200"
                 document_model.append_data_item(data_item)
-            self.assertEqual(len(memory_managed_object_handler.data.keys()), 1)
+            self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
             with document_model.data_item_transaction(data_item):
                 data_item.session_id = "20000630-150201"
-            self.assertEqual(len(memory_managed_object_handler.data.keys()), 1)
+            self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
 
     def test_processed_data_item_has_source_data_modified_equal_to_sources_data_modifed(self):
         document_model = DocumentModel.DocumentModel()

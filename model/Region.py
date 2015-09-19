@@ -17,9 +17,10 @@ from nion.ui import Binding
 from nion.ui import Event
 from nion.ui import Geometry
 from nion.ui import Observable
+from nion.ui import Persistence
 
 
-class Region(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+class Region(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
     # Regions are associated with exactly one data item.
 
     def __init__(self, type):
@@ -83,13 +84,13 @@ class LineRegion(Region):
 
     def __init__(self):
         super(LineRegion, self).__init__("line-region")
-        def read_vector(managed_property, properties):
-            # read the vector defined by managed_property from the properties dict.
+        def read_vector(persistent_property, properties):
+            # read the vector defined by persistent_property from the properties dict.
             start = properties.get("start", (0.0, 0.0))
             end = properties.get("end", (1.0, 1.0))
             return start, end
-        def write_vector(managed_property, properties, value):
-            # write the vector (value) defined by managed_property to the properties dict.
+        def write_vector(persistent_property, properties, value):
+            # write the vector (value) defined by persistent_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
         # vector is stored in image normalized coordinates
@@ -260,13 +261,13 @@ class IntervalRegion(Region):
 
     def __init__(self):
         super(IntervalRegion, self).__init__("interval-region")
-        def read_interval(managed_property, properties):
-            # read the interval defined by managed_property from the properties dict.
+        def read_interval(persistent_property, properties):
+            # read the interval defined by persistent_property from the properties dict.
             start = properties.get("start", 0.0)
             end = properties.get("end", 1.0)
             return start, end
-        def write_interval(managed_property, properties, value):
-            # write the interval (value) defined by managed_property to the properties dict.
+        def write_interval(persistent_property, properties, value):
+            # write the interval (value) defined by persistent_property to the properties dict.
             properties["start"] = value[0]
             properties["end"] = value[1]
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=lambda s: tuple(s))

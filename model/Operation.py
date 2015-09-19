@@ -23,6 +23,7 @@ from nion.swift.model import Utility
 from nion.ui import Binding
 from nion.ui import Event
 from nion.ui import Observable
+from nion.ui import Persistence
 
 _ = gettext.gettext
 
@@ -37,7 +38,7 @@ class _UuidToStringConverter(object):
         return uuid.UUID(value)
 
 
-class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
 
     def __init__(self, buffered_data_source=None):
         super(DataItemDataSource, self).__init__()
@@ -168,7 +169,7 @@ def data_source_list_factory(lookup_id):
         return None
 
 
-class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.ManagedObject):
+class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
     """
         OperationItems compute new data from other data items, regions, and metadata.
 
@@ -275,9 +276,9 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
         for data_source in self.data_sources:
             data_source.will_remove_operation_region(region)
 
-    def managed_object_context_changed(self):
-        """ Override from ManagedObject. """
-        super(OperationItem, self).managed_object_context_changed()
+    def persistent_object_context_changed(self):
+        """ Override from PersistentObject. """
+        super(OperationItem, self).persistent_object_context_changed()
         for region_connection_id in self.region_connections:
             def registered(region_connection_id, region):
                 self.__set_region(region_connection_id, region)
@@ -285,14 +286,14 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Observable.Ma
                 for binding in self.__bindings:
                     binding.close()
                 self.__bindings = list()
-            if self.managed_object_context:
-                self.managed_object_context.subscribe(self.region_connections[region_connection_id], functools.partial(registered, region_connection_id), unregistered)
+            if self.persistent_object_context:
+                self.persistent_object_context.subscribe(self.region_connections[region_connection_id], functools.partial(registered, region_connection_id), unregistered)
             else:
                 unregistered()
 
     def read_from_dict(self, properties):
         super(OperationItem, self).read_from_dict(properties)
-        self.managed_object_context_changed()
+        self.persistent_object_context_changed()
 
     # called from data item when added/removed.
     def set_dependent_data_item(self, data_item):

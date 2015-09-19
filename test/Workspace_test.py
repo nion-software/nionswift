@@ -271,9 +271,9 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(properties, library_storage.properties)
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
-        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         library_storage = DocumentModel.FilePersistentStorage()
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace_1x1 = document_controller.document_model.workspaces[0]
         data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -281,7 +281,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.close()
         # reload
-        document_model = DocumentModel.DocumentModel(library_storage=library_storage, managed_object_handlers=[memory_managed_object_handler])
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace_1x1 = document_controller.document_model.workspaces[0]
         self.assertEqual(document_controller.workspace_controller.display_panels[0].display_specifier.data_item, document_model.data_items[0])
