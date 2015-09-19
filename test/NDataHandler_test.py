@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 # standard libraries
 import binascii
+import contextlib
 import datetime
 import json
 import logging
@@ -42,30 +43,31 @@ class TestNDataHandlerClass(unittest.TestCase):
         data_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(data_dir)
         try:
-            h = NDataHandler.NDataHandler(data_dir)
-            p = {u"abc": 1, u"def": u"bcd", u"uuid": Unicode.u(uuid.uuid4())}
-            # write properties
-            h.write_properties("abc", p, now)
-            self.assertEqual(h.read_properties("abc")[1], p)
-            self.assertIsNone(h.read_data("abc"))
-            # write data
-            h.write_data("abc", numpy.zeros((4,4), dtype=numpy.float64), now)
-            self.assertEqual(h.read_properties("abc")[1], p)
-            d = h.read_data("abc")
-            self.assertEqual(d.shape, (4, 4))
-            self.assertEqual(d.dtype, numpy.float64)
-            # rewrite data
-            h.write_data("abc", numpy.zeros((12,12), dtype=numpy.float32), now)
-            self.assertEqual(h.read_properties("abc")[1], p)
-            d = h.read_data("abc")
-            self.assertEqual(d.shape, (12, 12))
-            self.assertEqual(d.dtype, numpy.float32)
-            # rewrite properties
-            h.write_properties("abc", p, now)
-            self.assertEqual(h.read_properties("abc")[1], p)
-            d = h.read_data("abc")
-            self.assertEqual(d.shape, (12, 12))
-            self.assertEqual(d.dtype, numpy.float32)
+            h = NDataHandler.NDataHandler(os.path.join(data_dir, "abc.ndata"))
+            with contextlib.closing(h):
+                p = {u"abc": 1, u"def": u"bcd", u"uuid": Unicode.u(uuid.uuid4())}
+                # write properties
+                h.write_properties(p, now)
+                self.assertEqual(h.read_properties(), p)
+                self.assertIsNone(h.read_data())
+                # write data
+                h.write_data(numpy.zeros((4,4), dtype=numpy.float64), now)
+                self.assertEqual(h.read_properties(), p)
+                d = h.read_data()
+                self.assertEqual(d.shape, (4, 4))
+                self.assertEqual(d.dtype, numpy.float64)
+                # rewrite data
+                h.write_data(numpy.zeros((12,12), dtype=numpy.float32), now)
+                self.assertEqual(h.read_properties(), p)
+                d = h.read_data()
+                self.assertEqual(d.shape, (12, 12))
+                self.assertEqual(d.dtype, numpy.float32)
+                # rewrite properties
+                h.write_properties(p, now)
+                self.assertEqual(h.read_properties(), p)
+                d = h.read_data()
+                self.assertEqual(d.shape, (12, 12))
+                self.assertEqual(d.dtype, numpy.float32)
         finally:
             #logging.debug("rmtree %s", data_dir)
             shutil.rmtree(data_dir)
@@ -115,13 +117,14 @@ class TestNDataHandlerClass(unittest.TestCase):
                 NDataHandler.write_end_of_directory(fp, dir_size, dir_offset, len(dir_data_list))
                 fp.truncate()
             # make sure read works
-            h = NDataHandler.NDataHandler(data_dir)
-            self.assertEqual(h.read_properties("file")[1], p)
-            dd = h.read_data("file")
-            self.assertEqual(dd.shape, d.shape)
-            self.assertEqual(dd.dtype, d.dtype)
-            # now rewrite
-            h.write_properties("file", p, now)
+            h = NDataHandler.NDataHandler(os.path.join(data_dir, "file.ndata"))
+            with contextlib.closing(h):
+                self.assertEqual(h.read_properties(), p)
+                dd = h.read_data()
+                self.assertEqual(dd.shape, d.shape)
+                self.assertEqual(dd.dtype, d.dtype)
+                # now rewrite
+                h.write_properties(p, now)
         finally:
             #logging.debug("rmtree %s", data_dir)
             shutil.rmtree(data_dir)
@@ -133,17 +136,18 @@ class TestNDataHandlerClass(unittest.TestCase):
         data_dir = os.path.join(current_working_directory, "__Test")
         Storage.db_make_directory_if_needed(data_dir)
         try:
-            h = NDataHandler.NDataHandler(data_dir)
-            data = numpy.random.randint(0, 10, size=(10, 10))[:,3]  # discontiguous data
-            self.assertFalse(data.flags['C_CONTIGUOUS'])
-            p = {u"uuid": Unicode.u(uuid.uuid4())}
-            # write properties
-            h.write_properties("abc", p, now)
-            # write data
-            h.write_data("abc", data, now)
-            d = h.read_data("abc")
-            self.assertEqual(d.shape, data.shape)
-            self.assertEqual(d.dtype, data.dtype)
+            h = NDataHandler.NDataHandler(os.path.join(data_dir, "abc.ndata"))
+            with contextlib.closing(h):
+                data = numpy.random.randint(0, 10, size=(10, 10))[:,3]  # discontiguous data
+                self.assertFalse(data.flags['C_CONTIGUOUS'])
+                p = {u"uuid": Unicode.u(uuid.uuid4())}
+                # write properties
+                h.write_properties(p, now)
+                # write data
+                h.write_data(data, now)
+                d = h.read_data()
+                self.assertEqual(d.shape, data.shape)
+                self.assertEqual(d.dtype, data.dtype)
         finally:
             #logging.debug("rmtree %s", data_dir)
             shutil.rmtree(data_dir)

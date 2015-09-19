@@ -32,37 +32,6 @@ from nion.ui import ThreadPool
 _ = gettext.gettext
 
 
-class DataReferenceMemoryHandler(object):
-
-    """ Used for testing. """
-
-    def __init__(self):
-        self.data = dict()
-        self.properties = dict()
-
-    def find_data_item_tuples(self):
-        tuples = []
-        for key in sorted(self.properties):
-            properties = self.properties[key]
-            tuples.append((properties.setdefault("uuid", str(uuid.uuid4())), copy.deepcopy(properties), "relative_file", key))
-        return tuples
-
-    def load_data_reference(self, reference_type, reference):
-        return self.data.get(reference)
-
-    def write_data_reference(self, data, reference_type, reference, file_datetime):
-        self.data[reference] = data.copy()
-
-    def write_properties(self, properties, reference_type, reference, file_datetime):
-        self.properties[reference] = copy.deepcopy(properties)
-
-    def remove_data_reference(self, reference_type, reference):
-        if reference in self.data:
-            del self.data[reference]
-        if reference in self.properties:
-            del self.properties[reference]
-
-
 class FilePersistentStorage(object):
 
     def __init__(self, filepath=None, create=True):
@@ -150,33 +119,37 @@ class DataItemPersistentStorage(object):
     """
         Manages persistent storage for data items by caching properties and data, maintaining the ManagedObjectContext
         on contained items, and writing to disk when necessary.
+
+        The persistent_storage_handler must respond to these methods:
+            read_properties()
+            read_data()
+            write_properties(properties, file_datetime)
+            write_data(data, file_datetime)
     """
 
-    def __init__(self, data_reference_handler=None, data_item=None, properties=None, reference_type=None, reference=None):
-        self.__data_reference_handler = data_reference_handler
-        self.__data_reference_handler_lock = threading.RLock()
+    def __init__(self, persistent_storage_handler=None, data_item=None, properties=None):
+        self.__persistent_storage_handler = persistent_storage_handler
         self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
         self.__properties_lock = threading.RLock()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
-        # reference type and reference indicate how to save/load data and properties
-        self.reference_type = reference_type
-        self.reference = reference
         self.write_delayed = False
 
-    def __get_data_item(self):
+    @property
+    def data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
-    def __set_data_item(self, data_item):
-        self.__weak_data_item = weakref.ref(data_item) if data_item else None
-    data_item = property(__get_data_item, __set_data_item)
 
-    def __get_properties(self):
+    @data_item.setter
+    def data_item(self, data_item):
+        self.__weak_data_item = weakref.ref(data_item) if data_item else None
+
+    @property
+    def properties(self):
         with self.__properties_lock:
             return copy.deepcopy(self.__properties)
-    properties = property(__get_properties)
 
-    def __get_properties_lock(self):
-        return self.__properties_lock
-    properties_lock = property(__get_properties_lock)
+    @property
+    def _persistent_storage_handler(self):
+        return self.__persistent_storage_handler
 
     def __get_storage_dict(self, object):
         managed_parent = object.managed_parent
@@ -198,14 +171,12 @@ class DataItemPersistentStorage(object):
 
     def update_properties(self):
         if not self.write_delayed:
-            self.__ensure_reference_valid(self.data_item)
             file_datetime = self.data_item.created_local
-            with self.__data_reference_handler_lock:
-                self.__data_reference_handler.write_properties(self.properties, "relative_file", self.reference, file_datetime)
+            self.__persistent_storage_handler.write_properties(self.properties, file_datetime)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.properties_lock:
+        with self.__properties_lock:
             item_list = storage_dict.setdefault(name, list())
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
@@ -214,7 +185,7 @@ class DataItemPersistentStorage(object):
 
     def remove_item(self, parent, name, index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
-        with self.properties_lock:
+        with self.__properties_lock:
             item_list = storage_dict[name]
             del item_list[index]
         self.update_properties()
@@ -232,7 +203,98 @@ class DataItemPersistentStorage(object):
                     del storage_dict[name]
         self.update_properties()
 
-    def get_default_reference(self, data_item):
+    def update_data(self, data_shape, data_dtype, data=None):
+        if not self.write_delayed:
+            file_datetime = self.data_item.created_local
+            if data is not None:
+                self.__persistent_storage_handler.write_data(data, file_datetime)
+
+    def load_data(self):
+        assert self.data_item.maybe_data_source and self.data_item.maybe_data_source.has_data
+        return self.__persistent_storage_handler.read_data()
+
+    def set_property(self, object, name, value):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict[name] = value
+        self.update_properties()
+
+    def remove(self):
+        self.__persistent_storage_handler.remove()
+
+
+class MemoryManagedObjectHandler(object):
+
+    def __init__(self):
+        self.data = dict()
+        self.properties = dict()
+
+    class MemoryStorageHandler(object):
+
+        def __init__(self, uuid, properties, data):
+            self.__uuid = uuid
+            self.__properties = properties
+            self.__data = data
+
+        @property
+        def reference(self):
+            return str(self.__uuid)
+
+        def read_properties(self):
+            return self.__properties.get(self.__uuid, dict())
+
+        def read_data(self):
+            return self.__data.get(self.__uuid)
+
+        def write_properties(self, properties, file_datetime):
+            self.__properties[self.__uuid] = copy.deepcopy(properties)
+
+        def write_data(self, data, file_datetime):
+            self.__data[self.__uuid] = data.copy()
+
+        def remove(self):
+            self.__data.pop(self.__uuid, None)
+            self.__properties.pop(self.__uuid, None)
+
+    def find_data_items(self):
+        persistent_storage_handlers = list()
+        for key in sorted(self.properties):
+            uuid_ = self.properties[key].setdefault("uuid", str(uuid.uuid4()))
+            persistent_storage_handlers.append(MemoryManagedObjectHandler.MemoryStorageHandler(key, self.properties, self.data))
+        return persistent_storage_handlers
+
+    def make_persistent_storage_handler(self, data_item):
+        uuid = str(data_item.uuid)
+        return MemoryManagedObjectHandler.MemoryStorageHandler(uuid, self.properties, self.data)
+
+
+from nion.swift import NDataHandler
+
+class FileManagedObjectHandler(object):
+
+    def __init__(self, directories):
+        self.__directories = directories
+        self.__file_handlers = [NDataHandler.NDataHandler]
+
+    def find_data_items(self):
+        persistent_storage_handlers = list()
+        absolute_file_paths = set()
+        for directory in self.__directories:
+            for root, dirs, files in os.walk(directory):
+                absolute_file_paths.update([os.path.join(root, data_file) for data_file in files])
+        for file_handler in self.__file_handlers:
+            for data_file in filter(file_handler.is_matching, absolute_file_paths):
+                try:
+                    persistent_storage_handler = file_handler(data_file)
+                    assert persistent_storage_handler.is_valid
+                    persistent_storage_handlers.append(persistent_storage_handler)
+                except Exception as e:
+                    logging.error("Exception reading file: %s", data_file)
+                    logging.error(str(e))
+                    raise
+        return persistent_storage_handlers
+
+    def __get_default_path(self, data_item):
         uuid_ = data_item.uuid
         created_local = data_item.created_local
         session_id = data_item.session_id
@@ -253,29 +315,8 @@ class DataItemPersistentStorage(object):
         path_components.append("data_" + encoded_uuid_str)
         return os.path.join(*path_components)
 
-    def __ensure_reference_valid(self, data_item):
-        if not self.reference:
-            self.reference_type = "relative_file"
-            self.reference = self.get_default_reference(data_item)
-
-    def update_data(self, data_shape, data_dtype, data=None):
-        if not self.write_delayed:
-            self.__ensure_reference_valid(self.data_item)
-            file_datetime = self.data_item.created_local
-            if data is not None:
-                with self.__data_reference_handler_lock:
-                    self.__data_reference_handler.write_data_reference(data, "relative_file", self.reference, file_datetime)
-
-    def load_data(self):
-        assert self.data_item.maybe_data_source and self.data_item.maybe_data_source.has_data
-        with self.__data_reference_handler_lock:
-            return self.__data_reference_handler.load_data_reference(self.reference_type, self.reference)
-
-    def set_property(self, object, name, value):
-        storage_dict = self.__update_modified_and_get_storage_dict(object)
-        with self.properties_lock:
-            storage_dict[name] = value
-        self.update_properties()
+    def make_persistent_storage_handler(self, data_item):
+        return self.__file_handlers[0].make(os.path.join(self.__directories[0], self.__get_default_path(data_item)))
 
 
 class ManagedDataItemContext(Observable.ManagedObjectContext):
@@ -292,17 +333,20 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
     """
 
-    def __init__(self, data_reference_handler, ignore_older_files, log_migrations):
+    def __init__(self, managed_object_handlers=None, ignore_older_files=False, log_migrations=True):
         super(ManagedDataItemContext, self).__init__()
-        self.__data_reference_handler = data_reference_handler
+        self.__managed_object_handlers = managed_object_handlers if managed_object_handlers else [MemoryManagedObjectHandler()]
         self.__ignore_older_files = ignore_older_files
         self.__log_migrations = log_migrations
 
     def read_data_items_version_stats(self):
-        data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
+        persistent_storage_handlers = list()  # persistent_storage_handler
+        for managed_object_handler in self.__managed_object_handlers:
+            persistent_storage_handlers.extend(managed_object_handler.find_data_items())
         count = [0, 0, 0]  # data item matches version, data item has higher version, data item has lower version
         writer_version = DataItem.DataItem.writer_version
-        for data_item_uuid, properties, reference_type, reference in data_item_tuples:
+        for persistent_storage_handler in persistent_storage_handlers:
+            properties = persistent_storage_handler.read_properties()
             version = properties.get("version", 0)
             if version < writer_version:
                 count[2] += 1
@@ -319,11 +363,14 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         Data items will have managed_object_context set upon return, but caller will need to call finish_reading
         on each of the data items.
         """
-        data_item_tuples = self.__data_reference_handler.find_data_item_tuples()
+        persistent_storage_handlers = list()  # persistent_storage_handler
+        for managed_object_handler in self.__managed_object_handlers:
+            persistent_storage_handlers.extend(managed_object_handler.find_data_items())
         data_items_by_uuid = dict()
         v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
-        for data_item_uuid, properties, reference_type, reference in data_item_tuples:
+        for persistent_storage_handler in persistent_storage_handlers:
             try:
+                properties = persistent_storage_handler.read_properties()
                 version = properties.get("version", 0)
                 if self.__ignore_older_files and version != 8:
                     version = 9999
@@ -344,7 +391,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         if "session_uuid" in new_properties:
                             del new_properties["session_uuid"]
                         del properties["properties"]
-                    temp_data = self.__data_reference_handler.load_data_reference(reference_type, reference)
+                    temp_data = persistent_storage_handler.read_data()
                     if temp_data is not None:
                         properties["master_data_dtype"] = str(temp_data.dtype)
                         properties["master_data_shape"] = temp_data.shape
@@ -352,10 +399,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
                     properties["version"] = 2
                     # rewrite needed since we added a uuid
-                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     version = 2
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (ndata1)", reference, version)
+                        logging.info("Updated %s to %s (ndata1)", persistent_storage_handler.reference, version)
                 if version == 2:
                     # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
                     for display_properties in properties.get("displays", list()):
@@ -366,10 +413,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         operation_properties.setdefault("uuid", str(uuid.uuid4()))
                     properties["version"] = 3
                     # rewrite needed since we added a uuid
-                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     version = 3
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (add uuids)", reference, version)
+                        logging.info("Updated %s to %s (add uuids)", persistent_storage_handler.reference, version)
                 if version == 3:
                     # version 3 -> 4 changes origin to offset in all calibrations.
                     calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
@@ -382,10 +429,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                             del calibration_dict["origin"]
                     properties["version"] = 4
                     # no rewrite needed
-                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    # persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     version = 4
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (calibration offset)", reference, version)
+                        logging.info("Updated %s to %s (calibration offset)", persistent_storage_handler.reference, version)
                 if version == 4:
                     # version 4 -> 5 changes region_uuid to region_connections map.
                     operations_list = properties.get("operations", list())
@@ -398,10 +445,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                             del operation_dict["region_uuid"]
                     properties["version"] = 5
                     # no rewrite needed
-                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    # persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     version = 5
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (region_uuid)", reference, version)
+                        logging.info("Updated %s to %s (region_uuid)", persistent_storage_handler.reference, version)
                 if version == 5:
                     # version 5 -> 6 changes operations to a single operation, expands data sources list
                     operations_list = properties.get("operations", list())
@@ -427,10 +474,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         del properties["intrinsic_spatial_calibrations"]
                     properties["version"] = 6
                     # no rewrite needed
-                    # self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    # persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     version = 6
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (operation hierarchy)", reference, version)
+                        logging.info("Updated %s to %s (operation hierarchy)", persistent_storage_handler.reference, version)
                 if version == 6:
                     # version 6 -> 7 changes data to be cached in the buffered data source object
                     buffered_data_source_dict = dict()
@@ -466,10 +513,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     if include_data or operation_dict is not None:
                         properties["data_sources"] = [buffered_data_source_dict]
                     properties["version"] = 7
-                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     version = 7
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (buffered data sources)", reference, version)
+                        logging.info("Updated %s to %s (buffered data sources)", persistent_storage_handler.reference, version)
                 if version == 7:
                     # version 7 -> 8 changes metadata to be stored in buffered_data_source
                     data_source_dicts = properties.get("data_sources", list())
@@ -506,10 +553,10 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                     properties.pop("datetime_modified", None)
                     properties["version"] = 8
                     # no rewrite needed, but do it anyway so the user can have a simple understanding of upgrading.
-                    self.__data_reference_handler.write_properties(copy.deepcopy(properties), "relative_file", reference, datetime.datetime.now())
+                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                     version = 8
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (metadata to data source)", reference, version)
+                        logging.info("Updated %s to %s (metadata to data source)", persistent_storage_handler.reference, version)
                 if version == 8:
                     # version 8 -> 9 is not implemented yet. but adjust the extra_high_tension tag anyway.
                     data_source_dicts = properties.get("data_sources", list())
@@ -523,10 +570,11 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                             autostem_dict["high_tension_v"] = high_tension_v
                 # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                 # NOTE: change writer_version in DataItem.py
+                data_item_uuid = properties["uuid"]
                 data_item = DataItem.DataItem(item_uuid=data_item_uuid)
                 if version <= data_item.writer_version:
                     data_item.begin_reading()
-                    persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties, reference_type=reference_type, reference=reference)
+                    persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
                     data_item.read_from_dict(persistent_storage.properties)
                     self._set_persistent_storage_for_object(data_item, persistent_storage)
                     data_item.managed_object_context = self
@@ -534,7 +582,7 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
                         logging.info("Warning: Duplicate data item %s", data_item.uuid)
                     data_items_by_uuid[data_item.uuid] = data_item
             except Exception as e:
-                logging.debug("Error reading %s (uuid=%s)", reference, data_item_uuid)
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
@@ -549,7 +597,12 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
         properties = data_item.write_to_dict()
         persistent_storage = self._get_persistent_storage_for_object(data_item)
         if not persistent_storage:
-            persistent_storage = DataItemPersistentStorage(data_reference_handler=self.__data_reference_handler, data_item=data_item, properties=properties)
+            persistent_storage_handler = None
+            for managed_object_handler in self.__managed_object_handlers:
+                persistent_storage_handler = managed_object_handler.make_persistent_storage_handler(data_item)
+                if persistent_storage_handler:
+                    break
+            persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
             self._set_persistent_storage_for_object(data_item, persistent_storage)
         data_item.managed_object_context_changed()
         # write the uuid and version explicitly
@@ -564,16 +617,16 @@ class ManagedDataItemContext(Observable.ManagedObjectContext):
 
     def erase_data_item(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
-        self.__data_reference_handler.remove_data_reference(persistent_storage.reference_type, persistent_storage.reference)
+        persistent_storage.remove()
         data_item.managed_object_context = None
 
     def load_data(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
         return persistent_storage.load_data()
 
-    def get_data_item_file_info(self, data_item):
+    def _test_get_file_path(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
-        return persistent_storage.reference_type, persistent_storage.reference
+        return persistent_storage._persistent_storage_handler.reference
 
 
 class UuidToStringConverter(object):
@@ -590,11 +643,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     The document model provides a dispatcher object which will run tasks in a thread pool.
     """
 
-    def __init__(self, library_storage=None, data_reference_handler=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
+    def __init__(self, library_storage=None, managed_object_handlers=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
         super(DocumentModel, self).__init__()
         self.__thread_pool = ThreadPool.ThreadPool()
-        data_reference_handler = data_reference_handler if data_reference_handler else DataReferenceMemoryHandler()
-        self.managed_object_context = ManagedDataItemContext(data_reference_handler, ignore_older_files, log_migrations)
+        self.managed_object_context = ManagedDataItemContext(managed_object_handlers, ignore_older_files, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.managed_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()

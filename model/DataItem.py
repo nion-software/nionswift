@@ -1156,10 +1156,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
         if self.__transaction_count > 0:
             self.__enter_write_delay_state()
 
-    def get_data_file_info(self):
+    def _test_get_file_path(self):
         if self.managed_object_context:
-            return self.managed_object_context.get_data_item_file_info(self)
-        return None, None
+            return self.managed_object_context._test_get_file_path(self)
+        return None
 
     # access properties
 

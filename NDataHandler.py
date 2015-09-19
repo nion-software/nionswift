@@ -8,19 +8,15 @@ from __future__ import absolute_import
 import binascii
 import calendar
 import datetime
+import io
 import logging
 import json
 import numpy
 import os
 import struct
+import threading
 import time
 import uuid
-
-import sys
-if sys.version < '3':
-    import cStringIO as io
-else:
-    import io
 
 from nion.swift.model import Utility
 from nion.ui import Geometry
@@ -372,38 +368,28 @@ class NDataHandler(object):
         The handler is meant to be fully independent so that it can easily be plugged into
         earlier versions of Swift as it evolves.
 
-        :param data_dir: The basic directory from which reference are based
+        :param file_path: The basic directory from which reference are based
 
         TODO: Move NDataHandler into a plug-in
     """
 
-    def __init__(self, data_dir):
-        self.__data_dir = data_dir
+    def __init__(self, file_path):
+        self.__file_path = file_path
+        self.__lock = threading.RLock()
 
-    def get_reference(self, file_path):
-        """
-            Return a reference for the file path.
+    def close(self):
+        pass
 
-            :param file_path: the absolute file path for ndata file
-            :return: the reference string for the file
+    @property
+    def reference(self):
+        return self.__file_path
 
-            The absolute file path should refer to a file within the data directory
-            of this object.
-        """
-        relative_file = os.path.relpath(file_path, self.__data_dir)
-        return os.path.splitext(relative_file)[0]
+    @property
+    def is_valid(self):
+        return True
 
-    def get_file_path(self, reference):
-        """
-            Return a file path for the reference.
-
-            :param reference: the reference string for the file
-            :return: the absolute file path for ndata file
-        """
-        data_file_path = reference + ".ndata"
-        return os.path.join(self.__data_dir, data_file_path)
-
-    def is_matching(self, file_path):
+    @classmethod
+    def is_matching(cls, file_path):
         """
             Return whether the given absolute file path is an ndata file.
         """
@@ -423,25 +409,29 @@ class NDataHandler(object):
                 logging.error(str(e))
         return False
 
-    def write_data(self, reference, data, file_datetime):
+    @classmethod
+    def make(cls, file_path):
+        return cls(file_path + ".ndata")
+
+    def write_data(self, data, file_datetime):
         """
             Write data to the ndata file specified by reference.
 
-            :param reference: the reference to which to write
             :param data: the numpy array data to write
             :param file_datetime: the datetime for the file
         """
-        assert data is not None
-        absolute_file_path = self.get_file_path(reference)
-        #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
-        make_directory_if_needed(os.path.dirname(absolute_file_path))
-        _, properties = self.read_properties(reference) if os.path.exists(absolute_file_path) else dict()
-        write_zip(absolute_file_path, data, properties)
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
+        with self.__lock:
+            assert data is not None
+            absolute_file_path = self.__file_path
+            #logging.debug("WRITE data file %s for %s", absolute_file_path, key)
+            make_directory_if_needed(os.path.dirname(absolute_file_path))
+            properties = self.read_properties() if os.path.exists(absolute_file_path) else dict()
+            write_zip(absolute_file_path, data, properties)
+            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+            timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+            os.utime(absolute_file_path, (time.time(), timestamp))
 
-    def write_properties(self, reference, properties, file_datetime):
+    def write_properties(self, properties, file_datetime):
         """
             Write properties to the ndata file specified by reference.
 
@@ -452,53 +442,56 @@ class NDataHandler(object):
             The properties param must not change during this method. Callers should
             take care to ensure this does not happen.
         """
-        absolute_file_path = self.get_file_path(reference)
-        #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
-        make_directory_if_needed(os.path.dirname(absolute_file_path))
-        exists = os.path.exists(absolute_file_path)
-        if exists:
-            rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
-        else:
-            write_zip(absolute_file_path, None, properties)
-        # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-        timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
-        os.utime(absolute_file_path, (time.time(), timestamp))
+        with self.__lock:
+            absolute_file_path = self.__file_path
+            #logging.debug("WRITE properties %s for %s", absolute_file_path, key)
+            make_directory_if_needed(os.path.dirname(absolute_file_path))
+            exists = os.path.exists(absolute_file_path)
+            if exists:
+                rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
+            else:
+                write_zip(absolute_file_path, None, properties)
+            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
+            timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+            os.utime(absolute_file_path, (time.time(), timestamp))
 
-    def read_properties(self, reference):
+    def read_properties(self):
         """
             Read properties from the ndata file reference
 
             :param reference: the reference from which to read
             :return: a tuple of the item_uuid and a dict of the properties
         """
-        absolute_file_path = self.get_file_path(reference)
-        with open(absolute_file_path, "rb") as fp:
-            local_files, dir_files, eocd = parse_zip(fp)
-            properties = read_json(fp, local_files, dir_files, b"metadata.json")
-        item_uuid = uuid.UUID(properties["uuid"])
-        return item_uuid, properties
+        with self.__lock:
+            absolute_file_path = self.__file_path
+            with open(absolute_file_path, "rb") as fp:
+                local_files, dir_files, eocd = parse_zip(fp)
+                properties = read_json(fp, local_files, dir_files, b"metadata.json")
+            return properties
 
-    def read_data(self, reference):
+    def read_data(self):
         """
             Read data from the ndata file reference
 
             :param reference: the reference from which to read
             :return: a numpy array of the data; maybe None
         """
-        absolute_file_path = self.get_file_path(reference)
-        #logging.debug("READ data file %s", absolute_file_path)
-        with open(absolute_file_path, "rb") as fp:
-            local_files, dir_files, eocd = parse_zip(fp)
-            return read_data(fp, local_files, dir_files, b"data.npy")
-        return None
+        with self.__lock:
+            absolute_file_path = self.__file_path
+            #logging.debug("READ data file %s", absolute_file_path)
+            with open(absolute_file_path, "rb") as fp:
+                local_files, dir_files, eocd = parse_zip(fp)
+                return read_data(fp, local_files, dir_files, b"data.npy")
+            return None
 
-    def remove(self, reference):
+    def remove(self):
         """
             Remove the ndata file reference
 
             :param reference: the reference to remove
         """
-        absolute_file_path = self.get_file_path(reference)
-        #logging.debug("DELETE data file %s", absolute_file_path)
-        if os.path.isfile(absolute_file_path):
-            os.remove(absolute_file_path)
+        with self.__lock:
+            absolute_file_path = self.__file_path
+            #logging.debug("DELETE data file %s", absolute_file_path)
+            if os.path.isfile(absolute_file_path):
+                os.remove(absolute_file_path)

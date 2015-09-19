@@ -24,7 +24,6 @@ from nion.swift import Test
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
 from nion.swift import SessionPanel
-from nion.swift import NDataHandler
 from nion.swift import InfoPanel
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -148,7 +147,7 @@ class Application(object):
         if os.path.exists(library_path):
             self.migrate_library(workspace_dir, library_path, welcome_message)
         self.workspace_dir = workspace_dir
-        data_reference_handler = DataReferenceHandler(workspace_dir)
+        file_managed_object_handler = DocumentModel.FileManagedObjectHandler([os.path.join(workspace_dir, "Nion Swift Data")])
         create_new_document = not os.path.exists(library_path)
         if create_new_document:
             if welcome_message:
@@ -158,17 +157,17 @@ class Application(object):
             if welcome_message:
                 logging.debug("Using existing document %s", library_path)
             library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
-        managed_object_context = DocumentModel.ManagedDataItemContext(data_reference_handler, False, False)
+        managed_object_context = DocumentModel.ManagedDataItemContext([file_managed_object_handler], False, False)
         counts = managed_object_context.read_data_items_version_stats()
         if counts[2] > 0:
 
             assert fixed_workspace_dir is None
 
             def do_ignore():
-                self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, True)
+                self.continue_start(cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, True)
 
             def do_upgrade():
-                self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, False)
+                self.continue_start(cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, False)
 
             class UpgradeDialog(Dialog.ActionDialog):
                 def __init__(self, ui):
@@ -223,14 +222,14 @@ class Application(object):
             upgrade_dialog.show()
 
         else:
-            self.continue_start(cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, True, welcome_message=welcome_message)
+            self.continue_start(cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, True, welcome_message=welcome_message)
 
         return True
 
-    def continue_start(self, cache_path, create_new_document, data_reference_handler, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
+    def continue_start(self, cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
         storage_cache = Storage.DbStorageCache(cache_path)
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
-                                                     data_reference_handler=data_reference_handler,
+                                                     managed_object_handlers=[file_managed_object_handler],
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
@@ -333,66 +332,6 @@ class Application(object):
 
     def run_all_tests(self):
         Test.run_all_tests()
-
-
-class DataReferenceHandler(object):
-
-    def __init__(self, workspace_dir):
-        self.workspace_dir = workspace_dir
-        self.__data_dir = os.path.join(self.workspace_dir, "Nion Swift Data")
-        self.__file_handler = NDataHandler.NDataHandler(self.__data_dir)
-        assert self.workspace_dir
-
-    @property
-    def file_handler(self):
-        return self.__file_handler
-
-    def find_data_item_tuples(self):
-        tuples = []
-        #logging.debug("data_dir %s", self.__data_dir)
-        for root, dirs, files in os.walk(self.__data_dir):
-            absolute_file_paths = [os.path.join(root, data_file) for data_file in files]
-            for data_file in filter(self.__file_handler.is_matching, absolute_file_paths):
-                reference_type = "relative_file"
-                reference = self.__file_handler.get_reference(data_file)
-                try:
-                    item_uuid, properties = self.__file_handler.read_properties(reference)
-                    tuples.append((item_uuid, properties, reference_type, reference))
-                except Exception as e:
-                    logging.error("Exception reading file: %s", data_file)
-                    logging.error(str(e))
-                #logging.debug("ONE %s", (uuid.UUID(item_uuid_str), properties, reference_type, reference))
-        return tuples
-
-    def load_data_reference(self, reference_type, reference):
-        #logging.debug("load data reference %s %s", reference_type, reference)
-        if reference_type == "relative_file":
-            return self.__file_handler.read_data(reference)
-        return None
-
-    def write_data_reference(self, data, reference_type, reference, file_datetime):
-        #logging.debug("write data reference %s %s", reference_type, reference)
-        if reference_type == "relative_file":
-            self.__file_handler.write_data(reference, data, file_datetime)
-        else:
-            logging.debug("Cannot write master data %s %s", reference_type, reference)
-            raise NotImplementedError()
-
-    def write_properties(self, properties, reference_type, reference, file_datetime):
-        #logging.debug("write data reference %s %s", reference_type, reference)
-        if reference_type == "relative_file":
-            self.__file_handler.write_properties(reference, properties, file_datetime)
-        else:
-            logging.debug("Cannot write properties %s %s", reference_type, reference)
-            raise NotImplementedError()
-
-    def remove_data_reference(self, reference_type, reference):
-        #logging.debug("remove data reference %s %s", reference_type, reference)
-        if reference_type == "relative_file":
-            self.__file_handler.remove(reference)
-        else:
-            logging.debug("Cannot remove master data %s %s", reference_type, reference)
-            raise NotImplementedError()
 
 
 def get_root_dir():

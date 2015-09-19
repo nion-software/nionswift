@@ -66,8 +66,8 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_connection_saves_and_restores(self):
         # setup document
-        data_reference_handler = DocumentModel.DataReferenceMemoryHandler()
-        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
+        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
@@ -81,7 +81,7 @@ class TestConnectionClass(unittest.TestCase):
             connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
             data_item_1d.add_connection(connection)
         # read it back
-        document_model = DocumentModel.DocumentModel(data_reference_handler=data_reference_handler)
+        document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler])
         with contextlib.closing(document_model):
             # verify it read back
             data_item_3d = document_model.data_items[0]
