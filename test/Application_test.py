@@ -13,7 +13,7 @@ import unittest
 
 # local libraries
 from nion.swift import Application
-from nion.swift.model import Storage
+from nion.swift.model import Cache
 from nion.ui import Test
 
 
@@ -29,8 +29,8 @@ class TestApplicationClass(unittest.TestCase):
         current_working_directory = os.getcwd()
         workspace1_dir = os.path.join(current_working_directory, "__Test1")
         workspace2_dir = os.path.join(current_working_directory, "__Test2")
-        Storage.db_make_directory_if_needed(workspace1_dir)
-        Storage.db_make_directory_if_needed(workspace2_dir)
+        Cache.db_make_directory_if_needed(workspace1_dir)
+        Cache.db_make_directory_if_needed(workspace2_dir)
         try:
             app = Application.Application(Test.UserInterface(), set_global=False)
             app.start(True, fixed_workspace_dir=workspace1_dir)

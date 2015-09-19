@@ -18,11 +18,11 @@ import numbers
 import numpy
 
 # local libraries
+from nion.swift.model import Cache
 from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
-from nion.swift.model import Storage
 from nion.swift.model import Symbolic
 from nion.ui import Model
 from nion.ui import Observable
@@ -126,7 +126,7 @@ class GraphicSelection(object):
             self.changed_event.fire()
 
 
-class Display(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
+class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Observable.ManagedObject):
     # Displays are associated with exactly one data item.
 
     def __init__(self):

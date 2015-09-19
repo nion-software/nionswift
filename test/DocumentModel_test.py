@@ -13,10 +13,10 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Storage
 from nion.ui import Test
 
 
@@ -30,7 +30,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_remove_data_items_on_document_model(self):
         cache_name = ":memory:"
-        storage_cache = Storage.DbStorageCache(cache_name)
+        storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()
@@ -48,7 +48,7 @@ class TestDocumentModelClass(unittest.TestCase):
 
     def test_removing_data_item_should_remove_from_groups_too(self):
         cache_name = ":memory:"
-        storage_cache = Storage.DbStorageCache(cache_name)
+        storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         with contextlib.closing(document_model):
             data_item1 = DataItem.DataItem()

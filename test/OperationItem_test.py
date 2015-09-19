@@ -13,12 +13,12 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift.model import Cache
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Operation
 from nion.swift.model import Region
-from nion.swift.model import Storage
 from nion.ui import Geometry
 from nion.ui import Test
 
@@ -28,7 +28,7 @@ class TestOperationClass(unittest.TestCase):
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         cache_name = ":memory:"
-        storage_cache = Storage.DbStorageCache(cache_name)
+        storage_cache = Cache.DbStorageCache(cache_name)
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
@@ -512,7 +512,7 @@ class TestOperationClass(unittest.TestCase):
     def test_missing_operations_should_preserve_properties_when_saved(self):
         cache_name = ":memory:"
         memory_managed_object_handler = DocumentModel.MemoryManagedObjectHandler()
-        storage_cache = Storage.DbStorageCache(cache_name)
+        storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -524,7 +524,7 @@ class TestOperationClass(unittest.TestCase):
         document_controller.close()
         # unregister and read it back
         Operation.OperationManager().unregister_operation("dummy-operation")
-        storage_cache = Storage.DbStorageCache(cache_name)
+        storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(managed_object_handlers=[memory_managed_object_handler], storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         self.assertEqual(document_model.data_items[0].operation.get_property("param"), 5)

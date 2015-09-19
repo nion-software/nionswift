@@ -25,7 +25,7 @@ import scipy.signal
 
 # local libraries
 from nion.swift import NDataHandler
-from nion.swift.model import Storage
+from nion.swift.model import Cache
 from nion.ui import Unicode
 
 
@@ -41,7 +41,7 @@ class TestNDataHandlerClass(unittest.TestCase):
         now = datetime.datetime.now()
         current_working_directory = os.getcwd()
         data_dir = os.path.join(current_working_directory, "__Test")
-        Storage.db_make_directory_if_needed(data_dir)
+        Cache.db_make_directory_if_needed(data_dir)
         try:
             h = NDataHandler.NDataHandler(os.path.join(data_dir, "abc.ndata"))
             with contextlib.closing(h):
@@ -76,7 +76,7 @@ class TestNDataHandlerClass(unittest.TestCase):
         now = datetime.datetime.now()
         current_working_directory = os.getcwd()
         data_dir = os.path.join(current_working_directory, "__Test")
-        Storage.db_make_directory_if_needed(data_dir)
+        Cache.db_make_directory_if_needed(data_dir)
         try:
             p = {u"abc": 1, u"def": u"bcd", u"uuid": Unicode.u(uuid.uuid4())}
             d = numpy.zeros((12,12), dtype=numpy.float32)
@@ -134,7 +134,7 @@ class TestNDataHandlerClass(unittest.TestCase):
         now = datetime.datetime.now()
         current_working_directory = os.getcwd()
         data_dir = os.path.join(current_working_directory, "__Test")
-        Storage.db_make_directory_if_needed(data_dir)
+        Cache.db_make_directory_if_needed(data_dir)
         try:
             h = NDataHandler.NDataHandler(os.path.join(data_dir, "abc.ndata"))
             with contextlib.closing(h):

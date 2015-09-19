@@ -17,13 +17,13 @@ import weakref
 import scipy
 
 # local libraries
+from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import HardwareSource
 from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Region
-from nion.swift.model import Storage
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import Observable
@@ -649,7 +649,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.managed_object_context = ManagedDataItemContext(managed_object_handlers, ignore_older_files, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.managed_object_context._set_persistent_storage_for_object(self, self.__library_storage)
-        self.storage_cache = storage_cache if storage_cache else Storage.DictStorageCache()
+        self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         self.__data_items = list()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)

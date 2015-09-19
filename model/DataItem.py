@@ -16,6 +16,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.swift.model import Cache
 from nion.swift.model import Calibration
 from nion.swift.model import Connection
 from nion.swift.model import DataAndMetadata
@@ -24,7 +25,6 @@ from nion.swift.model import Display
 from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
-from nion.swift.model import Storage
 from nion.swift.model import Symbolic
 from nion.ui import Observable
 from nion.ui import Unicode
@@ -162,7 +162,7 @@ def computation_factory(lookup_id):
     return Symbolic.Computation()
 
 
-class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
+class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Observable.ManagedObject):
 
     """
     A data source that stores the data directly, with optional source data that gets updated as necessary.
@@ -906,7 +906,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Storage.
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable, Observable.ManagedObject):
+class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Observable.ManagedObject):
 
     """
     Data items represent a set of data sources + metadata.
@@ -1055,7 +1055,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Storage.Cacheable,
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable to update the children that need updating
-        self.__suspendable_storage_cache = Storage.SuspendableCache(storage_cache)
+        self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
         for data_source in self.data_sources:
             data_source.storage_cache = self.__suspendable_storage_cache
 

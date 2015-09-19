@@ -14,12 +14,12 @@ import numpy
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Inspector
+from nion.swift.model import Cache
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Region
-from nion.swift.model import Storage
 from nion.ui import Binding
 from nion.ui import Observable
 from nion.ui import Test
@@ -43,7 +43,7 @@ class TestInspectorClass(unittest.TestCase):
 
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
         cache_name = ":memory:"
-        storage_cache = Storage.DbStorageCache(cache_name)
+        storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))

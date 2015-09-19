@@ -9,8 +9,6 @@ import sqlite3
 import sys
 import threading
 import time
-import uuid
-import weakref
 
 # third party libraries
 # None

@@ -25,11 +25,11 @@ from nion.swift import ToolbarPanel
 from nion.swift import Workspace
 from nion.swift import SessionPanel
 from nion.swift import InfoPanel
+from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
-from nion.swift.model import Storage
 from nion.ui import Dialog
 
 _ = gettext.gettext
@@ -227,7 +227,7 @@ class Application(object):
         return True
 
     def continue_start(self, cache_path, create_new_document, file_managed_object_handler, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
-        storage_cache = Storage.DbStorageCache(cache_path)
+        storage_cache = Cache.DbStorageCache(cache_path)
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
                                                      managed_object_handlers=[file_managed_object_handler],
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files)

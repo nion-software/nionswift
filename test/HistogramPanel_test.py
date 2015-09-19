@@ -12,9 +12,9 @@ import numpy
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import HistogramPanel
+from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Storage
 from nion.ui import Test
 
 
@@ -23,7 +23,7 @@ class TestHistogramPanelClass(unittest.TestCase):
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
         cache_name = ":memory:"
-        storage_cache = Storage.DbStorageCache(cache_name)
+        storage_cache = Cache.DbStorageCache(cache_name)
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         data = numpy.zeros((10, 10), dtype=numpy.uint32)
