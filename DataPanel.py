@@ -23,6 +23,8 @@ from nion.ui import Geometry
 from nion.ui import GridCanvasItem
 from nion.ui import ListCanvasItem
 
+__all__ = ["DataBrowserController", "DataListController", "DataGridController", "DisplayItem", "DataPanel"]
+
 _ = gettext.gettext
 
 
@@ -656,253 +658,253 @@ class DataBrowserController(object):
                 self.document_controller.periodic()  # keep the display items in data panel consistent.
 
 
-class DataPanel(Panel.Panel):
+class LibraryModelController(object):
+    """Controller for a list of top level library items."""
 
-    class LibraryModelController(object):
-        """Controller for a list of top level library items."""
+    def __init__(self, ui, item_controllers):
+        """
+        item_controllers is a list of objects that have a title property and a on_title_changed callback that gets
+        invoked (on the ui thread) when the title changes externally.
+        """
+        self.ui = ui
+        self.item_model_controller = self.ui.create_item_model_controller(["display"])
+        self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
+        self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
+        self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
+        self.on_receive_files = None
+        self.__item_controllers = list()
+        self.__item_count = 0
+        # build the items
+        for item_controller in item_controllers:
+            self.__append_item_controller(item_controller)
 
-        def __init__(self, ui, item_controllers):
-            """
-            item_controllers is a list of objects that have a title property and a on_title_changed callback that gets
-            invoked (on the ui thread) when the title changes externally.
-            """
-            self.ui = ui
-            self.item_model_controller = self.ui.create_item_model_controller(["display"])
-            self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
-            self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
-            self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
-            self.on_receive_files = None
-            self.__item_controllers = list()
-            self.__item_count = 0
-            # build the items
-            for item_controller in item_controllers:
-                self.__append_item_controller(item_controller)
+    def close(self):
+        self.__item_controllers = None
+        self.item_model_controller.close()
+        self.item_model_controller = None
+        self.on_receive_files = None
 
-        def close(self):
-            self.__item_controllers = None
-            self.item_model_controller.close()
-            self.item_model_controller = None
-            self.on_receive_files = None
-
+    # not thread safe. must be called on ui thread.
+    def __append_item_controller(self, item_controller):
+        parent_item = self.item_model_controller.root
+        self.item_model_controller.begin_insert(self.__item_count, self.__item_count, parent_item.row, parent_item.id)
+        item = self.item_model_controller.create_item()
+        parent_item.insert_child(self.__item_count, item)
+        self.item_model_controller.end_insert()
         # not thread safe. must be called on ui thread.
-        def __append_item_controller(self, item_controller):
-            parent_item = self.item_model_controller.root
-            self.item_model_controller.begin_insert(self.__item_count, self.__item_count, parent_item.row, parent_item.id)
-            item = self.item_model_controller.create_item()
-            parent_item.insert_child(self.__item_count, item)
-            self.item_model_controller.end_insert()
-            # not thread safe. must be called on ui thread.
-            def title_changed(title):
-                item.data["display"] = title
-                self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
-            item_controller.on_title_changed = title_changed
-            title_changed(item_controller.title)
-            self.__item_controllers.append(item_controller)
-            self.__item_count += 1
+        def title_changed(title):
+            item.data["display"] = title
+            self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
+        item_controller.on_title_changed = title_changed
+        title_changed(item_controller.title)
+        self.__item_controllers.append(item_controller)
+        self.__item_count += 1
 
-        def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-            if mime_data.has_file_paths:
-                if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                    return self.item_model_controller.NONE
-                if self.on_receive_files and self.on_receive_files(mime_data.file_paths):
-                    return self.item_model_controller.COPY
-            return self.item_model_controller.NONE
+    def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
+        if mime_data.has_file_paths:
+            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                return self.item_model_controller.NONE
+            if self.on_receive_files and self.on_receive_files(mime_data.file_paths):
+                return self.item_model_controller.COPY
+        return self.item_model_controller.NONE
 
 
-    # a tree model of the data groups. this class watches for changes to the data groups contained in the document controller
-    # and responds by updating the item model controller associated with the data group tree view widget. it also handles
-    # drag and drop and keeps the current selection synchronized with the image panel.
+class DataGroupModelController(object):
+    """ A tree model of the data groups. this class watches for changes to the data groups contained in the document
+    controller and responds by updating the item model controller associated with the data group tree view widget. it
+    also handles drag and drop and keeps the current selection synchronized with the image panel. """
 
-    class DataGroupModelController(object):
+    def __init__(self, document_controller):
+        self.ui = document_controller.ui
+        self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
+        self.item_model_controller.on_item_set_data = self.item_set_data
+        self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
+        self.item_model_controller.on_item_mime_data = self.item_mime_data
+        self.item_model_controller.on_remove_rows = self.remove_rows
+        self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
+        self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
+        self.__document_controller_weakref = weakref.ref(document_controller)
+        self.document_controller.document_model.add_observer(self)
+        self.__mapping = { document_controller.document_model: self.item_model_controller.root }
+        self.on_receive_files = None
+        # add items that already exist
+        data_groups = document_controller.document_model.data_groups
+        for index, data_group in enumerate(data_groups):
+            self.item_inserted(document_controller.document_model, "data_groups", data_group, index)
 
-        def __init__(self, document_controller):
-            self.ui = document_controller.ui
-            self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
-            self.item_model_controller.on_item_set_data = self.item_set_data
-            self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
-            self.item_model_controller.on_item_mime_data = self.item_mime_data
-            self.item_model_controller.on_remove_rows = self.remove_rows
-            self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
-            self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
-            self.__document_controller_weakref = weakref.ref(document_controller)
-            self.document_controller.document_model.add_observer(self)
-            self.__mapping = { document_controller.document_model: self.item_model_controller.root }
-            self.on_receive_files = None
-            # add items that already exist
-            data_groups = document_controller.document_model.data_groups
-            for index, data_group in enumerate(data_groups):
-                self.item_inserted(document_controller.document_model, "data_groups", data_group, index)
-
-        def close(self):
-            # cheap way to unlisten to everything
-            for object in self.__mapping.keys():
-                if isinstance(object, DataGroup.DataGroup):
-                    object.remove_listener(self)
-                    object.remove_observer(self)
-            self.document_controller.document_model.remove_observer(self)
-            self.item_model_controller.close()
-            self.item_model_controller = None
-            self.on_receive_files = None
-
-        def log(self, parent_id=-1, indent=""):
-            parent_id = parent_id if parent_id >= 0 else self.item_model_controller.root.id
-            for index, child in enumerate(self.item_model_controller.item_from_id(parent_id).children):
-                value = child.data["display"] if "display" in child.data else "---"
-                logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
-                self.log(child.id, indent + "  ")
-
-        @property
-        def document_controller(self):
-            return self.__document_controller_weakref()
-
-        # these two methods support the 'count' display for data groups. they count up
-        # the data items that are children of the container (which can be a data group
-        # or a document controller) and also data items in all of their child groups.
-        def __append_data_item_flat(self, container, data_items):
-            if isinstance(container, DataItem.DataItem):
-                data_items.append(container)
-            if hasattr(container, "data_items"):
-                for child_data_item in container.data_items:
-                    self.__append_data_item_flat(child_data_item, data_items)
-        def __get_data_item_count_flat(self, container):
-            data_items = []
-            self.__append_data_item_flat(container, data_items)
-            return len(data_items)
-
-        # this message is received when a data item is inserted into one of the
-        # groups we're observing.
-        def item_inserted(self, container, key, object, before_index):
-            if key == "data_groups":
-                # manage the item model
-                parent_item = self.__mapping[container]
-                self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
-                count = self.__get_data_item_count_flat(object)
-                properties = {
-                    "display": str(object) + (" (%i)" % count),
-                    "edit": object.title,
-                    "data_group": object
-                }
-                item = self.item_model_controller.create_item(properties)
-                parent_item.insert_child(before_index, item)
-                self.__mapping[object] = item
-                object.add_observer(self)
-                object.add_listener(self)
-                self.item_model_controller.end_insert()
-                # recursively insert items that already exist
-                data_groups = object.data_groups
-                for index, child_data_group in enumerate(data_groups):
-                    self.item_inserted(object, "data_groups", child_data_group, index)
-
-        # this message is received when a data item is removed from one of the
-        # groups we're observing.
-        def item_removed(self, container, key, object, index):
-            if key == "data_groups":
-                assert isinstance(object, DataGroup.DataGroup)
-                # get parent and item
-                parent_item = self.__mapping[container]
-                # manage the item model
-                self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
+    def close(self):
+        # cheap way to unlisten to everything
+        for object in self.__mapping.keys():
+            if isinstance(object, DataGroup.DataGroup):
                 object.remove_listener(self)
                 object.remove_observer(self)
-                parent_item.remove_child(parent_item.children[index])
-                self.__mapping.pop(object)
-                self.item_model_controller.end_remove()
+        self.document_controller.document_model.remove_observer(self)
+        self.item_model_controller.close()
+        self.item_model_controller = None
+        self.on_receive_files = None
 
-        def __update_item_count(self, data_group):
-            assert isinstance(data_group, DataGroup.DataGroup)
-            count = self.__get_data_item_count_flat(data_group)
-            item = self.__mapping[data_group]
-            item.data["display"] = str(data_group) + (" (%i)" % count)
-            item.data["edit"] = data_group.title
-            self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
+    def log(self, parent_id=-1, indent=""):
+        parent_id = parent_id if parent_id >= 0 else self.item_model_controller.root.id
+        for index, child in enumerate(self.item_model_controller.item_from_id(parent_id).children):
+            value = child.data["display"] if "display" in child.data else "---"
+            logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
+            self.log(child.id, indent + "  ")
 
-        def property_changed(self, data_group, key, value):
-            if key == "title":
-                self.__update_item_count(data_group)
+    @property
+    def document_controller(self):
+        return self.__document_controller_weakref()
 
-        # this method if called when one of our listened to data groups changes
-        def data_item_inserted(self, container, data_item, before_index, moving):
-            self.__update_item_count(container)
+    # these two methods support the 'count' display for data groups. they count up
+    # the data items that are children of the container (which can be a data group
+    # or a document controller) and also data items in all of their child groups.
+    def __append_data_item_flat(self, container, data_items):
+        if isinstance(container, DataItem.DataItem):
+            data_items.append(container)
+        if hasattr(container, "data_items"):
+            for child_data_item in container.data_items:
+                self.__append_data_item_flat(child_data_item, data_items)
+    def __get_data_item_count_flat(self, container):
+        data_items = []
+        self.__append_data_item_flat(container, data_items)
+        return len(data_items)
 
-        # this method if called when one of our listened to data groups changes
-        def data_item_removed(self, container, data_item, index, moving):
-            self.__update_item_count(container)
+    # this message is received when a data item is inserted into one of the
+    # groups we're observing.
+    def item_inserted(self, container, key, object, before_index):
+        if key == "data_groups":
+            # manage the item model
+            parent_item = self.__mapping[container]
+            self.item_model_controller.begin_insert(before_index, before_index, parent_item.row, parent_item.id)
+            count = self.__get_data_item_count_flat(object)
+            properties = {
+                "display": str(object) + (" (%i)" % count),
+                "edit": object.title,
+                "data_group": object
+            }
+            item = self.item_model_controller.create_item(properties)
+            parent_item.insert_child(before_index, item)
+            self.__mapping[object] = item
+            object.add_observer(self)
+            object.add_listener(self)
+            self.item_model_controller.end_insert()
+            # recursively insert items that already exist
+            data_groups = object.data_groups
+            for index, child_data_group in enumerate(data_groups):
+                self.item_inserted(object, "data_groups", child_data_group, index)
 
-        def item_set_data(self, data, index, parent_row, parent_id):
-            data_group = self.item_model_controller.item_value("data_group", index, parent_id)
-            if data_group:
-                data_group.title = data
-                return True
-            return False
+    # this message is received when a data item is removed from one of the
+    # groups we're observing.
+    def item_removed(self, container, key, object, index):
+        if key == "data_groups":
+            assert isinstance(object, DataGroup.DataGroup)
+            # get parent and item
+            parent_item = self.__mapping[container]
+            # manage the item model
+            self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
+            object.remove_listener(self)
+            object.remove_observer(self)
+            parent_item.remove_child(parent_item.children[index])
+            self.__mapping.pop(object)
+            self.item_model_controller.end_remove()
 
-        def get_data_group(self, index, parent_row, parent_id):
-            return self.item_model_controller.item_value("data_group", index, parent_id)
+    def __update_item_count(self, data_group):
+        assert isinstance(data_group, DataGroup.DataGroup)
+        count = self.__get_data_item_count_flat(data_group)
+        item = self.__mapping[data_group]
+        item.data["display"] = str(data_group) + (" (%i)" % count)
+        item.data["edit"] = data_group.title
+        self.item_model_controller.data_changed(item.row, item.parent.row, item.parent.id)
 
-        def get_data_group_of_parent(self, parent_row, parent_id):
-            parent_item = self.item_model_controller.item_from_id(parent_id)
-            return parent_item.data["data_group"] if "data_group" in parent_item.data else None
+    def property_changed(self, data_group, key, value):
+        if key == "title":
+            self.__update_item_count(data_group)
 
-        def get_data_group_index(self, data_group):
-            item = None
-            data_group_item = self.__mapping.get(data_group)
-            parent_item = data_group_item.parent if data_group_item else self.item_model_controller.root
-            assert parent_item is not None
-            for child in parent_item.children:
-                child_data_group = child.data.get("data_group")
-                if child_data_group == data_group:
-                    item = child
-                    break
-            if item:
-                return item.row, item.parent.row, item.parent.id
-            else:
-                return -1, -1, 0
+    # this method if called when one of our listened to data groups changes
+    def data_item_inserted(self, container, data_item, before_index, moving):
+        self.__update_item_count(container)
 
-        def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
-            data_group = self.get_data_group_of_parent(parent_row, parent_id)
-            container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
-            if data_group and mime_data.has_file_paths:
-                if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                    return self.item_model_controller.NONE
-                if self.on_receive_files and self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
-                    return self.item_model_controller.COPY
-            if data_group and mime_data.has_format("text/data_item_uuid"):
-                if row >= 0:  # only accept drops ONTO items, not BETWEEN items
-                    return self.item_model_controller.NONE
-                # if the data item exists in this document, then it is copied to the
-                # target group. if it doesn't exist in this document, then it is coming
-                # from another document and can't be handled here.
-                data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-                data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
-                if data_item:
-                    data_group.append_data_item(data_item)
-                    return action
-                return self.item_model_controller.NONE
-            if mime_data.has_format("text/data_group_uuid"):
-                data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
-                data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
-                if data_group:
-                    data_group_copy = copy.deepcopy(data_group)
-                    if row >= 0:
-                        container.insert_data_group(row, data_group_copy)
-                    else:
-                        container.append_data_group(data_group_copy)
-                    return action
-            return self.item_model_controller.NONE
+    # this method if called when one of our listened to data groups changes
+    def data_item_removed(self, container, data_item, index, moving):
+        self.__update_item_count(container)
 
-        def item_mime_data(self, index, parent_row, parent_id):
-            data_group = self.get_data_group(index, parent_row, parent_id)
-            if data_group:
-                mime_data = self.ui.create_mime_data()
-                mime_data.set_data_as_string("text/data_group_uuid", str(data_group.uuid))
-                return mime_data
-            return None
-
-        def remove_rows(self, row, count, parent_row, parent_id):
-            data_group = self.get_data_group_of_parent(parent_row, parent_id)
-            container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
-            for i in range(count):
-                del container.data_groups[row]
+    def item_set_data(self, data, index, parent_row, parent_id):
+        data_group = self.item_model_controller.item_value("data_group", index, parent_id)
+        if data_group:
+            data_group.title = data
             return True
+        return False
+
+    def get_data_group(self, index, parent_row, parent_id):
+        return self.item_model_controller.item_value("data_group", index, parent_id)
+
+    def get_data_group_of_parent(self, parent_row, parent_id):
+        parent_item = self.item_model_controller.item_from_id(parent_id)
+        return parent_item.data["data_group"] if "data_group" in parent_item.data else None
+
+    def get_data_group_index(self, data_group):
+        item = None
+        data_group_item = self.__mapping.get(data_group)
+        parent_item = data_group_item.parent if data_group_item else self.item_model_controller.root
+        assert parent_item is not None
+        for child in parent_item.children:
+            child_data_group = child.data.get("data_group")
+            if child_data_group == data_group:
+                item = child
+                break
+        if item:
+            return item.row, item.parent.row, item.parent.id
+        else:
+            return -1, -1, 0
+
+    def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
+        data_group = self.get_data_group_of_parent(parent_row, parent_id)
+        container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
+        if data_group and mime_data.has_file_paths:
+            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                return self.item_model_controller.NONE
+            if self.on_receive_files and self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
+                return self.item_model_controller.COPY
+        if data_group and mime_data.has_format("text/data_item_uuid"):
+            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                return self.item_model_controller.NONE
+            # if the data item exists in this document, then it is copied to the
+            # target group. if it doesn't exist in this document, then it is coming
+            # from another document and can't be handled here.
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
+            if data_item:
+                data_group.append_data_item(data_item)
+                return action
+            return self.item_model_controller.NONE
+        if mime_data.has_format("text/data_group_uuid"):
+            data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
+            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
+            if data_group:
+                data_group_copy = copy.deepcopy(data_group)
+                if row >= 0:
+                    container.insert_data_group(row, data_group_copy)
+                else:
+                    container.append_data_group(data_group_copy)
+                return action
+        return self.item_model_controller.NONE
+
+    def item_mime_data(self, index, parent_row, parent_id):
+        data_group = self.get_data_group(index, parent_row, parent_id)
+        if data_group:
+            mime_data = self.ui.create_mime_data()
+            mime_data.set_data_as_string("text/data_group_uuid", str(data_group.uuid))
+            return mime_data
+        return None
+
+    def remove_rows(self, row, count, parent_row, parent_id):
+        data_group = self.get_data_group_of_parent(parent_row, parent_id)
+        container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
+        for i in range(count):
+            del container.data_groups[row]
+        return True
+
+
+class DataPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
@@ -950,10 +952,10 @@ class DataPanel(Panel.Panel):
         latest_items_controller = LibraryItemController(_("Latest Session"), latest_items_binding)
         self.__item_controllers = [all_items_controller, latest_items_controller]
 
-        self.library_model_controller = DataPanel.LibraryModelController(document_controller.ui, self.__item_controllers)
+        self.library_model_controller = LibraryModelController(document_controller.ui, self.__item_controllers)
         self.library_model_controller.on_receive_files = self.library_model_receive_files
 
-        self.data_group_model_controller = DataPanel.DataGroupModelController(document_controller)
+        self.data_group_model_controller = DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
         ui = document_controller.ui

@@ -1147,12 +1147,11 @@ class DisplayPanel(object):
             self.__display_panel_content.perform_action(fn, *args, **keywords)
 
 
-# image panel manager acts as a broker for significant events occurring
-# regarding image panels. listeners can attach themselves to this object
-# and receive messages regarding image panels. for instance, when the user
-# presses a key on an image panel that isn't handled directly by the image
-# panel, listeners can be advised of this event.
 class DisplayPanelManager(Decorators.Singleton("DisplayPanelManagerSingleton", (Observable.Broadcaster, ), {})):
+    """ Acts as a broker for significant events occurring regarding display panels. Listeners can attach themselves to
+    this object and receive messages regarding display panels. For instance, when the user presses a key on an display
+    panel that isn't handled directly, listeners will be advised of this event. """
+
     # __metaclass__ = Decorators.Singleton
     # TODO: Fix metaclass in Python 3
 
