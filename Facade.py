@@ -1009,7 +1009,7 @@ class HardwareSource(object):
         self.__hardware_source.start_playing()
 
     def stop_playing(self):
-        self.__hardware_source.start_playing()
+        self.__hardware_source.stop_playing()
 
     def abort_playing(self):
         self.__hardware_source.abort_playing()
