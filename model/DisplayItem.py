@@ -8,6 +8,7 @@ import gettext
 # None
 
 # local libraries
+from nion.swift.model import DataItem
 from nion.ui import Event
 
 _ = gettext.gettext
@@ -36,7 +37,7 @@ class DisplayItem(object):
     """
 
     def __init__(self, data_item):
-        self.data_item = data_item
+        self.__data_item = data_item
         self.needs_update_event = Event.Event()
         self.needs_recompute_event = Event.Event()
 
@@ -62,7 +63,7 @@ class DisplayItem(object):
 
     def close(self):
         # remove the listener.
-        display_specifier = self.data_item.primary_display_specifier
+        display_specifier = self.__data_item.primary_display_specifier
         if display_specifier.display:
             self.__display_processor_needs_recompute_event_listener.close()
             self.__display_processor_data_updated_event_listener.close()
@@ -71,13 +72,17 @@ class DisplayItem(object):
         self.__data_item_content_changed_event_listener.close()
         self.__data_item_content_changed_event_listener = None
 
+    @property
+    def data_item(self):
+        return self.__data_item
+
     def recompute(self, dispatch_task, ui):
-        display = self.data_item.primary_display_specifier.display
+        display = self.__data_item.primary_display_specifier.display
         if display:
             display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
 
     def get_thumbnail(self, dispatch_task, ui):
-        display = self.data_item.primary_display_specifier.display
+        display = self.__data_item.primary_display_specifier.display
         if display:
             display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
             return display.get_processed_data("thumbnail")
@@ -85,12 +90,12 @@ class DisplayItem(object):
 
     @property
     def title_str(self):
-        data_item = self.data_item
+        data_item = self.__data_item
         return data_item.displayed_title
 
     @property
     def format_str(self):
-        data_item = self.data_item
+        data_item = self.__data_item
         display_specifier = data_item.primary_display_specifier
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source:
@@ -101,12 +106,12 @@ class DisplayItem(object):
 
     @property
     def datetime_str(self):
-        data_item = self.data_item
+        data_item = self.__data_item
         return data_item.date_for_sorting_local_as_string
 
     @property
     def status_str(self):
-        data_item = self.data_item
+        data_item = self.__data_item
         if data_item.is_live:
             display_specifier = data_item.primary_display_specifier
             buffered_data_source = display_specifier.buffered_data_source
@@ -120,13 +125,13 @@ class DisplayItem(object):
         return str()
 
     def get_mime_data(self, ui):
-        data_item = self.data_item
+        data_item = self.__data_item
         mime_data = ui.create_mime_data()
         mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
         return mime_data
 
     def drag_started(self, ui, x, y, modifiers):
-        data_item = self.data_item
+        data_item = self.__data_item
         mime_data = self.get_mime_data(ui)
         display_specifier = data_item.primary_display_specifier
         display = display_specifier.display

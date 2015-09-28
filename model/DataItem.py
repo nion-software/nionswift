@@ -1505,11 +1505,13 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
     def increment_data_ref_counts(self):
         """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
         for data_source in self.data_sources:
+            assert isinstance(data_source, BufferedDataSource)
             data_source.increment_data_ref_count()
 
     def decrement_data_ref_counts(self):
         """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
         for data_source in self.data_sources:
+            assert isinstance(data_source, BufferedDataSource)
             data_source.decrement_data_ref_count()
 
     # notification from buffered_data_source

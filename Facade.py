@@ -736,7 +736,7 @@ class DisplayPanel(object):
         display_panel = self.__display_panel
         if not display_panel:
             return None
-        data_item = display_panel.display_specifier.data_item
+        data_item = display_panel.data_item
         return DataItem(data_item) if data_item else None
 
     def set_data_item(self, data_item):

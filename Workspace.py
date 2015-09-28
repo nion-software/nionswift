@@ -723,7 +723,7 @@ class Workspace(object):
             document_model.append_data_item(append_data_item)
             is_data_item_displayed = False
             for display_panel in self.display_panels:
-                if display_panel.display_specifier.data_item == data_item:
+                if display_panel.data_item == data_item:
                     is_data_item_displayed = True
                     break
             if is_recording and not is_data_item_displayed:

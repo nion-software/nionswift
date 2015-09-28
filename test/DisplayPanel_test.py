@@ -101,20 +101,20 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.processing_invert()
         self.document_controller.periodic()
         self.display_panel.set_displayed_data_item(self.data_item)
-        self.assertEqual(self.display_panel.display_specifier.data_item, self.data_item)
+        self.assertEqual(self.display_panel.data_item, self.data_item)
         self.document_model.remove_data_item(self.data_item)
-        self.assertIsNone(self.display_panel.display_specifier.data_item)
+        self.assertIsNone(self.display_panel.data_item)
 
     # user deletes data source of data item that is displayed. make sure to remove display if source is deleted.
     def test_deleting_data_item_with_processed_data_item_removes_processed_data_item_from_image_panel(self):
-        self.assertEqual(self.display_panel.display_specifier.data_item, self.document_model.data_items[0])
-        self.assertEqual(self.display_panel.display_specifier.data_item, self.data_item)
+        self.assertEqual(self.display_panel.data_item, self.document_model.data_items[0])
+        self.assertEqual(self.display_panel.data_item, self.data_item)
         inverted_data_item = self.document_controller.processing_invert().data_item
         self.document_controller.periodic()
         self.display_panel.set_displayed_data_item(inverted_data_item)
-        self.assertEqual(self.display_panel.display_specifier.data_item, inverted_data_item)
+        self.assertEqual(self.display_panel.data_item, inverted_data_item)
         self.document_model.remove_data_item(self.data_item)
-        self.assertIsNone(self.display_panel.display_specifier.data_item)
+        self.assertIsNone(self.display_panel.data_item)
 
     def test_select_line(self):
         # add line (0.2, 0.2), (0.8, 0.8) and ellipse ((0.25, 0.25), (0.5, 0.5)).
@@ -468,12 +468,12 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_delete_key_when_nothing_selected_removes_the_image_panel_content(self):
         modifiers = Test.KeyboardModifiers()
         # check assumptions
-        self.assertIsNotNone(self.display_panel.display_specifier.data_item)
+        self.assertIsNotNone(self.display_panel.data_item)
         # do focusing click, then delete
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
         # check results
-        self.assertIsNone(self.display_panel.display_specifier.data_item)
+        self.assertIsNone(self.display_panel.data_item)
 
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
@@ -951,12 +951,12 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(display_panel.drop_region, "middle")
 
     def test_replacing_display_actually_does_it(self):
-        self.assertEqual(self.display_panel.display_specifier.data_item, self.data_item)
+        self.assertEqual(self.display_panel.data_item, self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
         data_item_1d = DataItem.DataItem(create_1d_data())
         self.document_model.append_data_item(data_item_1d)
         self.display_panel.set_displayed_data_item(data_item_1d)
-        self.assertEqual(self.display_panel.display_specifier.data_item, data_item_1d)
+        self.assertEqual(self.display_panel.data_item, data_item_1d)
 
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
         width, height = 640, 480
@@ -974,7 +974,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_replace_displayed_data_item_and_display_detects_default_raster_display(self):
         self.display_panel.set_displayed_data_item(self.data_item)
-        self.assertEqual(self.display_panel.display_specifier.data_item, self.data_item)
+        self.assertEqual(self.display_panel.data_item, self.data_item)
 
     def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):
         with self.data_item.maybe_data_source.data_ref() as dr:

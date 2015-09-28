@@ -546,8 +546,8 @@ class DocumentController(Observable.Broadcaster):
             self.workspace_controller.selected_display_panel_changed(self.selected_display_panel)
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
-            selected_display_specifier = selected_display_panel.display_specifier if selected_display_panel else DataItem.DisplaySpecifier()
-            self.notify_selected_data_item_changed(selected_display_specifier.data_item)
+            data_item = selected_display_panel.data_item if selected_display_panel else None
+            self.notify_selected_data_item_changed(data_item)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
@@ -574,9 +574,7 @@ class DocumentController(Observable.Broadcaster):
         if data_item:
             return DataItem.DisplaySpecifier.from_data_item(data_item)
         # if not found, check for focused or selected image panel
-        if self.selected_display_panel:
-            return self.selected_display_panel.display_specifier
-        return DataItem.DisplaySpecifier()
+        return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
 
     def next_result_display_panel(self):
         for display_panel in self.workspace.display_panels:

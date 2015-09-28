@@ -443,8 +443,13 @@ class BaseDisplayPanelContent(object):
         return self.__content_canvas_item.focused
 
     @property
+    def data_item(self):
+        """Return the data item in this image panel, if any."""
+        return None
+
+    @property
     def display_specifier(self):
-        """Return the display specifier for the Display in this image panel."""
+        """Convenience method."""
         return DataItem.DisplaySpecifier()
 
     # set the default display for the data item. just a simpler method to call.
@@ -479,18 +484,17 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         super(DataDisplayPanelContent, self).__init__(document_controller)
 
-        self.__display_specifier = DataItem.DisplaySpecifier()
+        self.__data_item = None
         self.__display_changed_event_listener = None
         self.__display_graphic_selection_changed_event_listener = None
         self.__data_item_metadata_changed_event_listener = None
 
         def data_item_deleted(data_item):
             # if our item gets deleted, clear the selection
-            if data_item == self.display_specifier.data_item:
-                self.__set_display(DataItem.DisplaySpecifier())
+            if data_item == self.data_item:
+                self.set_displayed_data_item(None)
 
-        # when a data item gets deleted from the data model, need to ask the display whether
-        # it is still valid.
+        # when a data item gets deleted from the data model, need to ask the display whether it is still valid.
         document_model = self.document_controller.document_model
         self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(data_item_deleted)
 
@@ -506,7 +510,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.display_canvas_item = None
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
-        self.__set_display(DataItem.DisplaySpecifier())  # required before destructing display thread
+        self.set_displayed_data_item(None)  # required before destructing display thread
         super(DataDisplayPanelContent, self).close()
 
     @property
@@ -520,7 +524,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
-        data_item = self.display_specifier.data_item
+        data_item = self.data_item
         if data_item:
             d["data_item_uuid"] = str(data_item.uuid)
         return d
@@ -544,13 +548,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return self.ui.get_font_metrics(font, text)
 
     @property
-    def display_specifier(self):
-        """Return the display specifier for the Display in this image panel."""
-        return self.__display_specifier
+    def data_item(self):
+        """Return the data item displayed in this image panel. May be None."""
+        return self.__data_item
 
-    # set the default display for the data item. just a simpler method to call.
-    def set_displayed_data_item(self, data_item):
-        self.__set_display(DataItem.DisplaySpecifier.from_data_item(data_item))
+    @property
+    def display_specifier(self):
+        """Convenience method."""
+        return DataItem.DisplaySpecifier.from_data_item(self.__data_item)
 
     def __set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -559,23 +564,20 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_panel_controller = display_panel_controller
         if not display_panel_controller:
             self.header_canvas_item.reset_header_colors()
-        self.__set_display(self.display_specifier)
-
-    # for temporary compatibility with hardware source panels
-    def set_displayed_data_item(self, data_item):
-        self.set_display_item(DisplayItem.DisplayItem(data_item))
+        self.set_displayed_data_item(self.__data_item)
 
     # sets the data item that this panel displays
     # not thread safe
-    def __set_display(self, display_specifier):
-        if display_specifier.buffered_data_source:
-            assert isinstance(display_specifier.buffered_data_source, DataItem.BufferedDataSource)
-            # keep new data in memory. if new and old values are the same, putting
-            # this here will prevent the data from unloading and then reloading.
-            display_specifier.buffered_data_source.increment_data_ref_count()
+    def set_displayed_data_item(self, data_item):
+        # ensure the display item stays in memory
+        # listen for changes to display content and parameters, metadata, or the selection
+        # changes to the underlying data will trigger changes in the display content
+        if data_item:
+            data_item.increment_data_ref_counts()  # ensure data stays in memory while displayed
         # track data item in this class to report changes
-        if self.__display_specifier.buffered_data_source:
-            self.__display_specifier.buffered_data_source.decrement_data_ref_count()  # don't keep data in memory anymore
+        old_data_item = self.__data_item
+        if old_data_item:
+            old_data_item.decrement_data_ref_counts()  # release old data from memory
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
@@ -585,34 +587,36 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__data_item_metadata_changed_event_listener:
             self.__data_item_metadata_changed_event_listener.close()
             self.__data_item_metadata_changed_event_listener = None
-        self.__display_specifier = copy.copy(display_specifier)
+        self.__data_item = data_item
         # these connections should be configured after the messages above.
         # the instant these are added, we may be receiving messages from threads.
-        display = self.__display_specifier.display
+        data_item = self.__data_item
+        new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = new_display_specifier.display
         if display:
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # thread safe.
-                display_specifier = copy.copy(self.__display_specifier)
+                display_specifier = copy.copy(new_display_specifier)
                 if display_specifier.display:
                     self.__update_display_canvas(display_specifier)
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(functools.partial(self.__display_graphic_selection_changed, display))
-        data_item = self.__display_specifier.data_item
         if data_item:
             def metadata_changed():
                 if self.header_canvas_item:  # may be closed
                     self.header_canvas_item.title = data_item.displayed_title
             self.__data_item_metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
-        self.__update_display_canvas(self.__display_specifier)
+        self.__update_display_canvas(new_display_specifier)
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):
-        if self.__display_specifier.data_item is not None:
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        if display_specifier.data_item is not None:
             mime_data = self.ui.create_mime_data()
-            mime_data.set_data_as_string("text/data_item_uuid", str(self.__display_specifier.data_item.uuid))
+            mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             root_canvas_item = self.canvas_item.root_container
-            thumbnail_data = self.__display_specifier.display.get_processed_data("thumbnail")
+            thumbnail_data = display_specifier.display.get_processed_data("thumbnail")
             def drag_finished(action):
                 if action == "move" and self.document_controller.replaced_display_panel_content is not None:
                     self.restore_contents(self.document_controller.replaced_display_panel_content)
@@ -620,8 +624,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)
 
     def _sync_data_item(self):
-        if self.__display_specifier.data_item is not None:
-            self.document_controller.select_data_item_in_data_panel(self.__display_specifier.data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        if display_specifier.data_item is not None:
+            self.document_controller.select_data_item_in_data_panel(display_specifier.data_item)
 
     def __display_graphic_selection_changed(self, display, graphic_selection):
         # this message comes from the display when the graphic selection changes
@@ -1046,11 +1051,12 @@ class DisplayPanel(object):
             return DisplayPanelManager().key_pressed(self, key)
 
         def mouse_clicked(image_position, modifiers):
-            DisplayPanelManager().mouse_clicked(self, self.display_specifier, image_position, modifiers)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+            DisplayPanelManager().mouse_clicked(self, display_specifier, image_position, modifiers)
 
         def focused():
             document_controller.selected_display_panel = self  # MARK
-            document_controller.notify_selected_data_item_changed(self.display_specifier.data_item)
+            document_controller.notify_selected_data_item_changed(self.data_item)
 
         def show_context_menu(menu, gx, gy):
             def split_horizontal():
@@ -1107,8 +1113,8 @@ class DisplayPanel(object):
         return self.__display_panel_content.display_panel_id
 
     @property
-    def display_specifier(self):
-        return self.__display_panel_content.display_specifier
+    def data_item(self):
+        return self.__display_panel_content.data_item
 
     def save_contents(self):
         d = self.__display_panel_content.save_contents()
