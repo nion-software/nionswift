@@ -21,7 +21,6 @@ from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItem
-from nion.swift.model import DisplayItem
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.ui import CanvasItem
@@ -915,7 +914,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         self.data_grid_controller.on_drag_started = data_list_drag_started
 
         def data_item_inserted(data_item, before_index):
-            display_item = DisplayItem.DisplayItem(data_item)
+            display_item = DataPanel.DisplayItem(data_item)
             self.__display_items.insert(before_index, display_item)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 
