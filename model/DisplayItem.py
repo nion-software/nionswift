@@ -20,20 +20,22 @@ class DisplayItem(object):
 
         Provides the following interface:
             (method) close()
-            (property, read-only) thumbnail
             (property, read-only) title_str
             (property, read-only) datetime_str
             (property, read-only) format_str
             (property, read-only) status_str
-            (method) get_mime_data()
-            (method) drag_started(x, y, modifiers), returns mime_data, thumbnail_data
+            (method) get_thumbnail(dispatch_task, ui)
+            (method) get_mime_data(ui)
+            (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
+            (method) recompute(dispatch_task, ui)
+            (event) needs_update_event
+            (event) needs_recompute_event
     """
 
-    def __init__(self, data_item, dispatch_task, ui):
+    def __init__(self, data_item):
         self.data_item = data_item
-        self.dispatch_task = dispatch_task
-        self.ui = ui
         self.needs_update_event = Event.Event()
+        self.needs_recompute_event = Event.Event()
 
         def data_item_content_changed(changes):
             self.needs_update_event.fire()
@@ -46,7 +48,7 @@ class DisplayItem(object):
 
             def display_processor_needs_recompute(processor):
                 if processor == display.get_processor("thumbnail"):
-                    processor.recompute_if_necessary(self.dispatch_task, self.ui)
+                    self.needs_recompute_event.fire()
 
             def display_processor_data_updated(processor):
                 if processor == display.get_processor("thumbnail"):
@@ -66,11 +68,15 @@ class DisplayItem(object):
         self.__data_item_content_changed_event_listener.close()
         self.__data_item_content_changed_event_listener = None
 
-    @property
-    def thumbnail(self):
+    def recompute(self, dispatch_task, ui):
         display = self.data_item.primary_display_specifier.display
         if display:
-            display.get_processor("thumbnail").recompute_if_necessary(self.dispatch_task, self.ui)
+            display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
+
+    def get_thumbnail(self, dispatch_task, ui):
+        display = self.data_item.primary_display_specifier.display
+        if display:
+            display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
             return display.get_processed_data("thumbnail")
         return None
 
@@ -110,15 +116,15 @@ class DisplayItem(object):
                     return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
 
-    def get_mime_data(self):
+    def get_mime_data(self, ui):
         data_item = self.data_item
-        mime_data = self.ui.create_mime_data()
+        mime_data = ui.create_mime_data()
         mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
         return mime_data
 
-    def drag_started(self, x, y, modifiers):
+    def drag_started(self, ui, x, y, modifiers):
         data_item = self.data_item
-        mime_data = self.get_mime_data()
+        mime_data = self.get_mime_data(ui)
         display_specifier = data_item.primary_display_specifier
         display = display_specifier.display
         thumbnail_data = display.get_processed_data("thumbnail") if display else None

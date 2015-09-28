@@ -693,7 +693,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 def show_context_menu(self, gx, gy):
                     document_controller = self.__display_panel_content.document_controller
                     document_model = document_controller.document_model
-                    display_item = DisplayItem.DisplayItem(self.__display_panel_content.display_specifier.data_item, document_model.dispatch_task, document_controller.ui)
+                    display_item = DisplayItem.DisplayItem(self.__display_panel_content.display_specifier.data_item)
                     menu = document_controller.create_context_menu_for_display_item(display_item, container=document_model)
                     return self.__display_panel_content.show_context_menu(menu, gx, gy)
 
@@ -894,7 +894,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
             menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
             return self.show_context_menu(menu, gx, gy)
 
-        self.data_grid_controller = DataPanel.DataGridController(document_controller.ui, self.__data_browser_controller.selection)
+        self.data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.ui, self.__data_browser_controller.selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = context_menu_event
         self.data_grid_controller.on_display_item_double_clicked = None  # replace current display?
@@ -907,7 +907,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         self.data_grid_controller.on_drag_started = data_list_drag_started
 
         def data_item_inserted(data_item, before_index):
-            display_item = DisplayItem.DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
+            display_item = DisplayItem.DisplayItem(data_item)
             self.__display_items.insert(before_index, display_item)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 
