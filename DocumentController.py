@@ -208,7 +208,7 @@ class DocumentController(Observable.Broadcaster):
             self.library_menu.add_menu_item(_("New..."), self.app.new_library)
             self.library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
 
-        self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window_with_display_item("library"), key_sequence="new")
+        self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window_with_data_item("library"), key_sequence="new")
         #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
         self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.close(), key_sequence="close")
         self.file_menu.add_separator()
@@ -598,9 +598,9 @@ class DocumentController(Observable.Broadcaster):
         self.__tool_mode = tool_mode
         self.tool_mode_changed_event.fire(tool_mode)
 
-    def new_window_with_display_item(self, workspace_id, display_item=None):
+    def new_window_with_data_item(self, workspace_id, data_item=None):
         # hack to work around Application <-> DocumentController interdependency.
-        self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
+        self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_item)
 
     def import_file(self):
         # present a loadfile dialog to the user
@@ -1350,9 +1350,8 @@ class DocumentController(Observable.Broadcaster):
     def create_selected_display_binding(self):
         return SelectedDisplayBinding(self)
 
-    def create_context_menu_for_display_item(self, display_item, container=None):
+    def create_context_menu_for_data_item(self, data_item, container=None):
         menu = self.ui.create_context_menu(self.document_window)
-        data_item = display_item.data_item
         if data_item:
             if not container:
                 container = self.data_items_binding.container
@@ -1370,7 +1369,7 @@ class DocumentController(Observable.Broadcaster):
                 self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
 
             def show_in_new_window():
-                self.new_window_with_display_item("data", display_item=display_item)
+                self.new_window_with_data_item("data", data_item=data_item)
 
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
             if len(data_item.ordered_data_item_data_sources) == 1:

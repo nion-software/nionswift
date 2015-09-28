@@ -693,8 +693,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 def show_context_menu(self, gx, gy):
                     document_controller = self.__display_panel_content.document_controller
                     document_model = document_controller.document_model
-                    display_item = DisplayItem.DisplayItem(self.__display_panel_content.display_specifier.data_item)
-                    menu = document_controller.create_context_menu_for_display_item(display_item, container=document_model)
+                    menu = document_controller.create_context_menu_for_data_item(self.__display_panel_content.data_item, container=document_model)
                     return self.__display_panel_content.show_context_menu(menu, gx, gy)
 
                 def begin_mouse_tracking(self):

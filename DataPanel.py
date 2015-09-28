@@ -561,12 +561,12 @@ class DataBrowserController(object):
 
     def create_display_item_context_menu(self, display_item):
         if display_item is not None:
-            return self.document_controller.create_context_menu_for_display_item(display_item)
+            return self.document_controller.create_context_menu_for_data_item(display_item.data_item)
         else:
             return self.document_controller.ui.create_context_menu(self.document_controller.document_window)
 
     def display_item_double_clicked(self, display_item):
-        self.document_controller.new_window_with_display_item("data", display_item=display_item)
+        self.document_controller.new_window_with_data_item("data", data_item=display_item.data_item)
 
     def delete_display_items(self, display_items):
         for display_item in copy.copy(display_items):
