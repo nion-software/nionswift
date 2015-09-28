@@ -50,9 +50,9 @@ class TestInspectorClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         # configure the inspectors
-        document_controller.notify_selected_display_specifier_changed(display_specifier)
+        document_controller.notify_selected_data_item_changed(data_item)
         document_controller.periodic()  # force UI to update
-        document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier())
+        document_controller.notify_selected_data_item_changed(None)
         # clean up
         document_controller.close()
 

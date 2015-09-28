@@ -502,7 +502,7 @@ class DataBrowserController(object):
     @focused.setter
     def focused(self, focused):
         if focused:
-            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(self.__data_item))
+            self.document_controller.notify_selected_data_item_changed(self.__data_item)
         self.__focused = focused
 
     def set_data_browser_selection(self, data_group=None, data_item=None, filter_id=None):
@@ -543,7 +543,7 @@ class DataBrowserController(object):
 
     def selected_display_items_changed(self, display_items):
         # when the selection is changed in the ui, call this method to synchronize.
-        # it will trigger the SelectedDisplayBinding to update.
+        # it will trigger the SelectedDataItemBinding to update.
 
         if len(display_items) == 0:
             data_item = None
@@ -555,7 +555,7 @@ class DataBrowserController(object):
             data_item = None
 
         if self.__focused:
-            self.document_controller.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item))
+            self.document_controller.notify_selected_data_item_changed(data_item)
 
         self.__selected_display_items = copy.copy(display_items)
 

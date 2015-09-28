@@ -69,7 +69,7 @@ class DocumentController(Observable.Broadcaster):
         self.uuid = uuid.uuid4()
 
         self.task_created_event = Event.Event()
-        self.selected_display_specifier_changed_event = Event.Event()
+        self.selected_data_item_changed_event = Event.Event()
         self.cursor_changed_event = Event.Event()
         self.did_close_event = Event.Event()
         self.create_new_document_controller_event = Event.Event()
@@ -547,13 +547,13 @@ class DocumentController(Observable.Broadcaster):
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
             selected_display_specifier = selected_display_panel.display_specifier if selected_display_panel else DataItem.DisplaySpecifier()
-            self.notify_selected_display_specifier_changed(selected_display_specifier)
+            self.notify_selected_data_item_changed(selected_display_specifier.data_item)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
-    def notify_selected_display_specifier_changed(self, display_specifier):
-        self.selected_display_specifier_changed_event.fire(display_specifier)
+    def notify_selected_data_item_changed(self, data_item):
+        self.selected_data_item_changed_event.fire(data_item)
 
     def select_data_item_in_data_panel(self, data_item):
         """
@@ -862,7 +862,7 @@ class DocumentController(Observable.Broadcaster):
             result_display_panel.set_displayed_data_item(data_item)
             result_display_panel.request_focus()
         self.select_data_item_in_data_panel(data_item)
-        self.notify_selected_display_specifier_changed(display_specifier)
+        self.notify_selected_data_item_changed(display_specifier.data_item)
         inspector_panel = self.find_dock_widget("inspector-panel").panel
         if inspector_panel is not None:
             inspector_panel.request_focus = True
@@ -1063,7 +1063,7 @@ class DocumentController(Observable.Broadcaster):
             new_data_item.title = _("Clone of ") + data_item.title
             self.document_model.append_data_item(new_data_item)
             self.select_data_item_in_data_panel(new_data_item)
-            self.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(new_data_item))
+            self.notify_selected_data_item_changed(new_data_item)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1080,7 +1080,7 @@ class DocumentController(Observable.Broadcaster):
             data_item_copy.title = _("Snapshot of ") + data_item.title
             self.document_model.append_data_item(data_item_copy)
             self.select_data_item_in_data_panel(data_item_copy)
-            self.notify_selected_display_specifier_changed(DataItem.DisplaySpecifier.from_data_item(data_item_copy))
+            self.notify_selected_data_item_changed(data_item_copy)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1347,8 +1347,8 @@ class DocumentController(Observable.Broadcaster):
             return receive_files_on_thread(file_paths, data_group, index, completion_fn)
 
     # this helps avoid circular imports
-    def create_selected_display_binding(self):
-        return SelectedDisplayBinding(self)
+    def create_selected_data_item_binding(self):
+        return SelectedDataItemBinding(self)
 
     def create_context_menu_for_data_item(self, data_item, container=None):
         menu = self.ui.create_context_menu(self.document_window)
@@ -1399,52 +1399,53 @@ class DocumentController(Observable.Broadcaster):
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
 
-class SelectedDisplayBinding(Observable.Broadcaster):
-    """A binding to the selected display in the document controller.
+class SelectedDataItemBinding(Observable.Broadcaster):
+    """A binding to the selected data item in the document controller.
 
-    The selected display may be in an image panel, in the data panel, or in another user interface element. The document
-    controller will send selected_display_specifier_changed when the data item changes. This object will listen to the
+    The selected data item may be in an image panel, in the data panel, or in another user interface element. The
+    document controller will send selected_data item_changed when the data item changes. This object will listen to the
     data item to know when its data changes or when it gets deleted.
 
-    It will fire display_specifier_changed_event(display_specifier) when a new display is selected or when the
-    display changes internally.
+    It will fire data_item_changed_event(data_item) when a new data item is selected or when the data item or its
+    display mutates internally.
     """
     def __init__(self, document_controller):
-        super(SelectedDisplayBinding, self).__init__()
+        super(SelectedDataItemBinding, self).__init__()
         self.document_controller = document_controller
-        self.__display_specifier = DataItem.DisplaySpecifier()
+        self.__data_item = None
         self.__display_changed_event_listener = None
-        self.display_specifier_changed_event = Event.Event()
-        self.__selected_display_specifier_changed_event_listener = self.document_controller.selected_display_specifier_changed_event.listen(self.__selected_display_specifier_changed)
+        self.data_item_changed_event = Event.Event()
+        self.__selected_data_item_changed_event_listener = self.document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
         # initialize with the existing value
-        self.__selected_display_specifier_changed(document_controller.selected_display_specifier)
+        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
 
     def close(self):
-        self.__selected_display_specifier_changed_event_listener.close()
-        self.__selected_display_specifier_changed_event_listener = None
+        self.__selected_data_item_changed_event_listener.close()
+        self.__selected_data_item_changed_event_listener = None
         # disconnect data item
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
         # release references
-        self.__display_specifier = DataItem.DisplaySpecifier()
+        self.__data_item = None
 
     @property
-    def display_specifier(self):
-        return self.__display_specifier
+    def data_item(self):
+        return self.__data_item
 
-    def __selected_display_specifier_changed(self, display_specifier):
-        if self.__display_specifier != display_specifier:
+    def __selected_data_item_changed(self, data_item):
+        if self.__data_item != data_item:
             # disconnect listener from display
             if self.__display_changed_event_listener:
                 self.__display_changed_event_listener.close()
                 self.__display_changed_event_listener = None
             # save the new state
-            self.__display_specifier = copy.copy(display_specifier)
+            self.__data_item = data_item
             # connect listener to display
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
             def display_changed():
-                self.display_specifier_changed_event.fire(self.__display_specifier)
-            if self.__display_specifier.display:
-                self.__display_changed_event_listener = self.__display_specifier.display.display_changed_event.listen(display_changed)
+                self.data_item_changed_event.fire(self.__data_item)
+            if display_specifier.display:
+                self.__display_changed_event_listener = display_specifier.display.display_changed_event.listen(display_changed)
             # notify our listeners
             display_changed()

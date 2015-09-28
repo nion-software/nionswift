@@ -31,11 +31,11 @@ class ComputationModel(object):
         self.__weak_document_controller = weakref.ref(document_controller)
         self.__display_specifier = DataItem.DisplaySpecifier()
         # thread safe.
-        def display_specifier_changed(display_specifier):
+        def data_item_changed(data_item):
             def update_display_specifier():
-                self.__set_display_specifier(display_specifier)
+                self.__set_display_specifier(DataItem.DisplaySpecifier.from_data_item(data_item))
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__display_specifier_changed_event_listener = display_specifier_binding.display_specifier_changed_event.listen(display_specifier_changed)
+        self.__data_item_changed_event_listener = display_specifier_binding.data_item_changed_event.listen(data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__computation_changed_event_listener = None
         self.__computation_text = None
@@ -45,8 +45,8 @@ class ComputationModel(object):
 
     def close(self):
         self.document_controller.clear_task("update_display_specifier" + str(id(self)))
-        self.__display_specifier_changed_event_listener.close()
-        self.__display_specifier_changed_event_listener = None
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
     @property
@@ -126,8 +126,8 @@ class CalculationPanel(Panel.Panel):
 
         ui = self.ui
 
-        self.__display_binding = document_controller.create_selected_display_binding()
-        self.__computation_model = ComputationModel(document_controller, self.__display_binding)
+        self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
+        self.__computation_model = ComputationModel(document_controller, self.__selected_data_item_binding)
 
         text_edit_row = ui.create_row_widget()
         text_edit = ui.create_text_edit_widget()
@@ -202,8 +202,8 @@ class CalculationPanel(Panel.Panel):
         self.__error_text_changed_event_listener = None
         self.__computation_model.close()
         self.__computation_model = None
-        self.__display_binding.close()
-        self.__display_binding = None
+        self.__selected_data_item_binding.close()
+        self.__selected_data_item_binding = None
         super(CalculationPanel, self).close()
 
     @property

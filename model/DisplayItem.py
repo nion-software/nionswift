@@ -16,10 +16,13 @@ _ = gettext.gettext
 class DisplayItem(object):
     """ Provide a simplified interface to a data item for the purpose of display.
 
+        The data_item property is always valid.
+
         There is typically one display item associated with each data item.
 
         Provides the following interface:
             (method) close()
+            (property, read-only) data_item
             (property, read-only) title_str
             (property, read-only) datetime_str
             (property, read-only) format_str

@@ -275,7 +275,7 @@ class HistogramPanel(Panel.Panel):
         super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
 
         # create a binding that updates whenever the selected data item changes
-        self.__selected_display_binding = document_controller.create_selected_display_binding()
+        self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
         # create a root canvas item for this panel and put a histogram canvas item in it.
         self.__root_histogram_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties={"min-height": 80, "max-height": 80})
@@ -321,19 +321,19 @@ class HistogramPanel(Panel.Panel):
         self.__display_lock = threading.RLock()
 
         # listen for selected display binding changes
-        self.__display_specifier_changed_event_listener = self.__selected_display_binding.display_specifier_changed_event.listen(self.__display_specifier_changed)
+        self.__data_item_changed_event_listener = self.__selected_data_item_binding.data_item_changed_event.listen(self.__data_item_changed)
         # manually send the first initial data item changed message to set things up.
-        self.__display_specifier_changed(self.__selected_display_binding.display_specifier)
+        self.__data_item_changed(self.__selected_data_item_binding.data_item)
 
     def close(self):
         self.__root_histogram_canvas_item.close()
         self.__root_histogram_canvas_item = None
         # disconnect data item binding
-        self.__display_specifier_changed(DataItem.DisplaySpecifier())
-        self.__display_specifier_changed_event_listener.close()
-        self.__display_specifier_changed_event_listener = None
-        self.__selected_display_binding.close()
-        self.__selected_display_binding = None
+        self.__data_item_changed(None)
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
+        self.__selected_data_item_binding.close()
+        self.__selected_data_item_binding = None
         self.__set_display(None, None, None)
         self.clear_task("statistics")
         super(HistogramPanel, self).close()
@@ -401,7 +401,8 @@ class HistogramPanel(Panel.Panel):
     # in response to a data changed message, this object will update
     # the data and trigger a repaint.
     # thread safe
-    def __display_specifier_changed(self, display_specifier):
+    def __data_item_changed(self, data_item):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         self.__set_display(display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         self.__histogram_canvas_item._set_display(display_specifier.display)
         if display_specifier.display:

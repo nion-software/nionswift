@@ -561,6 +561,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.header_canvas_item.reset_header_colors()
         self.__set_display(self.display_specifier)
 
+    # for temporary compatibility with hardware source panels
+    def set_displayed_data_item(self, data_item):
+        self.set_display_item(DisplayItem.DisplayItem(data_item))
+
     # sets the data item that this panel displays
     # not thread safe
     def __set_display(self, display_specifier):
@@ -1046,7 +1050,7 @@ class DisplayPanel(object):
 
         def focused():
             document_controller.selected_display_panel = self  # MARK
-            document_controller.notify_selected_display_specifier_changed(self.display_specifier)
+            document_controller.notify_selected_data_item_changed(self.display_specifier.data_item)
 
         def show_context_menu(menu, gx, gy):
             def split_horizontal():
