@@ -33,26 +33,38 @@ class DisplayItem(object):
         self.data_item = data_item
         self.dispatch_task = dispatch_task
         self.ui = ui
-        # add listener for data_item_content_changed, which handles items not handled by thumbnail, such as the
-        # reference display
-        data_item.add_listener(self)
+        self.needs_update_event = Event.Event()
+
         def data_item_content_changed(changes):
             self.needs_update_event.fire()
+
         self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
-        # grab the display specifier and if there is a display, add a listener to that also for
-        # display_processor_needs_recompute, display_processor_data_updated, which handle thumbnail updating.
+        # grab the display specifier and if there is a display, handle thumbnail updating.
         display_specifier = data_item.primary_display_specifier
-        if display_specifier.display:
-            display_specifier.display.add_listener(self)
-        self.needs_update_event = Event.Event()
+        display = display_specifier.display
+        if display:
+
+            def display_processor_needs_recompute(processor):
+                if processor == display.get_processor("thumbnail"):
+                    processor.recompute_if_necessary(self.dispatch_task, self.ui)
+
+            def display_processor_data_updated(processor):
+                if processor == display.get_processor("thumbnail"):
+                    self.needs_update_event.fire()
+
+            self.__display_processor_needs_recompute_event_listener = display.display_processor_needs_recompute_event.listen(display_processor_needs_recompute)
+            self.__display_processor_data_updated_event_listener = display.display_processor_data_updated_event.listen(display_processor_data_updated)
 
     def close(self):
         # remove the listener.
         display_specifier = self.data_item.primary_display_specifier
         if display_specifier.display:
-            display_specifier.display.remove_listener(self)
-        self.data_item.remove_listener(self)
+            self.__display_processor_needs_recompute_event_listener.close()
+            self.__display_processor_data_updated_event_listener.close()
+            self.__display_processor_needs_recompute_event_listener = None
+            self.__display_processor_data_updated_event_listener = None
         self.__data_item_content_changed_event_listener.close()
+        self.__data_item_content_changed_event_listener = None
 
     @property
     def thumbnail(self):
@@ -111,13 +123,3 @@ class DisplayItem(object):
         display = display_specifier.display
         thumbnail_data = display.get_processed_data("thumbnail") if display else None
         return mime_data, thumbnail_data
-
-    # notification from display
-    def display_processor_needs_recompute(self, display, processor):
-        if processor == display.get_processor("thumbnail"):
-            processor.recompute_if_necessary(self.dispatch_task, self.ui)
-
-    # notification from display
-    def display_processor_data_updated(self, display, processor):
-        if processor == display.get_processor("thumbnail"):
-            self.needs_update_event.fire()

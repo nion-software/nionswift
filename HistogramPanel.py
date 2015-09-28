@@ -362,12 +362,33 @@ class HistogramPanel(Panel.Panel):
         # focus changed thread (why?).
         with self.__display_lock:
             if self.__display:
-                self.__display.remove_listener(self)
+                self.__display_processor_needs_recompute_event_listener.close()
+                self.__display_processor_needs_recompute_event_listener = None
+                self.__display_processor_data_updated_event_listener.close()
+                self.__display_processor_data_updated_event_listener = None
                 self.__data_item.remove_listener(self)
             self.__data_item = data_item
             self.__buffered_data_source = buffered_data_source
             self.__display = display
             if self.__display:
+
+                def display_processor_needs_recompute(processor):
+                    document_model = self.document_controller.document_model
+                    with self.__display_lock:
+                        display = self.__display
+                    if processor == display.get_processor("histogram"):
+                        processor.recompute_if_necessary(document_model.dispatch_task, None)
+
+                def display_processor_data_updated(processor):
+                    with self.__display_lock:
+                        display = self.__display
+                    if processor == display.get_processor("histogram"):
+                        histogram_data = display.get_processed_data("histogram")
+                        self.__histogram_canvas_item.histogram_data = histogram_data
+
+                self.__display_processor_needs_recompute_event_listener = display.display_processor_needs_recompute_event.listen(display_processor_needs_recompute)
+                self.__display_processor_data_updated_event_listener = display.display_processor_data_updated_event.listen(display_processor_data_updated)
+
                 self.__display.add_listener(self)
                 self.__data_item.add_listener(self)
 
@@ -391,22 +412,6 @@ class HistogramPanel(Panel.Panel):
         else:
             statistics_data = dict()
         self.__update_statistics(statistics_data)
-
-    # notification from display
-    def display_processor_needs_recompute(self, display, processor):
-        document_model = self.document_controller.document_model
-        with self.__display_lock:
-            display = self.__display
-        if processor == display.get_processor("histogram"):
-            processor.recompute_if_necessary(document_model.dispatch_task, None)
-
-    # notification from display
-    def display_processor_data_updated(self, display, processor):
-        with self.__display_lock:
-            display = self.__display
-        if processor == display.get_processor("histogram"):
-            histogram_data = display.get_processed_data("histogram")
-            self.__histogram_canvas_item.histogram_data = histogram_data
 
     # notification from data item
     def data_item_processor_needs_recompute(self, data_item, processor):

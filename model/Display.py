@@ -164,6 +164,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.about_to_be_removed_event = Event.Event()
         self.display_changed_event = Event.Event()
         self.display_graphic_selection_changed_event = Event.Event()
+        self.display_processor_needs_recompute_event = Event.Event()
+        self.display_processor_data_updated_event = Event.Event()
 
     def close(self):
         for processor in self.__processors.values():
@@ -461,11 +463,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
 
     # called from processors
     def processor_needs_recompute(self, processor):
-        self.notify_listeners("display_processor_needs_recompute", self, processor)
+        self.display_processor_needs_recompute_event.fire(processor)
 
     # called from processors
     def processor_data_updated(self, processor):
-        self.notify_listeners("display_processor_data_updated", self, processor)
+        self.display_processor_data_updated_event.fire(processor)
 
 
 class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
