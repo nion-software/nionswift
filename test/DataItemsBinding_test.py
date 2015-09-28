@@ -152,10 +152,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(binding.data_items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
                 self.assertEqual(len(binding.data_items), 1)
                 with document_model.data_item_live(document_model.data_items[2]):
-                    binding.data_item_content_changed(document_model.data_items[2], [DataItem.METADATA])
+                    document_model.data_items[2].data_item_content_changed_event.fire([DataItem.METADATA])
                     self.assertEqual(len(binding.data_items), 2)
                     self.assertTrue(binding.data_items.index(document_model.data_items[0]) < binding.data_items.index(document_model.data_items[2]))
 
@@ -172,10 +172,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(binding.data_items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
                 self.assertEqual(len(binding.data_items), 1)
                 with document_model.data_item_live(document_model.data_items[2]):
-                    binding.data_item_content_changed(document_model.data_items[2], [DataItem.METADATA])
+                    document_model.data_items[2].data_item_content_changed_event.fire([DataItem.METADATA])
                     self.assertEqual(len(binding.data_items), 2)
 
     def test_sorted_filtered_binding_updates_when_data_item_exits_filter(self):
@@ -194,7 +194,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(binding.data_items), 4)
             with document_model.data_item_live(document_model.data_items[0]):
-                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
                 self.assertEqual(len(binding.data_items), 3)
 
     def test_filtered_binding_updates_when_source_binding_has_data_item_that_updates(self):
@@ -213,7 +213,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
             filter_binding.filter = is_live_filter
             self.assertEqual(len(filter_binding.data_items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                binding.data_item_content_changed(document_model.data_items[0], [DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
                 self.assertEqual(len(binding.data_items), 4)  # verify assumption
                 self.assertTrue(document_model.data_items[0] in filter_binding.data_items)
 
@@ -255,13 +255,14 @@ class TestDataItemsBindingModule(unittest.TestCase):
             def is_live_filter(data_item):
                 return data_items.index(data_item) in c1
             binding.sort_key = lambda x: data_items.index(x)
-            filter_binding = DataItemsBinding.DataItemsFilterBinding(binding)
+            selection = Selection.IndexedSelection()
+            filter_binding = DataItemsBinding.DataItemsFilterBinding(binding, selection)
             filter_binding.filter = is_live_filter
             finished = threading.Event()
             def update_randomly():
                 for _ in range(cc):
                     data_item = random.choice(binding._get_master_data_items())
-                    binding.data_item_content_changed(data_item, [])
+                    data_item.data_item_content_changed_event.fire([])
                 finished.set()
             binding.data_item_inserted(None, data_items[0], 0, False)
             threading.Thread(target = update_randomly).start()

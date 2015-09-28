@@ -327,12 +327,14 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
         self.__data_items_binding = data_items_binding
         self.__data_items_binding.inserters[id(self)] = self.__data_item_inserted
         self.__data_items_binding.removers[id(self)] = self.__data_item_removed
+        self.__data_item_content_changed_event_listeners = dict()
         for index, data_item in enumerate(self.__data_items_binding.data_items):
             self.__data_item_inserted(data_item, index)
 
     def close(self):
         for data_item in self._get_master_data_items():
             self.__data_item_removed(data_item, 0)
+        self.__data_item_content_changed_event_listeners = None
         del self.__data_items_binding.inserters[id(self)]
         del self.__data_items_binding.removers[id(self)]
         self.__master_data_items = None
@@ -345,7 +347,16 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
         with self._update_mutex:
             assert data_item not in self.__master_data_items
             self.__master_data_items.insert(before_index, data_item)
-            data_item.add_listener(self)
+
+            def data_item_content_changed(changes):
+                with self._update_mutex:
+                    if not data_item in self.__master_data_items:
+                        logging.debug("Data item not in master list %s", data_item)
+                    else:
+                        self._updated_master_data_item(data_item)
+
+            data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
+            self.__data_item_content_changed_event_listeners[data_item.uuid] = data_item_content_changed_event_listener
             self._inserted_master_data_item(before_index, data_item)
             self.__selection.insert_index(before_index)
 
@@ -356,17 +367,10 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             assert data_item in self.__master_data_items
             assert self.__master_data_items[index] == data_item
             del self.__master_data_items[index]
-            data_item.remove_listener(self)
+            self.__data_item_content_changed_event_listeners[data_item.uuid].close()
+            del self.__data_item_content_changed_event_listeners[data_item.uuid]
             self._removed_master_data_item(index, data_item)
             self.__selection.remove_index(index)
-
-    # thread safe
-    def data_item_content_changed(self, data_item, changes):
-        with self._update_mutex:
-            if not data_item in self.__master_data_items:
-                logging.debug("Data item not in master list %s", data_item)
-            else:
-                self._updated_master_data_item(data_item)
 
     # thread safe
     def _get_master_data_items(self):
@@ -386,9 +390,11 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         super(DataItemsInContainerBinding, self).__init__()
         self.__container = None
         self.__master_data_items = list()
+        self.__data_item_content_changed_event_listeners = dict()
 
     def close(self):
         self.container = None
+        self.__data_item_content_changed_event_listeners = None
         super(DataItemsInContainerBinding, self).close()
 
     # thread safe.
@@ -414,7 +420,17 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         """ Insert the data item. Called from the container. """
         with self._update_mutex:
             self.__master_data_items.insert(before_index, data_item)
-            data_item.add_listener(self)
+
+            # thread safe
+            def data_item_content_changed(changes):
+                with self._update_mutex:
+                    if not data_item in self.__master_data_items:
+                        logging.debug("data item not in master data %s", data_item)
+                    else:
+                        self._updated_master_data_item(data_item)
+
+            data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
+            self.__data_item_content_changed_event_listeners[data_item.uuid] = data_item_content_changed_event_listener
             self._inserted_master_data_item(before_index, data_item)
 
     # thread safe.
@@ -422,16 +438,9 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         """ Remove the data item. Called from the container. """
         with self._update_mutex:
             del self.__master_data_items[index]
-            data_item.remove_listener(self)
+            self.__data_item_content_changed_event_listeners[data_item.uuid].close()
+            del self.__data_item_content_changed_event_listeners[data_item.uuid]
             self._removed_master_data_item(index, data_item)
-
-    # thread safe
-    def data_item_content_changed(self, data_item, changes):
-        with self._update_mutex:
-            if not data_item in self.__master_data_items:
-                logging.debug("data item not in master data %s", data_item)
-            else:
-                self._updated_master_data_item(data_item)
 
     # thread safe
     def _get_master_data_items(self):

@@ -988,6 +988,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
+        self.data_item_content_changed_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
@@ -1259,7 +1260,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         # to notify listeners. but only notify listeners if there are actual
         # changes to report.
         if data_item_change_count == 0 and len(changes) > 0:
-            self.notify_listeners("data_item_content_changed", self, changes)
+            self.data_item_content_changed_event.fire(changes)
 
     def __validate_source_file_path(self, value):
         value = Unicode.u(value)
@@ -1293,7 +1294,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             return self.title
 
     # call this when the listeners need to be updated (via data_item_content_changed).
-    # Calling this method will send the data_item_content_changed method to each listener.
+    # Calling this method will send the data_item_content_changed method to each listener by using the method
+    # data_item_changes.
     def notify_data_item_content_changed(self, changes):
         with self.data_item_changes():
             with self.__data_item_change_count_lock:
@@ -1361,7 +1363,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             data_source.increment_data_ref_count()
         def next_value(data_and_calibration):
             if not self._is_reading:
-                self.notify_listeners("data_item_content_changed", self, set([DATA]))
+                self.data_item_content_changed_event.fire(set([DATA]))
         subscriber = Observable.Subscriber(next_value)
         publisher = data_source.get_data_and_calibration_publisher()
         self.__subscriptions.insert(before_index, publisher.subscribex(subscriber))

@@ -483,22 +483,19 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            class Listener(object):
-                def __init__(self):
-                    self._data_changed = False
-                def data_item_content_changed(self, data_item, changes):
-                    self._data_changed = DataItem.DATA in changes
-            listener = Listener()
-            data_item.add_listener(listener)
-            display_changed_ref = [False]
-            def display_changed():
-                display_changed_ref[0] = True
-            with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
-                spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
-                spatial_calibration_0.offset = 1.0
-                display_specifier.buffered_data_source.set_dimensional_calibration(0, spatial_calibration_0)
-                self.assertFalse(listener._data_changed)
-                self.assertTrue(display_changed_ref[0])
+            data_changed_ref = [False]
+            def data_item_content_changed(changes):
+                data_changed_ref[0] = DataItem.DATA in changes
+            with contextlib.closing(data_item.data_item_content_changed_event.listen(data_item_content_changed)):
+                display_changed_ref = [False]
+                def display_changed():
+                    display_changed_ref[0] = True
+                with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
+                    spatial_calibration_0 = display_specifier.buffered_data_source.dimensional_calibrations[0]
+                    spatial_calibration_0.offset = 1.0
+                    display_specifier.buffered_data_source.set_dimensional_calibration(0, spatial_calibration_0)
+                    self.assertFalse(data_changed_ref[0])
+                    self.assertTrue(display_changed_ref[0])
 
     def test_appending_data_item_should_trigger_recompute(self):
         document_model = DocumentModel.DocumentModel()
@@ -615,19 +612,16 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item_inverted)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
             data_item_inverted.recompute_data()
-            class Listener(object):
-                def __init__(self):
-                    self.data_changed = False
-                def data_item_content_changed(self, data_item, changes):
-                    self.data_changed = self.data_changed or DataItem.DATA in changes
-            listener = Listener()
-            data_item_inverted.add_listener(listener)
-            with display_specifier.buffered_data_source.data_ref() as data_ref:
-                data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
-            data_item_inverted.recompute_data()
-            self.assertTrue(listener.data_changed)
-            self.assertFalse(display_specifier.buffered_data_source.is_data_stale)
-            self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+            data_changed_ref = [False]
+            def data_item_content_changed(changes):
+                data_changed_ref[0] = data_changed_ref[0] or DataItem.DATA in changes
+            with contextlib.closing(data_item_inverted.data_item_content_changed_event.listen(data_item_content_changed)):
+                with display_specifier.buffered_data_source.data_ref() as data_ref:
+                    data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
+                data_item_inverted.recompute_data()
+                self.assertTrue(data_changed_ref)
+                self.assertFalse(display_specifier.buffered_data_source.is_data_stale)
+                self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
 
     def test_modifying_source_data_should_trigger_data_item_stale_from_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -706,21 +700,18 @@ class TestDataItemClass(unittest.TestCase):
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             inverted_data_item.recompute_data()
             self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
-            class Listener(object):
-                def __init__(self):
-                    self.data_changed = 0
-                def data_item_content_changed(self, data_item, changes):
-                    if DataItem.DATA in changes:
-                        self.data_changed += 1
-            listener = Listener()
-            inverted_data_item.add_listener(listener)
-            with display_specifier.buffered_data_source.data_ref() as data_ref:
-                data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
-            self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
-            self.assertEqual(listener.data_changed, 0)
-            inverted_data_item.recompute_data()
-            self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
-            self.assertEqual(listener.data_changed, 1)
+            data_changed_ref = [0]
+            def data_item_content_changed(changes):
+                if DataItem.DATA in changes:
+                    data_changed_ref[0] += 1
+            with contextlib.closing(inverted_data_item.data_item_content_changed_event.listen(data_item_content_changed)):
+                with display_specifier.buffered_data_source.data_ref() as data_ref:
+                    data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
+                self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
+                self.assertEqual(data_changed_ref[0], 0)
+                inverted_data_item.recompute_data()
+                self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+                self.assertEqual(data_changed_ref[0], 1)
 
     class DummyOperation(Operation.Operation):
         def __init__(self):

@@ -841,58 +841,54 @@ class TestOperationClass(unittest.TestCase):
             document_model.append_data_item(blurred_data_item)
             blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
             # establish listeners
-            class Listener(object):
-                def __init__(self):
-                    self.reset()
-                def reset(self):
-                    self._data_changed = False
-                    self._display_changed = False
-                def data_item_content_changed(self, data_item, changes):
-                    self._data_changed = self._data_changed or DataItem.DATA in changes
-            listener = Listener()
-            blurred_data_item.add_listener(listener)
-            def display_changed():
-                listener._display_changed = True
-            with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
-                # modify an operation. make sure data and dependent data gets updated.
-                listener.reset()
-                blur_operation.set_property("sigma", 0.1)
-                document_model.recompute_all()
-                self.assertTrue(listener._data_changed)
-                self.assertTrue(listener._display_changed)
+            data_changed_ref = [False]
+            display_changed_ref = [False]
+            def data_item_content_changed(changes):
+                data_changed_ref[0] = data_changed_ref[0] or DataItem.DATA in changes
+            with contextlib.closing(blurred_data_item.data_item_content_changed_event.listen(data_item_content_changed)):
+                def display_changed():
+                    display_changed_ref[0] = True
+                with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
+                    # modify an operation. make sure data and dependent data gets updated.
+                    data_changed_ref[0] = False
+                    display_changed_ref[0] = False
+                    blur_operation.set_property("sigma", 0.1)
+                    document_model.recompute_all()
+                    self.assertTrue(data_changed_ref[0])
+                    self.assertTrue(display_changed_ref[0])
 
     def test_modifying_operation_region_results_in_data_computation(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             # set up the data items
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_model.append_data_item(data_item)
-            blurred_data_item = DataItem.DataItem()
-            blur_operation = Operation.OperationItem("gaussian-blur-operation")
-            blur_operation.add_data_source(data_item._create_test_data_source())
-            blurred_data_item.set_operation(blur_operation)
-            document_model.append_data_item(blurred_data_item)
-            blurred_display_specifier = DataItem.DisplaySpecifier.from_data_item(blurred_data_item)
+            cropped_data_item = DataItem.DataItem()
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_region = Region.RectRegion()
+            display_specifier.buffered_data_source.add_region(crop_region)
+            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
+            crop_operation.add_data_source(data_item._create_test_data_source())
+            cropped_data_item.set_operation(crop_operation)
+            document_model.append_data_item(cropped_data_item)
+            cropped_display_specifier = DataItem.DisplaySpecifier.from_data_item(cropped_data_item)
             # establish listeners
-            class Listener(object):
-                def __init__(self):
-                    self.reset()
-                def reset(self):
-                    self._data_changed = False
-                    self._display_changed = False
-                def data_item_content_changed(self, data_item, changes):
-                    self._data_changed = self._data_changed or DataItem.DATA in changes
-            listener = Listener()
-            blurred_data_item.add_listener(listener)
-            def display_changed():
-                listener._display_changed = True
-            with contextlib.closing(blurred_display_specifier.display.display_changed_event.listen(display_changed)):
-                # modify an operation. make sure data and dependent data gets updated.
-                listener.reset()
-                blur_operation.set_property("sigma", 0.1)
-                document_model.recompute_all()
-                self.assertTrue(listener._data_changed)
-                self.assertTrue(listener._display_changed)
+            data_changed_ref = [False]
+            display_changed_ref = [False]
+            def data_item_content_changed(changes):
+                data_changed_ref[0] = data_changed_ref[0] or DataItem.DATA in changes
+            with contextlib.closing(cropped_data_item.data_item_content_changed_event.listen(data_item_content_changed)):
+                def display_changed():
+                    display_changed_ref[0] = True
+                with contextlib.closing(cropped_display_specifier.display.display_changed_event.listen(display_changed)):
+                    # modify an operation. make sure data and dependent data gets updated.
+                    data_changed_ref[0] = False
+                    display_changed_ref[0] = False
+                    crop_region.center = (0.51, 0.51)
+                    document_model.recompute_all()
+                    self.assertTrue(data_changed_ref[0])
+                    self.assertTrue(display_changed_ref[0])
 
     def test_changing_region_does_not_trigger_fft_recompute(self):
         document_model = DocumentModel.DocumentModel()

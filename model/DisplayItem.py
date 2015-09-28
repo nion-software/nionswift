@@ -14,6 +14,20 @@ _ = gettext.gettext
 
 
 class DisplayItem(object):
+    """ Provide a simplified interface to a data item for the purpose of display.
+
+        There is typically one display item associated with each data item.
+
+        Provides the following interface:
+            (method) close()
+            (property, read-only) thumbnail
+            (property, read-only) title_str
+            (property, read-only) datetime_str
+            (property, read-only) format_str
+            (property, read-only) status_str
+            (method) get_mime_data()
+            (method) drag_started(x, y, modifiers), returns mime_data, thumbnail_data
+    """
 
     def __init__(self, data_item, dispatch_task, ui):
         self.data_item = data_item
@@ -22,6 +36,9 @@ class DisplayItem(object):
         # add listener for data_item_content_changed, which handles items not handled by thumbnail, such as the
         # reference display
         data_item.add_listener(self)
+        def data_item_content_changed(changes):
+            self.needs_update_event.fire()
+        self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
         # grab the display specifier and if there is a display, add a listener to that also for
         # display_processor_needs_recompute, display_processor_data_updated, which handle thumbnail updating.
         display_specifier = data_item.primary_display_specifier
@@ -35,6 +52,7 @@ class DisplayItem(object):
         if display_specifier.display:
             display_specifier.display.remove_listener(self)
         self.data_item.remove_listener(self)
+        self.__data_item_content_changed_event_listener.close()
 
     @property
     def thumbnail(self):
@@ -93,11 +111,6 @@ class DisplayItem(object):
         display = display_specifier.display
         thumbnail_data = display.get_processed_data("thumbnail") if display else None
         return mime_data, thumbnail_data
-
-    # data_item_content_changed is received from data items tracked in this model. the connection is established
-    # in add_data_item using add_listener.
-    def data_item_content_changed(self, data_item, changes):
-        self.needs_update_event.fire()
 
     # notification from display
     def display_processor_needs_recompute(self, display, processor):
