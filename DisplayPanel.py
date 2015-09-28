@@ -21,6 +21,7 @@ from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItem
+from nion.swift.model import DisplayItem
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.ui import CanvasItem
@@ -690,7 +691,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     self.__display_panel_content.document_controller.tool_mode = value
 
                 def show_context_menu(self, gx, gy):
-                    menu = self.__display_panel_content.document_controller.create_context_menu_for_data_item(self.__display_panel_content.document_controller.document_model, self.__display_panel_content.display_specifier.data_item)
+                    document_controller = self.__display_panel_content.document_controller
+                    document_model = document_controller.document_model
+                    display_item = DisplayItem.DisplayItem(self.__display_panel_content.display_specifier.data_item, document_model.dispatch_task, document_controller.ui)
+                    menu = document_controller.create_context_menu_for_display_item(display_item, container=document_model)
                     return self.__display_panel_content.show_context_menu(menu, gx, gy)
 
                 def begin_mouse_tracking(self):
@@ -903,7 +907,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         self.data_grid_controller.on_drag_started = data_list_drag_started
 
         def data_item_inserted(data_item, before_index):
-            display_item = DataPanel.DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
+            display_item = DisplayItem.DisplayItem(data_item, self.document_controller.document_model.dispatch_task, self.ui)
             self.__display_items.insert(before_index, display_item)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 

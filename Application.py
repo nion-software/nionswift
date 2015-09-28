@@ -276,16 +276,16 @@ class Application(object):
     def clear_libraries(self):
         self.ui.remove_persistent_key("workspace_history")
 
-    def create_document_controller(self, document_model, workspace_id, data_item=None):
+    def create_document_controller(self, document_model, workspace_id, display_item=None):
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
         self.__did_close_event_listeners[document_controller] = document_controller.did_close_event.listen(self.__document_controller_did_close)
         self.__create_new_event_listeners[document_controller] = document_controller.create_new_document_controller_event.listen(self.create_document_controller)
         self.__register_document_controller(document_controller)
         # attempt to set data item / group
-        if data_item:
+        if display_item:
             display_panel = document_controller.selected_display_panel
             if display_panel:
-                display_panel.set_displayed_data_item(data_item)
+                display_panel.set_displayed_data_item(display_item.data_item)
         document_controller.document_window.show()
         return document_controller
 

@@ -208,7 +208,7 @@ class DocumentController(Observable.Broadcaster):
             self.library_menu.add_menu_item(_("New..."), self.app.new_library)
             self.library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
 
-        self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window("library"), key_sequence="new")
+        self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window_with_display_item("library"), key_sequence="new")
         #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
         self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.close(), key_sequence="close")
         self.file_menu.add_separator()
@@ -598,9 +598,9 @@ class DocumentController(Observable.Broadcaster):
         self.__tool_mode = tool_mode
         self.tool_mode_changed_event.fire(tool_mode)
 
-    def new_window(self, workspace_id, data_item=None):
+    def new_window_with_display_item(self, workspace_id, display_item=None):
         # hack to work around Application <-> DocumentController interdependency.
-        self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_item)
+        self.create_new_document_controller_event.fire(self.document_model, workspace_id, display_item)
 
     def import_file(self):
         # present a loadfile dialog to the user
@@ -1350,9 +1350,14 @@ class DocumentController(Observable.Broadcaster):
     def create_selected_display_binding(self):
         return SelectedDisplayBinding(self)
 
-    def create_context_menu_for_data_item(self, container, data_item):
+    def create_context_menu_for_display_item(self, display_item, container=None):
         menu = self.ui.create_context_menu(self.document_window)
+        data_item = display_item.data_item
         if data_item:
+            if not container:
+                container = self.data_items_binding.container
+                container = DataGroup.get_data_item_container(container, data_item)
+
             def delete():
                 selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
                 for selected_data_item in selected_data_items:
@@ -1360,33 +1365,40 @@ class DocumentController(Observable.Broadcaster):
                         container.remove_data_item(selected_data_item)
                         # TODO: avoid calling periodic by reworking thread support in data panel
                         self.periodic()  # keep the display items in data panel consistent.
+
             def show_source():
                 self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
+
             def show_in_new_window():
-                self.new_window("data", data_item=data_item)
+                self.new_window_with_display_item("data", display_item=display_item)
+
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
             if len(data_item.ordered_data_item_data_sources) == 1:
                 # TODO: show_source should handle multiple data sources
                 menu.add_menu_item(_("Go to Source"), show_source)
             menu.add_menu_item(_("Delete"), delete)
+
             def export_files():
                 selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
                 if data_item in selected_data_items:
                     self.export_files(selected_data_items)
                 else:
                     self.export_file(data_item)
+
             # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
             # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
-            menu.add_menu_item(_("Export..."), lambda: self.queue_task(export_files))  # queued to avoid pop-up menu issue
+            menu.add_menu_item(_("Export..."),
+                               lambda: self.queue_task(export_files))  # queued to avoid pop-up menu issue
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
                 for dependent_data_item in dependent_data_items:
                     def show_dependent_data_item(data_item):
                         self.select_data_item_in_data_panel(data_item)
-                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title), functools.partial(show_dependent_data_item, dependent_data_item))
-        return menu
 
+                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title),
+                                       functools.partial(show_dependent_data_item, dependent_data_item))
+        return menu
 
 class SelectedDisplayBinding(Observable.Broadcaster):
     """A binding to the selected display in the document controller.
