@@ -8,7 +8,6 @@ import gettext
 # None
 
 # local libraries
-from nion.swift.model import DataItem
 from nion.ui import Event
 
 _ = gettext.gettext
