@@ -213,6 +213,20 @@ class TestInspectorClass(unittest.TestCase):
         document_controller.periodic()
         document_controller.close()
 
+    def test_inspector_handles_empty_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem()
+        document_model.append_data_item(data_item)
+        display_panel = document_controller.selected_display_panel
+        display_panel.set_displayed_data_item(data_item)
+        document_controller.selected_display_panel = None
+        document_controller.selected_display_panel = display_panel
+        inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+        document_controller.periodic()
+        self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
+        document_controller.close()
+
     def disabled_test_corrupt_data_item_should_not_completely_disable_the_inspector(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
         # panels; nor should it affect the focus functionality

@@ -660,6 +660,28 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_writing_data_item_with_no_data_sources_returns_expected_values(self):
+        cache_name = ":memory:"
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
+        try:
+            storage_cache = Cache.DbStorageCache(cache_name)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                reference = data_item._test_get_file_path()
+                self.assertIsNone(display_specifier.buffered_data_source)
+                self.assertIsNotNone(reference)
+            document_model = None
+            storage_cache = None
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_data_writes_to_file_after_transaction(self):
         cache_name = ":memory:"
         current_working_directory = os.getcwd()

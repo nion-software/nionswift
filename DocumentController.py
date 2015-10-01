@@ -243,6 +243,7 @@ class DocumentController(Observable.Broadcaster):
         #self.edit_menu.add_separator()
         self.script_action = self.edit_menu.add_menu_item(_("Script"), lambda: self.prepare_data_item_script(), key_sequence="Ctrl+Shift+K")
         self.copy_uuid_action = self.edit_menu.add_menu_item(_("Copy Item UUID"), lambda: self.copy_uuid(), key_sequence="Ctrl+Shift+U")
+        self.empty_data_item_action = self.edit_menu.add_menu_item(_("Create New Data Item"), lambda: self.create_empty_data_item())
         #self.edit_menu.add_separator()
         #self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), lambda: self.no_operation(), role="preferences")
 
@@ -1231,6 +1232,13 @@ class DocumentController(Observable.Broadcaster):
             uuid_str = str(data_item.uuid)
             self.ui.clipboard_set_text(uuid_str)
             return
+
+    def create_empty_data_item(self):
+        new_data_item = DataItem.DataItem()
+        new_data_item.title = _("Untitled")
+        self.document_model.append_data_item(new_data_item)
+        new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
+        self.display_data_item(new_display_specifier)
 
     @property
     def data_item_vars(self):

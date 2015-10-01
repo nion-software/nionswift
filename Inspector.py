@@ -84,26 +84,31 @@ class InspectorPanel(Panel.Panel):
     def __update_display_inspector(self):
         self.column.remove_all()
         if self.__display_inspector:
-            self.__display_graphic_selection_changed_event_listener.close()
-            self.__display_graphic_selection_changed_event_listener = None
+            if self.__display_graphic_selection_changed_event_listener:
+                self.__display_graphic_selection_changed_event_listener.close()
+                self.__display_graphic_selection_changed_event_listener = None
             self.__display_inspector.close()
             self.__display_inspector = None
+
+        self.__display_inspector = DataItemInspector(self.ui, self.__display_specifier)
+
+        # this ugly item below, which adds a listener for a changing selection and then calls
+        # back to this very method, is here to make sure the inspectors get updated when the
+        # user changes the selection.
         if self.__display_specifier.display:
-            self.__display_inspector = DataItemInspector(self.ui, self.__display_specifier)
-            # this ugly item below, which adds a listener for a changing selection and then calls
-            # back to this very method, is here to make sure the inspectors get updated when the
-            # user changes the selection.
             display = self.__display_specifier.display
 
             def display_graphic_selection_changed(graphic_selection):
                 self.__update_display_inspector()  # not really a recursive call; only delayed
 
-            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(
-                display_graphic_selection_changed)
-            self.column.add(self.__display_inspector.widget)
-            stretch_column = self.ui.create_column_widget()
-            stretch_column.add_stretch()
-            self.column.add(stretch_column)
+            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen( display_graphic_selection_changed)
+        else:
+            self.__display_graphic_selection_changed_event_listener = None
+
+        self.column.add(self.__display_inspector.widget)
+        stretch_column = self.ui.create_column_widget()
+        stretch_column.add_stretch()
+        self.column.add(stretch_column)
 
     # not thread safe
     def __set_display_specifier(self, display_specifier):
@@ -1184,6 +1189,8 @@ class DataItemInspector(object):
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
             self.__focus_default = focus_default
+        elif data_item:
+            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
 
         for inspector_section in self.__inspector_sections:
             content_widget.add(inspector_section.widget)

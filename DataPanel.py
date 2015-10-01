@@ -323,7 +323,7 @@ class DataListController(object):
 
     def drag_started(self, index, x, y, modifiers):
         mime_data, thumbnail_data = self.__display_items[index].drag_started(self.ui, x, y, modifiers)
-        if mime_data and thumbnail_data is not None:
+        if mime_data:
             if self.on_drag_started:
                 self.on_drag_started(mime_data, thumbnail_data)
 
@@ -531,7 +531,7 @@ class DataGridController(object):
 
     def drag_started(self, index, x, y, modifiers):
         mime_data, thumbnail_data = self.__display_items[index].drag_started(self.ui, x, y, modifiers)
-        if mime_data and thumbnail_data is not None:
+        if mime_data:
             if self.on_drag_started:
                 self.on_drag_started(mime_data, thumbnail_data)
 
