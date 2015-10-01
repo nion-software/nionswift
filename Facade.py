@@ -1178,11 +1178,18 @@ class Instrument(object):
         :param value: The control value (float).
         :param options: A dict of custom options to pass to the instrument for setting the value.
 
-        Current options are:
+        Options are:
             value_type: local, delta, output. output is default.
-            inform: True to keep dependent control outputs constant by adjusting their internal values. False is default.
+            confirm, confirm_tolerance_factor, confirm_timeout: confirm value gets set.
+            inform: True to keep dependent control outputs constant by adjusting their internal values. False is
+            default.
+
+        Default value of confirm is False. Default confirm_tolerance_factor is 0.02. Default confirm_timeout is 16.0
+        (seconds).
 
         Raises exception if control with name doesn't exist.
+
+        Raises TimeoutException if confirm is True and timeout occurs.
 
         .. versionadded:: 1.0
 
