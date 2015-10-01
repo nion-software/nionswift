@@ -10,6 +10,7 @@ import operator
 import os
 import threading
 import time
+import uuid
 import weakref
 
 # third party libraries
@@ -162,6 +163,13 @@ def data_source_factory(lookup_id):
 
 def computation_factory(lookup_id):
     return Symbolic.Computation()
+
+
+class UuidsToStringsConverter(object):
+    def convert(self, value):
+        return [str(uuid_) for uuid_ in value]
+    def convert_back(self, value):
+        return [uuid.UUID(uuid_str) for uuid_str in value]
 
 
 class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Cacheable,
@@ -979,8 +987,11 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.define_property("metadata", dict(), hidden=True, changed=self.__property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
+        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("connections", Connection.connection_factory)
+        self.__get_data_item_by_uuid = None
+        self.__data_items = list()
         self.__request_remove_listeners = list()
         self.__subscriptions = list()
         self.__live_count = 0  # specially handled property
@@ -1056,6 +1067,43 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             connection.about_to_be_removed()
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
+        self.__get_data_item_by_uuid = None
+
+    def connect_data_items(self, lookup_data_item):
+        for data_item_uuid in self.data_item_uuids:
+            data_item = lookup_data_item(data_item_uuid)
+            if data_item is None:
+                import logging
+                logging.debug("data_item not found %s", data_item_uuid)
+            else:
+                assert data_item is not None
+                self.__data_items.append(data_item)
+        self.__get_data_item_by_uuid = lookup_data_item
+
+    def append_data_item(self, data_item):
+        self.insert_data_item(len(self.__data_items), data_item)
+
+    def insert_data_item(self, before_index, data_item):
+        assert data_item not in self.__data_items
+        self.__data_items.insert(before_index, data_item)
+        # self.data_item_reference_inserted_event.fire(data_item, before_index)
+        data_item_uuids = self.data_item_uuids
+        data_item_uuids.insert(before_index, data_item.uuid)
+        self.data_item_uuids = data_item_uuids
+        self.notify_set_property("data_item_uuids", self.data_item_uuids)
+
+    def remove_data_item(self, data_item):
+        # index = self.__data_items.index(data_item)
+        self.__data_items.remove(data_item)
+        # self.data_item_reference_removed_event.fire(data_item, index)
+        data_item_uuids = self.data_item_uuids
+        data_item_uuids.remove(data_item.uuid)
+        self.data_item_uuids = data_item_uuids
+        self.notify_set_property("data_item_uuids", self.data_item_uuids)
+
+    @property
+    def data_items(self):
+        return tuple(self.__data_items)
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable to update the children that need updating
@@ -1507,12 +1555,18 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         for data_source in self.data_sources:
             assert isinstance(data_source, BufferedDataSource)
             data_source.increment_data_ref_count()
+        for data_item in self.data_items:
+            assert isinstance(data_item, DataItem)
+            data_item.increment_data_ref_counts()
 
     def decrement_data_ref_counts(self):
         """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
         for data_source in self.data_sources:
             assert isinstance(data_source, BufferedDataSource)
             data_source.decrement_data_ref_count()
+        for data_item in self.data_items:
+            assert isinstance(data_item, DataItem)
+            data_item.decrement_data_ref_counts()
 
     # notification from buffered_data_source
     def buffered_data_source_processor_needs_recompute(self, data_item, processor):

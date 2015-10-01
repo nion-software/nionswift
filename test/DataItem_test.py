@@ -1588,6 +1588,42 @@ class TestDataItemClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(src_data_item.maybe_data_source.created, data_item.maybe_data_source.source_data_modified)
 
+    def test_transaction_does_not_cascade_to_data_item_refs(self):
+        # no reason to cascade since there is no high cost data to be loaded for aggregate data items
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
+            master_data_item = DataItem.DataItem()
+            master_data_item.append_data_item(document_model.data_items[0])
+            master_data_item.append_data_item(document_model.data_items[1])
+            document_model.append_data_item(master_data_item)
+            self.assertEqual(master_data_item.transaction_count, 0)
+            self.assertEqual(document_model.data_items[0].transaction_count, 0)
+            self.assertEqual(document_model.data_items[1].transaction_count, 0)
+            with document_model.data_item_transaction(master_data_item):
+                self.assertTrue(master_data_item.transaction_count > 0)
+                self.assertEqual(document_model.data_items[0].transaction_count, 0)
+                self.assertEqual(document_model.data_items[1].transaction_count, 0)
+
+
+    def test_increment_data_ref_counts_cascades_to_data_item_refs(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
+            master_data_item = DataItem.DataItem()
+            master_data_item.append_data_item(document_model.data_items[0])
+            master_data_item.append_data_item(document_model.data_items[1])
+            document_model.append_data_item(master_data_item)
+            self.assertFalse(document_model.data_items[0].maybe_data_source.is_data_loaded)
+            self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_loaded)
+            master_data_item.increment_data_ref_counts()
+            self.assertTrue(document_model.data_items[0].maybe_data_source.is_data_loaded)
+            self.assertTrue(document_model.data_items[1].maybe_data_source.is_data_loaded)
+            master_data_item.decrement_data_ref_counts()
+            self.assertFalse(document_model.data_items[0].maybe_data_source.is_data_loaded)
+            self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_loaded)
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

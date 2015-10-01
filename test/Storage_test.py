@@ -1605,6 +1605,21 @@ class TestStorageClass(unittest.TestCase):
                 data_ref.data += 1.5
             document_model.recompute_all()
 
+    def test_data_item_with_references_to_another_data_item_reloads(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item0)
+            data_item = DataItem.DataItem()
+            data_item.append_data_item(data_item0)
+            document_model.append_data_item(data_item)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual(len(document_model.data_items[1].data_items), 1)
+            self.assertEqual(document_model.data_items[1].data_items[0], document_model.data_items[0])
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()

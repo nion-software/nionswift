@@ -690,6 +690,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 computation = buffered_data_source.computation
                 if computation:
                     computation.bind(self)
+            data_item.connect_data_items(self.get_data_item_by_uuid)
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
             data_group.connect_data_items(self.get_data_item_by_uuid)
