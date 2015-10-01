@@ -88,8 +88,9 @@ class TestDataPanelClass(unittest.TestCase):
         # data_panel.data_list_controller.selection.set(2)  # set above by date_item instead
         data_panel.data_list_controller._delete_pressed()
         self.assertEqual(len(data_group.data_items), 2)
-        display_panel.canvas_item.close()
+        canvas_item = display_panel.canvas_item
         display_panel.close()
+        canvas_item.close()  # this is the order in workspace close
         document_controller.close()
 
     def test_data_panel_deletes_all_selected_items(self):

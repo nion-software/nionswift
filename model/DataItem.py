@@ -1332,7 +1332,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.r_var = r_var
         for data_source in self.data_sources:
             data_source.r_value_changed()
-        self.notify_data_item_content_changed(set([METADATA]))
+        self.__metadata_changed()
 
     @property
     def displayed_title(self):

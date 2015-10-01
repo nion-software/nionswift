@@ -158,9 +158,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # call super
         super(LinePlotCanvasItem, self).close()
 
-    def about_to_close(self):
-        pass
-
     def update_display_state(self, data_and_calibration, display_properties, display_calibrated_values):
         """ Update the display state. """
         if data_and_calibration:

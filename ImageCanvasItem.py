@@ -295,9 +295,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # call super
         super(ImageCanvasItem, self).close()
 
-    def about_to_close(self):
-        pass
-
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
     def update_display_state(self, data_and_calibration):

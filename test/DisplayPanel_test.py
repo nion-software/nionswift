@@ -88,8 +88,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         root_canvas_item.add_canvas_item(container)
         # now take the weakref
         display_panel_weak_ref = weakref.ref(display_panel)
-        display_panel.canvas_item.close()
+        canvas_item = display_panel.canvas_item
         display_panel.close()
+        canvas_item.close()  # this is the order in workspace close
         display_panel = None
         self.assertIsNone(display_panel_weak_ref())
         document_controller.close()
@@ -465,7 +466,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # check results
         self.assertEqual(len(self.display_specifier.display.drawn_graphics), 0)
 
-    def test_delete_key_when_nothing_selected_removes_the_image_panel_content(self):
+    def test_delete_key_when_nothing_selected_does_nothing(self):
         modifiers = Test.KeyboardModifiers()
         # check assumptions
         self.assertIsNotNone(self.display_panel.data_item)
@@ -473,7 +474,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
         # check results
-        self.assertIsNone(self.display_panel.data_item)
+        self.assertIsNotNone(self.display_panel.data_item)
 
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
@@ -1152,10 +1153,16 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.document_model.data_items), 0)
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
-        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.title)
+        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
         self.data_item.title = "New Title"
         self.document_controller.periodic()
-        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.title)
+        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
+
+    def test_display_panel_title_gets_updated_when_data_item_r_value_is_changed(self):
+        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
+        self.data_item.set_r_value("r111")
+        self.document_controller.periodic()
+        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
