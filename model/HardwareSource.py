@@ -415,8 +415,6 @@ class HardwareSource(object):
         self.__acquire_thread_trigger = threading.Event()
         self.__view_task = None
         self.__record_task = None
-        self.active_view_task_changed_event = Event.Event()
-        self.active_record_task_changed_event = Event.Event()
         self.__view_task_suspended = False
         self.__view_data_elements_changed_event_listener = None
         self.__record_data_elements_changed_event_listener = None
@@ -462,7 +460,6 @@ class HardwareSource(object):
                         traceback.print_exc()
                 if self.__record_task.is_finished:
                     self.__record_task = None
-                    self.active_record_task_changed_event.fire(self.__record_task)
                     self.recording_state_changed_event.fire(False)
                 self.__acquire_thread_trigger.set()
             # view task gets next priority
@@ -487,7 +484,6 @@ class HardwareSource(object):
                         traceback.print_exc()
                 if self.__view_task.is_finished:
                     self.__view_task = None
-                    self.active_view_task_changed_event.fire(self.__view_task)
                     self.playing_state_changed_event.fire(False)
                 self.__acquire_thread_trigger.set()
             if acquire_thread_break:
@@ -565,7 +561,6 @@ class HardwareSource(object):
         self.__view_task_suspended = self.is_recording  # start suspended if already recording
         self.__view_task = acquisition_task
         self.__acquire_thread_trigger.set()
-        self.active_view_task_changed_event.fire(self.__view_task)
         self.playing_state_changed_event.fire(True)
 
     # call this to set the record task
@@ -573,7 +568,6 @@ class HardwareSource(object):
     def set_active_record_task(self, acquisition_task):
         self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, acquisition_task))
         self.__record_task = acquisition_task
-        self.active_record_task_changed_event.fire(self.__record_task)
         self.__acquire_thread_trigger.set()
         self.recording_state_changed_event.fire(True)
 
