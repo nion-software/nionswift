@@ -1019,10 +1019,10 @@ class HardwareSource(object):
         return self.__hardware_source.is_playing
 
     def start_recording(self, frame_parameters=None, channels_enabled=None):
-        self.__proxy.exec_void(self.hardware_source_specifier, "start_recording", [], {"frame_parameters": frame_parameters, "channels_enabled": channels_enabled})
+        self.__hardware_source.start_recording(frame_parameters, channels_enabled)
 
     def abort_recording(self):
-        self.__proxy.exec_void(self.hardware_source_specifier, "abort_recording", [], {})
+        self.__hardware_source.abort_recording()
 
     @property
     def is_recording(self):
