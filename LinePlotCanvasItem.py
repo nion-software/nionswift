@@ -463,32 +463,33 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
             for graphic_index, graphic in enumerate(graphics):
-                already_selected = graphic_index in selection_indexes
-                multiple_items_selected = len(selection_indexes) > 1
-                move_only = not already_selected or multiple_items_selected
-                widget_mapping = self.__get_mouse_mapping()
-                part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, move_only)
-                if part:
-                    # select item and prepare for drag
-                    self.graphic_drag_item_was_selected = already_selected
-                    if not self.graphic_drag_item_was_selected:
-                        if modifiers.shift:
-                            self.delegate.add_index_to_selection(graphic_index)
-                            selection_indexes.add(graphic_index)
-                        else:
-                            self.delegate.set_selection(graphic_index)
-                            selection_indexes.clear()
-                            selection_indexes.add(graphic_index)
-                    # keep track of info for the specific item that was clicked
-                    self.__graphic_drag_item = graphic
-                    self.__graphic_drag_part = part
-                    # keep track of drag information for each item in the set
-                    self.__graphic_drag_indexes = selection_indexes
-                    for index in self.__graphic_drag_indexes:
-                        graphic = graphics[index]
-                        self.__graphic_drag_items.append(graphic)
-                        self.__graphic_part_data[index] = graphic.begin_drag()
-                    break
+                if isinstance(graphic, Graphics.IntervalGraphic):
+                    already_selected = graphic_index in selection_indexes
+                    multiple_items_selected = len(selection_indexes) > 1
+                    move_only = not already_selected or multiple_items_selected
+                    widget_mapping = self.__get_mouse_mapping()
+                    part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, move_only)
+                    if part:
+                        # select item and prepare for drag
+                        self.graphic_drag_item_was_selected = already_selected
+                        if not self.graphic_drag_item_was_selected:
+                            if modifiers.shift:
+                                self.delegate.add_index_to_selection(graphic_index)
+                                selection_indexes.add(graphic_index)
+                            else:
+                                self.delegate.set_selection(graphic_index)
+                                selection_indexes.clear()
+                                selection_indexes.add(graphic_index)
+                        # keep track of info for the specific item that was clicked
+                        self.__graphic_drag_item = graphic
+                        self.__graphic_drag_part = part
+                        # keep track of drag information for each item in the set
+                        self.__graphic_drag_indexes = selection_indexes
+                        for index in self.__graphic_drag_indexes:
+                            graphic = graphics[index]
+                            self.__graphic_drag_items.append(graphic)
+                            self.__graphic_part_data[index] = graphic.begin_drag()
+                        break
 
     def begin_tracking_horizontal(self, pos, rescale):
         plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)

@@ -76,6 +76,30 @@ class TestDisplayPanelClass(unittest.TestCase):
     def tearDown(self):
         self.document_controller.close()
 
+    def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
+        canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
+        data_item_1d = DataItem.DataItem(create_1d_data(data_min=data_min, data_max=data_max))
+        self.document_model.append_data_item(data_item_1d)
+        self.display_panel.set_displayed_data_item(data_item_1d)
+        self.display_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
+        self.display_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
+        self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+        # trigger layout
+        self.display_panel.display_canvas_item.prepare_display()  # force layout
+        return self.display_panel.display_canvas_item
+
+    def setup_3d_data(self, canvas_shape=None):
+        canvas_shape = canvas_shape if canvas_shape else (640, 480)  # yes I know these are backwards
+        data_item_3d = DataItem.DataItem(numpy.ones((5, 5, 5)))
+        self.document_model.append_data_item(data_item_3d)
+        self.display_panel.set_displayed_data_item(data_item_3d)
+        self.display_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
+        self.display_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
+        self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+        # trigger layout
+        self.display_panel.display_canvas_item.prepare_display()  # force layout
+        return self.display_panel.display_canvas_item
+
     def test_image_panel_gets_destructed(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -475,18 +499,6 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
         # check results
         self.assertIsNotNone(self.display_panel.data_item)
-
-    def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
-        canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
-        data_item_1d = DataItem.DataItem(create_1d_data(data_min=data_min, data_max=data_max))
-        self.document_model.append_data_item(data_item_1d)
-        self.display_panel.set_displayed_data_item(data_item_1d)
-        self.display_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
-        self.display_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
-        self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-        # trigger layout
-        self.display_panel.display_canvas_item.prepare_display()  # force layout
-        return self.display_panel.display_canvas_item
 
     def test_line_plot_initially_displays_entire_data_in_horizontal_direction(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -1163,6 +1175,66 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.data_item.set_r_value("r111")
         self.document_controller.periodic()
         self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
+
+    def test_all_graphic_types_repaint_on_1d_display(self):
+        display_canvas_item = self.setup_line_plot()
+        self.document_controller.add_point_region()
+        self.document_controller.add_line_region()
+        self.document_controller.add_rectangle_region()
+        self.document_controller.add_ellipse_region()
+        self.document_controller.add_interval_region()
+        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        display_canvas_item._repaint(drawing_context)
+
+    def test_all_graphic_types_repaint_on_2d_display(self):
+        self.document_controller.add_point_region()
+        self.document_controller.add_line_region()
+        self.document_controller.add_rectangle_region()
+        self.document_controller.add_ellipse_region()
+        self.document_controller.add_interval_region()
+        self.display_panel.display_canvas_item.prepare_display()  # force layout
+        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        self.display_panel.display_canvas_item._repaint(drawing_context)
+
+    def test_all_graphic_types_repaint_on_3d_display(self):
+        display_canvas_item = self.setup_3d_data()
+        self.document_controller.add_point_region()
+        self.document_controller.add_line_region()
+        self.document_controller.add_rectangle_region()
+        self.document_controller.add_ellipse_region()
+        self.document_controller.add_interval_region()
+        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        display_canvas_item._repaint(drawing_context)
+
+    def test_all_graphic_types_hit_test_on_1d_display(self):
+        display_canvas_item = self.setup_line_plot()
+        self.document_controller.add_point_region()
+        self.document_controller.add_line_region()
+        self.document_controller.add_rectangle_region()
+        self.document_controller.add_ellipse_region()
+        self.document_controller.add_interval_region()
+        display_canvas_item.mouse_pressed(100, 100, Test.KeyboardModifiers())
+        display_canvas_item.mouse_released(100, 100, Test.KeyboardModifiers())
+
+    def test_all_graphic_types_hit_test_on_2d_display(self):
+        self.document_controller.add_point_region()
+        self.document_controller.add_line_region()
+        self.document_controller.add_rectangle_region()
+        self.document_controller.add_ellipse_region()
+        self.document_controller.add_interval_region()
+        self.display_panel.display_canvas_item.prepare_display()  # force layout
+        self.display_panel.display_canvas_item.mouse_pressed(10, 10, Test.KeyboardModifiers())
+        self.display_panel.display_canvas_item.mouse_released(10, 10, Test.KeyboardModifiers())
+
+    def test_all_graphic_types_hit_test_on_3d_display(self):
+        display_canvas_item = self.setup_3d_data()
+        self.document_controller.add_point_region()
+        self.document_controller.add_line_region()
+        self.document_controller.add_rectangle_region()
+        self.document_controller.add_ellipse_region()
+        self.document_controller.add_interval_region()
+        display_canvas_item.mouse_pressed(10, 10, Test.KeyboardModifiers())
+        display_canvas_item.mouse_released(10, 10, Test.KeyboardModifiers())
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display

@@ -767,15 +767,19 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size,
     graphic_widget.add(graphic_position_row)
     graphic_widget.add_spacing(4)
 
-    def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
-    # calculate values from rectangle type graphic
-    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-    position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
-    position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
-    graphic_position_x_line_edit.bind_text(position_x_binding)
-    graphic_position_y_line_edit.bind_text(position_y_binding)
+    if (len(image_size) > 1):
+        def new_display_calibrated_values_binding():
+            return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
+        # calculate values from rectangle type graphic
+        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
+        position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
+        graphic_position_x_line_edit.bind_text(position_x_binding)
+        graphic_position_y_line_edit.bind_text(position_y_binding)
+    else:
+        graphic_position_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "position", 1))
+        graphic_position_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "position", 0))
 
 
 def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
@@ -830,24 +834,32 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, 
     graphic_widget.add(graphic_param_row)
     graphic_widget.add_spacing(4)
 
-    def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
-    # configure the bindings
-    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-    l_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-    start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
-    start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
-    end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
-    end_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
-    length_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "length"), new_display_calibrated_values_binding(), l_converter)
-    angle_binding = Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter())
-    graphic_start_x_line_edit.bind_text(start_x_binding)
-    graphic_start_y_line_edit.bind_text(start_y_binding)
-    graphic_end_x_line_edit.bind_text(end_x_binding)
-    graphic_end_y_line_edit.bind_text(end_y_binding)
-    graphic_param_l_line_edit.bind_text(length_binding)
-    graphic_param_a_line_edit.bind_text(angle_binding)
+    if len(image_size) > 1:
+        def new_display_calibrated_values_binding():
+            return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
+        # configure the bindings
+        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        l_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
+        start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
+        end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
+        end_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
+        length_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "length"), new_display_calibrated_values_binding(), l_converter)
+        angle_binding = Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter())
+        graphic_start_x_line_edit.bind_text(start_x_binding)
+        graphic_start_y_line_edit.bind_text(start_y_binding)
+        graphic_end_x_line_edit.bind_text(end_x_binding)
+        graphic_end_y_line_edit.bind_text(end_y_binding)
+        graphic_param_l_line_edit.bind_text(length_binding)
+        graphic_param_a_line_edit.bind_text(angle_binding)
+    else:
+        graphic_start_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "start", 1))
+        graphic_start_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "start", 0))
+        graphic_end_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "end", 1))
+        graphic_end_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "end", 0))
+        graphic_param_l_line_edit.bind_text(Binding.PropertyBinding(graphic, "length"))
+        graphic_param_a_line_edit.bind_text(Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter()))
 
 
 def make_line_profile_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
@@ -907,21 +919,26 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_s
     graphic_widget.add_spacing(4)
 
     # calculate values from rectangle type graphic
-    def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
-
-    x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-    y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-    width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-    height_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-    center_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
-    center_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
-    size_width_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
-    size_height_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
-    graphic_center_x_line_edit.bind_text(center_x_binding)
-    graphic_center_y_line_edit.bind_text(center_y_binding)
-    graphic_size_width_line_edit.bind_text(size_width_binding)
-    graphic_size_height_line_edit.bind_text(size_height_binding)
+    if len(image_size) > 1:
+        def new_display_calibrated_values_binding():
+            return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
+        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        height_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        center_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
+        center_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
+        size_width_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
+        size_height_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
+        graphic_center_x_line_edit.bind_text(center_x_binding)
+        graphic_center_y_line_edit.bind_text(center_y_binding)
+        graphic_size_width_line_edit.bind_text(size_width_binding)
+        graphic_size_height_line_edit.bind_text(size_height_binding)
+    else:
+        graphic_center_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "center", 1))
+        graphic_center_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "center", 0))
+        graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 1))
+        graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 0))
 
 
 def make_interval_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):

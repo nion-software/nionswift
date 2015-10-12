@@ -10,6 +10,7 @@ import logging
 import numpy
 
 # local libraries
+from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Geometry
@@ -113,13 +114,14 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             widget_mapping = ImageCanvasItemMapping(self.__dimensional_shape, (0, 0), self.canvas_size)
             with drawing_context.saver():
                 for graphic_index, graphic in enumerate(self.__graphics):
-                    try:
-                        graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
-                    except Exception as e:
-                        import traceback
-                        logging.debug("Graphic Repaint Error: %s", e)
-                        traceback.print_exc()
-                        traceback.print_stack()
+                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic)):
+                        try:
+                            graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
+                        except Exception as e:
+                            import traceback
+                            logging.debug("Graphic Repaint Error: %s", e)
+                            traceback.print_exc()
+                            traceback.print_stack()
 
 
 
@@ -459,21 +461,22 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             part_specs = list()
             specific_part_spec = None
             for graphic_index, graphic in enumerate(graphics):
-                already_selected = graphic_index in selection_indexes
-                move_only = not already_selected or multiple_items_selected
-                try:
-                    part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
-                except Exception as e:
-                    import traceback
-                    logging.debug("Graphic Test Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
-                    continue
-                if part:
-                    part_spec = graphic_index, graphic, already_selected, "all" if move_only else part
-                    part_specs.append(part_spec)
-                    if specific:
-                        specific_part_spec = part_spec
+                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic)):
+                    already_selected = graphic_index in selection_indexes
+                    move_only = not already_selected or multiple_items_selected
+                    try:
+                        part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
+                    except Exception as e:
+                        import traceback
+                        logging.debug("Graphic Test Error: %s", e)
+                        traceback.print_exc()
+                        traceback.print_stack()
+                        continue
+                    if part:
+                        part_spec = graphic_index, graphic, already_selected, "all" if move_only else part
+                        part_specs.append(part_spec)
+                        if specific:
+                            specific_part_spec = part_spec
             # import logging
             # logging.debug(specific_part_spec)
             # logging.debug(part_specs)

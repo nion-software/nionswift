@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 # standard libraries
+import contextlib
 import locale
 import logging
 import math
@@ -226,6 +227,69 @@ class TestInspectorClass(unittest.TestCase):
         document_controller.periodic()
         self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
         document_controller.close()
+
+    def test_inspector_handles_all_graphics_on_1d_data(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((1024, )))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.selected_display_panel = None
+            document_controller.selected_display_panel = display_panel
+            document_controller.add_point_region()
+            document_controller.add_line_region()
+            document_controller.add_rectangle_region()
+            document_controller.add_ellipse_region()
+            document_controller.add_interval_region()
+            data_item.maybe_data_source.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
+            self.assertTrue(len(data_item.maybe_data_source.regions) == 5)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
+
+    def test_inspector_handles_all_graphics_on_2d_data(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((256, 256)))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.selected_display_panel = None
+            document_controller.selected_display_panel = display_panel
+            document_controller.add_point_region()
+            document_controller.add_line_region()
+            document_controller.add_rectangle_region()
+            document_controller.add_ellipse_region()
+            document_controller.add_interval_region()
+            data_item.maybe_data_source.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
+            self.assertTrue(len(data_item.maybe_data_source.regions) == 5)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
+
+    def test_inspector_handles_all_graphics_on_3d_data(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((5, 5, 5)))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.selected_display_panel = None
+            document_controller.selected_display_panel = display_panel
+            document_controller.add_point_region()
+            document_controller.add_line_region()
+            document_controller.add_rectangle_region()
+            document_controller.add_ellipse_region()
+            document_controller.add_interval_region()
+            data_item.maybe_data_source.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
+            self.assertTrue(len(data_item.maybe_data_source.regions) == 5)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def disabled_test_corrupt_data_item_should_not_completely_disable_the_inspector(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
