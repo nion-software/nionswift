@@ -4,6 +4,7 @@ from __future__ import division
 
 # standard libraries
 import copy
+import logging
 
 # third party libraries
 import numpy
@@ -110,10 +111,16 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     def _repaint(self, drawing_context):
         if self.__graphics:
             widget_mapping = ImageCanvasItemMapping(self.__dimensional_shape, (0, 0), self.canvas_size)
-            drawing_context.save()
-            for graphic_index, graphic in enumerate(self.__graphics):
-                graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
-            drawing_context.restore()
+            with drawing_context.saver():
+                for graphic_index, graphic in enumerate(self.__graphics):
+                    try:
+                        graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
+                    except Exception as e:
+                        import traceback
+                        logging.debug("Graphic Repaint Error: %s", e)
+                        traceback.print_exc()
+                        traceback.print_stack()
+
 
 
 class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -454,7 +461,14 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             for graphic_index, graphic in enumerate(graphics):
                 already_selected = graphic_index in selection_indexes
                 move_only = not already_selected or multiple_items_selected
-                part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
+                try:
+                    part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, start_drag_pos, move_only)
+                except Exception as e:
+                    import traceback
+                    logging.debug("Graphic Test Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+                    continue
                 if part:
                     part_spec = graphic_index, graphic, already_selected, "all" if move_only else part
                     part_specs.append(part_spec)
