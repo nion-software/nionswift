@@ -688,14 +688,16 @@ _function2_map = {
 }
 
 _operator_map = {
-    "neg": "-",
-    "pos": "+",
-    "add": "+",
-    "sub": "-",
-    "mul": "*",
-    "div": "/",
-    "truediv": "/",
-    "floordiv": "//",
+    "pow": ["**", 9],
+    "neg": ["-", 8],
+    "pos": ["+", 8],
+    "add": ["+", 6],
+    "sub": ["-", 6],
+    "mul": ["*", 7],
+    "div": ["/", 7],
+    "truediv": ["/", 7],
+    "floordiv": ["//", 7],
+    "mod": ["%", 7],
 }
 
 _function_map = {
@@ -770,8 +772,8 @@ _function_map = {
 def reconstruct_inputs(variable_map, inputs):
     input_texts = list()
     for input in inputs:
-        text = input.reconstruct(variable_map)
-        input_texts.append(text)
+        text, precedence = input.reconstruct(variable_map)
+        input_texts.append((text, precedence))
     return input_texts
 
 
@@ -990,7 +992,7 @@ class ConstantDataNode(DataNode):
         return self.__scalar
 
     def reconstruct(self, variable_map):
-        return str(self.__scalar)
+        return str(self.__scalar), 10
 
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__scalar)
@@ -1034,13 +1036,14 @@ class ScalarOperationDataNode(DataNode):
         return None
 
     def reconstruct(self, variable_map):
-        input_texts = reconstruct_inputs(variable_map, self.inputs)
+        inputs = reconstruct_inputs(variable_map, self.inputs)
+        input_texts = [input[0] for input in inputs]
         if self.__function_id == "item":
-            return "{0}[{1}]".format(input_texts[0], self.__args["key"])
+            return "{0}[{1}]".format(input_texts[0], self.__args["key"]), 10
         args_str = ", ".join([k + "=" + str(v) for k, v in self.__args.items()])
         if len(self.__args) > 0:
             args_str = ", " + args_str
-        return "{0}({1}{2})".format(self.__function_id, ", ".join(input_texts), args_str)
+        return "{0}({1}{2})".format(self.__function_id, ", ".join(input_texts), args_str), 10
 
     def __getitem__(self, key):
         return ScalarOperationDataNode([self], "item", {"key": key})
@@ -1095,9 +1098,14 @@ class UnaryOperationDataNode(DataNode):
         return None
 
     def reconstruct(self, variable_map):
-        input_texts = reconstruct_inputs(variable_map, self.inputs)
+        inputs = reconstruct_inputs(variable_map, self.inputs)
+        input_texts = [input[0] for input in inputs]
+        operator_arg = input_texts[0]
         if self.__function_id in _operator_map:
-            return "{0}{1}".format(_operator_map[self.__function_id], input_texts[0])
+            operator_text, precedence = _operator_map[self.__function_id]
+            if precedence >= inputs[0][1]:
+                operator_arg = "({0})".format(operator_arg)
+            return "{0}{1}".format(operator_text, operator_arg), precedence
         if self.__function_id == "data_slice":
             slice_strs = list()
             for slice in self.__args["key"]:
@@ -1105,17 +1113,17 @@ class UnaryOperationDataNode(DataNode):
                 slice_str += ":" + str(slice.stop) if slice.stop is not None else ":"
                 slice_str += ":" + str(slice.step) if slice.step is not None else ""
                 slice_strs.append(slice_str)
-            return "{0}[{1}]".format(input_texts[0], ", ".join(slice_strs))
+            return "{0}[{1}]".format(operator_arg, ", ".join(slice_strs)), 10
         if self.__function_id in ("column", "row"):
             if self.__args.get("start") is None and self.__args.get("stop") is None:
-                return "{0}({1})".format(self.__function_id, input_texts[0])
+                return "{0}({1})".format(self.__function_id, operator_arg), 10
         if self.__function_id == "radius":
             if self.__args.get("normalize", True) is True:
-                return "{0}({1})".format(self.__function_id, input_texts[0])
+                return "{0}({1})".format(self.__function_id, operator_arg), 10
         args_str = ", ".join([k + "=" + str(v) for k, v in self.__args.items()])
         if len(self.__args) > 0:
             args_str = ", " + args_str
-        return "{0}({1}{2})".format(self.__function_id, input_texts[0], args_str)
+        return "{0}({1}{2})".format(self.__function_id, operator_arg, args_str), 10
 
     def __str__(self):
         return "{0} {1}({2})".format(self.__repr__(), self.__function_id, self.inputs[0])
@@ -1163,10 +1171,18 @@ class BinaryOperationDataNode(DataNode):
         return None
 
     def reconstruct(self, variable_map):
-        input_texts = reconstruct_inputs(variable_map, self.inputs)
+        inputs = reconstruct_inputs(variable_map, self.inputs)
+        input_texts = [input[0] for input in inputs]
+        operator_left = input_texts[0]
+        operator_right = input_texts[1]
         if self.__function_id in _operator_map:
-            return "{1} {0} {2}".format(_operator_map[self.__function_id], input_texts[0], input_texts[1])
-        return "{0}({1}, {2})".format(self.__function_id, input_texts[0], input_texts[1])
+            operator_text, precedence = _operator_map[self.__function_id]
+            if precedence > inputs[0][1]:
+                operator_left = "({0})".format(operator_left)
+            if precedence > inputs[1][1]:
+                operator_right = "({0})".format(operator_right)
+            return "{1} {0} {2}".format(operator_text, operator_left, operator_right), precedence
+        return "{0}({1}, {2})".format(self.__function_id, operator_left, operator_right), 10
 
     def __str__(self):
         return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, self.inputs[0], self.inputs[1])
@@ -1206,8 +1222,9 @@ class FunctionOperationDataNode(DataNode):
         return None
 
     def reconstruct(self, variable_map):
-        input_texts = reconstruct_inputs(variable_map, self.inputs)
-        return "{0}({1})".format(self.__function_id, ", ".join(input_texts))
+        inputs = reconstruct_inputs(variable_map, self.inputs)
+        input_texts = [input[0] for input in inputs]
+        return "{0}({1})".format(self.__function_id, ", ".join(input_texts)), 10
 
     def __str__(self):
         return "{0} {1}({2}, {3})".format(self.__repr__(), self.__function_id, [str(input) for input in self.inputs], list(self.__args))
@@ -1259,13 +1276,13 @@ class DataItemDataNode(DataNode):
         variable_index = -1
         for variable, object_specifier in variable_map.items():
             if object_specifier == self.__object_specifier:
-                return variable
+                return variable, 10
             if variable.startswith("d"):
                 variable_index = max(variable_index, int(variable[1:]) + 1)
         variable_index = max(variable_index, 0)
         variable_name = "d{0}".format(variable_index)
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
-        return variable_name
+        return variable_name, 10
 
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__object_specifier)
@@ -1348,13 +1365,13 @@ class PropertyDataNode(DataNode):
         variable_index = -1
         for variable, object_specifier in variable_map.items():
             if object_specifier == self.__object_specifier:
-                return "{0}.{1}".format(variable, self.__property)
+                return "{0}.{1}".format(variable, self.__property), 10
             if variable.startswith("region"):
                 variable_index = max(variable_index, int(variable[1:]) + 1)
         variable_index = max(variable_index, 0)
         variable_name = "region{0}".format(variable_index)
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
-        return "{0}.{1}".format(variable_name, self.__property)
+        return "{0}.{1}".format(variable_name, self.__property), 10
 
     def __str__(self):
         return "{0} ({1}.{2})".format(self.__repr__(), self.__object_specifier, self.__property)
@@ -1575,7 +1592,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if self.__data_node:
             lines = list()
             variable_map_copy = copy.deepcopy(variable_map)
-            expression = self.__data_node.reconstruct(variable_map_copy)
+            expression, precedence = self.__data_node.reconstruct(variable_map_copy)
             for variable, object_specifier in variable_map_copy.items():
                 if not variable in variable_map:
                     lines.append("{0} = {1}".format(variable, self.__get_object_specifier_expression(object_specifier)))

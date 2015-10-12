@@ -697,6 +697,49 @@ class TestSymbolicClass(unittest.TestCase):
             data_and_metadata = new_computation.evaluate()
             self.assertTrue(numpy.array_equal(data_and_metadata.data, data + 18))
 
+    def test_computation_reconstructs_expression_with_precedence_correctly(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.random.randn(3, 2) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "(a + 3) * 4", map)
+            data_and_metadata = computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, (data + 3) * 4))
+            expression_out = computation.reconstruct(map)
+            new_computation = Symbolic.Computation()
+            new_computation.parse_expression(document_model, expression_out, map)
+            data_and_metadata = new_computation.evaluate()
+            self.assertTrue(numpy.array_equal(data_and_metadata.data, (data + 3) * 4))
+
+    def test_computation_reconstructs_expression_without_unnecessary_parenthesis(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            document_model.append_data_item(DataItem.DataItem(numpy.random.randn(3,2)))
+            document_model.append_data_item(DataItem.DataItem(numpy.random.randn(4,5)))
+            map = {"a": document_model.get_object_specifier(document_model.data_items[0]), "b": document_model.get_object_specifier(document_model.data_items[1])}
+            expressions = [
+                "(a + 3) * b",
+                "(a + 3) * (a + 4)",
+                "a + 4 * b",
+                "a + 4 + 5",
+                "(a + 5) ** 2",
+                "-(a + b)",
+                "a * b * 4",
+                "a - b - 3",
+                "a ** b ** 3",
+                "2 ** b + a ** 3",
+                "a ** b ** 3 + a",
+                "abs(a + b)",
+            ]
+            for expression in expressions:
+                computation = Symbolic.Computation()
+                computation.parse_expression(document_model, expression, map)
+                expression_out = computation.reconstruct(map)
+                self.assertEqual(expression, expression_out)
+
     def test_columns_and_rows_and_radius_functions_return_correct_values(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
