@@ -17,9 +17,47 @@ import time
 from nion.ui import Observable
 
 
-class SuspendableCache(object):
+class TracingCache(object):
 
     def __init__(self, storage_cache):
+        self.__storage_cache = storage_cache
+
+    def suspend_cache(self):
+        logging.debug("%s.suspend_cache()", id(self))
+        self.__storage_cache.suspend_cache()
+
+    def spill_cache(self):
+        logging.debug("%s.spill_cache()", id(self))
+        self.__storage_cache.spill_cache()
+
+    def set_cached_value(self, object, key, value, dirty=False):
+        logging.debug("%s.set_cached_value(%s, %s, %s, %s)", id(self), id(object), key, value, dirty)
+        self.__storage_cache.set_cached_value(object, key, value, dirty)
+
+    def get_cached_value(self, object, key, default_value=None):
+        logging.debug("%s.get_cached_value(%s, %s, %s)", id(self), id(object), key, default_value)
+        result = self.__storage_cache.get_cached_value(object, key, default_value)
+        logging.debug("# %s", result)
+        return result
+
+    def remove_cached_value(self, object, key):
+        logging.debug("%s.remove_cached_value(%s, %s)", id(self), object, key)
+        self.__storage_cache.remove_cached_value(object, key)
+
+    def is_cached_value_dirty(self, object, key):
+        logging.debug("%s.is_cached_value_dirty(%s, %s)", id(self), id(object), key)
+        result = self.__storage_cache.is_cached_value_dirty(object, key)
+        logging.debug("# %s", result)
+        return result
+
+    def set_cached_value_dirty(self, object, key, dirty=True):
+        logging.debug("%s.set_cached_value_dirty(%s, %s, %s)", id(self), object, key, dirty)
+        self.__storage_cache.set_cached_value_dirty(object, key, dirty)
+
+
+class SuspendableCache(object):
+
+    def __init__(self, storage_cache, trace=False):
         self.__storage_cache = storage_cache
         self.__cache = dict()
         self.__cache_remove = dict()
@@ -83,7 +121,7 @@ class SuspendableCache(object):
             if key in object_dict:
                 return object_dict.get(key)
         # not there, go to cache db
-        if self.__storage_cache and not self.__cache_delayed:
+        if self.__storage_cache:
             return self.__storage_cache.get_cached_value(object, key, default_value)
         return default_value
 
@@ -93,17 +131,18 @@ class SuspendableCache(object):
         # remove it from the cache db.
         if self.__storage_cache and not self.__cache_delayed:
             self.__storage_cache.remove_cached_value(object, key)
-        # if its in the temporary cache, remove it
-        with self.__cache_mutex:
-            _, object_dict = self.__cache.get(id(object), (object, dict()))
-            _, object_list = self.__cache_remove.setdefault(id(object), (object, list()))
-            _, object_dirty_dict = self.__cache_dirty.get(id(object), (object, dict()))
-            if key in object_dict:
-                del object_dict[key]
-            if key in object_dirty_dict:
-                del object_dirty_dict[key]
-            if key not in object_list:
-                object_list.append(key)
+        else:
+            # if its in the temporary cache, remove it
+            with self.__cache_mutex:
+                _, object_dict = self.__cache.get(id(object), (object, dict()))
+                _, object_list = self.__cache_remove.setdefault(id(object), (object, list()))
+                _, object_dirty_dict = self.__cache_dirty.get(id(object), (object, dict()))
+                if key in object_dict:
+                    del object_dict[key]
+                if key in object_dirty_dict:
+                    del object_dirty_dict[key]
+                if key not in object_list:
+                    object_list.append(key)
 
     # determines whether the item in the cache is dirty.
     def is_cached_value_dirty(self, object, key):
@@ -113,7 +152,7 @@ class SuspendableCache(object):
             if key in object_dirty_dict:
                 return object_dirty_dict[key]
         # not there, go to the db cache
-        if self.__storage_cache and not self.__cache_delayed:
+        if self.__storage_cache:
             return self.__storage_cache.is_cached_value_dirty(object, key)
         return True
 
@@ -255,6 +294,12 @@ class DictStorageCache(object):
     def cache(self):
         return self.__cache
 
+    def suspend_cache(self):
+        pass
+
+    def spill_cache(self):
+        pass
+
     def set_cached_value(self, object, key, value, dirty=False):
         cache = self.__cache.setdefault(object.uuid, dict())
         cache_dirty = self.__cache_dirty.setdefault(object.uuid, dict())
@@ -298,6 +343,12 @@ class DbStorageCache(object):
             self.__queue.put((None, None, None, None))
             self.__queue.join()
             self.__queue = None
+
+    def suspend_cache(self):
+        pass
+
+    def spill_cache(self):
+        pass
 
     def __run(self, cache_filename):
         self.conn = sqlite3.connect(cache_filename)
