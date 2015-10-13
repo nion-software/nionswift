@@ -41,7 +41,7 @@ def arange(data):
     return numpy.amax(data) - numpy.amin(data)
 
 def data_slice(data, key):
-    return data[key].copy()
+    return data[list_to_key(key)].copy()
 
 def column(data, start, stop):
     start_0 = start if start is not None else 0
@@ -783,6 +783,48 @@ def extract_data(evaluated_input):
     return evaluated_input
 
 
+def key_to_list(key):
+    if not isinstance(key, tuple):
+        key = (key, )
+    l = list()
+    for k in key:
+        if isinstance(k, slice):
+            d = dict()
+            if k.start is not None:
+                d["start"] = k.start
+            if k.stop is not None:
+                d["stop"] = k.stop
+            if k.step is not None:
+                d["step"] = k.step
+            l.append(d)
+        elif isinstance(k, numbers.Integral):
+            l.append({"index": k})
+        elif isinstance(k, type(Ellipsis)):
+            l.append({"ellipses": True})
+        elif k is None:
+            l.append({"newaxis": True})
+        else:
+            print(type(k))
+            assert False
+    return l
+
+
+def list_to_key(l):
+    key = list()
+    for d in l:
+        if "index" in d:
+            key.append(d.get("index"))
+        elif d.get("ellipses", False):
+            key.append(Ellipsis)
+        elif d.get("newaxis", False):
+            key.append(None)
+        else:
+            key.append(slice(d.get("start"), d.get("stop"), d.get("step")))
+    if len(key) == 1:
+        return key[0]
+    return key
+
+
 class DataNode(object):
 
     def __init__(self, inputs=None):
@@ -940,6 +982,7 @@ class DataNode(object):
         return ConstantDataNode(numpy.astype(numpy.float64))
 
     def __getitem__(self, key):
+        key = key_to_list(key)
         return UnaryOperationDataNode([self], "data_slice", {"key": key})
 
 
@@ -1108,11 +1151,14 @@ class UnaryOperationDataNode(DataNode):
             return "{0}{1}".format(operator_text, operator_arg), precedence
         if self.__function_id == "data_slice":
             slice_strs = list()
-            for slice in self.__args["key"]:
-                slice_str = str(slice.start) if slice.start is not None else ""
-                slice_str += ":" + str(slice.stop) if slice.stop is not None else ":"
-                slice_str += ":" + str(slice.step) if slice.step is not None else ""
-                slice_strs.append(slice_str)
+            for slice_or_index in list_to_key(self.__args["key"]):
+                if isinstance(slice_or_index, slice):
+                    slice_str = str(slice_or_index.start) if slice_or_index.start is not None else ""
+                    slice_str += ":" + str(slice_or_index.stop) if slice_or_index.stop is not None else ":"
+                    slice_str += ":" + str(slice_or_index.step) if slice_or_index.step is not None else ""
+                    slice_strs.append(slice_str)
+                elif isinstance(slice_or_index, numbers.Integral):
+                    slice_str += str(slice_or_index)
             return "{0}[{1}]".format(operator_arg, ", ".join(slice_strs)), 10
         if self.__function_id in ("column", "row"):
             if self.__args.get("start") is None and self.__args.get("stop") is None:
@@ -1485,6 +1531,7 @@ def parse_expression(expression_lines, variable_map, context):
         else:
             reference_node = ReferenceDataNode(object_specifier=object_specifier)
         g[variable_name] = reference_node
+    g["newaxis"] = numpy.newaxis
     expression_lines = expression_lines[:-1] + ["result = {0}".format(expression_lines[-1]), ]
     code_lines.extend(expression_lines)
     code = "\n".join(code_lines)

@@ -105,6 +105,32 @@ class TestSymbolicClass(unittest.TestCase):
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[:,4,4])
 
+    def test_ability_to_take_slice_with_ellipses(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(1, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a[2, ...]", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d[2, ...])
+
+    def test_ability_to_take_slice_with_newaxis(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(1, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a[newaxis, ...]", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d[numpy.newaxis, ...])
+
     def test_ability_to_write_read_basic_nodes(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

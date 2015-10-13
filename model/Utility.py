@@ -106,10 +106,7 @@ def clean_tuple(t0, clean_item_fn=None):
     l = list()
     for index, item in enumerate(t0):
         cleaned_item = clean_item_fn(item)
-        if cleaned_item is None:
-            logging.info("  in tuple at original index %s", index)
-        else:
-            l.append(cleaned_item)
+        l.append(cleaned_item)
     return tuple(l)
 
 
@@ -138,7 +135,7 @@ def clean_item(i):
         return i
     elif itype == type(None):
         return i
-    logging.info("Unable to handle type %s", itype)
+    logging.info("[1] Unable to handle type %s", itype)
     return None
 
 
@@ -167,7 +164,7 @@ def clean_item_no_list(i):
         return i
     elif itype == type(None):
         return i
-    logging.info("Unable to handle type %s", itype)
+    logging.info("[2] Unable to handle type %s", itype)
     return None
 
 

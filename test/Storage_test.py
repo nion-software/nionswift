@@ -1605,6 +1605,30 @@ class TestStorageClass(unittest.TestCase):
                 data_ref.data += 1.5
             document_model.recompute_all()
 
+    def test_computation_slice_reloads(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data = numpy.ones((8, 4, 4), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation.parse_expression(document_model, "a[2:4, :, :] + a[5]", map)
+            computed_data_item = DataItem.DataItem(data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            document_model.recompute_all()
+            data_shape = computed_data_item.maybe_data_source.data_shape
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            read_computation = document_model.data_items[1].maybe_data_source.computation
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.data += 1.5
+            document_model.recompute_all()
+            self.assertEqual(data_shape, computed_data_item.maybe_data_source.data_shape)
+
     def test_data_item_with_references_to_another_data_item_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
