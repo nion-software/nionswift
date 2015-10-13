@@ -13,7 +13,9 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import DocumentController
 from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
 from nion.ui import Test
 
 
@@ -105,6 +107,58 @@ class TestDisplayClass(unittest.TestCase):
         data_item = copy.deepcopy(source_data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         self.assertIsNotNone(display_specifier.display.data_range)
+
+    def test_data_item_setting_slice_width_validates_when_invalid(self):
+        data_item = DataItem.DataItem(numpy.ones((16, 16, 16), numpy.float64))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.display.slice_center = 8
+        display_specifier.display.slice_width = 0
+        self.assertEqual(display_specifier.display.slice_width, 1)
+        display_specifier.display.slice_width = -1
+        self.assertEqual(display_specifier.display.slice_width, 1)
+        display_specifier.display.slice_width = 20
+        self.assertEqual(display_specifier.display.slice_width, 16)
+
+    def test_data_item_setting_slice_center_validates_when_invalid(self):
+        data_item = DataItem.DataItem(numpy.ones((16, 16, 16), numpy.float64))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.display.slice_center = 8
+        display_specifier.display.slice_width = 8
+        display_specifier.display.slice_center = 0
+        self.assertEqual(display_specifier.display.slice_center, 4)
+        display_specifier.display.slice_center = 3
+        self.assertEqual(display_specifier.display.slice_center, 4)
+        display_specifier.display.slice_center = -1
+        self.assertEqual(display_specifier.display.slice_center, 4)
+        display_specifier.display.slice_center = 5.5
+        self.assertEqual(display_specifier.display.slice_center, 5)
+        display_specifier.display.slice_center = 12
+        self.assertEqual(display_specifier.display.slice_center, 12)
+        display_specifier.display.slice_center = 13
+        self.assertEqual(display_specifier.display.slice_center, 12)
+        display_specifier.display.slice_center = 20
+        self.assertEqual(display_specifier.display.slice_center, 12)
+
+    def test_data_item_setting_slice_validates_when_data_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(12, 8, 8)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            data_item2 = document_controller.processing_calculation("a[0:8,:,:]", map)
+            document_model.recompute_all()
+            assert numpy.array_equal(data_item2.maybe_data_source.data, d[0:8,:,:])
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item2)
+            display_specifier.display.slice_center = 6
+            display_specifier.display.slice_width = 4
+            self.assertEqual(display_specifier.display.slice_center, 6)
+            self.assertEqual(display_specifier.display.slice_width, 4)
+            display_specifier.buffered_data_source.computation.parse_expression(document_model, "a[0:4, :, :]", map)
+            document_model.recompute_all()
+            self.assertEqual(display_specifier.display.slice_center, 3)
+            self.assertEqual(display_specifier.display.slice_width, 2)
 
 
 if __name__ == '__main__':

@@ -141,8 +141,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.define_property("y_style", "linear", changed=self.__property_changed)
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
-        self.define_property("slice_center", 0, changed=self.__slice_interval_changed)
-        self.define_property("slice_width", 1, changed=self.__slice_interval_changed)
+        self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
+        self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.__lookup = None  # temporary for experimentation
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
@@ -269,22 +269,45 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__property_changed(name, value)
         self.notify_set_property("display_range", self.display_range)
 
+    def __validate_slice_center_for_width(self, value, slice_width):
+        if self.__data_and_calibration and self.__data_and_calibration.dimensional_shape is not None:
+            depth = self.__data_and_calibration.dimensional_shape[0]
+            mn = max(int(slice_width * 0.5), 0)
+            mx = min(int(depth - slice_width * 0.5), depth - 1)
+            return min(max(int(value), mn), mx)
+        return value if self._is_reading else 0
+
+    def __validate_slice_center(self, value):
+        return self.__validate_slice_center_for_width(value, self.slice_width)
+
+    def __validate_slice_width(self, value):
+        if self.__data_and_calibration and self.__data_and_calibration.dimensional_shape is not None:
+            depth = self.__data_and_calibration.dimensional_shape[0]
+            slice_center = self.slice_center
+            mn = 1
+            mx = max(min(slice_center, depth - slice_center) * 2, 1)
+            return min(max(value, mn), mx)
+        return value if self._is_reading else 1
+
     @property
     def slice_interval(self):
-        if self.__data_and_calibration:
+        if self.__data_and_calibration and self.__data_and_calibration.dimensional_shape is not None:
             depth = self.__data_and_calibration.dimensional_shape[0]
-            slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
-            slice_interval_end = slice_interval_start + self.slice_width
-            return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
+            if depth > 0:
+                slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
+                slice_interval_end = slice_interval_start + self.slice_width
+                return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
         return None
 
     @slice_interval.setter
     def slice_interval(self, slice_interval):
-        depth = self.__data_and_calibration.dimensional_shape[0]
-        slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
-        slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
-        self.slice_center = slice_interval_center
-        self.slice_width = slice_interval_width
+        if self.__data_and_calibration.dimensional_shape is not None:
+            depth = self.__data_and_calibration.dimensional_shape[0]
+            if depth > 0:
+                slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
+                slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
+                self.slice_center = slice_interval_center
+                self.slice_width = slice_interval_width
 
     def __slice_interval_changed(self, name, value):
         # notify for dependent slice_interval property
@@ -360,11 +383,20 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
     # message sent from buffered_data_source when data changes.
     # thread safe
     def update_data(self, data_and_calibration):
+        old_data_shape = self.__data_and_calibration.data_shape if self.__data_and_calibration else None
         self.__data_and_calibration = data_and_calibration
+        new_data_shape = self.__data_and_calibration.data_shape if self.__data_and_calibration else None
         self.__preview_data = None
         if self.__preview is not None:
             self.__preview_last = self.__preview
         self.__preview = None
+        if old_data_shape != new_data_shape:
+            slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
+            if slice_center != self.slice_center:
+                old_slice_width = self.slice_width
+                self.slice_width = 1
+                self.slice_center = self.slice_center
+                self.slice_width = old_slice_width
         self.display_changed_event.fire()
         # clear the processor caches
         if not self._is_reading:

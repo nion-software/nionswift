@@ -282,6 +282,22 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(display_specifier.buffered_data_source.data_range)
             self.assertIsNotNone(display_specifier.display.data_range)
 
+    def test_reload_data_item_initializes_display_slice(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 4, 4), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+            display_specifier.display.slice_center = 5
+            display_specifier.display.slice_width = 3
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+            self.assertEqual(display_specifier.display.slice_center, 5)
+            self.assertEqual(display_specifier.display.slice_width, 3)
+
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")
