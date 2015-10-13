@@ -131,6 +131,18 @@ class TestSymbolicClass(unittest.TestCase):
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[numpy.newaxis, ...])
 
+    def test_slice_sum_sums_correct_slices(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(16, 4, 4)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "slice_sum(a, 4, 6)", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.sum(d[1:7, ...], 0))
+
     def test_ability_to_write_read_basic_nodes(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
