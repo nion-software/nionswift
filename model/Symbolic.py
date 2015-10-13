@@ -436,7 +436,7 @@ def function_slice_sum(data_and_metadata, slice_center, slice_width):
         if not Image.is_data_valid(data):
             return None
         shape = data.shape
-        slice_start = int(slice_center - slice_width * 0.5)
+        slice_start = int(slice_center - slice_width * 0.5 + 0.5)
         slice_start = max(slice_start, 0)
         slice_end = slice_start + slice_width
         slice_end = min(shape[0], slice_end)
