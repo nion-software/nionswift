@@ -150,6 +150,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__graphic_changed_listeners = list()
         self.__remove_region_graphic_listeners = list()
         self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
+        self.__display_data = None
         self.__preview_data = None
         self.__preview = None
         self.__preview_last = None
@@ -190,12 +191,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
 
     @property
     def data_for_processor(self):
-        return self.__data_and_calibration.data if self.__data_and_calibration else None
+        return self.display_data
 
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
         if self.__data_and_calibration.is_data_complex_type and self.display_limits is None:
-            data = self.__data_and_calibration.data
+            data = self.display_data
             samples, fraction = 200, 0.1
             sorted_data = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples)))
             display_limit_low = numpy.log(sorted_data[samples*fraction])
@@ -222,18 +223,32 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         return self.__preview
 
     @property
+    def display_data(self):
+        try:
+            if self.__display_data is None:
+                if self.__data_and_calibration:
+                    data = self.__data_and_calibration.data
+                    if Image.is_data_1d(data):
+                        display_data = data
+                    elif Image.is_data_2d(data):
+                        display_data = data
+                    elif Image.is_data_3d(data):
+                        display_data = Symbolic.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data
+                    else:
+                        display_data = None
+                    self.__display_data = display_data
+            return self.__display_data
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            traceback.print_stack()
+            raise
+
+    @property
     def preview_2d_data(self):
         try:
             if self.__preview_data is None:
-                data = self.__data_and_calibration.data
-                if Image.is_data_2d(data):
-                    data_2d = Image.scalar_from_array(data)
-                # TODO: fix me 3d
-                elif Image.is_data_3d(data):
-                    data_2d = Symbolic.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data
-                else:
-                    data_2d = None
-                self.__preview_data = data_2d
+                self.__preview_data = Image.scalar_from_array(self.display_data)
             return self.__preview_data
         except Exception as e:
             import traceback
@@ -313,15 +328,15 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
     def __slice_interval_changed(self, name, value):
         # notify for dependent slice_interval property
         self.__property_changed(name, value)
+        self.remove_cached_value("data_range")
+        self.remove_cached_value("data_sample")
+        self.__validate_data_stats()
         self.notify_set_property("slice_interval", self.slice_interval)
 
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called
+        self.__clear_cached_data()
         self.notify_set_property(property_name, value)
-        self.__preview_data = None
-        if self.__preview is not None:
-            self.__preview_last = self.__preview
-        self.__preview = None
         self.display_changed_event.fire()
 
     @property
@@ -331,10 +346,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
     @lookup_table.setter
     def lookup_table(self, lookup):
         self.__lookup = lookup
-        self.__preview_data = None
-        if self.__preview is not None:
-            self.__preview_last = self.__preview
-        self.__preview = None
+        self.__clear_cached_data()
         self.display_changed_event.fire()
 
     def storage_cache_changed(self, storage_cache):
@@ -343,9 +355,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
-        display_data = self.__data_and_calibration.data if self.__data_and_calibration else None
+        display_data = self.display_data
         is_data_complex_type = self.__data_and_calibration.is_data_complex_type if self.__data_and_calibration else False
-        if display_data is not None and (self.data_range is None or (is_data_complex_type and self.data_sample is None)):
+        data_range = self.get_cached_value("data_range")
+        data_sample = self.get_cached_value("data_sample")
+        if display_data is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
             self.__calculate_data_stats_for_data(display_data)
 
     def __calculate_data_stats_for_data(self, data):
@@ -371,10 +385,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             self.set_cached_value("data_sample", data_sample)
         else:
             self.remove_cached_value("data_sample")
-        self.__preview_data = None
-        if self.__preview is not None:
-            self.__preview_last = self.__preview
-        self.__preview = None
+        self.__clear_cached_data()
         self.notify_set_property("data_range", data_range)
         self.notify_set_property("data_sample", data_sample)
         self.notify_set_property("display_range", self.display_range)
@@ -412,10 +423,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         old_data_shape = self.__data_and_calibration.data_shape if self.__data_and_calibration else None
         self.__data_and_calibration = data_and_calibration
         new_data_shape = self.__data_and_calibration.data_shape if self.__data_and_calibration else None
-        self.__preview_data = None
-        if self.__preview is not None:
-            self.__preview_last = self.__preview
-        self.__preview = None
+        self.__clear_cached_data()
         if old_data_shape != new_data_shape:
             slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
             if slice_center != self.slice_center:
@@ -423,8 +431,15 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
                 self.slice_width = 1
                 self.slice_center = self.slice_center
                 self.slice_width = old_slice_width
-        self.__calculate_data_stats_for_data(data_and_calibration.data)
+        self.__calculate_data_stats_for_data(self.display_data)
         self.display_changed_event.fire()
+
+    def __clear_cached_data(self):
+        self.__display_data = None
+        self.__preview_data = None
+        if self.__preview is not None:
+            self.__preview_last = self.__preview
+        self.__preview = None
         # clear the processor caches
         if not self._is_reading:
             for processor in self.__processors.values():

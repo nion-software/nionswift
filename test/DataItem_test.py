@@ -531,12 +531,12 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(int(data_max*1e6), int(data_range[1]*1e6))
 
     def test_data_range_gets_updated_after_data_ref_data_updated(self):
-        data_item = DataItem.DataItem(numpy.zeros((4, 8, 8), numpy.uint32))
-        for z in range(4):
-            with data_item.maybe_data_source.data_ref() as data_ref:
-                data_ref.data[z, :, :] = z
-                data_ref.data_updated()
-            self.assertEqual(data_item.maybe_data_source.displays[0].data_range, (0, z))
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+        self.assertEqual(data_item.maybe_data_source.displays[0].data_range, (0, 0))
+        with data_item.maybe_data_source.data_ref() as data_ref:
+            data_ref.data[:] = 1
+            data_ref.data_updated()
+        self.assertEqual(data_item.maybe_data_source.displays[0].data_range, (1, 1))
 
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
@@ -1389,6 +1389,39 @@ class TestDataItemClass(unittest.TestCase):
             inverted_display_specifier.display.get_processor("statistics").recompute_data(None)
             good_statistics = inverted_display_specifier.display.get_processed_data("statistics")
             self.assertTrue(good_statistics["mean"] == -3.0)
+
+    def test_statistics_calculated_on_slice_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem((numpy.random.randn(8, 2, 2) * 100).astype(numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.get_processor("statistics").recompute_data(None)
+            stats = display_specifier.display.get_processed_data("statistics")
+            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[0:1]))
+            display_specifier.display.slice_center = 3
+            display_specifier.display.slice_width = 3
+            display_specifier.display.get_processor("statistics").recompute_data(None)
+            stats = display_specifier.display.get_processed_data("statistics")
+            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[2:5]))
+            display_specifier.display.slice_center = 4
+            display_specifier.display.slice_width = 4
+            display_specifier.display.get_processor("statistics").recompute_data(None)
+            stats = display_specifier.display.get_processed_data("statistics")
+            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[2:6]))
+
+    def test_histogram_calculated_on_slice_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(((numpy.random.randn(8, 20, 20) * 100) ** 2).astype(numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.get_processor("histogram").recompute_data(None)
+            histogram = display_specifier.display.get_processed_data("histogram")
+            display_specifier.display.slice_center = 4
+            display_specifier.display.slice_width = 4
+            display_specifier.display.get_processor("histogram").recompute_data(None)
+            histogram = display_specifier.display.get_processed_data("histogram")
 
     def test_adding_operation_updates_ordered_operations_list(self):
         document_model = DocumentModel.DocumentModel()

@@ -160,6 +160,21 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_specifier.display.slice_center, 3)
             self.assertEqual(display_specifier.display.slice_width, 2)
 
+    def test_changing_slice_width_updates_data_range(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.zeros((4, 8, 8), numpy.uint32)
+            for i in range(4):
+                d[i] = i
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.assertEqual(display_specifier.display.data_range, (0, 0))
+            display_specifier.display.slice_center = 2
+            display_specifier.display.slice_width = 4
+            self.assertEqual(display_specifier.display.data_range, (6, 6))
+
 
 if __name__ == '__main__':
     unittest.main()
