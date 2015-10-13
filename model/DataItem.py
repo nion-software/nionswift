@@ -6,7 +6,6 @@ import copy
 import datetime
 import functools
 import gettext
-import operator
 import os
 import threading
 import time
@@ -35,32 +34,6 @@ from nion.ui import Unicode
 _ = gettext.gettext
 
 UNTITLED_STR = _("Untitled")
-
-
-class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
-
-    def __init__(self, buffered_data_source):
-        super(StatisticsDataItemProcessor, self).__init__(buffered_data_source, "statistics_data_2")
-
-    def get_calculated_data(self, ui, data):
-        #logging.debug("Calculating statistics %s", self)
-        assert isinstance(self.item, BufferedDataSource)
-        mean = numpy.mean(data)
-        std = numpy.std(data)
-        rms = numpy.sqrt(numpy.mean(numpy.absolute(data)**2))
-        sum = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
-        data_range = self.item.data_range
-        data_min, data_max = data_range if data_range is not None else (None, None)
-        all_computations = { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum }
-        global _computation_fns
-        for computation_fn in _computation_fns:
-            computations = computation_fn(self.item)
-            if computations is not None:
-                all_computations.update(computations)
-        return all_computations
-
-    def get_default_data(self):
-        return { }
 
 
 class CalibrationList(object):
@@ -232,17 +205,12 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.data_and_metadata_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
         self.request_remove_data_item_because_operation_removed_event = Event.Event()
-        self.__processors = dict()
-        self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         if data is not None:
             self.__set_data(data)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
 
     def close(self):
-        for processor in self.__processors.values():
-            processor.close()
-        self.__processors = None
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
@@ -364,25 +332,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         if self.data_source:
             self.data_source.about_to_be_removed()
 
-    def get_processor(self, processor_id):
-        # check for case where we might already be closed. not pretty.
-        return self.__processors[processor_id] if self.__processors else None
-
-    def get_processed_data(self, processor_id):
-        return self.get_processor(processor_id).get_cached_data()
-
-    # called from processors
-    def processor_needs_recompute(self, processor):
-        self.notify_listeners("buffered_data_source_processor_needs_recompute", self, processor)
-
-    # called from processors
-    def processor_data_updated(self, processor):
-        self.notify_listeners("buffered_data_source_processor_data_updated", self, processor)
-
-    @property
-    def data_for_processor(self):
-        return self.data
-
     def will_remove_operation_region(self, region):
         self.remove_region(region)
 
@@ -462,8 +411,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
             self.__pending_data = data_and_calibration
             if self.__data_item_manager and not self.__is_recomputing:
                 self.__data_item_manager.dispatch_task(self.recompute_data, "data")
-            for processor in self.__processors.values():
-                processor.mark_data_dirty()
 
     @property
     def ordered_data_item_data_sources(self):
@@ -823,19 +770,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
             self.data_and_metadata_changed_event.fire()
             for display in self.displays:
                 display.update_data(data_and_calibration)
-            if not self._is_reading:
-                for processor in self.__processors.values():
-                    processor.mark_data_dirty()
 
     def r_value_changed(self):
         with self._changes():
             self.__change_changed = True
-
-    # override from storage to watch for changes to this data item. notify observers.
-    def notify_set_property(self, key, value):
-        super(BufferedDataSource, self).notify_set_property(key, value)
-        for processor in self.__processors.values():
-            processor.item_property_changed(key, value)
 
     def recompute_data(self):
         """Ensures that the data is synchronized with the sources/operation by recomputing if necessary."""
@@ -1568,14 +1506,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             assert isinstance(data_item, DataItem)
             data_item.decrement_data_ref_counts()
 
-    # notification from buffered_data_source
-    def buffered_data_source_processor_needs_recompute(self, data_item, processor):
-        self.notify_listeners("data_item_processor_needs_recompute", self, processor)
-
-    # notification from buffered_data_source
-    def buffered_data_source_processor_data_updated(self, data_item, processor):
-        self.notify_listeners("data_item_processor_data_updated", self, processor)
-
     # primary display
 
     @property
@@ -1690,13 +1620,3 @@ class DisplaySpecifier(object):
 def sort_by_date_key(data_item):
     """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
     return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
-
-
-_computation_fns = list()
-
-def register_computation(computation_fn):
-    global _computation_fns
-    _computation_fns.append(computation_fn)
-
-def unregister_computation(self, computation_fn):
-    pass

@@ -13,6 +13,7 @@ import math
 import logging
 import gettext
 import numbers
+import operator
 
 # third party libraries
 import numpy
@@ -154,6 +155,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__preview = None
         self.__preview_last = None
         self.__processors = dict()
+        self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
         self.__processors["histogram"] = HistogramDataItemProcessor(self)
         self.graphic_selection = GraphicSelection()
@@ -502,6 +504,25 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.display_processor_data_updated_event.fire(processor)
 
 
+class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
+
+    def __init__(self, buffered_data_source):
+        super(StatisticsDataItemProcessor, self).__init__(buffered_data_source, "statistics_data_2")
+
+    def get_calculated_data(self, ui, data):
+        #logging.debug("Calculating statistics %s", self)
+        mean = numpy.mean(data)
+        std = numpy.std(data)
+        rms = numpy.sqrt(numpy.mean(numpy.absolute(data)**2))
+        sum = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
+        data_range = self.item.data_range
+        data_min, data_max = data_range if data_range is not None else (None, None)
+        return { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum }
+
+    def get_default_data(self):
+        return { }
+
+
 class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def __init__(self, display):
@@ -524,11 +545,10 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             subsample = min(max(total_pixels * self.subsample_fraction, self.subsample_min), total_pixels)
         if subsample:
             factor = total_pixels / subsample
-            data = self.item.preview_2d_data
             data_sample = numpy.random.choice(data.reshape(numpy.product(data.shape)), subsample)
         else:
             factor = 1.0
-            data_sample = self.item.preview_2d_data
+            data_sample = data
         display_range = self.item.display_range  # may be None
         if display_range is None or data_sample is None:
             return None
@@ -552,11 +572,6 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         if Image.is_data_1d(data):
             thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
         elif Image.is_data_2d(data):
-            data_range = self.item.data_range
-            display_limits = self.item.display_limits
-            thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
-        elif Image.is_data_3d(data):
-            data = self.item.preview_2d_data
             data_range = self.item.data_range
             display_limits = self.item.display_limits
             thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)

@@ -188,9 +188,9 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                stats1 = copy.deepcopy(display_specifier.buffered_data_source.get_processed_data("statistics"))
-                display_specifier.buffered_data_source.get_processor("statistics").recompute_data(None)
-                stats2 = copy.deepcopy(display_specifier.buffered_data_source.get_processed_data("statistics"))
+                stats1 = copy.deepcopy(display_specifier.display.get_processed_data("statistics"))
+                display_specifier.display.get_processor("statistics").recompute_data(None)
+                stats2 = copy.deepcopy(display_specifier.display.get_processed_data("statistics"))
             self.assertNotEqual(stats1, stats2)
             # read it back
             storage_cache = Cache.DbStorageCache(cache_name)
@@ -198,7 +198,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-                stats3 = copy.deepcopy(read_display_specifier.buffered_data_source.get_processed_data("statistics"))
+                stats3 = copy.deepcopy(read_display_specifier.display.get_processed_data("statistics"))
                 self.assertEqual(stats2, stats3)
         finally:
             #logging.debug("rmtree %s", workspace_dir)

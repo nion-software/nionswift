@@ -316,7 +316,6 @@ class HistogramPanel(Panel.Panel):
 
         # the display holds the current display to which this histogram is listening.
         self.__data_item = None
-        self.__buffered_data_source = None
         self.__display = None
         self.__display_lock = threading.RLock()
 
@@ -334,7 +333,7 @@ class HistogramPanel(Panel.Panel):
         self.__data_item_changed_event_listener = None
         self.__selected_data_item_binding.close()
         self.__selected_data_item_binding = None
-        self.__set_display(None, None, None)
+        self.__set_display(None, None)
         self.clear_task("statistics")
         super(HistogramPanel, self).close()
 
@@ -357,7 +356,7 @@ class HistogramPanel(Panel.Panel):
         self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)//2:])
 
     # thread safe
-    def __set_display(self, data_item, buffered_data_source, display):
+    def __set_display(self, data_item, display):
         # typically could be updated from an acquisition thread and a
         # focus changed thread (why?).
         with self.__display_lock:
@@ -366,9 +365,7 @@ class HistogramPanel(Panel.Panel):
                 self.__display_processor_needs_recompute_event_listener = None
                 self.__display_processor_data_updated_event_listener.close()
                 self.__display_processor_data_updated_event_listener = None
-                self.__data_item.remove_listener(self)
             self.__data_item = data_item
-            self.__buffered_data_source = buffered_data_source
             self.__display = display
             if self.__display:
 
@@ -378,6 +375,8 @@ class HistogramPanel(Panel.Panel):
                         display = self.__display
                     if processor == display.get_processor("histogram"):
                         processor.recompute_if_necessary(document_model.dispatch_task, None)
+                    if processor == display.get_processor("statistics"):
+                        processor.recompute_if_necessary(document_model.dispatch_task, None)
 
                 def display_processor_data_updated(processor):
                     with self.__display_lock:
@@ -385,12 +384,14 @@ class HistogramPanel(Panel.Panel):
                     if processor == display.get_processor("histogram"):
                         histogram_data = display.get_processed_data("histogram")
                         self.__histogram_canvas_item.histogram_data = histogram_data
+                    if processor == display.get_processor("statistics"):
+                        statistics_data = display.get_processed_data("statistics")
+                        self.__update_statistics(statistics_data)
 
                 self.__display_processor_needs_recompute_event_listener = display.display_processor_needs_recompute_event.listen(display_processor_needs_recompute)
                 self.__display_processor_data_updated_event_listener = display.display_processor_data_updated_event.listen(display_processor_data_updated)
 
                 self.__display.add_listener(self)
-                self.__data_item.add_listener(self)
 
     # this message is received from the data item binding.
     # when a new display is set, this panel becomes a listener
@@ -403,29 +404,13 @@ class HistogramPanel(Panel.Panel):
     # thread safe
     def __data_item_changed(self, data_item):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.__set_display(display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        self.__set_display(display_specifier.data_item, display_specifier.display)
         self.__histogram_canvas_item._set_display(display_specifier.display)
         if display_specifier.display:
-            statistics_data = display_specifier.buffered_data_source.get_processed_data("statistics")
+            statistics_data = display_specifier.display.get_processed_data("statistics")
             document_model = self.document_controller.document_model
-            display_specifier.buffered_data_source.get_processor("statistics").recompute_if_necessary(document_model.dispatch_task, None)
+            display_specifier.display.get_processor("statistics").recompute_if_necessary(document_model.dispatch_task, None)
             display_specifier.display.get_processor("histogram").recompute_if_necessary(document_model.dispatch_task, None)
         else:
             statistics_data = dict()
         self.__update_statistics(statistics_data)
-
-    # notification from data item
-    def data_item_processor_needs_recompute(self, data_item, processor):
-        document_model = self.document_controller.document_model
-        with self.__display_lock:
-            buffered_data_source = self.__buffered_data_source
-        if processor == buffered_data_source.get_processor("statistics"):
-            processor.recompute_if_necessary(document_model.dispatch_task, None)
-
-    # notification from data item
-    def data_item_processor_data_updated(self, data_item, processor):
-        with self.__display_lock:
-            buffered_data_source = self.__buffered_data_source
-        if processor == buffered_data_source.get_processor("statistics"):
-            statistics_data = buffered_data_source.get_processed_data("statistics")
-            self.__update_statistics(statistics_data)
