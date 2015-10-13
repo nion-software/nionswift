@@ -1393,7 +1393,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_statistics_calculated_on_slice_data(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem((numpy.random.randn(8, 2, 2) * 100).astype(numpy.uint32))
+            data_item = DataItem.DataItem(numpy.abs(numpy.random.randn(8, 2, 2) * 100).astype(numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.get_processor("statistics").recompute_data(None)

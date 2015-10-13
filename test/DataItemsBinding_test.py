@@ -285,7 +285,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
             self.assertEqual(len(binding.data_items), 4)
             self.assertEqual(list(document_model.data_items), binding.data_items)
             with document_model.data_items[0].maybe_data_source.data_ref() as dr:
-                dr.data += 1.0
+                dr.data += 1
             self.assertEqual([document_model.data_items[1], document_model.data_items[2], document_model.data_items[3], document_model.data_items[0]], binding.data_items)
 
     def test_processed_data_items_sorted_by_source_data_modified_date(self):
