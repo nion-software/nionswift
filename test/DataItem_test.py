@@ -518,13 +518,13 @@ class TestDataItemClass(unittest.TestCase):
         xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = 50 * (xx + yy) + 25
-            data_range = display_specifier.buffered_data_source.data_range
+            data_range = display_specifier.display.data_range
             self.assertEqual(data_range, (25, 125))
             # now test complex
             data_ref.master_data = numpy.zeros((8, 8), numpy.complex64)
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
-        data_range = display_specifier.buffered_data_source.data_range
+        data_range = display_specifier.display.data_range
         data_min = math.log(math.sqrt(2*2 + 3*3))
         data_max = math.log(math.sqrt(12*12 + 13*13))
         self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
@@ -536,7 +536,7 @@ class TestDataItemClass(unittest.TestCase):
             with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.data[z, :, :] = z
                 data_ref.data_updated()
-            self.assertEqual(data_item.maybe_data_source.data_range, (0, z))
+            self.assertEqual(data_item.maybe_data_source.displays[0].data_range, (0, z))
 
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()

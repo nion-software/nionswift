@@ -160,14 +160,14 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                data_range = display_specifier.buffered_data_source.data_range
+                data_range = display_specifier.display.data_range
             # read it back
             storage_cache = Cache.DictStorageCache()
             document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-                self.assertEqual(read_display_specifier.buffered_data_source.data_range, data_range)
+                self.assertEqual(read_display_specifier.display.data_range, data_range)
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -273,13 +273,13 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_specifier.buffered_data_source.data_range)
+            self.assertIsNotNone(display_specifier.display.data_range)
             self.assertIsNotNone(display_specifier.display.data_range)
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_specifier.buffered_data_source.data_range)
+            self.assertIsNotNone(display_specifier.display.data_range)
             self.assertIsNotNone(display_specifier.display.data_range)
 
     def test_reload_data_item_initializes_display_slice(self):
@@ -1497,16 +1497,16 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
-            cached_data_range = storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"]
+            cached_data_range = storage_cache.cache[data_item.maybe_data_source.displays[0].uuid]["data_range"]
             self.assertEqual(cached_data_range, (1, 1))
-            self.assertEqual(data_item.maybe_data_source.data_range, (1, 1))
+            self.assertEqual(data_item.maybe_data_source.displays[0].data_range, (1, 1))
             with document_model.data_item_transaction(data_item):
                 with data_item.maybe_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
-                self.assertEqual(data_item.maybe_data_source.data_range, (0, 0))
-                self.assertEqual(cached_data_range, storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"])
+                self.assertEqual(data_item.maybe_data_source.displays[0].data_range, (0, 0))
+                self.assertEqual(cached_data_range, storage_cache.cache[data_item.maybe_data_source.displays[0].uuid]["data_range"])
                 self.assertEqual(cached_data_range, (1, 1))
-            self.assertEqual(storage_cache.cache[data_item.maybe_data_source.uuid]["data_range"], (0, 0))
+            self.assertEqual(storage_cache.cache[data_item.maybe_data_source.displays[0].uuid]["data_range"], (0, 0))
 
     def test_suspendable_storage_cache_caches_removes(self):
         data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))

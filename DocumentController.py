@@ -1093,10 +1093,9 @@ class DocumentController(Observable.Broadcaster):
         return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "convert-to-scalar-operation", suffix=_(" Gray"))
 
     def fix_display_limits(self, display_specifier):
-        buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
         if display:
-            display.display_limits = buffered_data_source.data_range
+            display.display_limits = display.data_range
 
     def build_variable_map(self):
         map = dict()

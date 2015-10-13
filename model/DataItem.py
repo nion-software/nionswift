@@ -295,7 +295,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         # effect of invalidating cached values, they need to occur while is_reading
         # is still true. call super after these two.
         for display in self.displays:
-            display.update_properties(self.data_properties)
             display.update_data(self.data_and_calibration)
         super(BufferedDataSource, self).finish_reading()
 
@@ -508,7 +507,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable
-        self.__validate_data_stats()
         for display in self.displays:
             display.storage_cache = storage_cache
         for region in self.regions:
@@ -516,7 +514,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     def __insert_display(self, name, before_index, display):
         # listen
-        display.update_properties(self.data_properties)
         display.update_data(self.data_and_calibration)
         # connect the regions
         for region in self.regions:
@@ -566,50 +563,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
     def remove_region(self, region):
         self.remove_item("regions", region)
 
-    def __validate_data_stats(self):
-        """Ensure that data stats are valid after reading."""
-        if self.has_data and (self.data_range is None or (self.is_data_complex_type and self.data_sample is None)):
-            self.__calculate_data_stats_for_data(self.data)
-
-    def __calculate_data_stats_for_data(self, data):
-        if data is not None and data.size:
-            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
-                data_range = (0, 255)
-                data_sample = None
-            elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
-                scalar_data = Image.scalar_from_array(data)
-                data_range = (numpy.amin(scalar_data), numpy.amax(scalar_data))
-                data_sample = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), 200)))
-            else:
-                data_range = (numpy.amin(data), numpy.amax(data))
-                data_sample = None
-        else:
-            data_range = None
-            data_sample = None
-        if data_range is not None:
-            self.set_cached_value("data_range", data_range)
-        else:
-            self.remove_cached_value("data_range")
-        if data_sample is not None:
-            self.set_cached_value("data_sample", data_sample)
-        else:
-            self.remove_cached_value("data_sample")
-
-    @property
-    def data_range(self):
-        return self.get_cached_value("data_range")
-
-    @property
-    def data_sample(self):
-        return self.get_cached_value("data_sample")
-
-    @property
-    def data_properties(self):
-        data_properties = dict()
-        data_properties["data_range"] = self.data_range
-        data_properties["data_sample"] = self.data_sample
-        return data_properties
-
     @property
     def has_data(self):
         return self.data_shape is not None and self.data_dtype is not None
@@ -628,18 +581,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
                 self.data_dtype = data.dtype if data is not None else None
                 dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
                 self.__sync_dimensional_calibrations(len(dimensional_shape) if dimensional_shape is not None else 0)
-                self.__calculate_data_stats_for_data(data)
             # tell the persistent object context about it
             if self.__data is not None:
                 if self.persistent_object_context:
                     self.persistent_object_context.rewrite_data_item_data(self)
-                data_range = self.data_range
-                data_sample = self.data_sample
-                self.notify_set_property("data_range", data_range)
-                self.notify_set_property("data_sample", data_sample)
-                for display in self.displays:
-                    display.update_property("data_range", data_range)
-                    display.update_property("data_sample", data_sample)
             self.__notify_next_data_and_calibration()
 
     def __load_data(self):

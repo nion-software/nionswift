@@ -150,7 +150,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__graphic_changed_listeners = list()
         self.__remove_region_graphic_listeners = list()
         self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
-        self.__data_properties = dict()
         self.__preview_data = None
         self.__preview = None
         self.__preview_last = None
@@ -338,17 +337,59 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__preview = None
         self.display_changed_event.fire()
 
+    def storage_cache_changed(self, storage_cache):
+        # override from Cacheable
+        self.__validate_data_stats()
+
+    def __validate_data_stats(self):
+        """Ensure that data stats are valid after reading."""
+        display_data = self.__data_and_calibration.data if self.__data_and_calibration else None
+        is_data_complex_type = self.__data_and_calibration.is_data_complex_type if self.__data_and_calibration else False
+        if display_data is not None and (self.data_range is None or (is_data_complex_type and self.data_sample is None)):
+            self.__calculate_data_stats_for_data(display_data)
+
+    def __calculate_data_stats_for_data(self, data):
+        if data is not None and data.size:
+            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
+                data_range = (0, 255)
+                data_sample = None
+            elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
+                scalar_data = Image.scalar_from_array(data)
+                data_range = (numpy.amin(scalar_data), numpy.amax(scalar_data))
+                data_sample = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), 200)))
+            else:
+                data_range = (numpy.amin(data), numpy.amax(data))
+                data_sample = None
+        else:
+            data_range = None
+            data_sample = None
+        if data_range is not None:
+            self.set_cached_value("data_range", data_range)
+        else:
+            self.remove_cached_value("data_range")
+        if data_sample is not None:
+            self.set_cached_value("data_sample", data_sample)
+        else:
+            self.remove_cached_value("data_sample")
+        self.__preview_data = None
+        if self.__preview is not None:
+            self.__preview_last = self.__preview
+        self.__preview = None
+        self.notify_set_property("data_range", data_range)
+        self.notify_set_property("data_sample", data_sample)
+        self.notify_set_property("display_range", self.display_range)
+
     @property
     def data_range(self):
-        return self.__data_properties.get("data_range")
+        return self.get_cached_value("data_range")
 
     @property
     def data_sample(self):
-        return self.__data_properties.get("data_sample")
+        return self.get_cached_value("data_sample")
 
     @property
     def display_range(self):
-        if self.display_limits:
+        if self.display_limits is not None:
             return self.display_limits
         data_range = self.data_range
         if self.__data_and_calibration and self.__data_and_calibration.is_data_complex_type:
@@ -358,29 +399,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
                 display_limit_low = numpy.log(data_sample_10) if data_sample_10 > 0.0 else data_range[0]
                 display_limit_high = data_range[1]
                 return display_limit_low, display_limit_high
-            else:
-                return data_range
-        else:
-            return self.display_limits if self.display_limits else data_range
+        return data_range
 
     @display_range.setter
     def display_range(self, display_range):
         # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
         self.display_limits = display_range
-
-    # message sent from buffered_data_source to initialize properties
-    def update_properties(self, properties):
-        self.__data_properties.update(properties)
-
-    # message sent from buffered_data_source data_range or data_sample changes.
-    def update_property(self, property, value):
-        self.__preview_data = None
-        if self.__preview is not None:
-            self.__preview_last = self.__preview
-        self.__preview = None
-        self.__data_properties[property] = value
-        self.notify_set_property(property, value)
-        self.notify_set_property("display_range", self.display_range)
 
     # message sent from buffered_data_source when data changes.
     # thread safe
@@ -399,6 +423,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
                 self.slice_width = 1
                 self.slice_center = self.slice_center
                 self.slice_width = old_slice_width
+        self.__calculate_data_stats_for_data(data_and_calibration.data)
         self.display_changed_event.fire()
         # clear the processor caches
         if not self._is_reading:
