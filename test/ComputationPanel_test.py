@@ -11,14 +11,13 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.swift import CalculationPanel
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Symbolic
 from nion.ui import Test
 
 
-class TestCalculationPanelClass(unittest.TestCase):
+class TestComputationPanelClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(Test.UserInterface(), set_global=False)
@@ -29,7 +28,7 @@ class TestCalculationPanelClass(unittest.TestCase):
     def test_expression_updates_when_node_is_changed(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        panel = document_controller.find_dock_widget("calculation-panel").panel
+        panel = document_controller.find_dock_widget("computation-panel").panel
         data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item1)
         data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -51,7 +50,7 @@ class TestCalculationPanelClass(unittest.TestCase):
     def test_clearing_computation_clears_text_and_unbinds_or_whatever(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        panel = document_controller.find_dock_widget("calculation-panel").panel
+        panel = document_controller.find_dock_widget("computation-panel").panel
         data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item1)
         data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -74,7 +73,7 @@ class TestCalculationPanelClass(unittest.TestCase):
     def test_invalid_expression_shows_error_and_clears_it(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        panel = document_controller.find_dock_widget("calculation-panel").panel
+        panel = document_controller.find_dock_widget("computation-panel").panel
         data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item1)
         data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -99,7 +98,7 @@ class TestCalculationPanelClass(unittest.TestCase):
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()
 
-    def disabled_test_calculation_panel_provides_help_button(self):
+    def disabled_test_computation_panel_provides_help_button(self):
         raise Exception()
 
     def disabled_test_new_button_create_new_data_item(self):

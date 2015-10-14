@@ -147,7 +147,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
-            data_item2 = document_controller.processing_calculation("a[0:8,:,:]", map)
+            data_item2 = document_controller.processing_computation("a[0:8,:,:]", map)
             document_model.recompute_all()
             assert numpy.array_equal(data_item2.maybe_data_source.data, d[0:8,:,:])
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item2)

@@ -118,11 +118,11 @@ class ComputationModel(object):
             self.__computation_changed(buffered_data_source)
 
 
-class CalculationPanel(Panel.Panel):
+class ComputationPanel(Panel.Panel):
     """Provide a panel to edit a computation."""
 
     def __init__(self, document_controller, panel_id, properties):
-        super(CalculationPanel, self).__init__(document_controller, panel_id, _("Calculation"))
+        super(ComputationPanel, self).__init__(document_controller, panel_id, _("Computation"))
 
         ui = self.ui
 
@@ -167,7 +167,7 @@ class CalculationPanel(Panel.Panel):
         column.add_spacing(6)
 
         def new_pressed():
-            document_controller.processing_calculation(text_edit.text)
+            document_controller.processing_computation(text_edit.text)
 
         def update_pressed():
             if text_edit.text:
@@ -204,7 +204,7 @@ class CalculationPanel(Panel.Panel):
         self.__computation_model = None
         self.__selected_data_item_binding.close()
         self.__selected_data_item_binding = None
-        super(CalculationPanel, self).close()
+        super(ComputationPanel, self).close()
 
     @property
     def _text_edit_for_testing(self):

@@ -864,7 +864,7 @@ class ConvertToScalarOperation(Operation):
 class NodeOperation(Operation):
 
     def __init__(self):
-        super(NodeOperation, self).__init__(_("Calculation"), "node-operation")
+        super(NodeOperation, self).__init__(_("Computation"), "node-operation")
 
     def get_processed_data(self, data_sources, values):
         index_mapping = values.get("data_mapping")

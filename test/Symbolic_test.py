@@ -171,7 +171,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
-            data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
+            data_item = document_controller.processing_computation("-a / average(a) * 5", map)
             document_model.recompute_all()
             assert numpy.array_equal(data_item.maybe_data_source.data, -d / numpy.average(d) * 5)
 
@@ -297,7 +297,7 @@ class TestSymbolicClass(unittest.TestCase):
                 data_item.maybe_data_source.regions[0].size = 0.53, 0.43
             self.assertTrue(needs_update_ref[0])
 
-    def test_calculation_handles_data_lookups(self):
+    def test_computation_handles_data_lookups(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -305,11 +305,11 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             expression = "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid))
-            data_item = document_controller.processing_calculation(expression, dict())
+            data_item = document_controller.processing_computation(expression, dict())
             document_model.recompute_all()
             assert numpy.array_equal(data_item.maybe_data_source.data, -d)
 
-    def test_calculation_handles_region_lookups(self):
+    def test_computation_handles_region_lookups(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -322,7 +322,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
             expression = "crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid))
-            data_item = document_controller.processing_calculation(expression, map)
+            data_item = document_controller.processing_computation(expression, map)
             document_model.recompute_all()
             assert numpy.array_equal(data_item.maybe_data_source.data, d[20:80, 30:70])
 
@@ -338,7 +338,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
-            new_data_item = document_controller.processing_calculation("-a / average(a) * 5", map)
+            new_data_item = document_controller.processing_computation("-a / average(a) * 5", map)
             document_model.recompute_all()
             self.assertEqual(new_data_item.maybe_data_source.metadata, data_item.maybe_data_source.metadata)
             self.assertEqual(new_data_item.maybe_data_source.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
@@ -352,7 +352,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
-            new_data_item = document_controller.processing_calculation("-a", map)
+            new_data_item = document_controller.processing_computation("-a", map)
             document_model.recompute_all()
             document_model.remove_data_item(new_data_item)
 
@@ -388,7 +388,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
-            document_controller.processing_calculation("void(a,2)", map)
+            document_controller.processing_computation("void(a,2)", map)
             document_model.recompute_all()
 
     def test_reconstruct_with_variable_works(self):
@@ -401,7 +401,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = Symbolic.Computation()
             computation.parse_expression(document_model, "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)), dict())
             expression = computation.reconstruct(dict())
-            data_item = document_controller.processing_calculation(expression, dict())
+            data_item = document_controller.processing_computation(expression, dict())
             document_model.recompute_all()
             assert numpy.array_equal(data_item.maybe_data_source.data, -d)
 
@@ -476,7 +476,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
-            document_controller.processing_calculation("-a", map)
+            document_controller.processing_computation("-a", map)
             document_model.recompute_all()
             computed_data_item = document_model.data_items[1]
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data))

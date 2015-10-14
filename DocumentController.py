@@ -1105,11 +1105,11 @@ class DocumentController(Observable.Broadcaster):
                 map[self.data_item_vars[weak_data_item]] = self.document_model.get_object_specifier(data_item)
         return map
 
-    def processing_calculation(self, expression, map=None):
+    def processing_computation(self, expression, map=None):
         if map is None:
             map = self.build_variable_map()
         data_item = DataItem.DataItem()
-        data_item.title = _("Calculation on ") + data_item.title
+        data_item.title = _("Computation on ") + data_item.title
         computation = Symbolic.Computation()
         computation.parse_expression(self.document_model, expression, map)
         buffered_data_source = DataItem.BufferedDataSource()
@@ -1153,7 +1153,7 @@ class DocumentController(Observable.Broadcaster):
             map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
             map["pick_region"] = self.document_model.get_object_specifier(pick_region)
             data_item = DataItem.DataItem()
-            data_item.title = _("New Crop on ") + data_item.title
+            data_item.title = _("New Pick on ") + data_item.title
             computation = Symbolic.Computation()
             computation.parse_expression(self.document_model, "pick(src, pick_region.position)", map)
             buffered_data_source = DataItem.BufferedDataSource()
@@ -1178,7 +1178,7 @@ class DocumentController(Observable.Broadcaster):
             map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
             map["line_region"] = self.document_model.get_object_specifier(line_region)
             data_item = DataItem.DataItem()
-            data_item.title = _("New Crop on ") + data_item.title
+            data_item.title = _("New Line Profile on ") + data_item.title
             computation = Symbolic.Computation()
             computation.parse_expression(self.document_model, "line_profile(src, line_region.vector, line_region.width)", map)
             buffered_data_source = DataItem.BufferedDataSource()

@@ -12,7 +12,7 @@ import sys
 # None
 
 # local libraries
-from nion.swift import CalculationPanel
+from nion.swift import ComputationPanel
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import FilterPanel
@@ -71,7 +71,7 @@ class Application(object):
         workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
         workspace_manager.register_panel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")
         workspace_manager.register_panel(ToolbarPanel.ToolbarPanel, "toolbar-panel", _("Toolbar"), ["top"], "top", {"height": 30})
-        workspace_manager.register_panel(CalculationPanel.CalculationPanel, "calculation-panel", _("Calculation"), ["left", "right"], "left", {"min-width": 320, "height": 8})
+        workspace_manager.register_panel(ComputationPanel.ComputationPanel, "computation-panel", _("Computation"), ["left", "right"], "left", {"min-width": 320, "height": 8})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):
