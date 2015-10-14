@@ -1028,7 +1028,7 @@ class IntervalGraphic(Graphic):
     def nudge(self, mapping, delta):
         end_channel = mapping.map_point_channel_norm_to_channel(self.end)
         start_channel = mapping.map_point_channel_norm_to_channel(self.start)
-        original = (end_channel + start_channel) * 0.5
+        original = Geometry.FloatPoint(y=0.0, x=(end_channel + start_channel) * 0.5)
         current = original + delta
         self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
 
