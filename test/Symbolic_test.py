@@ -864,6 +864,52 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
             self.assertTrue(numpy.array_equal(copied_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
 
+    def test_computation_extracts_data_property_of_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computed_data_item = DataItem.DataItem(data.copy())
+            computation.parse_expression(document_model, "a.data", map)
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data_item.maybe_data_source.data))
+
+    def test_computation_extracts_display_data_property_of_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation.parse_expression(document_model, "a.display_data", map)
+            data_node_dict = computation.write_to_dict()
+            computation2 = Symbolic.Computation()
+            computation2.read_from_dict(data_node_dict)
+            computation2.bind(document_model)
+            data = computation.evaluate().data
+            data2 = computation2.evaluate().data
+            assert numpy.array_equal(data, src_data)
+            assert numpy.array_equal(data, data2)
+
+    def test_computation_reconstruct_display_data_property_uses_d_variable(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation.parse_expression(document_model, "a.display_data", map)
+            expression_text = computation.reconstruct(dict())
+            self.assertEqual(expression_text[:2], "d0")
+
     def disabled_test_computations_handle_constant_values_as_errors(self):
         # computation.parse_expression(document_model, "7", map)
         assert False

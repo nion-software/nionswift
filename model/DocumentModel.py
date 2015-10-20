@@ -1077,8 +1077,24 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None
+                class BoundDataItemDisplay(object):
+                    def __init__(self, data_item):
+                        self.__buffered_data_source = data_item.maybe_data_source
+                        self.changed_event = Event.Event()
+                        def display_changed():
+                            self.changed_event.fire()
+                        self.__display_changed_event_listener = self.__buffered_data_source.displays[0].display_changed_event.listen(display_changed)
+                    @property
+                    def value(self):
+                        return self.__buffered_data_source.displays[0].display_data_and_calibration
+                    def close(self):
+                        self.__display_changed_event_listener.close()
+                        self.__display_changed_event_listener = None
                 if data_item:
-                    return BoundDataItem(data_item)
+                    if not property_name or property_name == "data":
+                        return BoundDataItem(data_item)
+                    elif property_name == "display_data":
+                        return BoundDataItemDisplay(data_item)
             elif specifier_type == "region":
                 object_uuid = uuid.UUID(specifier["uuid"])
                 for data_item in self.data_items:

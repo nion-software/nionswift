@@ -1330,6 +1330,9 @@ class DataItemDataNode(DataNode):
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
         return variable_name, 10
 
+    def __getattr__(self, name):
+        return PropertyDataNode(self.__object_specifier, name)
+
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__object_specifier)
 
@@ -1409,13 +1412,20 @@ class PropertyDataNode(DataNode):
 
     def reconstruct(self, variable_map):
         variable_index = -1
+        object_specifier_type = self.__object_specifier["type"]
+        if object_specifier_type == "data_item":
+            prefix = "d"
+        elif object_specifier_type == "region":
+            prefix = "region"
+        else:
+            prefix = "object"
         for variable, object_specifier in variable_map.items():
             if object_specifier == self.__object_specifier:
                 return "{0}.{1}".format(variable, self.__property), 10
-            if variable.startswith("region"):
-                variable_index = max(variable_index, int(variable[1:]) + 1)
+            if variable.startswith(prefix):
+                variable_index = max(variable_index, int(variable[len(prefix):]) + 1)
         variable_index = max(variable_index, 0)
-        variable_name = "region{0}".format(variable_index)
+        variable_name = "{0}{1}".format(prefix, variable_index)
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
         return "{0}.{1}".format(variable_name, self.__property), 10
 
@@ -1446,7 +1456,7 @@ _node_map = {
     "function": FunctionOperationDataNode,
     "property": PropertyDataNode,
     "reference": ReferenceDataNode,
-    "data": DataItemDataNode,
+    "data": DataItemDataNode,  # TODO: file format: Rename symbolic node 'data' to 'dataitem'
 }
 
 def transpose_flip(data_node, transpose=False, flip_v=False, flip_h=False):
