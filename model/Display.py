@@ -10,7 +10,6 @@ from __future__ import division
 import copy
 import functools
 import math
-import logging
 import gettext
 import numbers
 import operator
@@ -20,6 +19,7 @@ import numpy
 
 # local libraries
 from nion.swift.model import Cache
+from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
 from nion.swift.model import Image
@@ -151,7 +151,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__remove_region_graphic_listeners = list()
         self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
         self.__display_data = None
-        self.__preview_data = None
         self.__preview = None
         self.__preview_last = None
         self.__processors = dict()
@@ -206,7 +205,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
     @property
     def preview_2d(self):
         if self.__preview is None:
-            data_2d = self.preview_2d_data
+            data_2d = self.display_data
             if data_2d is not None:
                 data_range = self.data_range
                 display_limits = self.display_limits
@@ -229,11 +228,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
                 if self.__data_and_calibration:
                     data = self.__data_and_calibration.data
                     if Image.is_data_1d(data):
-                        display_data = data
+                        display_data = Image.scalar_from_array(data)
                     elif Image.is_data_2d(data):
-                        display_data = data
+                        display_data = Image.scalar_from_array(data)
                     elif Image.is_data_3d(data):
-                        display_data = Symbolic.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data
+                        display_data = Image.scalar_from_array(Symbolic.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
                     else:
                         display_data = None
                     self.__display_data = display_data
@@ -245,16 +244,38 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             raise
 
     @property
-    def preview_2d_data(self):
-        try:
-            if self.__preview_data is None:
-                self.__preview_data = Image.scalar_from_array(self.display_data)
-            return self.__preview_data
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
+    def display_data_and_calibration(self):
+        """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA."""
+        if self.__data_and_calibration:
+            if self.__data_and_calibration.is_data_1d:
+                data_shape_and_dtype = self.__data_and_calibration.data_shape_and_dtype
+                intensity_calibration = self.__data_and_calibration.intensity_calibration
+                dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations
+                metadata = self.__data_and_calibration.metadata
+                timestamp = self.__data_and_calibration.timestamp
+                return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
+                                                       intensity_calibration, dimensional_calibrations, metadata,
+                                                       timestamp)
+            elif self.__data_and_calibration.is_data_2d:
+                data_shape_and_dtype = self.__data_and_calibration.data_shape_and_dtype
+                intensity_calibration = self.__data_and_calibration.intensity_calibration
+                dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations
+                metadata = self.__data_and_calibration.metadata
+                timestamp = self.__data_and_calibration.timestamp
+                return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
+                                                       intensity_calibration, dimensional_calibrations, metadata,
+                                                       timestamp)
+            elif self.__data_and_calibration.is_data_3d:
+                data_shape, data_dtype = self.__data_and_calibration.data_shape_and_dtype
+                data_shape_and_dtype = data_shape[1:], data_dtype
+                intensity_calibration = self.__data_and_calibration.intensity_calibration
+                dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations[1:]
+                metadata = self.__data_and_calibration.metadata
+                timestamp = self.__data_and_calibration.timestamp
+                return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
+                                                       intensity_calibration, dimensional_calibrations, metadata,
+                                                       timestamp)
+        return None
 
     @property
     def preview_2d_shape(self):
@@ -436,7 +457,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
 
     def __clear_cached_data(self):
         self.__display_data = None
-        self.__preview_data = None
         if self.__preview is not None:
             self.__preview_last = self.__preview
         self.__preview = None

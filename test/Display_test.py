@@ -66,7 +66,7 @@ class TestDisplayClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        self.assertIsNotNone(display.preview_2d_data)
+        self.assertIsNotNone(display.display_data)
 
     def test_changing_data_updates_display_range(self):
         irow, icol = numpy.ogrid[0:16, 0:16]
@@ -174,6 +174,59 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier.display.slice_center = 2
             display_specifier.display.slice_width = 4
             self.assertEqual(display_specifier.display.data_range, (6, 6))
+
+    def test_display_data_is_scalar_for_1d_complex(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.ones((16,), numpy.complex128)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
+
+    def test_display_data_is_scalar_for_2d_complex(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.ones((16, 16), numpy.complex128)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
+
+    def test_display_data_is_rgba_for_2d_rgba(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.ones((16, 16, 4), numpy.uint8)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.uint8)
+            self.assertEqual(display_specifier.display.display_data.shape[-1], 4)
+
+    def test_display_data_is_2d_for_3d(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.ones((8, 16, 16), numpy.float64)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.assertEqual(display_specifier.display.display_data.shape, (16, 16))
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
+
+    def test_display_data_is_2d_scalar_for_3d_complex(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.ones((8, 16, 16), numpy.complex128)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.assertEqual(display_specifier.display.display_data.shape, (16, 16))
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
 
 
 if __name__ == '__main__':
