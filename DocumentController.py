@@ -289,6 +289,7 @@ class DocumentController(Observable.Broadcaster):
 
         self.processing_menu.add_menu_item(_("Crop (Experimental)"), lambda: self.processing_crop_new())
         self.processing_menu.add_menu_item(_("Pick (Experimental)"), lambda: self.processing_pick_new())
+        self.processing_menu.add_menu_item(_("Slice (Experimental)"), lambda: self.processing_slice_new())
         self.processing_menu.add_menu_item(_("Line Profile (Experimental)"), lambda: self.processing_line_profile_new())
         self.processing_menu.add_separator()
 
@@ -1132,7 +1133,7 @@ class DocumentController(Observable.Broadcaster):
             data_item = DataItem.DataItem()
             data_item.title = _("New Crop on ") + data_item.title
             computation = Symbolic.Computation()
-            computation.parse_expression(self.document_model, "crop(src, crop_region.bounds)", map)
+            computation.parse_expression(self.document_model, "crop(src.display_data, crop_region.bounds)", map)
             buffered_data_source = DataItem.BufferedDataSource()
             data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
@@ -1155,7 +1156,27 @@ class DocumentController(Observable.Broadcaster):
             data_item = DataItem.DataItem()
             data_item.title = _("New Pick on ") + data_item.title
             computation = Symbolic.Computation()
-            computation.parse_expression(self.document_model, "pick(src, pick_region.position)", map)
+            computation.parse_expression(self.document_model, "pick(src.data, pick_region.position)", map)
+            buffered_data_source = DataItem.BufferedDataSource()
+            data_item.append_data_source(buffered_data_source)
+            buffered_data_source.set_computation(computation)
+            self.document_model.append_data_item(data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            return data_item
+        return None
+
+    def processing_slice_new(self, map=None):
+        display_specifier = self.selected_display_specifier
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
+            if map is None:
+                map = self.build_variable_map()
+            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
+            data_item = DataItem.DataItem()
+            data_item.title = _("New Slice on ") + data_item.title
+            computation = Symbolic.Computation()
+            computation.parse_expression(self.document_model, "slice_sum(src.data, 0, 1)", map)
             buffered_data_source = DataItem.BufferedDataSource()
             data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
@@ -1180,7 +1201,7 @@ class DocumentController(Observable.Broadcaster):
             data_item = DataItem.DataItem()
             data_item.title = _("New Line Profile on ") + data_item.title
             computation = Symbolic.Computation()
-            computation.parse_expression(self.document_model, "line_profile(src, line_region.vector, line_region.width)", map)
+            computation.parse_expression(self.document_model, "line_profile(src.display_data, line_region.vector, line_region.width)", map)
             buffered_data_source = DataItem.BufferedDataSource()
             data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
