@@ -19,6 +19,7 @@ from nion.swift import DocumentController
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Image
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.ui import Test
@@ -880,6 +881,41 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data_item.maybe_data_source.data))
 
+    def test_resample_produces_correct_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computed_data_item = DataItem.DataItem(data.copy())
+            computation.parse_expression(document_model, "resample_image(a, shape(5, 4))", map)
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Image.scaled(data_item.maybe_data_source.data, (5, 4))))
+
+    def test_resample_with_data_shape_produces_correct_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            data2 = numpy.zeros((5, 4), numpy.uint32)
+            data_item2 = DataItem.DataItem(data2)
+            document_model.append_data_item(data_item2)
+            computation = Symbolic.Computation()
+            map = {"a": document_model.get_object_specifier(data_item), "b": document_model.get_object_specifier(data_item2)}
+            computed_data_item = DataItem.DataItem(data.copy())
+            computation.parse_expression(document_model, "resample_image(a, data_shape(b))", map)
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Image.scaled(data_item.maybe_data_source.data, (5, 4))))
+
     def test_computation_extracts_display_data_property_of_data_item(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -909,6 +945,37 @@ class TestSymbolicClass(unittest.TestCase):
             computation.parse_expression(document_model, "a.display_data", map)
             expression_text = computation.reconstruct(dict())
             self.assertEqual(expression_text[:2], "d0")
+
+    def test_various_expressions_produces_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            script_and_data = [
+                ("histogram(a, 10)", None),
+                ("line_profile(a, vector(normalized_point(0.1, 0.1), normalized_point(0.8, 0.7)), 10)", None),
+                ("transpose_flip(a, False, True, False)", None),
+                ("crop(a, rectangle_from_origin_size(normalized_point(0, 0), normalized_size(0.5, 0.625)))", src_data[0:5, 0:5]),
+                ("project(a)", numpy.sum(src_data, 0)),
+                ("resample_image(a, shape(32, 32))", Image.scaled(src_data, (32, 32))),
+                ("resample_image(a, data_shape(a))", src_data),
+                ("resample_image(a, data_shape(crop(a, rectangle_from_origin_size(normalized_point(0, 0), normalized_size(0.5, 0.625)))))", Image.scaled(src_data, (5, 5))),
+            ]
+            for script, data in script_and_data:
+                computation = Symbolic.Computation()
+                computation.parse_expression(document_model, script, map)
+                expression_text = computation.reconstruct(map)
+                self.assertEqual(script, expression_text)
+                computed_data_item = DataItem.DataItem(src_data.copy())
+                computed_data_item.maybe_data_source.set_computation(computation)
+                document_model.append_data_item(computed_data_item)
+                computation.needs_update_event.fire()  # ugh. bootstrap.
+                document_model.recompute_all()
+                self.assertIsNotNone(computed_data_item.maybe_data_source.data)
+                if data is not None:
+                    self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data))
 
     def disabled_test_computations_handle_constant_values_as_errors(self):
         # computation.parse_expression(document_model, "7", map)

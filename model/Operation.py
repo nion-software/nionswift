@@ -785,7 +785,8 @@ class Resample2dOperation(Operation):
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
         dimensional_shape = data_and_calibrations[0].dimensional_shape
         if dimensional_shape and len(dimensional_shape) == 2:
-            data_and_metadata = Symbolic.function_resample_2d(data_and_calibrations[0], values.get("height", dimensional_shape[0]), values.get("width", dimensional_shape[1]))
+            resample_shape = values.get("height", dimensional_shape[0]), values.get("width", dimensional_shape[1])
+            data_and_metadata = Symbolic.function_resample_2d(data_and_calibrations[0], resample_shape)
             return data_and_metadata if data_and_metadata else None
         else:
             return None

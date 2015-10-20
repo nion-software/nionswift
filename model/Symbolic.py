@@ -525,9 +525,9 @@ def function_project(data_and_metadata):
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
-def function_resample_2d(data_and_metadata, height, width):
-    height = int(height)
-    width = int(width)
+def function_resample_2d(data_and_metadata, shape):
+    height = int(shape[0])
+    width = int(shape[1])
 
     data_shape = data_and_metadata.data_shape
     data_dtype = data_and_metadata.data_dtype
@@ -666,6 +666,27 @@ def function_line_profile(data_and_metadata, vector, integration_width):
                                            data_and_metadata.intensity_calibration, dimensional_calibrations,
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
+def function_make_point(y, x):
+    return y, x
+
+def function_make_size(height, width):
+    return height, width
+
+def function_make_vector(start, end):
+    return start, end
+
+def function_make_rectangle_origin_size(origin, size):
+    return tuple(Geometry.FloatRect(origin, size))
+
+def function_make_rectangle_center_size(center, size):
+    return tuple(Geometry.FloatRect.from_center_and_size(center, size))
+
+def function_make_interval(start, end):
+    return start, end
+
+def function_make_shape(*args):
+    return tuple(args)
+
 
 _function2_map = {
     "fft": function_fft,
@@ -767,6 +788,13 @@ _function_map = {
     "conj": numpy.conj,
     # data functions
     "data_shape": data_shape,
+    "shape": function_make_shape,
+    "vector": function_make_vector,
+    "rectangle_from_origin_size": function_make_rectangle_origin_size,
+    "rectangle_from_center_size": function_make_rectangle_center_size,
+    "normalized_point": function_make_point,
+    "normalized_size": function_make_size,
+    "normalized_interval": function_make_interval,
 }
 
 def reconstruct_inputs(variable_map, inputs):
@@ -872,7 +900,9 @@ class DataNode(object):
 
     @classmethod
     def make(cls, value):
-        if isinstance(value, DataNode):
+        if isinstance(value, ScalarOperationDataNode):
+            return value
+        elif isinstance(value, DataNode):
             return value
         elif isinstance(value, numbers.Integral):
             return ConstantDataNode(value)
@@ -1069,13 +1099,8 @@ class ScalarOperationDataNode(DataNode):
         return d
 
     def _evaluate_inputs(self, evaluated_inputs, context):
-        def calculate_data():
-            return _function_map[self.__function_id](extract_data(evaluated_inputs[0]), **self.__args)
-
         if self.__function_id in _function_map and all(evaluated_input is not None for evaluated_input in evaluated_inputs):
-            return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
-                                                   Calibration.Calibration(), list(), dict(),
-                                                   datetime.datetime.utcnow())
+            return _function_map[self.__function_id](*[extract_data(evaluated_input) for evaluated_input in evaluated_inputs], **self.__args)
         return None
 
     def reconstruct(self, variable_map):
@@ -1460,7 +1485,7 @@ _node_map = {
 }
 
 def transpose_flip(data_node, transpose=False, flip_v=False, flip_h=False):
-    return FunctionOperationDataNode([data_node], "transpose_flip", args={"transpose": transpose, "flip_v": flip_v, "flip_h": flip_h})
+    return FunctionOperationDataNode([data_node, DataNode.make(transpose), DataNode.make(flip_v), DataNode.make(flip_h)], "transpose_flip")
 
 def parse_expression(expression_lines, variable_map, context):
     code_lines = []
@@ -1524,16 +1549,23 @@ def parse_expression(expression_lines, variable_map, context):
     g["median_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "median_filter")
     g["uniform_filter"] = lambda data_node, scalar_node: FunctionOperationDataNode([data_node, DataNode.make(scalar_node)], "uniform_filter")
     g["transpose_flip"] = transpose_flip
-    g["crop"] = lambda data_node, bounds_node: FunctionOperationDataNode([data_node, bounds_node], "crop")
+    g["crop"] = lambda data_node, bounds_node: FunctionOperationDataNode([data_node, DataNode.make(bounds_node)], "crop")
     g["slice_sum"] = lambda data_node, scalar_node1, scalar_node2: FunctionOperationDataNode([data_node, DataNode.make(scalar_node1), DataNode.make(scalar_node2)], "slice_sum")
-    g["pick"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "pick")
-    g["project"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "project")
-    g["resample_image"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "resample_image")
-    g["histogram"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, position_node], "histogram")
-    g["line_profile"] = lambda data_node, position_node, width_node: FunctionOperationDataNode([data_node, position_node, width_node], "line_profile")
+    g["pick"] = lambda data_node, position_node: FunctionOperationDataNode([data_node, DataNode.make(position_node)], "pick")
+    g["project"] = lambda data_node: FunctionOperationDataNode([data_node], "project")
+    g["resample_image"] = lambda data_node, shape: FunctionOperationDataNode([data_node, DataNode.make(shape)], "resample_image")
+    g["histogram"] = lambda data_node, bins_node: FunctionOperationDataNode([data_node, DataNode.make(bins_node)], "histogram")
+    g["line_profile"] = lambda data_node, vector_node, width_node: FunctionOperationDataNode([data_node, DataNode.make(vector_node), DataNode.make(width_node)], "line_profile")
     g["data_by_uuid"] = lambda data_uuid: data_by_uuid(context, data_uuid)
     g["region_by_uuid"] = lambda region_uuid: region_by_uuid(context, region_uuid)
     g["data_shape"] = lambda data_node: ScalarOperationDataNode([data_node], "data_shape")
+    g["shape"] = lambda *args: ScalarOperationDataNode([DataNode.make(arg) for arg in args], "shape")
+    g["rectangle_from_origin_size"] = lambda origin, size: ScalarOperationDataNode([DataNode.make(origin), DataNode.make(size)], "rectangle_from_origin_size")
+    g["rectangle_from_center_size"] = lambda center, size: ScalarOperationDataNode([DataNode.make(center), DataNode.make(size)], "rectangle_from_center_size")
+    g["vector"] = lambda start, end: ScalarOperationDataNode([DataNode.make(start), DataNode.make(end)], "vector")
+    g["normalized_point"] = lambda y, x: ScalarOperationDataNode([DataNode.make(y), DataNode.make(x)], "normalized_point")
+    g["normalized_size"] = lambda height, width: ScalarOperationDataNode([DataNode.make(height), DataNode.make(width)], "normalized_size")
+    g["normalized_interval"] = lambda start, end: ScalarOperationDataNode([DataNode.make(start), DataNode.make(end)], "normalized_interval")
     l = dict()
     for variable_name, object_specifier in variable_map.items():
         if object_specifier["type"] == "data_item":  # avoid importing class
