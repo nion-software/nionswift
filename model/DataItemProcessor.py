@@ -114,13 +114,15 @@ class DataItemProcessor(object):
                 # this has the side effect of limiting the number of threads that
                 # are sleeping.
                 def recompute():
-                    minimum_time = 0.5
-                    current_time = time.time()
-                    if current_time < self.__cached_value_time + minimum_time:
-                        time.sleep(self.__cached_value_time + minimum_time - current_time)
-                    self.recompute_data(arg)
-                    with self.__is_recomputing_lock:
-                        self.__is_recomputing = False
+                    try:
+                        minimum_time = 0.5
+                        current_time = time.time()
+                        if current_time < self.__cached_value_time + minimum_time:
+                            time.sleep(self.__cached_value_time + minimum_time - current_time)
+                        self.recompute_data(arg)
+                    finally:
+                        with self.__is_recomputing_lock:
+                            self.__is_recomputing = False
                 dispatch(recompute, self.__cache_property_name)
 
     def recompute_data(self, ui):

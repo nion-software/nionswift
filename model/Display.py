@@ -608,7 +608,7 @@ class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
             data_sample = numpy.random.choice(data.reshape(numpy.product(data.shape)), subsample)
         else:
             factor = 1.0
-            data_sample = data
+            data_sample = numpy.copy(data)
         display_range = self.item.display_range  # may be None
         if display_range is None or data_sample is None:
             return None
