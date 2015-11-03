@@ -1175,10 +1175,10 @@ class DisplayPanel(object):
         def show_context_menu(menu, gx, gy):
             def split_horizontal():
                 if workspace_controller:
-                    return workspace_controller.insert_display_panel(self, "right")
+                    return workspace_controller.insert_display_panel(self, "bottom")
             def split_vertical():
                 if workspace_controller:
-                    return workspace_controller.insert_display_panel(self, "bottom")
+                    return workspace_controller.insert_display_panel(self, "right")
             menu.add_separator()
             menu.add_menu_item(_("Split Horizontally"), split_horizontal)
             menu.add_menu_item(_("Split Vertically"), split_vertical)
