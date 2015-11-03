@@ -174,7 +174,7 @@ class RectRegion(Region):
 
     def __init__(self):
         super(RectRegion, self).__init__("rectangle-region")
-        self.define_property("center", (0.0, 0.0), changed=self._property_changed, validate=lambda s: tuple(s))
+        self.define_property("center", (0.5, 0.5), changed=self._property_changed, validate=lambda s: tuple(s))
         self.define_property("size", (1.0, 1.0), changed=self._property_changed, validate=lambda s: tuple(s))
         # TODO: add rotation property to rect region
         self.__graphic = Graphics.RectangleGraphic()
