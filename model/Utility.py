@@ -47,6 +47,14 @@ def get_datetime_item_from_utc_datetime(datetime_utc):
     tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
     return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes))
 
+try:
+    import pytz.reference
+    def local_utcoffset_minutes(datetime_local:datetime.datetime=None) -> int:
+        datetime_local = datetime_local if datetime_local else datetime.datetime.now()
+        return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)
+except ImportError:
+    def local_utcoffset_minutes(datetime_local:datetime.datetime=None) -> int:
+        return int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
 
 # return python datetime object from a datetime_item. may return None if the datetime element is
 # not properly formatted.

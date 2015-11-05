@@ -427,8 +427,9 @@ class NDataHandler(object):
             make_directory_if_needed(os.path.dirname(absolute_file_path))
             properties = self.read_properties() if os.path.exists(absolute_file_path) else dict()
             write_zip(absolute_file_path, data, properties)
-            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-            timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+            # convert to utc time.
+            tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
+            timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
             os.utime(absolute_file_path, (time.time(), timestamp))
 
     def write_properties(self, properties, file_datetime):
@@ -451,8 +452,9 @@ class NDataHandler(object):
                 rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
             else:
                 write_zip(absolute_file_path, None, properties)
-            # convert to utc time. this is temporary until datetime is cleaned up (again) and we can get utc directly from datetime.
-            timestamp = calendar.timegm(file_datetime.timetuple()) + (datetime.datetime.utcnow() - datetime.datetime.now()).total_seconds()
+            # convert to utc time.
+            tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
+            timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60
             os.utime(absolute_file_path, (time.time(), timestamp))
 
     def read_properties(self):

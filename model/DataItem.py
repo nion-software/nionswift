@@ -25,6 +25,7 @@ from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
+from nion.swift.model import Utility
 from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import Persistence
@@ -1253,7 +1254,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
     @property
     def date_for_sorting_local_as_string(self):
         date_utc = self.date_for_sorting
-        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+        tz_minutes = Utility.local_utcoffset_minutes(date_utc)
         date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
         return date_local.strftime("%c")
 
@@ -1264,7 +1265,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
     @property
     def created_local(self):
         created_utc = self.created
-        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+        tz_minutes = Utility.local_utcoffset_minutes(created_utc)
         return created_utc + datetime.timedelta(minutes=tz_minutes)
 
     # access metadata
