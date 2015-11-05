@@ -120,6 +120,9 @@ class SuspendableCache(object):
             _, object_dict = self.__cache.get(id(object), (object, dict()))
             if key in object_dict:
                 return object_dict.get(key)
+            _, object_list = self.__cache_remove.setdefault(id(object), (object, list()))
+            if key in object_list:
+                return None
         # not there, go to cache db
         if self.__storage_cache:
             return self.__storage_cache.get_cached_value(object, key, default_value)
