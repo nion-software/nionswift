@@ -349,8 +349,9 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
     def __slice_interval_changed(self, name, value):
         # notify for dependent slice_interval property
         self.__property_changed(name, value)
-        self.remove_cached_value("data_range")
-        self.remove_cached_value("data_sample")
+        if not self._is_reading:
+            self.remove_cached_value("data_range")
+            self.remove_cached_value("data_sample")
         self.__validate_data_stats()
         self.notify_set_property("slice_interval", self.slice_interval)
 
@@ -409,29 +410,33 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__clear_cached_data()
         self.notify_set_property("data_range", data_range)
         self.notify_set_property("data_sample", data_sample)
-        self.notify_set_property("display_range", self.display_range)
+        self.notify_set_property("display_range", self.__get_display_range(data_range, data_sample))
 
     @property
     def data_range(self):
+        self.__validate_data_stats()
         return self.get_cached_value("data_range")
 
     @property
     def data_sample(self):
+        self.__validate_data_stats()
         return self.get_cached_value("data_sample")
 
-    @property
-    def display_range(self):
+    def __get_display_range(self, data_range, data_sample):
         if self.display_limits is not None:
             return self.display_limits
-        data_range = self.data_range
         if self.__data_and_calibration and self.__data_and_calibration.is_data_complex_type:
-            data_sample = self.data_sample
             if data_sample is not None:
                 data_sample_10 = data_sample[int(len(data_sample) * 0.1)]
                 display_limit_low = numpy.log(data_sample_10) if data_sample_10 > 0.0 else data_range[0]
                 display_limit_high = data_range[1]
                 return display_limit_low, display_limit_high
         return data_range
+
+    @property
+    def display_range(self):
+        self.__validate_data_stats()
+        return self.__get_display_range(self.data_range, self.data_sample)
 
     @display_range.setter
     def display_range(self, display_range):
@@ -452,7 +457,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
                 self.slice_width = 1
                 self.slice_center = self.slice_center
                 self.slice_width = old_slice_width
-        self.__calculate_data_stats_for_data(self.display_data)
+        if not self._is_reading:
+            self.remove_cached_value("data_range")
+            self.remove_cached_value("data_sample")
+            self.__validate_data_stats()
         self.display_changed_event.fire()
 
     def __clear_cached_data(self):

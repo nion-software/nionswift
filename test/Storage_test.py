@@ -274,13 +274,27 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertIsNotNone(display_specifier.display.data_range)
-            self.assertIsNotNone(display_specifier.display.data_range)
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             self.assertIsNotNone(display_specifier.display.data_range)
-            self.assertIsNotNone(display_specifier.display.data_range)
+
+    def test_reload_data_item_does_not_recalculate_display_data_range(self):
+        storage_cache = Cache.DictStorageCache()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_uuid = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0]).display.uuid
+        # read it back
+        data_range = 1, 4
+        storage_cache.cache[display_uuid]["data_range"] = data_range
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
+        with contextlib.closing(document_model):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+            self.assertEqual(display_specifier.display.data_range, data_range)
 
     def test_reload_data_item_initializes_display_slice(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
