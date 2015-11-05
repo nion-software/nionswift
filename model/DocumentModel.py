@@ -230,13 +230,15 @@ class MemoryPersistentStorageSystem(object):
     def __init__(self):
         self.data = dict()
         self.properties = dict()
+        self._test_data_read_event = Event.Event()
 
     class MemoryStorageHandler(object):
 
-        def __init__(self, uuid, properties, data):
+        def __init__(self, uuid, properties, data, data_read_event):
             self.__uuid = uuid
             self.__properties = properties
             self.__data = data
+            self.__data_read_event = data_read_event
 
         @property
         def reference(self):
@@ -246,6 +248,7 @@ class MemoryPersistentStorageSystem(object):
             return self.__properties.get(self.__uuid, dict())
 
         def read_data(self):
+            self.__data_read_event.fire(self.__uuid)
             return self.__data.get(self.__uuid)
 
         def write_properties(self, properties, file_datetime):
@@ -262,12 +265,12 @@ class MemoryPersistentStorageSystem(object):
         persistent_storage_handlers = list()
         for key in sorted(self.properties):
             self.properties[key].setdefault("uuid", str(uuid.uuid4()))
-            persistent_storage_handlers.append(MemoryPersistentStorageSystem.MemoryStorageHandler(key, self.properties, self.data))
+            persistent_storage_handlers.append(MemoryPersistentStorageSystem.MemoryStorageHandler(key, self.properties, self.data, self._test_data_read_event))
         return persistent_storage_handlers
 
     def make_persistent_storage_handler(self, data_item):
         uuid = str(data_item.uuid)
-        return MemoryPersistentStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data)
+        return MemoryPersistentStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data, self._test_data_read_event)
 
 
 from nion.swift import NDataHandler

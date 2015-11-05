@@ -371,10 +371,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__clear_cached_data()
         self.display_changed_event.fire()
 
-    def storage_cache_changed(self, storage_cache):
-        # override from Cacheable
-        self.__validate_data_stats()
-
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
         display_data = self.display_data
