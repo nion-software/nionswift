@@ -73,6 +73,7 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector.close()
             self.__display_inspector = None
         self.document_controller.clear_task("update_display" + str(id(self)))
+        self.document_controller.clear_task("update_display_inspector" + str(id(self)))
         # finish closing
         super(InspectorPanel, self).close()
 
@@ -99,7 +100,9 @@ class InspectorPanel(Panel.Panel):
             display = self.__display_specifier.display
 
             def display_graphic_selection_changed(graphic_selection):
-                self.__update_display_inspector()  # not really a recursive call; only delayed
+                # not really a recursive call; only delayed
+                # this may come in on a thread (superscan probe position connection closing). delay even more.
+                self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen( display_graphic_selection_changed)
         else:
@@ -128,17 +131,22 @@ class InspectorPanel(Panel.Panel):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         def data_item_will_be_removed(data_item):
             self.document_controller.clear_task("update_display" + str(id(self)))
+            self.document_controller.clear_task("update_display_inspector" + str(id(self)))
             if self.__data_item_will_be_removed_event_listener:
                 self.__data_item_will_be_removed_event_listener.close()
                 self.__data_item_will_be_removed_event_listener = None
         def update_display():
             self.__set_display_specifier(display_specifier)
-            data_item_will_be_removed(None)
+            if self.__data_item_will_be_removed_event_listener:
+                self.__data_item_will_be_removed_event_listener.close()
+                self.__data_item_will_be_removed_event_listener = None
         # handle the case where the selected display binding changes and then the item is removed before periodic has
         # had a chance to update display. in that case, when periodic finally gets called, we need to make sure that
         # update display has been canceled somehow. this barely passes the smell test.
         if display_specifier.data_item:
-            data_item_will_be_removed(None)
+            if self.__data_item_will_be_removed_event_listener:
+                self.__data_item_will_be_removed_event_listener.close()
+                self.__data_item_will_be_removed_event_listener = None
             self.__data_item_will_be_removed_event_listener = self.document_controller.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
