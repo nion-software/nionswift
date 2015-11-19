@@ -314,20 +314,20 @@ class RegionPropertyToGraphicBinding(Binding.PropertyBinding):
     def __init__(self, region, region_property_name, graphic, graphic_property_name):
         super(RegionPropertyToGraphicBinding, self).__init__(region, region_property_name)
         self.__graphic = graphic
-        self.__graphic.add_observer(self)
+        self.__graphic_property_changed_listener = graphic.property_changed_event.listen(self.__property_changed)
         self.__graphic_property_name = graphic_property_name
         self.__region_property_name = region_property_name
         self.target_setter = lambda value: setattr(self.__graphic, graphic_property_name, value)
 
     def close(self):
-        self.__graphic.remove_observer(self)
+        self.__graphic_property_changed_listener.close()
+        self.__graphic_property_changed_listener = None
         self.__graphic = None
         super(RegionPropertyToGraphicBinding, self).close()
 
     # watch for property changes on the graphic.
-    def property_changed(self, sender, property_name, property_value):
-        super(RegionPropertyToGraphicBinding, self).property_changed(sender, property_name, property_value)
-        if sender == self.__graphic and property_name == self.__graphic_property_name:
+    def __property_changed(self, property_name, property_value):
+        if property_name == self.__graphic_property_name:
             old_property_value = getattr(self.source, self.__region_property_name)
             # to prevent message loops, check to make sure it changed
             if property_value != old_property_value:

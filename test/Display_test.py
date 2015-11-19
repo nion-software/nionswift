@@ -90,17 +90,18 @@ class TestDisplayClass(unittest.TestCase):
             def __init__(self):
                 self.data_range = None
                 self.display_range = None
-            def property_changed(self, object, property, value):
+            def property_changed(self, property, value):
                 if property == "display_range":
                     self.display_range = value
                 if property == "data_range":
                     self.data_range = value
         o = Observer()
-        display.add_observer(o)
-        with display_specifier.buffered_data_source.data_ref() as dr:
-            dr.data = irow // 2 + 4
-        self.assertEqual(o.data_range, (4, 11))
-        self.assertEqual(o.display_range, (4, 11))
+        property_changed_listener = display.property_changed_event.listen(o.property_changed)
+        with contextlib.closing(property_changed_listener):
+            with display_specifier.buffered_data_source.data_ref() as dr:
+                dr.data = irow // 2 + 4
+            self.assertEqual(o.data_range, (4, 11))
+            self.assertEqual(o.display_range, (4, 11))
 
     def test_data_item_copy_initialized_display_data_range(self):
         source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))

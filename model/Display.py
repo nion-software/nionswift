@@ -501,7 +501,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
 
     def __insert_graphic(self, name, before_index, item):
         item.add_listener(self)
-        item.add_observer(self)
         self.__drawn_graphics.insert(before_index, item)
         graphic_changed_listener = item.graphic_changed_event.listen(functools.partial(self.graphic_changed, item))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
@@ -512,7 +511,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
 
     def __remove_graphic(self, name, index, item):
         item.remove_listener(self)
-        item.remove_observer(self)
         index = self.__drawn_graphics.index(item)
         self.__drawn_graphics.remove(item)
         graphic_changed_listener = self.__graphic_changed_listeners[index]

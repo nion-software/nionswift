@@ -339,7 +339,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.P
         def __init__(self, operation_item):
             super(OperationItem.OperationPublisher, self).__init__()
             self.__operation_item = operation_item
-            self.__operation_item.add_observer(self)
+            self.__property_changed_listener = operation_item.property_changed_event.listen(self.__property_changed)
             self.__subscriptions = list()
             self.__data_and_calibrations = list()
 
@@ -372,7 +372,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.P
             self.__subscriptions = list()
             self.__data_sources_subscription.close()
             self.__data_sources_subscription = None
-            self.__operation_item.remove_observer(self)
+            self.__property_changed_listener.close()
+            self.__property_changed_listener = None
             super(OperationItem.OperationPublisher, self).close()
 
         def subscribex(self, subscriber):
@@ -391,8 +392,8 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.P
                     data_and_calibration = operation.get_processed_data_and_calibration(data_and_calibrations, values)
                     self.notify_next_value(data_and_calibration)
 
-        def property_changed(self, sender, property, property_value):
-            if sender == self.__operation_item and property == "values":
+        def __property_changed(self, property, property_value):
+            if property == "values":
                 self.notify_next_data()
 
     def get_data_and_calibration_publisher(self):
@@ -908,14 +909,20 @@ class OperationPropertyBinding(Binding.Binding):
     def __init__(self, source, property_name, converter=None):
         super(OperationPropertyBinding, self).__init__(source,  converter)
         self.__property_name = property_name
+        self.__property_changed_listener = source.property_changed_event.listen(self.__property_changed)
         self.source_setter = lambda value: self.source.set_property(self.__property_name, value)
         self.source_getter = lambda: self.source.get_property(self.__property_name)
         # use this to know when a specific property changes
         self.__values = copy.copy(source.values)
 
+    def close(self):
+        self.__property_changed_listener.close()
+        self.__property_changed_listener = None
+        super(OperationPropertyBinding, self).close()
+
     # thread safe
-    def property_changed(self, sender, property, property_value):
-        if sender == self.source and property == "values":
+    def __property_changed(self, property, property_value):
+        if property == "values":
             values = property_value
             new_value = values.get(self.__property_name)
             old_value = self.__values.get(self.__property_name)
@@ -936,6 +943,7 @@ class SliceOperationPropertyBinding(Binding.Binding):
     def __init__(self, source, property_name, converter=None):
         super(SliceOperationPropertyBinding, self).__init__(source,  converter)
         self.__property_name = property_name
+        self.__property_changed_listener = source.property_changed_event.listen(self.__property_changed)
         def validate_and_set(value):
             value = min(value, self.source.data_item.maybe_data_source.dimensional_shape[0])
             value = max(value, 0)
@@ -945,9 +953,14 @@ class SliceOperationPropertyBinding(Binding.Binding):
         # use this to know when a specific property changes
         self.__values = copy.copy(source.values)
 
+    def close(self):
+        self.__property_changed_listener.close()
+        self.__property_changed_listener = None
+        super(SliceOperationPropertyBinding, self).close()
+
     # thread safe
-    def property_changed(self, sender, property, property_value):
-        if sender == self.source and property == "values":
+    def __property_changed(self, property, property_value):
+        if property == "values":
             values = property_value
             new_value = values.get(self.__property_name)
             old_value = self.__values.get(self.__property_name)
@@ -965,20 +978,20 @@ class OperationPropertyToRegionBinding(OperationPropertyBinding):
     def __init__(self, operation, operation_property_name, region, region_property_name):
         super(OperationPropertyToRegionBinding, self).__init__(operation, operation_property_name)
         self.__region = region
-        self.__region.add_observer(self)
+        self.__property_changed_listener = region.property_changed_event.listen(self.__property_changed)
         self.__region_property_name = region_property_name
         self.__operation_property_name = operation_property_name
         self.target_setter = lambda value: setattr(self.__region, region_property_name, value)
 
     def close(self):
-        self.__region.remove_observer(self)
+        self.__property_changed_listener.close()
+        self.__property_changed_listener = None
         self.__region = None
         super(OperationPropertyToRegionBinding, self).close()
 
     # watch for property changes on the region.
-    def property_changed(self, sender, property_name, property_value):
-        super(OperationPropertyToRegionBinding, self).property_changed(sender, property_name, property_value)
-        if sender == self.__region and property_name == self.__region_property_name:
+    def __property_changed(self, property_name, property_value):
+        if property_name == self.__region_property_name:
             old_property_value = self.source.get_property(self.__operation_property_name)
             # to prevent message loops, check to make sure it changed
             if property_value != old_property_value:

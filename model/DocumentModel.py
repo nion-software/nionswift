@@ -657,6 +657,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.persistent_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         self.__data_items = list()
+        self.__data_item_item_inserted_listeners = dict()
+        self.__data_item_item_removed_listeners = dict()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -679,7 +681,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
             data_item.storage_cache = self.storage_cache
-            data_item.add_observer(self)  # watch for data_sources being added/removed
+            self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
+            self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
             data_item.add_listener(self)
             data_item.set_data_item_manager(self)
             self.__buffered_data_source_set.update(set(data_item.data_sources))
@@ -740,7 +743,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         #data_item.write()
         # be a listener. why?
         data_item.add_listener(self)
-        data_item.add_observer(self)  # watch for data_sources being added/removed
+        self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
+        self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         data_item.set_data_item_manager(self)
         # fire buffered_data_source_set_changed_event
@@ -784,14 +788,16 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_item.__storage_cache = None
         # un-listen to data item
         data_item.remove_listener(self)
-        data_item.remove_observer(self)
+        self.__data_item_item_inserted_listeners[data_item.uuid].close()
+        del self.__data_item_item_inserted_listeners[data_item.uuid]
+        self.__data_item_item_removed_listeners[data_item.uuid].close()
+        del self.__data_item_item_removed_listeners[data_item.uuid]
         # update data item count
         self.notify_listeners("data_item_removed", self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
-        if data_item.get_observer_count(self) == 0:  # ugh?
-            self.data_item_deleted_event.fire(data_item)
+        self.data_item_deleted_event.fire(data_item)
 
-    def item_inserted(self, object, key, value, before_index):
+    def __item_inserted(self, key, value, before_index):
         # called when a relationship in one of the items we're observing changes.
         if key == "data_sources":
             # fire buffered_data_source_set_changed_event
@@ -800,7 +806,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.__buffered_data_source_set.update(set([data_source]))
             self.buffered_data_source_set_changed_event.fire(set([data_source]), set())
 
-    def item_removed(self, object, key, value, index):
+    def __item_removed(self, key, value, index):
         # called when a relationship in one of the items we're observing changes.
         if key == "data_sources":
             # fire buffered_data_source_set_changed_event
@@ -1109,15 +1115,16 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                                         self.__object = object
                                         self.__property = property_name
                                         self.changed_event = Event.Event()
-                                        self.__object.add_observer(self)  # property_changed
-                                    def property_changed(self, sender, property_name, value):
-                                        if property_name == self.__property:
-                                            self.changed_event.fire()
+                                        def property_changed(property_name_being_changed, value):
+                                            if property_name_being_changed == property_name:
+                                                self.changed_event.fire()
+                                        self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
+                                    def close(self):
+                                        self.__property_changed_listener.close()
+                                        self.__property_changed_listener = None
                                     @property
                                     def value(self):
                                         return getattr(self.__object, self.__property)
-                                    def close(self):
-                                        self.__object.remove_observer(self)
                                 if region:
                                     return BoundRegion(region, property_name)
         return None

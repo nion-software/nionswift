@@ -52,6 +52,7 @@ class PropertyConnection(Connection):
         self.__source = source
         self.__target = target
         self.__binding = None
+        self.__target_property_changed_listener = None
         # suppress messages while we're setting source or target
         self.__suppress = False
         # but setup if we were passed objects
@@ -90,27 +91,24 @@ class PropertyConnection(Connection):
             register()
         def target_registered(target):
             self.__target = target
-            self.__target.add_observer(self)
+            def property_changed(property_name, value):
+                if property_name == self.target_property:
+                    self.__set_source_from_target(value)
+            assert self.__target_property_changed_listener is None
+            self.__target_property_changed_listener = target.property_changed_event.listen(property_changed)
             register()
         def unregistered(source=None):
             if self.__binding:
                 self.__binding.close()
                 self.__binding = None
             if self.__target is not None:
-                    self.__target.remove_observer(self)
+                self.__target_property_changed_listener.close()
+                self.__target_property_changed_listener = None
         if self.persistent_object_context:
             self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
             self.persistent_object_context.subscribe(self.target_uuid, target_registered, unregistered)
         else:
             unregistered()
-
-    def property_changed(self, sender, property_name, value):
-        """
-            This message comes from the target since this object is an observer.
-            Updates the source.
-        """
-        if sender == self.__target and property_name == self.target_property:
-            self.__set_source_from_target(value)
 
 
 
