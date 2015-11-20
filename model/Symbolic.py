@@ -1433,7 +1433,7 @@ class VariableDataNode(DataNode):
 
     def __init__(self, object_specifier=None):
         super(VariableDataNode, self).__init__()
-        self.__object_specifier = object_specifier
+        self.__object_specifier = object_specifier  # type: dict
         self.__bound_item = None
 
     def deepcopy_from(self, node, memo):
@@ -1880,7 +1880,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
         self.__data_node = None
-        self.__variable_map = dict()
         self.__evaluate_lock = threading.RLock()
         self.__evaluating = False
         self.needs_update = False
@@ -1895,32 +1894,23 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def deepcopy_from(self, item, memo):
         super(Computation, self).deepcopy_from(item, memo)
         self.__data_node = DataNode.factory(self.node)
-        for variable in self.variables:
-            self.__variable_map[variable.uuid] = variable
 
     @property
     def _data_node_for_test(self):
         return self.__data_node
 
-    def lookup_variable(self, uuid):
-        return self.__variable_map.get(uuid)
-
     def read_from_dict(self, properties):
         super(Computation, self).read_from_dict(properties)
         self.__data_node = DataNode.factory(self.node)
-        for variable in self.variables:
-            self.__variable_map[variable.uuid] = variable
 
     def add_variable(self, variable: ComputationVariable) -> None:
         count = self.item_count("variables")
         self.append_item("variables", variable)
-        self.__variable_map[variable.uuid] = variable
         self.variable_inserted_event.fire(count, variable)
         self.computation_mutated_event.fire()
 
     def remove_variable(self, variable: ComputationVariable) -> None:
         index = self.item_index("variables", variable)
-        del self.__variable_map[variable.uuid]
         self.remove_item("variables", variable)
         self.variable_removed_event.fire(index, variable)
         self.computation_mutated_event.fire()
@@ -1951,9 +1941,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         uuid_str = object_specifier.get("uuid")
         uuid_ = uuid.UUID(uuid_str) if uuid_str else None
         if uuid_:
-            variable = self.lookup_variable(uuid_)
-            if variable:
-                return variable.bound_variable
+            for variable in self.variables:
+                if variable.uuid == uuid_:
+                    return variable.bound_variable
         return None
 
     def parse_expression(self, context, expression, variable_map):
@@ -1997,21 +1987,28 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.needs_update = False
         return result
 
-    def bind(self, context):
+    def bind(self, context) -> None:
+        """Ask the data node for all bound items, then watch each for changes."""
+
+        # make a computation context based on the enclosing context.
+        computation_context = ComputationContext(self, context)
+
         # normally I would think re-bind should not be valid; but for testing, the expression
         # is often evaluated and bound. it also needs to be bound a new data item is added to a document
         # model. so special case to see if it already exists. this may prove troublesome down the road.
-        computation_context = ComputationContext(self, context)
         if len(self.__bound_items) == 0:  # check if already bound
             if self.__data_node:  # error condition
                 self.__data_node.bind(computation_context, self.__bound_items)
+
                 def needs_update():
                     self.needs_update = True
                     self.needs_update_event.fire()
+
                 for bound_item_uuid, bound_item in self.__bound_items.items():
                     self.__bound_item_listeners[bound_item_uuid] = bound_item.changed_event.listen(needs_update)
 
     def unbind(self):
+        """Unlisten and close each bound item."""
         for bound_item, bound_item_listener in zip(self.__bound_items.values(), self.__bound_item_listeners.values()):
             bound_item.close()
             bound_item_listener.close()
@@ -2032,6 +2029,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def reconstruct(self, variable_map):
         if self.__data_node:
             lines = list()
+            # construct the variable map, which maps variables used in the text expression
+            # to specifiers that can be resolved to specific objects and values.
             computation_variable_map = copy.copy(variable_map)
             for variable in self.variables:
                 computation_variable_map[variable.name] = variable.variable_specifier
