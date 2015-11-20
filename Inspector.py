@@ -18,6 +18,7 @@ from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
+from nion.swift.model import Symbolic
 from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Converter
@@ -1170,6 +1171,136 @@ class OperationsInspectorSection(InspectorSection):
         return column
 
 
+class ComputationInspectorSection(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement operations inspector.
+    """
+
+    def __init__(self, ui, data_item, buffered_data_source):
+        super(ComputationInspectorSection, self).__init__(ui, "computation", _("Computation"))
+        computation = buffered_data_source.computation
+        if computation:
+            label_row = self.ui.create_row_widget()
+            label_widget = self.ui.create_label_widget()
+            label_widget.bind_text(Binding.PropertyBinding(computation, "label"))
+            label_row.add(label_widget)
+            label_row.add_stretch()
+
+            column = self.ui.create_column_widget()
+
+            self.add_widget_to_content(label_row)
+            self.add_widget_to_content(column)
+
+            def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
+                # boolean (label)
+                # integer, slider (label, minimum, maximum)
+                # float, slider (label, minimum, maximum)
+                # integer, field (label, minimum, maximum)
+                # float, field (label, minimum, maximum, significant digits)
+                # complex, fields (label, significant digits)
+                # float, angle
+                # color, control
+                # choices, combo box
+                # point, region
+                # vector, region
+                # interval, region
+                # rectangle, region
+                # string, field
+                # float, distance
+                # float, duration (units)
+                # image
+
+                def make_checkbox(variable):
+                    column = self.ui.create_column_widget()
+                    row = self.ui.create_row_widget()
+                    check_box_widget = self.ui.create_check_box_widget(variable.display_label)
+                    check_box_widget.bind_checked(Binding.PropertyBinding(variable, "value"))
+                    row.add(check_box_widget)
+                    row.add_stretch()
+                    column.add(row)
+                    column.add_spacing(4)
+                    return column
+
+                def make_slider(variable, converter):
+                    column = self.ui.create_column_widget()
+                    row = self.ui.create_row_widget()
+                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
+                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+                    slider_widget = self.ui.create_slider_widget()
+                    slider_widget.minimum = variable.value_min
+                    slider_widget.maximum = variable.value_max
+                    slider_widget.bind_value(Binding.PropertyBinding(variable, "value"))
+                    line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
+                    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+                    row.add(label_widget)
+                    row.add_spacing(8)
+                    row.add(slider_widget)
+                    row.add_spacing(8)
+                    row.add(line_edit_widget)
+                    row.add_spacing(8)
+                    column.add(row)
+                    column.add_spacing(4)
+                    return column
+
+                def make_field(variable, converter):
+                    column = self.ui.create_column_widget()
+                    row = self.ui.create_row_widget()
+                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
+                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+                    line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
+                    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+                    row.add(label_widget)
+                    row.add_spacing(8)
+                    row.add(line_edit_widget)
+                    row.add_stretch()
+                    column.add(row)
+                    column.add_spacing(4)
+                    return column
+
+                if variable.variable_type == "boolean":
+                    column.insert(make_checkbox(variable), index)
+                elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
+                    column.insert(make_slider(variable, Converter.IntegerToStringConverter()), index)
+                elif variable.variable_type == "integral":
+                    column.insert(make_field(variable, Converter.IntegerToStringConverter()), index)
+                elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
+                    column.insert(make_slider(variable, Converter.FloatToStringConverter()), index)
+                elif variable.variable_type == "real":
+                    column.insert(make_field(variable, Converter.FloatToStringConverter()), index)
+                elif variable.variable_type == "data_item":
+                    column.insert(self.ui.create_row_widget(), index)
+                elif variable.variable_type == "region":
+                    column.insert(self.ui.create_row_widget(), index)
+                else:
+                    column.insert(self.ui.create_row_widget(), index)
+
+            def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
+                column.remove(column.children[index])
+
+            self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(variable_inserted)
+            self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(variable_removed)
+
+            for index, variable in enumerate(computation.variables):
+                variable_inserted(index, variable)
+        else:
+            none_widget = self.ui.create_row_widget()
+            none_widget.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
+            self.add_widget_to_content(none_widget)
+            self.__computation_variable_inserted_event_listener = None
+            self.__computation_variable_removed_event_listener = None
+        self.finish_widget_content()
+
+    def close(self):
+        if self.__computation_variable_inserted_event_listener:
+            self.__computation_variable_inserted_event_listener.close()
+            self.__computation_variable_inserted_event_listener = None
+        if self.__computation_variable_removed_event_listener:
+            self.__computation_variable_removed_event_listener.close()
+            self.__computation_variable_removed_event_listener = None
+        super(ComputationInspectorSection, self).close()
+
+
 class DataItemInspector(object):
     """A class to manage creation of a widget representing an inspector for a display specifier.
 
@@ -1198,6 +1329,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(LinePlotInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
@@ -1208,6 +1340,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
@@ -1219,6 +1352,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()

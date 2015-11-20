@@ -453,14 +453,13 @@ class ComputationPanel(Panel.Panel):
 
         label_edit_widget = ui.create_line_edit_widget()
         label_edit_widget.placeholder_text = _("Computation Label")
-        # label_edit_widget.bind_text(Binding.PropertyBinding(document_controller, "specifier", converter=SpecifierToStringConverter(specifier_type)))
 
         label_row = ui.create_row_widget()
         label_row.add_spacing(8)
-        label_row.add(ui.create_label_widget(_("Label")))
+        label_row.add(ui.create_label_widget(_("Description")))
         label_row.add_spacing(8)
         label_row.add(label_edit_widget)
-        label_row.add_stretch()
+        label_row.add_spacing(8)
 
         buttons_row = ui.create_row_widget()
         add_variable_button = ui.create_push_button_widget(_("Add Variable"))
@@ -482,9 +481,6 @@ class ComputationPanel(Panel.Panel):
         error_row.add_spacing(8)
         error_row.add(error_label)
         error_row.add_spacing(8)
-
-        # Need to decide how to watch for changes to the computation...
-        # Revisit the ReactOS and other possible UI implementations to see how they do it.
 
         self.__text_edit = text_edit  # for testing
         self.__error_label = error_label  # for testing

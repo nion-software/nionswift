@@ -1759,6 +1759,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
+        if name in ["name", "label"]:
+            self.notify_set_property("display_label", self.display_label)
 
     def control_type_default(self, value_type: str) -> None:
         mapping = {"boolean": "checkbox", "integral": "slider", "real": "field", "complex": "field", "string": "field"}
@@ -1799,6 +1801,14 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 self.value_max = None
                 self.specifier = {"type": value_type, "version": 1}
             self.variable_type_changed_event.fire()
+
+    @property
+    def display_label(self):
+        return self.label or self.name
+
+    @property
+    def has_range(self):
+        return self.value_type is not None and self.value_min is not None and self.value_max is not None
 
 
 def variable_factory(lookup_id):
@@ -1857,7 +1867,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("node")
         self.define_property("original_expression")
         self.define_property("error_text")
-        self.define_property("label", changed=lambda k, v: self.computation_mutated_event.fire())
+        self.define_property("label", changed=self.__label_changed)
         self.define_relationship("variables", variable_factory)
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
@@ -1882,6 +1892,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def read_from_dict(self, properties):
         super(Computation, self).read_from_dict(properties)
         self.__data_node = DataNode.factory(self.node)
+
+    def __label_changed(self, name, value):
+        self.notify_set_property(name, value)
+        self.computation_mutated_event.fire()
 
     def add_variable(self, variable: ComputationVariable) -> None:
         count = self.item_count("variables")
