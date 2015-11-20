@@ -1705,24 +1705,32 @@ class ComputationVariable(Persistence.PersistentObject):
         super(ComputationVariable, self).read_from_dict(d)
         self.name_model.value = d.get("name")
         value_type = d.get("value_type")
-        if value_type == "integral":
+        if value_type == "boolean":
+            self.value_model.value = bool(d.get("value"))
+        elif value_type == "integral":
             self.value_model.value = int(d.get("value"))
         elif value_type == "real":
             self.value_model.value = float(d.get("value"))
         elif value_type == "complex":
             self.value_model.value = complex(*d.get("value"))
+        elif value_type == "string":
+            self.value_model.value = str(d.get("value"))
 
     def write_to_dict(self):
         d = super(ComputationVariable, self).write_to_dict()
         d["name"] = self.name
         if self.__value_type:
             d["value_type"] = self.__value_type
-            if self.__value_type == "integral":
+            if self.__value_type == "boolean":
+                d["value"] = bool(self.value_model.value)
+            elif self.__value_type == "integral":
                 d["value"] = int(self.value_model.value)
             elif self.__value_type == "real":
                 d["value"] = float(self.value_model.value)
             elif self.__value_type == "complex":
                 d["value"] = complex(float(self.value_model.value.real), float(self.value_model.value.imag))
+            elif self.__value_type == "string":
+                d["value"] = str(self.value_model.value)
         return d
 
     @property
