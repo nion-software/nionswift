@@ -1682,48 +1682,60 @@ def parse_expression(expression_lines, variable_map, context):
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
-    def __init__(self, name: str=None, value=None):
+    def __init__(self, name: str=None, value_type: str=None, value=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None):  # defaults are None for factory
         super(ComputationVariable, self).__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
         self.define_property("label", name, changed=self.__property_changed)
+        self.define_property("value_type", value_type, changed=self.__property_changed)
         self.define_property("value", value, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
+        self.define_property("value_min", value_min, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
+        self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
+        self.define_property("specifier", specifier, changed=self.__property_changed)
+        self.define_property("control_type", control_type, changed=self.__property_changed)
+
+    def read_from_dict(self, properties: dict) -> None:
+        # ensure that value_type is read first
+        value_type_property = self._get_persistent_property("value_type")
+        value_type_property.read_from_dict(properties)
+        super(ComputationVariable, self).read_from_dict(properties)
+
+    def write_to_dict(self) -> dict:
+        return super(ComputationVariable, self).write_to_dict()
 
     def __value_reader(self, persistent_property, properties):
-        value_type = properties.get("value_type")
-        if value_type == "boolean":
-            return bool(properties.get("value"))
-        elif value_type == "integral":
-            return int(properties.get("value"))
-        elif value_type == "real":
-            return float(properties.get("value"))
-        elif value_type == "complex":
-            return complex(*properties.get("value"))
-        elif value_type == "string":
-            return str(properties.get("value"))
+        value_type = self.value_type
+        raw_value = properties.get(persistent_property.key)
+        if raw_value is not None:
+            if value_type == "boolean":
+                return bool(raw_value)
+            elif value_type == "integral":
+                return int(raw_value)
+            elif value_type == "real":
+                return float(raw_value)
+            elif value_type == "complex":
+                return complex(*raw_value)
+            elif value_type == "string":
+                return str(raw_value)
         return None
 
     def __value_writer(self, persistent_property, properties, value):
-        value_type = None
-        if isinstance(value, bool):
-            value_type = "boolean"
-        elif isinstance(value, numbers.Integral):
-            value_type = "integral"
-        elif isinstance(value, numbers.Rational):
-            value_type = "rational"
-        elif isinstance(value, numbers.Real):
-            value_type = "real"
-        elif isinstance(value, numbers.Complex):
-            value_type = "complex"
-        elif isinstance(value, str):
-            value_type = "string"
-        if value_type:
-            properties["value_type"] = value_type
-            properties["value"] = value
+        value_type = self.value_type
+        if value is not None:
+            if value_type == "boolean":
+                properties[persistent_property.key] = bool(value)
+            if value_type == "integral":
+                properties[persistent_property.key] = int(value)
+            if value_type == "real":
+                properties[persistent_property.key] = float(value)
+            if value_type == "complex":
+                properties[persistent_property.key] = complex(value).real, complex(value).imag
+            if value_type == "string":
+                properties[persistent_property.key] = str(value)
 
     @property
     def variable_specifier(self) -> dict:
-        return {"type": "variable", "version": 1, "uuid": str(self.uuid)}
+        return self.specifier if self.specifier else {"type": "variable", "version": 1, "uuid": str(self.uuid)}
 
     @property
     def bound_variable(self):
@@ -1750,33 +1762,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 def variable_factory(lookup_id):
     build_map = {
         "variable": ComputationVariable,
-    }
-    type = lookup_id("type")
-    return build_map[type]() if type in build_map else None
-
-
-class ComputationObject(Observable.Observable, Persistence.PersistentObject):
-    def __init__(self, name: str=None, specifier=None):
-        super(ComputationObject, self).__init__()
-        self.define_type("object")
-        self.define_property("name", name, changed=self.__property_changed)
-        self.define_property("label", name, changed=self.__property_changed)
-        self.define_property("specifier", specifier, changed=self.__property_changed)
-
-    def close(self):
-        pass
-
-    @property
-    def variable_specifier(self) -> dict:
-        return self.specifier
-
-    def __property_changed(self, name, value):
-        self.notify_set_property(name, value)
-
-
-def object_factory(lookup_id):
-    build_map = {
-        "object": ComputationObject,
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else None
@@ -1831,7 +1816,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("original_expression")
         self.define_property("error_text")
         self.define_relationship("variables", variable_factory)
-        self.define_relationship("objects", object_factory)
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
         self.__data_node = None
@@ -1840,8 +1824,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.needs_update = False
         self.needs_update_event = Event.Event()
         self.computation_mutated_event = Event.Event()
-        self.object_inserted_event = Event.Event()
-        self.object_removed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
         self._evaluation_count_for_test = 0
@@ -1870,27 +1852,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.variable_removed_event.fire(index, variable)
         self.computation_mutated_event.fire()
 
-    def create_variable(self, name: str, value=None) -> ComputationVariable:
-        variable = ComputationVariable(name, value)
+    def create_variable(self, name: str=None, value_type: str=None, value=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> ComputationVariable:
+        variable = ComputationVariable(name, value_type, value, value_min, value_max, control_type, specifier)
         self.add_variable(variable)
         return variable
 
-    def add_object(self, object: ComputationObject) -> None:
-        count = self.item_count("objects")
-        self.append_item("objects", object)
-        self.object_inserted_event.fire(count, object)
-        self.computation_mutated_event.fire()
-
-    def remove_object(self, object: ComputationObject) -> None:
-        index = self.item_index("objects", object)
-        self.remove_item("objects", object)
-        self.object_removed_event.fire(index, object)
-        self.computation_mutated_event.fire()
-
-    def create_object(self, name: str, object_specifier: dict) -> ComputationObject:
-        object = ComputationObject(name, object_specifier)
-        self.add_object(object)
-        return object
+    def create_object(self, name: str, object_specifier: dict) -> ComputationVariable:
+        variable = ComputationVariable(name, specifier=object_specifier)
+        self.add_variable(variable)
+        return variable
 
     def resolve_object_specifier(self, object_specifier: dict):
         uuid_str = object_specifier.get("uuid")
@@ -1908,8 +1878,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.original_expression = expression
         computation_context = ComputationContext(self, context)
         computation_variable_map = copy.copy(variable_map)
-        for object in self.objects:
-            computation_variable_map[object.name] = object.variable_specifier
         for variable in self.variables:
             computation_variable_map[variable.name] = variable.variable_specifier
         self.__data_node, self.error_text = parse_expression(expression.split("\n"), computation_variable_map, computation_context)
@@ -1987,8 +1955,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             # construct the variable map, which maps variables used in the text expression
             # to specifiers that can be resolved to specific objects and values.
             computation_variable_map = copy.copy(variable_map)
-            for object in self.objects:
-                computation_variable_map[object.name] = object.variable_specifier
             for variable in self.variables:
                 computation_variable_map[variable.name] = variable.variable_specifier
             variable_map_copy = copy.deepcopy(computation_variable_map)

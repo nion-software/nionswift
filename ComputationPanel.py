@@ -42,8 +42,6 @@ class ComputationModel(object):
         self.__data_item_changed_event_listener = display_specifier_binding.data_item_changed_event.listen(data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__computation_changed_or_mutated_event_listener = None
-        self.__computation_object_inserted_event_listener = None
-        self.__computation_object_removed_event_listener = None
         self.__computation_variable_inserted_event_listener = None
         self.__computation_variable_removed_event_listener = None
         self.__computation_text = None
@@ -52,8 +50,6 @@ class ComputationModel(object):
         self.__variable_property_changed_event_listeners = dict()
         self.computation_text_changed_event = Event.Event()
         self.error_text_changed_event = Event.Event()
-        self.object_inserted_event = Event.Event()
-        self.object_removed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
 
@@ -78,22 +74,10 @@ class ComputationModel(object):
             return buffered_data_source.computation
         return None
 
-    def add_object(self, name: str, object=None) -> Symbolic.ComputationObject:
+    def add_variable(self, name: str=None, value_type: str=None, value=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> Symbolic.ComputationVariable:
         computation = self.__computation
         if computation:
-            object_specifier = self.document_controller.document_model.get_object_specifier(object)
-            return computation.create_object(name, object_specifier)
-        return None
-
-    def remove_object(self, object: Symbolic.ComputationObject) -> None:
-        computation = self.__computation
-        if computation:
-            computation.remove_object(object)
-
-    def add_variable(self, name: str, value=None) -> Symbolic.ComputationVariable:
-        computation = self.__computation
-        if computation:
-            return computation.create_variable(name, value)
+            return computation.create_variable(name, value_type, value, value_min, value_max, control_type, specifier)
         return None
 
     def remove_variable(self, variable: Symbolic.ComputationVariable) -> None:
@@ -147,15 +131,6 @@ class ComputationModel(object):
         self.__update_computation_text(expression)
         self.__update_error_text(error_text)
 
-    def __object_inserted(self, index: int, object: Symbolic.ComputationObject) -> None:
-        self.object_inserted_event.fire(index, object)
-        self.__object_property_changed_event_listeners[object.uuid] = object.property_changed_event.listen(lambda k, v: self.__computation_changed_or_mutated())
-
-    def __object_removed(self, index: int, object: Symbolic.ComputationObject) -> None:
-        self.object_removed_event.fire(index, object)
-        self.__object_property_changed_event_listeners[object.uuid].close()
-        del self.__object_property_changed_event_listeners[object.uuid]
-
     def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_inserted_event.fire(index, variable)
         self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(lambda k, v: self.__computation_changed_or_mutated())
@@ -171,12 +146,6 @@ class ComputationModel(object):
             if self.__computation_changed_or_mutated_event_listener:
                 self.__computation_changed_or_mutated_event_listener.close()
                 self.__computation_changed_or_mutated_event_listener = None
-            if self.__computation_object_inserted_event_listener:
-                self.__computation_object_inserted_event_listener.close()
-                self.__computation_object_inserted_event_listener = None
-            if self.__computation_object_removed_event_listener:
-                self.__computation_object_removed_event_listener.close()
-                self.__computation_object_removed_event_listener = None
             if self.__computation_variable_inserted_event_listener:
                 self.__computation_variable_inserted_event_listener.close()
                 self.__computation_variable_inserted_event_listener = None
@@ -185,8 +154,6 @@ class ComputationModel(object):
                 self.__computation_variable_removed_event_listener = None
             computation = self.__computation
             if computation:
-                for index, object in enumerate(computation.objects):
-                    self.__object_removed(0, object)
                 for index, variable in enumerate(computation.variables):
                     self.__variable_removed(0, variable)
             self.__display_specifier = copy.copy(display_specifier)
@@ -194,14 +161,10 @@ class ComputationModel(object):
             if computation:
                 buffered_data_source = self.__display_specifier.buffered_data_source
                 self.__computation_changed_or_mutated_event_listener = buffered_data_source.computation_changed_or_mutated_event.listen(self.__computation_changed_or_mutated)
-                self.__computation_object_inserted_event_listener = computation.object_inserted_event.listen(self.__object_inserted)
-                self.__computation_object_removed_event_listener = computation.object_removed_event.listen(self.__object_removed)
                 self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(self.__variable_inserted)
                 self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(self.__variable_removed)
             self.__computation_changed_or_mutated()
             if computation:
-                for index, object in enumerate(computation.objects):
-                    self.__object_inserted(index, object)
                 for index, variable in enumerate(computation.variables):
                     self.__variable_inserted(index, variable)
 
@@ -217,19 +180,15 @@ class ComputationPanel(Panel.Panel):
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
         self.__computation_model = ComputationModel(document_controller, self.__selected_data_item_binding)
 
-        self.__object_column = ui.create_column_widget()
-        object_buttons_row = ui.create_row_widget()
-        add_object_button = ui.create_push_button_widget(_("Add"))
-        object_buttons_row.add(add_object_button)
-        object_buttons_row.add_stretch()
-        self.__object_column.add(object_buttons_row)
-
         self.__variable_column = ui.create_column_widget()
-        variable_buttons_row = ui.create_row_widget()
-        add_variable_button = ui.create_push_button_widget(_("Add"))
-        variable_buttons_row.add(add_variable_button)
-        variable_buttons_row.add_stretch()
-        self.__variable_column.add(variable_buttons_row)
+        buttons_row = ui.create_row_widget()
+        add_variable_button = ui.create_push_button_widget(_("Add Variable"))
+        add_object_button = ui.create_push_button_widget(_("Add Object"))
+        buttons_row.add(add_variable_button)
+        buttons_row.add_spacing(8)
+        buttons_row.add(add_object_button)
+        buttons_row.add_stretch()
+        self.__variable_column.add(buttons_row)
 
         text_edit_row = ui.create_row_widget()
         text_edit = ui.create_text_edit_widget()
@@ -261,7 +220,6 @@ class ComputationPanel(Panel.Panel):
 
         column = self.ui.create_column_widget()
         column.add_spacing(6)
-        column.add(self.__object_column)
         column.add(self.__variable_column)
         column.add_spacing(6)
         column.add(text_edit_row)
@@ -272,12 +230,14 @@ class ComputationPanel(Panel.Panel):
         column.add_spacing(6)
 
         def add_object_pressed():
-            self.__computation_model.add_object("d", document_controller.document_model.data_items[0])
+            document_model = document_controller.document_model
+            object_specifier = document_model.get_object_specifier(document_model.data_items[0])
+            self.__computation_model.add_variable("d", specifier=object_specifier)
 
         add_object_button.on_clicked = add_object_pressed
 
         def add_variable_pressed():
-            self.__computation_model.add_variable("x", 0)
+            self.__computation_model.add_variable("x", value_type="integral", value=0)
 
         add_variable_button.on_clicked = add_variable_pressed
 
@@ -308,76 +268,84 @@ class ComputationPanel(Panel.Panel):
 
         self.__error_text_changed_event_listener = self.__computation_model.error_text_changed_event.listen(error_text_changed)
 
-        def object_inserted(index: int, object: Symbolic.ComputationObject) -> None:
-            object_row = ui.create_row_widget()
-            name_text_edit = ui.create_line_edit_widget()
-            name_text_edit.bind_text(Binding.PropertyBinding(object, "name"))
-            items = [(None, _("N/A")), ("data_item", _("Data Item")), ("region", _("Region"))]
-            type_combo_box = ui.create_combo_box_widget(items=items, item_getter=operator.itemgetter(1))
-            item_key = object.specifier["type"] if object else None
-            for item in items:
-                key, text = item
-                if key == item_key:
-                    type_combo_box.current_item = item
-
-            def update_object_type(item):
-                object_specifier = object.specifier
-                object_specifier["type"] = item[0]
-                object.specifier = object_specifier
-
-            type_combo_box.on_current_item_changed = update_object_type
-            uuid_text_edit = ui.create_line_edit_widget()
-            uuid_text_edit.text = object.specifier["uuid"] if object else None
-
-            def update_object_uuid(text):
-                if re.fullmatch("[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}",
-                                text.strip(), re.IGNORECASE) is not None:
-                    object_specifier = object.specifier
-                    object_specifier["uuid"] = str(uuid.UUID(text.strip()))
-                    object.specifier = object_specifier
-
-            uuid_text_edit.on_editing_finished = update_object_uuid
-            remove_button = ui.create_push_button_widget(_("X"))
-
-            def remove_object():
-                self.__computation_model.remove_object(object)
-
-            remove_button.on_clicked = remove_object
-            object_row.add_spacing(8)
-            object_row.add(name_text_edit)
-            object_row.add_spacing(4)
-            object_row.add(type_combo_box)
-            object_row.add_spacing(4)
-            object_row.add(uuid_text_edit)
-            object_row.add_spacing(8)
-            object_row.add(remove_button)
-            object_row.add_spacing(8)
-            self.__object_column.insert(object_row, index)
-
-        def object_removed(index: int, object: Symbolic.ComputationObject) -> None:
-            self.__object_column.remove(self.__object_column.children[index])
-
-        self.__object_inserted_event_listener = self.__computation_model.object_inserted_event.listen(object_inserted)
-        self.__object_removed_event_listener = self.__computation_model.object_removed_event.listen(object_removed)
-
         def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
-            variable_row = ui.create_row_widget()
-            name_text_edit = ui.create_line_edit_widget()
-            name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
-            value_text_edit = ui.create_line_edit_widget()
-            value_text_edit.bind_text(Binding.PropertyBinding(variable, "value", converter=Converter.IntegerToStringConverter()))
-            remove_button = ui.create_push_button_widget(_("X"))
-            def remove_variable():
-                self.__computation_model.remove_variable(variable)
-            remove_button.on_clicked = remove_variable
-            variable_row.add_spacing(8)
-            variable_row.add(name_text_edit)
-            variable_row.add_spacing(4)
-            variable_row.add(value_text_edit)
-            variable_row.add_spacing(8)
-            variable_row.add(remove_button)
-            variable_row.add_spacing(8)
-            self.__variable_column.insert(variable_row, index)
+            if variable.value_type is not None:
+                variable_row = ui.create_row_widget()
+                name_text_edit = ui.create_line_edit_widget()
+                name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
+                value_text_edit = ui.create_line_edit_widget()
+                value_text_edit.bind_text(Binding.PropertyBinding(variable, "value", converter=Converter.IntegerToStringConverter()))
+                remove_button = ui.create_push_button_widget(_("X"))
+                def remove_variable():
+                    self.__computation_model.remove_variable(variable)
+                remove_button.on_clicked = remove_variable
+                variable_row.add_spacing(8)
+                variable_row.add(name_text_edit)
+                variable_row.add_spacing(4)
+                variable_row.add(value_text_edit)
+                variable_row.add_spacing(8)
+                variable_row.add(remove_button)
+                variable_row.add_spacing(8)
+                self.__variable_column.insert(variable_row, index)
+            elif variable.specifier is not None:
+                object_row = ui.create_row_widget()
+                name_text_edit = ui.create_line_edit_widget()
+                name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
+                items = [(None, _("N/A")), ("data_item", _("Data Item")), ("region", _("Region"))]
+                type_combo_box = ui.create_combo_box_widget(items=items, item_getter=operator.itemgetter(1))
+                item_key = variable.specifier["type"] if variable else None
+                for item in items:
+                    key, text = item
+                    if key == item_key:
+                        type_combo_box.current_item = item
+
+                def update_object_type(item):
+                    object_specifier = variable.specifier
+                    object_specifier["type"] = item[0]
+                    variable.specifier = object_specifier
+
+                type_combo_box.on_current_item_changed = update_object_type
+                uuid_text_edit = ui.create_line_edit_widget()
+                uuid_text_edit.text = variable.specifier["uuid"] if variable else None
+
+                def update_object_uuid(text):
+                    if re.fullmatch("[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}",
+                                    text.strip(), re.IGNORECASE) is not None:
+                        object_specifier = variable.specifier
+                        object_specifier["uuid"] = str(uuid.UUID(text.strip()))
+                        variable.specifier = object_specifier
+
+                uuid_text_edit.on_editing_finished = update_object_uuid
+                remove_button = ui.create_push_button_widget(_("X"))
+
+                def remove_object():
+                    self.__computation_model.remove_variable(object)
+
+                remove_button.on_clicked = remove_object
+                object_row.add_spacing(8)
+                object_row.add(name_text_edit)
+                object_row.add_spacing(4)
+                object_row.add(type_combo_box)
+                object_row.add_spacing(4)
+                object_row.add(uuid_text_edit)
+                object_row.add_spacing(8)
+                object_row.add(remove_button)
+                object_row.add_spacing(8)
+                self.__variable_column.insert(object_row, index)
+            else:
+                variable_row = ui.create_row_widget()
+                name_text_edit = ui.create_line_edit_widget()
+                name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
+                remove_button = ui.create_push_button_widget(_("X"))
+                def remove_variable():
+                    self.__computation_model.remove_variable(variable)
+                remove_button.on_clicked = remove_variable
+                variable_row.add_spacing(8)
+                variable_row.add(name_text_edit)
+                variable_row.add_spacing(4)
+                variable_row.add(remove_button)
+                variable_row.add_spacing(8)
+                self.__variable_column.insert(variable_row, index)
 
         def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
             self.__variable_column.remove(self.__variable_column.children[index])
@@ -392,10 +360,6 @@ class ComputationPanel(Panel.Panel):
         self.__computation_text_changed_event_listener = None
         self.__error_text_changed_event_listener.close()
         self.__error_text_changed_event_listener = None
-        self.__object_inserted_event_listener.close()
-        self.__object_inserted_event_listener = None
-        self.__object_removed_event_listener.close()
-        self.__object_removed_event_listener = None
         self.__variable_inserted_event_listener.close()
         self.__variable_inserted_event_listener = None
         self.__variable_removed_event_listener.close()
@@ -405,10 +369,6 @@ class ComputationPanel(Panel.Panel):
         self.__selected_data_item_binding.close()
         self.__selected_data_item_binding = None
         super(ComputationPanel, self).close()
-
-    @property
-    def _object_column_for_testing(self):
-        return self.__object_column
 
     @property
     def _variable_column_for_testing(self):

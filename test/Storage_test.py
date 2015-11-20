@@ -1691,6 +1691,7 @@ class TestStorageClass(unittest.TestCase):
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            x.value_type = "integral"
             x.value = 6
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
@@ -1706,8 +1707,8 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 3)  # value is intentionally None
-            computation.create_variable("y", 4)  # value is intentionally None
+            computation.create_variable("x", value_type="integral", value=3)
+            computation.create_variable("y", value_type="integral", value=4)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + x + y", map)
             computed_data_item = DataItem.DataItem(data.copy())

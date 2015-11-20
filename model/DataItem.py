@@ -459,14 +459,14 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
     @property
     def intensity_calibration(self):
         if self.has_data:
-            return copy.deepcopy(self._get_persistent_property("intensity_calibration"))
+            return copy.deepcopy(self._get_persistent_property_value("intensity_calibration"))
         return None
 
     @property
     def dimensional_calibrations(self):
         try:
             if self.has_data:
-                return copy.deepcopy(self._get_persistent_property("dimensional_calibrations").list)
+                return copy.deepcopy(self._get_persistent_property_value("dimensional_calibrations").list)
             return list()
         except Exception as e:
             import traceback
@@ -476,11 +476,11 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     def set_intensity_calibration(self, calibration):
         """ Set the intensity calibration. """
-        self._set_persistent_property("intensity_calibration", calibration)
+        self._set_persistent_property_value("intensity_calibration", calibration)
 
     def set_dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
-        self._set_persistent_property("dimensional_calibrations", CalibrationList(dimensional_calibrations))
+        self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
 
     def set_dimensional_calibration(self, dimension, calibration):
         dimensional_calibrations = self.dimensional_calibrations
@@ -500,10 +500,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     @property
     def metadata(self):
-        return copy.deepcopy(self._get_persistent_property("metadata"))
+        return copy.deepcopy(self._get_persistent_property_value("metadata"))
 
     def set_metadata(self, metadata):
-        self._set_persistent_property("metadata", copy.deepcopy(metadata))
+        self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
 
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable
@@ -1272,10 +1272,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
 
     @property
     def metadata(self):
-        return copy.deepcopy(self._get_persistent_property("metadata"))
+        return copy.deepcopy(self._get_persistent_property_value("metadata"))
 
     def set_metadata(self, metadata):
-        self._set_persistent_property("metadata", copy.deepcopy(metadata))
+        self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
 
     def __insert_data_source(self, name, before_index, data_source):
         data_source.set_dependent_data_item(self)

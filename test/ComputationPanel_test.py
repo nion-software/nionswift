@@ -105,7 +105,7 @@ class TestComputationPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         map = {"a": document_model.get_object_specifier(data_item1)}
         computation = Symbolic.Computation()
-        computation.create_variable("x", 5)
+        computation.create_variable("x", value_type="integral", value=5)
         computation.parse_expression(document_model, "a + x", map)
         data_item2.maybe_data_source.set_computation(computation)
         document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))

@@ -955,7 +955,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
+            computation.create_variable("x", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + x", map)
             data = computation.evaluate().data
@@ -969,8 +969,8 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
-            computation.create_variable("y", 5)
+            computation.create_variable("x", value_type="integral", value=5)
+            computation.create_variable("y", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "gaussian_blur(a, x - y)", map)
             assert numpy.array_equal(computation.evaluate().data, src_data)
@@ -983,7 +983,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            x = computation.create_variable("x", 5)
+            x = computation.create_variable("x", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + x", map)
             computed_data_item = DataItem.DataItem(src_data.copy())
@@ -1004,7 +1004,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            x = computation.create_variable("x", 5)
+            x = computation.create_variable("x", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + x", map)
             computed_data_item = DataItem.DataItem(src_data.copy())
@@ -1024,7 +1024,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            x = computation.create_variable("x", 5)
+            x = computation.create_variable("x", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + x", map)
             expression_text = computation.reconstruct(dict())
@@ -1041,9 +1041,9 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
-            computation.create_variable("xa", 5)
-            computation.create_variable("xx", 5)
+            computation.create_variable("x", value_type="integral", value=5)
+            computation.create_variable("xa", value_type="integral", value=5)
+            computation.create_variable("xx", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + xx", map)
             computation.reconstruct(dict())
@@ -1055,7 +1055,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
+            computation.create_variable("x", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + x", map)
             d = computation.write_to_dict()
@@ -1066,7 +1066,7 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
 
     def test_computation_variable_writes_and_reads(self):
-        variable = Symbolic.ComputationVariable("x", 5)
+        variable = Symbolic.ComputationVariable("x", value_type="integral", value=5)
         self.assertEqual(variable.name, "x")
         self.assertEqual(variable.value, 5)
         data_node_dict = variable.write_to_dict()
@@ -1082,7 +1082,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            x = computation.create_variable("x", 5)
+            x = computation.create_variable("x", value_type="integral", value=5)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation.parse_expression(document_model, "a + x", map)
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
@@ -1096,7 +1096,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
+            computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computation.parse_expression(document_model, "a + x", dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
@@ -1108,7 +1108,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
+            computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computation.parse_expression(document_model, "a + x", dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
@@ -1162,8 +1162,8 @@ class TestSymbolicClass(unittest.TestCase):
             read_computation = Symbolic.Computation()
             read_computation.read_from_dict(d)
             read_computation.bind(document_model)
-            self.assertEqual(read_computation.objects[0].name, "a")
-            self.assertEqual(read_computation.objects[0].specifier, a_specifier)
+            self.assertEqual(read_computation.variables[0].name, "a")
+            self.assertEqual(read_computation.variables[0].specifier, a_specifier)
 
     def test_computation_with_object_reloads(self):
         document_model = DocumentModel.DocumentModel()
@@ -1172,7 +1172,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
+            computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computation.parse_expression(document_model, "a + x", dict())
             d = computation.write_to_dict()
@@ -1189,7 +1189,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
+            computation.create_variable("x", value_type="integral", value=5)
             a_specifier = document_model.get_object_specifier(data_item)
             a_specifier["type"] = "region"
             computation.create_object("a", a_specifier)
@@ -1211,11 +1211,11 @@ class TestSymbolicClass(unittest.TestCase):
             data_item.maybe_data_source.add_region(region)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            computation.create_variable("x", 5)
+            computation.create_variable("x", value_type="integral", value=5)
             a_specifier = document_model.get_object_specifier(region)
             a = computation.create_object("a", a_specifier)
             computation.parse_expression(document_model, "a + x", dict())
-            computation.remove_object(a)
+            computation.remove_variable(a)
             copy.deepcopy(computation)
             copy.deepcopy(computation._data_node_for_test)
 
@@ -1226,7 +1226,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
             computation = Symbolic.Computation()
-            x = computation.create_variable("x", 0)
+            x = computation.create_variable("x", value_type="integral", value=0)
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computation.parse_expression(document_model, "line_profile(a, vector(normalized_point(0.25, 0.25), normalized_point(0.5, 0.5)), x)", dict())
             computed_data_item = DataItem.DataItem(src_data.copy())
@@ -1266,7 +1266,7 @@ class TestSymbolicClass(unittest.TestCase):
             ]
             for script, data in script_and_data:
                 computation = Symbolic.Computation()
-                computation.create_variable("x", 5)
+                computation.create_variable("x", value_type="integral", value=5)
                 computation.parse_expression(document_model, script, map)
                 expression_text = computation.reconstruct(map)
                 self.assertEqual(script, expression_text)
