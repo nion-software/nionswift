@@ -1132,11 +1132,11 @@ class TestSymbolicClass(unittest.TestCase):
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
             data_item.maybe_data_source.add_region(region)
             document_model.append_data_item(data_item)
-            computed_data_item = DataItem.DataItem(src_data.copy())
             computation = Symbolic.Computation()
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computation.create_object("r", document_model.get_object_specifier(region))
             computation.parse_expression(document_model, "crop(a, r.bounds)", dict())
+            computed_data_item = DataItem.DataItem(src_data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
             computation.needs_update_event.fire()  # ugh. bootstrap.
@@ -1220,6 +1220,29 @@ class TestSymbolicClass(unittest.TestCase):
             computation.remove_object(a)
             copy.deepcopy(computation)
             copy.deepcopy(computation._data_node_for_test)
+
+    def test_evaluation_error_recovers_gracefully(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            x = computation.create_variable("x", 0)
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.parse_expression(document_model, "line_profile(a, vector(normalized_point(0.25, 0.25), normalized_point(0.5, 0.5)), x)", dict())
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            document_model.recompute_all()
+            self.assertIsNotNone(computation.error_text)
+            self.assertEqual(len(computed_data_item.maybe_data_source.data.shape), 2)  # original data
+            x.value = 1
+            document_model.recompute_all()
+            self.assertIsNone(computation.error_text)
+            self.assertIsNotNone(computed_data_item.maybe_data_source.data)
+            self.assertEqual(len(computed_data_item.maybe_data_source.data.shape), 1)  # computed data
 
     def test_various_expressions_produces_data(self):
         document_model = DocumentModel.DocumentModel()

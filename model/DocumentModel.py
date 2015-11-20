@@ -1052,16 +1052,21 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 def compute():
                     """Evaluate the computation, but make sure that only one thread is evaluating, and not too fast."""
                     if computation.begin_evaluate():
-                        while computation.needs_update:
-                            with buffered_data_source.data_ref() as data_ref:
-                                data_and_metadata = computation.evaluate()
-                                if data_and_metadata:
-                                    data_ref.data = data_and_metadata.data
-                                    buffered_data_source.set_metadata(data_and_metadata.metadata)
-                                    buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-                                    buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
-                            time.sleep(0.05)
-                        computation.end_evaluate()
+                        try:
+                            while computation.needs_update:
+                                with buffered_data_source.data_ref() as data_ref:
+                                    data_and_metadata = computation.evaluate()
+                                    if data_and_metadata:
+                                        data_ref.data = data_and_metadata.data
+                                        buffered_data_source.set_metadata(data_and_metadata.metadata)
+                                        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+                                        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+                                time.sleep(0.05)
+                            computation.error_text = None
+                        except Exception as e:
+                            computation.error_text = _("Unable to compute data")
+                        finally:
+                            computation.end_evaluate()
                 self.dispatch_task(compute)
             computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
             self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
