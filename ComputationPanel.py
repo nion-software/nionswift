@@ -48,8 +48,8 @@ class ComputationModel(object):
         self.__computation_variable_removed_event_listener = None
         self.__computation_text = None
         self.__error_text = None
-        self.__object_name_changed_event_listeners = dict()
-        self.__variable_name_changed_event_listeners = dict()
+        self.__object_property_changed_event_listeners = dict()
+        self.__variable_property_changed_event_listeners = dict()
         self.computation_text_changed_event = Event.Event()
         self.error_text_changed_event = Event.Event()
         self.object_inserted_event = Event.Event()
@@ -149,21 +149,21 @@ class ComputationModel(object):
 
     def __object_inserted(self, index: int, object: Symbolic.ComputationObject) -> None:
         self.object_inserted_event.fire(index, object)
-        self.__object_name_changed_event_listeners[object.uuid] = object.name_changed_event.listen(self.__computation_changed_or_mutated)
+        self.__object_property_changed_event_listeners[object.uuid] = object.property_changed_event.listen(lambda k, v: self.__computation_changed_or_mutated())
 
     def __object_removed(self, index: int, object: Symbolic.ComputationObject) -> None:
         self.object_removed_event.fire(index, object)
-        self.__object_name_changed_event_listeners[object.uuid].close()
-        del self.__object_name_changed_event_listeners[object.uuid]
+        self.__object_property_changed_event_listeners[object.uuid].close()
+        del self.__object_property_changed_event_listeners[object.uuid]
 
     def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_inserted_event.fire(index, variable)
-        self.__variable_name_changed_event_listeners[variable.uuid] = variable.name_changed_event.listen(self.__computation_changed_or_mutated)
+        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(lambda k, v: self.__computation_changed_or_mutated())
 
     def __variable_removed(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_removed_event.fire(index, variable)
-        self.__variable_name_changed_event_listeners[variable.uuid].close()
-        del self.__variable_name_changed_event_listeners[variable.uuid]
+        self.__variable_property_changed_event_listeners[variable.uuid].close()
+        del self.__variable_property_changed_event_listeners[variable.uuid]
 
     # not thread safe
     def __set_display_specifier(self, display_specifier):
@@ -311,7 +311,7 @@ class ComputationPanel(Panel.Panel):
         def object_inserted(index: int, object: Symbolic.ComputationObject) -> None:
             object_row = ui.create_row_widget()
             name_text_edit = ui.create_line_edit_widget()
-            name_text_edit.bind_text(Binding.PropertyBinding(object.name_model, "value"))
+            name_text_edit.bind_text(Binding.PropertyBinding(object, "name"))
             items = [(None, _("N/A")), ("data_item", _("Data Item")), ("region", _("Region"))]
             type_combo_box = ui.create_combo_box_widget(items=items, item_getter=operator.itemgetter(1))
             item_key = object.specifier["type"] if object else None
@@ -363,9 +363,9 @@ class ComputationPanel(Panel.Panel):
         def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
             variable_row = ui.create_row_widget()
             name_text_edit = ui.create_line_edit_widget()
-            name_text_edit.bind_text(Binding.PropertyBinding(variable.name_model, "value"))
+            name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
             value_text_edit = ui.create_line_edit_widget()
-            value_text_edit.bind_text(Binding.PropertyBinding(variable.value_model, "value", converter=Converter.IntegerToStringConverter()))
+            value_text_edit.bind_text(Binding.PropertyBinding(variable, "value", converter=Converter.IntegerToStringConverter()))
             remove_button = ui.create_push_button_widget(_("X"))
             def remove_variable():
                 self.__computation_model.remove_variable(variable)

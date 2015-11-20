@@ -1067,15 +1067,13 @@ class TestSymbolicClass(unittest.TestCase):
 
     def test_computation_variable_writes_and_reads(self):
         variable = Symbolic.ComputationVariable("x", 5)
-        self.assertEqual(variable.name_model.value, "x")
-        self.assertEqual(variable.value_model.value, 5)
+        self.assertEqual(variable.name, "x")
+        self.assertEqual(variable.value, 5)
         data_node_dict = variable.write_to_dict()
         variable2 = Symbolic.ComputationVariable()
         variable2.read_from_dict(data_node_dict)
         self.assertEqual(variable.name, variable2.name)
-        self.assertEqual(variable.name_model.value, variable2.name_model.value)
         self.assertEqual(variable.value, variable2.value)
-        self.assertEqual(variable.value_model.value, variable2.value_model.value)
 
     def test_computation_reparsing_keeps_variables(self):
         document_model = DocumentModel.DocumentModel()
