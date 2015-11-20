@@ -1682,17 +1682,19 @@ def parse_expression(expression_lines, variable_map, context):
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
-    def __init__(self, name: str=None, value_type: str=None, value=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None):  # defaults are None for factory
+    def __init__(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None):  # defaults are None for factory
         super(ComputationVariable, self).__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
         self.define_property("label", name, changed=self.__property_changed)
         self.define_property("value_type", value_type, changed=self.__property_changed)
         self.define_property("value", value, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
+        self.define_property("value_default", value_default, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("value_min", value_min, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("specifier", specifier, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
+        self.variable_type_changed_event = Event.Event()
 
     def read_from_dict(self, properties: dict) -> None:
         # ensure that value_type is read first
@@ -1757,6 +1759,46 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
+
+    def control_type_default(self, value_type: str) -> None:
+        mapping = {"boolean": "checkbox", "integral": "slider", "real": "field", "complex": "field", "string": "field"}
+        return mapping.get(value_type)
+
+    @property
+    def variable_type(self) -> str:
+        if self.value_type is not None:
+            return self.value_type
+        elif self.specifier is not None:
+            return self.specifier.get("type")
+        return None
+
+    @variable_type.setter
+    def variable_type(self, value_type: str) -> None:
+        if value_type != self.variable_type:
+            if value_type in ("boolean", "integral", "real", "complex", "string"):
+                self.specifier = None
+                self.value_type = value_type
+                self.control_type = self.control_type_default(value_type)
+                if value_type == "boolean":
+                    self.value_default = True
+                elif value_type == "integral":
+                    self.value_default = 0
+                elif value_type == "real":
+                    self.value_default = 0.0
+                elif value_type == "complex":
+                    self.value_default = 0 + 0j
+                else:
+                    self.value_default = None
+                self.value_min = None
+                self.value_max = None
+            elif value_type in ("data_item", "region"):
+                self.value_type = None
+                self.control_type = None
+                self.value_default = None
+                self.value_min = None
+                self.value_max = None
+                self.specifier = {"type": value_type, "version": 1}
+            self.variable_type_changed_event.fire()
 
 
 def variable_factory(lookup_id):
@@ -1852,8 +1894,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.variable_removed_event.fire(index, variable)
         self.computation_mutated_event.fire()
 
-    def create_variable(self, name: str=None, value_type: str=None, value=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> ComputationVariable:
-        variable = ComputationVariable(name, value_type, value, value_min, value_max, control_type, specifier)
+    def create_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> ComputationVariable:
+        variable = ComputationVariable(name, value_type, value, value_default, value_min, value_max, control_type, specifier)
         self.add_variable(variable)
         return variable
 

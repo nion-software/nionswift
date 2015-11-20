@@ -103,20 +103,20 @@ class TestComputationPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item1)
         data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
         document_model.append_data_item(data_item2)
-        map = {"a": document_model.get_object_specifier(data_item1)}
         computation = Symbolic.Computation()
+        computation.create_object("a", document_model.get_object_specifier(data_item1))
         computation.create_variable("x", value_type="integral", value=5)
-        computation.parse_expression(document_model, "a + x", map)
+        computation.parse_expression(document_model, "a + x", dict())
         data_item2.maybe_data_source.set_computation(computation)
         document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))
         document_controller.periodic()  # execute queue
-        self.assertEqual(len(panel._variable_column_for_testing.children), 1)
+        self.assertEqual(len(panel._sections_for_testing), 0)
         document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
         document_controller.periodic()  # execute queue
-        self.assertEqual(len(panel._variable_column_for_testing.children), 2)
+        self.assertEqual(len(panel._sections_for_testing), 2)
         document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))
         document_controller.periodic()  # execute queue
-        self.assertEqual(len(panel._variable_column_for_testing.children), 1)
+        self.assertEqual(len(panel._sections_for_testing), 0)
 
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()

@@ -17,6 +17,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
 from nion.swift import Panel
 from nion.ui import Binding
+from nion.ui import CanvasItem
 from nion.ui import Converter
 from nion.ui import Event
 
@@ -74,10 +75,10 @@ class ComputationModel(object):
             return buffered_data_source.computation
         return None
 
-    def add_variable(self, name: str=None, value_type: str=None, value=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> Symbolic.ComputationVariable:
+    def add_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> Symbolic.ComputationVariable:
         computation = self.__computation
         if computation:
-            return computation.create_variable(name, value_type, value, value_min, value_max, control_type, specifier)
+            return computation.create_variable(name, value_type, value, value_default, value_min, value_max, control_type, specifier)
         return None
 
     def remove_variable(self, variable: Symbolic.ComputationVariable) -> None:
@@ -169,6 +170,248 @@ class ComputationModel(object):
                     self.__variable_inserted(index, variable)
 
 
+class ComputationPanelSection:
+
+    def __init__(self, ui, variable, on_remove):
+
+        section_widget = ui.create_column_widget()
+        section_title_row = ui.create_row_widget()
+
+        self.twist_down_canvas_item_root = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 20})
+        twist_down_canvas_item = CanvasItem.TwistDownCanvasItem()
+        self.twist_down_canvas_item_root.add_canvas_item(twist_down_canvas_item)
+        section_title_row.add(self.twist_down_canvas_item_root.canvas_widget)
+        twist_down_label_widget = ui.create_label_widget(variable.name, properties={"stylesheet": "font-weight: bold"})
+        twist_down_label_widget.bind_text(Binding.PropertyBinding(variable, "name"))
+        section_title_row.add(twist_down_label_widget)
+        section_title_row.add_stretch()
+        section_widget.add(section_title_row)
+
+        # boolean, integral, real, data item, region
+
+        def make_label_row(ui, label):
+            label_row = ui.create_row_widget()
+            label_row.add_spacing(8)
+            label_row.add(ui.create_label_widget(label))
+            label_row.add_stretch()
+            return label_row
+
+        def make_name_type_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+            name_text_edit = ui.create_line_edit_widget()
+            name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
+
+            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("region", _("Region"))]
+            type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
+
+            remove_button = ui.create_push_button_widget(_("X"))
+
+            name_type_row = ui.create_row_widget()
+            name_type_row.add_spacing(8)
+            name_type_row.add(name_text_edit)
+            name_type_row.add_spacing(8)
+            name_type_row.add(type_combo_box)
+            name_type_row.add_spacing(8)
+            name_type_row.add(remove_button)
+            name_type_row.add_stretch()
+
+            variable_type = variable.variable_type
+            type_combo_box.current_item = next((i for i in type_items if i[0] == variable_type), None)
+            type_combo_box.on_current_item_changed = lambda item: on_change_type_fn(item[0])
+            remove_button.on_clicked = on_remove_fn
+
+            return name_type_row
+
+        def make_boolean_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+            name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
+
+            value_check_box = ui.create_check_box_widget(_("Value"))
+
+            value_row = ui.create_row_widget()
+            value_row.add_spacing(8)
+            value_row.add(value_check_box)
+            value_row.add_stretch()
+
+            label_text_edit = ui.create_line_edit_widget()
+            label_text_edit.bind_text(Binding.PropertyBinding(variable, "label"))
+
+            display_row = ui.create_row_widget()
+            display_row.add_spacing(8)
+            display_row.add(ui.create_label_widget(_("Label")))
+            display_row.add_spacing(8)
+            display_row.add(label_text_edit)
+            display_row.add_stretch()
+
+            column = ui.create_column_widget()
+            column.add(make_label_row(ui, _("Variable Name / Type")))
+            column.add(name_type_row)
+            column.add(value_row)
+            column.add(display_row)
+
+            value_check_box.bind_checked(Binding.PropertyBinding(variable, "value"))
+
+            return column
+
+        def make_number_row(ui, variable: Symbolic.ComputationVariable, converter, on_change_type_fn, on_remove_fn):
+            name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
+
+            value_text_edit = ui.create_line_edit_widget()
+
+            value_default_text_edit = ui.create_line_edit_widget()
+
+            value_min_text_edit = ui.create_line_edit_widget()
+
+            value_max_text_edit = ui.create_line_edit_widget()
+
+            value_row = ui.create_row_widget()
+            value_row.add_spacing(8)
+            value_row.add(value_text_edit)
+            value_row.add_spacing(4)
+            value_row.add(value_default_text_edit)
+            value_row.add_spacing(4)
+            value_row.add(value_min_text_edit)
+            value_row.add_spacing(4)
+            value_row.add(value_max_text_edit)
+            value_row.add_stretch()
+
+            label_text_edit = ui.create_line_edit_widget()
+            label_text_edit.bind_text(Binding.PropertyBinding(variable, "label"))
+
+            display_items = [("field", _("Field")), ("slider", _("Slider"))]
+            display_combo_box = ui.create_combo_box_widget(items=display_items, item_getter=operator.itemgetter(1))
+
+            display_row = ui.create_row_widget()
+            display_row.add_spacing(8)
+            display_row.add(label_text_edit)
+            display_row.add_spacing(4)
+            display_row.add(display_combo_box)
+            display_row.add_stretch()
+
+            column = ui.create_column_widget()
+            column.add(make_label_row(ui, _("Variable Name / Type")))
+            column.add(name_type_row)
+            column.add(make_label_row(ui, _("Value / Default / Min / Max")))
+            column.add(value_row)
+            column.add(make_label_row(ui, _("Label / Display Type")))
+            column.add(display_row)
+
+            value_text_edit.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+            value_default_text_edit.bind_text(Binding.PropertyBinding(variable, "value_default", converter=converter))
+            value_min_text_edit.bind_text(Binding.PropertyBinding(variable, "value_min", converter=converter))
+            value_max_text_edit.bind_text(Binding.PropertyBinding(variable, "value_max", converter=converter))
+            display_combo_box.current_item = display_items[1]
+
+            return column
+
+        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, specifier_type, on_change_type_fn, on_remove_fn):
+            column = ui.create_column_widget()
+
+            name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
+
+            uuid_text_edit = ui.create_line_edit_widget()
+
+            uuid_row = ui.create_row_widget()
+            uuid_row.add_spacing(8)
+            uuid_row.add(ui.create_label_widget(_("UUID")))
+            uuid_row.add_spacing(8)
+            uuid_row.add(uuid_text_edit)
+            uuid_row.add_spacing(8)
+
+            label_text_edit = ui.create_line_edit_widget()
+            label_text_edit.bind_text(Binding.PropertyBinding(variable, "label"))
+
+            display_row = ui.create_row_widget()
+            display_row.add_spacing(8)
+            display_row.add(ui.create_label_widget(_("Label")))
+            display_row.add_spacing(8)
+            display_row.add(label_text_edit)
+            display_row.add_stretch()
+
+            column.add(name_type_row)
+            column.add(uuid_row)
+            column.add(display_row)
+
+            class UuidToStringConverter(object):
+                def convert(self, value):
+                    return str(value) if value else None
+                def convert_back(self, value):
+                    if re.fullmatch("[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}",
+                                    value.strip(), re.IGNORECASE) is not None:
+                        return uuid.UUID(value.strip())
+                    return None
+
+            class SpecifierToStringConverter(object):
+                def __init__(self, specifier_type):
+                    self.__specifier_type = specifier_type
+                def convert(self, value):
+                    return UuidToStringConverter().convert(value.get("uuid")) if value else None
+                def convert_back(self, value):
+                    uuid_ = UuidToStringConverter().convert_back(value)
+                    return {"type": self.__specifier_type, "version": 1, "uuid": str(uuid_)}
+
+            uuid_text_edit.bind_text(Binding.PropertyBinding(variable, "specifier", converter=SpecifierToStringConverter(specifier_type)))
+
+            return column
+
+        def make_data_item_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+            return make_specifier_row(ui, variable, "data_item", on_change_type_fn, on_remove_fn)
+
+        def make_region_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+            return make_specifier_row(ui, variable, "region", on_change_type_fn, on_remove_fn)
+
+        def make_empty_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+            column = ui.create_column_widget()
+            name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
+            column.add(name_type_row)
+            return column
+
+        stack = ui.create_column_widget()
+
+        section_widget.add(stack)
+        section_widget.add_spacing(4)
+
+        def toggle():
+            twist_down_canvas_item.checked = not twist_down_canvas_item.checked
+            stack.visible = twist_down_canvas_item.checked
+        section_open = False
+        twist_down_canvas_item.checked = section_open
+        stack.visible = section_open
+        twist_down_canvas_item.on_button_clicked = toggle
+
+        def change_type(variable_type):
+            variable.variable_type = variable_type
+
+        def select_stack(stack, variable, specifier):
+            stack.remove_all()
+            variable_type = variable.variable_type
+            if variable_type == "boolean":
+                stack.add(make_boolean_row(ui, variable, change_type, on_remove))
+            elif variable_type == "integral":
+                stack.add(make_number_row(ui, variable, Converter.IntegerToStringConverter(), change_type, on_remove))
+            elif variable_type == "real":
+                stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
+            elif variable_type == "data_item":
+                stack.add(make_data_item_row(ui, variable, change_type, on_remove))
+            elif variable_type == "region":
+                stack.add(make_region_row(ui, variable, change_type, on_remove))
+            else:
+                stack.add(make_empty_row(ui, variable, change_type, on_remove))
+
+        def do_select_stack():
+            select_stack(stack, variable, variable.specifier)
+
+        self.__variable_type_changed_event_listener = variable.variable_type_changed_event.listen(do_select_stack)
+
+        select_stack(stack, variable, variable.specifier)
+
+        self.widget = section_widget
+
+    def close(self):
+        self.twist_down_canvas_item_root.close()
+        self.twist_down_canvas_item_root = None
+        self.__variable_type_changed_event_listener.close()
+        self.__variable_type_changed_event_listener = None
+
+
 class ComputationPanel(Panel.Panel):
     """Provide a panel to edit a computation."""
 
@@ -179,6 +422,8 @@ class ComputationPanel(Panel.Panel):
 
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
         self.__computation_model = ComputationModel(document_controller, self.__selected_data_item_binding)
+
+        self.__sections = list()
 
         self.__variable_column = ui.create_column_widget()
         buttons_row = ui.create_row_widget()
@@ -269,86 +514,81 @@ class ComputationPanel(Panel.Panel):
         self.__error_text_changed_event_listener = self.__computation_model.error_text_changed_event.listen(error_text_changed)
 
         def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
-            if variable.value_type is not None:
-                variable_row = ui.create_row_widget()
-                name_text_edit = ui.create_line_edit_widget()
-                name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
-                value_text_edit = ui.create_line_edit_widget()
-                value_text_edit.bind_text(Binding.PropertyBinding(variable, "value", converter=Converter.IntegerToStringConverter()))
-                remove_button = ui.create_push_button_widget(_("X"))
-                def remove_variable():
-                    self.__computation_model.remove_variable(variable)
-                remove_button.on_clicked = remove_variable
-                variable_row.add_spacing(8)
-                variable_row.add(name_text_edit)
-                variable_row.add_spacing(4)
-                variable_row.add(value_text_edit)
-                variable_row.add_spacing(8)
-                variable_row.add(remove_button)
-                variable_row.add_spacing(8)
-                self.__variable_column.insert(variable_row, index)
-            elif variable.specifier is not None:
-                object_row = ui.create_row_widget()
-                name_text_edit = ui.create_line_edit_widget()
-                name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
-                items = [(None, _("N/A")), ("data_item", _("Data Item")), ("region", _("Region"))]
-                type_combo_box = ui.create_combo_box_widget(items=items, item_getter=operator.itemgetter(1))
-                item_key = variable.specifier["type"] if variable else None
-                for item in items:
-                    key, text = item
-                    if key == item_key:
-                        type_combo_box.current_item = item
+            def remove_variable():
+                self.__computation_model.remove_variable(variable)
+            section = ComputationPanelSection(ui, variable, remove_variable)
+            self.__variable_column.insert(section.widget, index)
+            self.__sections.insert(index, section)
+            if False:
+                if variable.value_type is not None:
+                    pass
+                elif variable.specifier is not None:
+                    object_row = ui.create_row_widget()
+                    name_text_edit = ui.create_line_edit_widget()
+                    name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
+                    items = [(None, _("N/A")), ("data_item", _("Data Item")), ("region", _("Region"))]
+                    type_combo_box = ui.create_combo_box_widget(items=items, item_getter=operator.itemgetter(1))
+                    item_key = variable.specifier["type"] if variable else None
+                    for item in items:
+                        key, text = item
+                        if key == item_key:
+                            type_combo_box.current_item = item
 
-                def update_object_type(item):
-                    object_specifier = variable.specifier
-                    object_specifier["type"] = item[0]
-                    variable.specifier = object_specifier
-
-                type_combo_box.on_current_item_changed = update_object_type
-                uuid_text_edit = ui.create_line_edit_widget()
-                uuid_text_edit.text = variable.specifier["uuid"] if variable else None
-
-                def update_object_uuid(text):
-                    if re.fullmatch("[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}",
-                                    text.strip(), re.IGNORECASE) is not None:
+                    def update_object_type(item):
                         object_specifier = variable.specifier
-                        object_specifier["uuid"] = str(uuid.UUID(text.strip()))
+                        object_specifier["type"] = item[0]
                         variable.specifier = object_specifier
 
-                uuid_text_edit.on_editing_finished = update_object_uuid
-                remove_button = ui.create_push_button_widget(_("X"))
+                    type_combo_box.on_current_item_changed = update_object_type
+                    uuid_text_edit = ui.create_line_edit_widget()
+                    uuid_text_edit.text = variable.specifier["uuid"] if variable else None
 
-                def remove_object():
-                    self.__computation_model.remove_variable(object)
+                    def update_object_uuid(text):
+                        if re.fullmatch("[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}",
+                                        text.strip(), re.IGNORECASE) is not None:
+                            object_specifier = variable.specifier
+                            object_specifier["uuid"] = str(uuid.UUID(text.strip()))
+                            variable.specifier = object_specifier
 
-                remove_button.on_clicked = remove_object
-                object_row.add_spacing(8)
-                object_row.add(name_text_edit)
-                object_row.add_spacing(4)
-                object_row.add(type_combo_box)
-                object_row.add_spacing(4)
-                object_row.add(uuid_text_edit)
-                object_row.add_spacing(8)
-                object_row.add(remove_button)
-                object_row.add_spacing(8)
-                self.__variable_column.insert(object_row, index)
-            else:
-                variable_row = ui.create_row_widget()
-                name_text_edit = ui.create_line_edit_widget()
-                name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
-                remove_button = ui.create_push_button_widget(_("X"))
-                def remove_variable():
-                    self.__computation_model.remove_variable(variable)
-                remove_button.on_clicked = remove_variable
-                variable_row.add_spacing(8)
-                variable_row.add(name_text_edit)
-                variable_row.add_spacing(4)
-                variable_row.add(remove_button)
-                variable_row.add_spacing(8)
-                self.__variable_column.insert(variable_row, index)
+                    uuid_text_edit.on_editing_finished = update_object_uuid
+                    remove_button = ui.create_push_button_widget(_("X"))
+
+                    def remove_object():
+                        self.__computation_model.remove_variable(variable)
+
+                    remove_button.on_clicked = remove_object
+                    object_row.add_spacing(8)
+                    object_row.add(name_text_edit)
+                    object_row.add_spacing(4)
+                    object_row.add(type_combo_box)
+                    object_row.add_spacing(4)
+                    object_row.add(uuid_text_edit)
+                    object_row.add_spacing(8)
+                    object_row.add(remove_button)
+                    object_row.add_spacing(8)
+                    self.__variable_column.insert(object_row, index)
+                    self.__sections.insert(index, None)
+                else:
+                    variable_row = ui.create_row_widget()
+                    name_text_edit = ui.create_line_edit_widget()
+                    name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
+                    remove_button = ui.create_push_button_widget(_("X"))
+                    def remove_variable():
+                        self.__computation_model.remove_variable(variable)
+                    remove_button.on_clicked = remove_variable
+                    variable_row.add_spacing(8)
+                    variable_row.add(name_text_edit)
+                    variable_row.add_spacing(4)
+                    variable_row.add(remove_button)
+                    variable_row.add_spacing(8)
+                    self.__variable_column.insert(variable_row, index)
+                    self.__sections.insert(index, None)
 
         def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
             self.__variable_column.remove(self.__variable_column.children[index])
+            if self.__sections[index]:
+                self.__sections[index].close()
+            del self.__sections[index]
 
         self.__variable_inserted_event_listener = self.__computation_model.variable_inserted_event.listen(variable_inserted)
         self.__variable_removed_event_listener = self.__computation_model.variable_removed_event.listen(variable_removed)
@@ -369,6 +609,10 @@ class ComputationPanel(Panel.Panel):
         self.__selected_data_item_binding.close()
         self.__selected_data_item_binding = None
         super(ComputationPanel, self).close()
+
+    @property
+    def _sections_for_testing(self):
+        return self.__sections
 
     @property
     def _variable_column_for_testing(self):
