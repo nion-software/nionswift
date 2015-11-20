@@ -95,6 +95,29 @@ class TestComputationPanelClass(unittest.TestCase):
         self.assertEqual(panel._text_edit_for_testing.text, expression)
         self.assertIsNone(panel._error_label_for_testing.text)
 
+    def test_variables_get_updates_when_switching_data_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        panel = document_controller.find_dock_widget("computation-panel").panel
+        data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
+        document_model.append_data_item(data_item1)
+        data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
+        document_model.append_data_item(data_item2)
+        map = {"a": document_model.get_object_specifier(data_item1)}
+        computation = Symbolic.Computation()
+        computation.create_variable("x", 5)
+        computation.parse_expression(document_model, "a + x", map)
+        data_item2.maybe_data_source.set_computation(computation)
+        document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))
+        document_controller.periodic()  # execute queue
+        self.assertEqual(len(panel._variable_column_for_testing.children), 1)
+        document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
+        document_controller.periodic()  # execute queue
+        self.assertEqual(len(panel._variable_column_for_testing.children), 2)
+        document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))
+        document_controller.periodic()  # execute queue
+        self.assertEqual(len(panel._variable_column_for_testing.children), 1)
+
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()
 
