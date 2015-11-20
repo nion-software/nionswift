@@ -6,7 +6,6 @@ from __future__ import division
 import copy
 import functools
 import gettext
-import logging
 import math
 import operator
 
@@ -152,11 +151,14 @@ class InspectorPanel(Panel.Panel):
 
 
 class InspectorSection(object):
+    """A class to manage creation of a widget representing a twist down inspector section.
 
-    """
-        Represent a section in the inspector. The section is composed of a
-        title in bold and then content. Subclasses should use add_widget_to_content
-        to add item to the content portion of the section.
+    Represent a section in the inspector. The section is composed of a title in bold and then content. Subclasses should
+    use add_widget_to_content to add items to the content portion of the section, then call finish_widget_content to
+    properly handle the stretch at the bottom of the section.
+
+    The content of the section will be associated with a subset of the content of a display specifier. The section is
+    responsible for watching for mutations to that subset of content and updating appropriately.
     """
 
     def __init__(self, ui, section_id, section_title):
@@ -194,10 +196,12 @@ class InspectorSection(object):
         self.twist_down_canvas_item_root = None
 
     def add_widget_to_content(self, widget):
+        """Subclasses should call this to add content in the section's top level column."""
         self.__section_content_column.add_spacing(4)
         self.__section_content_column.add(widget)
 
     def finish_widget_content(self):
+        """Subclasses should all this after calls to add_widget_content."""
         self.__section_content_column.add_stretch()
 
     @property
@@ -1167,8 +1171,13 @@ class OperationsInspectorSection(InspectorSection):
 
 
 class DataItemInspector(object):
+    """A class to manage creation of a widget representing an inspector for a display specifier.
 
-    def __init__(self, ui, display_specifier):
+    A new data item inpspector is created whenever the display specifier changes, but not when the content of the items
+    within the display specifier mutate.
+    """
+
+    def __init__(self, ui, display_specifier: DataItem.DisplaySpecifier):
         self.ui = ui
 
         data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
@@ -1216,6 +1225,10 @@ class DataItemInspector(object):
             self.__focus_default = focus_default
         elif data_item:
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            def focus_default():
+                self.__inspector_sections[0].info_title_label.focused = True
+                self.__inspector_sections[0].info_title_label.select_all()
+            self.__focus_default = focus_default
 
         for inspector_section in self.__inspector_sections:
             content_widget.add(inspector_section.widget)
