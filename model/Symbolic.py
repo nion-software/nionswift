@@ -33,6 +33,7 @@ from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
 from nion.ui import Event
 from nion.ui import Geometry
+from nion.ui import Model
 from nion.ui import Observable
 from nion.ui import Persistence
 
@@ -1159,10 +1160,13 @@ class UnaryOperationDataNode(DataNode):
             return _function_map[self.__function_id](extract_data(evaluated_inputs[0]), **self.__args)
 
         if self.__function_id in _function_map and all(evaluated_input is not None for evaluated_input in evaluated_inputs):
-            return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
-                                                   evaluated_inputs[0].intensity_calibration,
-                                                   evaluated_inputs[0].dimensional_calibrations,
-                                                   evaluated_inputs[0].metadata, datetime.datetime.utcnow())
+            if isinstance(evaluated_inputs[0], DataAndMetadata.DataAndMetadata):
+                return DataAndMetadata.DataAndMetadata(calculate_data, evaluated_inputs[0].data_shape_and_dtype,
+                                                       evaluated_inputs[0].intensity_calibration,
+                                                       evaluated_inputs[0].dimensional_calibrations,
+                                                       evaluated_inputs[0].metadata, datetime.datetime.utcnow())
+            else:
+                return numpy.array(_function_map[self.__function_id](evaluated_inputs[0]))
         return None
 
     def reconstruct(self, variable_map):
@@ -1235,10 +1239,13 @@ class BinaryOperationDataNode(DataNode):
         src_evaluated_input = evaluated_inputs[0] if isinstance(evaluated_inputs[0], DataAndMetadata.DataAndMetadata) else evaluated_inputs[1]
 
         if self.__function_id in _function_map and all(evaluated_input is not None for evaluated_input in evaluated_inputs):
-            return DataAndMetadata.DataAndMetadata(calculate_data, src_evaluated_input.data_shape_and_dtype,
-                                                   src_evaluated_input.intensity_calibration,
-                                                   src_evaluated_input.dimensional_calibrations,
-                                                   src_evaluated_input.metadata, datetime.datetime.utcnow())
+            if isinstance(src_evaluated_input, DataAndMetadata.DataAndMetadata):
+                return DataAndMetadata.DataAndMetadata(calculate_data, src_evaluated_input.data_shape_and_dtype,
+                                                       src_evaluated_input.intensity_calibration,
+                                                       src_evaluated_input.dimensional_calibrations,
+                                                       src_evaluated_input.metadata, datetime.datetime.utcnow())
+            else:
+                return numpy.array(_function_map[self.__function_id](evaluated_inputs[0], evaluated_inputs[1]))
         return None
 
     def reconstruct(self, variable_map):
@@ -1345,13 +1352,15 @@ class DataItemDataNode(DataNode):
 
     def reconstruct(self, variable_map):
         variable_index = -1
+        prefix = "d"
         for variable, object_specifier in variable_map.items():
             if object_specifier == self.__object_specifier:
                 return variable, 10
-            if variable.startswith("d"):
-                variable_index = max(variable_index, int(variable[1:]) + 1)
+            suffix = variable[len(prefix):]
+            if suffix.isdigit():
+                variable_index = max(variable_index, int(suffix) + 1)
         variable_index = max(variable_index, 0)
-        variable_name = "d{0}".format(variable_index)
+        variable_name = "{0}{1}".format(prefix, variable_index)
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
         return variable_name, 10
 
@@ -1369,28 +1378,113 @@ class ReferenceDataNode(DataNode):
         self.__object_specifier = object_specifier
 
     def deepcopy_from(self, node, memo):
-        raise NotImplemented()  # should only be used as intermediate node
+        # should only be used as intermediate node, but here for error handling
+        super(ReferenceDataNode, self).deepcopy_from(node, memo)
+        self.__object_specifier = copy.deepcopy(node.__object_specifier, memo)
 
     def read(self, d):
-        raise NotImplemented()  # should only be used as intermediate node
+        # should only be used as intermediate node, but here for error handling
+        super(ReferenceDataNode, self).read(d)
+        self.__object_specifier = d.get("object_specifier", {"type": "reference", "version": 1, "uuid": str(uuid.uuid4())})
 
     def write(self):
-        raise NotImplemented()  # should only be used as intermediate node
+        # should only be used as intermediate node, but here for error handling
+        d = super(ReferenceDataNode, self).write()
+        d["data_node_type"] = "reference"
+        d["object_specifier"] = copy.deepcopy(self.__object_specifier)
+        return d
 
-    def print_mapping(self):
-        raise NotImplemented()  # should only be used as intermediate node
+    def _evaluate_inputs(self, evaluated_inputs, context):
+        return None
+
+    def print_mapping(self, context):
+        # should only be used as intermediate node, but here for error handling
+        logging.debug("%s", self.__object_specifier)
 
     def bind(self, context, bound_items):
-        raise NotImplemented()  # should only be used as intermediate node
+        pass  # should only be used as intermediate node
 
     def unbind(self):
         raise NotImplemented()  # should only be used as intermediate node
+
+    def reconstruct(self, variable_map):
+        variable_index = -1
+        prefix = "ref"
+        for variable, object_specifier in variable_map.items():
+            if object_specifier == self.__object_specifier:
+                return variable, 10
+            suffix = variable[len(prefix):]
+            if suffix.isdigit():
+                variable_index = max(variable_index, int(suffix) + 1)
+        variable_index = max(variable_index, 0)
+        variable_name = "{0}{1}".format(prefix, variable_index)
+        variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
+        return variable_name, 10
 
     def __getattr__(self, name):
         return PropertyDataNode(self.__object_specifier, name)
 
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__reference_uuid)
+
+
+class VariableDataNode(DataNode):
+
+    def __init__(self, object_specifier=None):
+        super(VariableDataNode, self).__init__()
+        self.__object_specifier = object_specifier
+        self.__bound_item = None
+
+    def deepcopy_from(self, node, memo):
+        super(VariableDataNode, self).deepcopy_from(node, memo)
+        self.__object_specifier = copy.deepcopy(node.__object_specifier, memo)
+        self.__bound_item = None
+
+    def read(self, d):
+        super(VariableDataNode, self).read(d)
+        self.__object_specifier = d["object_specifier"]
+
+    def write(self):
+        d = super(VariableDataNode, self).write()
+        d["data_node_type"] = "variable"
+        d["object_specifier"] = copy.deepcopy(self.__object_specifier)
+        return d
+
+    def _evaluate_inputs(self, evaluated_inputs, context):
+        if self.__bound_item:
+            return self.__bound_item.value
+        return None
+
+    def print_mapping(self, context):
+        logging.debug("%s", self.__object_specifier)
+
+    def bind(self, context, bound_items):
+        self.__bound_item = context.resolve_object_specifier(self.__object_specifier)
+        if self.__bound_item is not None:
+            bound_items[self.uuid] = self.__bound_item
+
+    def unbind(self):
+        self.__bound_item = None
+
+    def reconstruct(self, variable_map):
+        variable_index = -1
+        object_specifier_type = self.__object_specifier["type"]
+        if object_specifier_type == "variable":
+            prefix = "x"
+        for variable, object_specifier in sorted(variable_map.items()):
+            if object_specifier == self.__object_specifier:
+                return variable, 10
+            if variable.startswith(prefix):
+                suffix = variable[len(prefix):]
+                if suffix.isdigit():
+                    variable_index = max(variable_index, int(suffix) + 1)
+        variable_index = max(variable_index, 0)
+        variable_name = "{0}{1}".format(prefix, variable_index)
+        variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
+        return variable_name, 10
+
+    def __str__(self):
+        return "{0} ({1})".format(self.__repr__(), self.__object_specifier)
 
 
 class PropertyDataNode(DataNode):
@@ -1425,7 +1519,7 @@ class PropertyDataNode(DataNode):
         return None
 
     def print_mapping(self, context):
-        logging.debug("%s.%s: %s", self.__reference_uuid, self.__property, self.__object_specifier)
+        logging.debug("%s.%s: %s", self.__property, self.__object_specifier)
 
     def bind(self, context, bound_items):
         self.__bound_item = context.resolve_object_specifier(self.__object_specifier, self.__property)
@@ -1444,11 +1538,13 @@ class PropertyDataNode(DataNode):
             prefix = "region"
         else:
             prefix = "object"
-        for variable, object_specifier in variable_map.items():
+        for variable, object_specifier in sorted(variable_map.items()):
             if object_specifier == self.__object_specifier:
                 return "{0}.{1}".format(variable, self.__property), 10
             if variable.startswith(prefix):
-                variable_index = max(variable_index, int(variable[len(prefix):]) + 1)
+                suffix = variable[len(prefix):]
+                if suffix.isdigit():
+                    variable_index = max(variable_index, int(suffix) + 1)
         variable_index = max(variable_index, 0)
         variable_name = "{0}{1}".format(prefix, variable_index)
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
@@ -1459,17 +1555,14 @@ class PropertyDataNode(DataNode):
 
 
 def data_by_uuid(context, data_uuid):
-    object_specifier = context.get_object_specifier(context.get_data_item_by_uuid(data_uuid))
+    object_specifier = context.get_data_item_specifier(data_uuid)
     return DataItemDataNode(object_specifier)
 
 
 def region_by_uuid(context, region_uuid):
-    for data_item in context.data_items:
-        for data_source in data_item.data_sources:
-            for region in data_source.regions:
-                if region.uuid == region_uuid:
-                    object_specifier = context.get_object_specifier(region)
-                    return ReferenceDataNode(object_specifier)
+    object_specifier = context.get_region_specifier(region_uuid)
+    if object_specifier:
+        return ReferenceDataNode(object_specifier)
     return None
 
 
@@ -1481,6 +1574,7 @@ _node_map = {
     "function": FunctionOperationDataNode,
     "property": PropertyDataNode,
     "reference": ReferenceDataNode,
+    "variable": VariableDataNode,
     "data": DataItemDataNode,  # TODO: file format: Rename symbolic node 'data' to 'dataitem'
 }
 
@@ -1568,8 +1662,10 @@ def parse_expression(expression_lines, variable_map, context):
     g["normalized_interval"] = lambda start, end: ScalarOperationDataNode([DataNode.make(start), DataNode.make(end)], "normalized_interval")
     l = dict()
     for variable_name, object_specifier in variable_map.items():
-        if object_specifier["type"] == "data_item":  # avoid importing class
+        if object_specifier["type"] == "data_item":
             reference_node = DataItemDataNode(object_specifier=object_specifier)
+        elif object_specifier["type"] == "variable":
+            reference_node = VariableDataNode(object_specifier=object_specifier)
         else:
             reference_node = ReferenceDataNode(object_specifier=object_specifier)
         g[variable_name] = reference_node
@@ -1582,6 +1678,177 @@ def parse_expression(expression_lines, variable_map, context):
     except Exception as e:
         return None, str(e)
     return l["result"], None
+
+
+class ComputationVariable(Persistence.PersistentObject):
+    def __init__(self, name: str=None, value=None):
+        super(ComputationVariable, self).__init__()
+        self.define_type("variable")
+        self.name_changed_event = Event.Event()
+        self.__value_changed_event = Event.Event()
+        self.__value_type = None
+        self.value_model = Model.PropertyModel()
+        self.name_model = Model.PropertyModel()
+        self.value_model.on_value_changed = lambda value: setattr(self, "value", value)
+        self.name_model.on_value_changed = lambda name: setattr(self, "name", name)
+        self.name = name
+        self.value = value
+
+    def close(self):
+        self.value_model.close()
+        self.value_model = None
+        self.name_model.close()
+        self.name_model = None
+
+    def read_from_dict(self, d):
+        super(ComputationVariable, self).read_from_dict(d)
+        self.name_model.value = d.get("name")
+        value_type = d.get("value_type")
+        if value_type == "integral":
+            self.value_model.value = int(d.get("value"))
+        elif value_type == "real":
+            self.value_model.value = float(d.get("value"))
+        elif value_type == "complex":
+            self.value_model.value = complex(*d.get("value"))
+
+    def write_to_dict(self):
+        d = super(ComputationVariable, self).write_to_dict()
+        d["name"] = self.name
+        if self.__value_type:
+            d["value_type"] = self.__value_type
+            if self.__value_type == "integral":
+                d["value"] = int(self.value_model.value)
+            elif self.__value_type == "real":
+                d["value"] = float(self.value_model.value)
+            elif self.__value_type == "complex":
+                d["value"] = complex(float(self.value_model.value.real), float(self.value_model.value.imag))
+        return d
+
+    @property
+    def variable_specifier(self) -> dict:
+        return {"type": "variable", "version": 1, "uuid": str(self.uuid)}
+
+    @property
+    def bound_variable(self):
+        class BoundVariable(object):
+            def __init__(self, variable, changed_event):
+                self.__variable = variable
+                self.changed_event = Event.Event()
+                def fire_changed():
+                    self.changed_event.fire()
+                self.__changed_event_listener = changed_event.listen(fire_changed)
+            @property
+            def value(self):
+                return self.__variable.value
+            def close(self):
+                self.__changed_event_listener.close()
+                self.__changed_event_listener = None
+        return BoundVariable(self, self.__value_changed_event)
+
+    @property
+    def value(self):
+        return self.value_model.value
+
+    @value.setter
+    def value(self, value):
+        self.value_model.value = value
+        if isinstance(value, numbers.Integral):
+            self.__value_type = "integral"
+        elif isinstance(value, numbers.Rational):
+            self.__value_type = "rational"
+        elif isinstance(value, numbers.Real):
+            self.__value_type = "real"
+        elif isinstance(value, numbers.Complex):
+            self.__value_type = "complex"
+        self._update_persistent_property("value_type", self.__value_type)
+        self._update_persistent_property("value", self.value)
+        self.__value_changed_event.fire()
+
+    @property
+    def name(self):
+        return self.name_model.value
+
+    @name.setter
+    def name(self, name):
+        self.name_model.value = name
+        self._update_persistent_property("name", self.name)
+        self.name_changed_event.fire()
+
+
+def variable_factory(lookup_id):
+    build_map = {
+        "variable": ComputationVariable,
+    }
+    type = lookup_id("type")
+    return build_map[type]() if type in build_map else None
+
+
+class ComputationObject(Persistence.PersistentObject):
+    def __init__(self, name: str=None, specifier=None):
+        super(ComputationObject, self).__init__()
+        self.define_type("object")
+        self.define_property("specifier")
+        self.name_changed_event = Event.Event()
+        self.name_model = Model.PropertyModel()
+        self.name_model.on_value_changed = lambda name: setattr(self, "name", name)
+        self.name = name
+        self.specifier = specifier
+
+    def close(self):
+        self.name_model.close()
+        self.name_model = None
+
+    def read_from_dict(self, d):
+        super(ComputationObject, self).read_from_dict(d)
+        self.name_model.value = d.get("name")
+
+    def write_to_dict(self):
+        d = super(ComputationObject, self).write_to_dict()
+        d["name"] = self.name
+        return d
+
+    @property
+    def name(self):
+        return self.name_model.value
+
+    @name.setter
+    def name(self, name):
+        self.name_model.value = name
+        self._update_persistent_property("name", self.name)
+        self.name_changed_event.fire()
+
+
+def object_factory(lookup_id):
+    build_map = {
+        "object": ComputationObject,
+    }
+    type = lookup_id("type")
+    return build_map[type]() if type in build_map else None
+
+
+class ComputationContext(object):
+    def __init__(self, computation, context):
+        self.__computation = computation
+        self.__context = context
+
+    def get_data_item_specifier(self, data_item_uuid):
+        """Supports data item lookup by uuid."""
+        return self.__context.get_object_specifier(self.__context.get_data_item_by_uuid(data_item_uuid))
+
+    def get_region_specifier(self, region_uuid):
+        """Supports region lookup by uuid."""
+        for data_item in self.__context.data_items:
+            for data_source in data_item.data_sources:
+                for region in data_source.regions:
+                    if region.uuid == region_uuid:
+                        return self.__context.get_object_specifier(region)
+        return None
+
+    def resolve_object_specifier(self, object_specifier, property_name=None):
+        bound_object = self.__computation.resolve_object_specifier(object_specifier)
+        if not bound_object:
+            bound_object = self.__context.resolve_object_specifier(object_specifier, property_name)
+        return bound_object
 
 
 class Computation(Observable.Observable, Persistence.PersistentObject):
@@ -1607,30 +1874,91 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("node")
         self.define_property("original_expression")
         self.define_property("error_text")
+        self.define_relationship("variables", variable_factory)
+        self.define_relationship("objects", object_factory)
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
         self.__data_node = None
+        self.__variable_map = dict()
         self.needs_update_event = Event.Event()
         self.computation_changed_event = Event.Event()
+        self.object_inserted_event = Event.Event()
+        self.object_removed_event = Event.Event()
+        self.variable_inserted_event = Event.Event()
+        self.variable_removed_event = Event.Event()
 
     def deepcopy_from(self, item, memo):
         super(Computation, self).deepcopy_from(item, memo)
         self.__data_node = DataNode.factory(self.node)
+        for variable in self.variables:
+            self.__variable_map[variable.uuid] = variable
 
     @property
     def _data_node_for_test(self):
         return self.__data_node
 
+    def lookup_variable(self, uuid):
+        return self.__variable_map.get(uuid)
+
     def read_from_dict(self, properties):
         super(Computation, self).read_from_dict(properties)
         self.__data_node = DataNode.factory(self.node)
+        for variable in self.variables:
+            self.__variable_map[variable.uuid] = variable
+
+    def add_variable(self, variable: ComputationVariable) -> None:
+        count = self.item_count("variables")
+        self.append_item("variables", variable)
+        self.__variable_map[variable.uuid] = variable
+        self.variable_inserted_event.fire(count, variable)
+
+    def remove_variable(self, variable: ComputationVariable) -> None:
+        index = self.item_index("variables", variable)
+        del self.__variable_map[variable.uuid]
+        self.remove_item("variables", variable)
+        self.variable_removed_event.fire(index, variable)
+
+    def create_variable(self, name: str, value=None) -> ComputationVariable:
+        variable = ComputationVariable(name, value)
+        self.add_variable(variable)
+        return variable
+
+    def add_object(self, object: ComputationObject) -> None:
+        count = self.item_count("objects")
+        self.append_item("objects", object)
+        self.object_inserted_event.fire(count, object)
+
+    def remove_object(self, object: ComputationObject) -> None:
+        index = self.item_index("objects", object)
+        self.remove_item("objects", object)
+        self.object_removed_event.fire(index, object)
+
+    def create_object(self, name: str, object_specifier: dict) -> ComputationObject:
+        object = ComputationObject(name, object_specifier)
+        self.add_object(object)
+        return object
+
+    def resolve_object_specifier(self, object_specifier: dict):
+        uuid_str = object_specifier.get("uuid")
+        uuid_ = uuid.UUID(uuid_str) if uuid_str else None
+        if uuid_:
+            variable = self.lookup_variable(uuid_)
+            if variable:
+                return variable.bound_variable
+        return None
 
     def parse_expression(self, context, expression, variable_map):
         self.unbind()
         old_data_node = copy.deepcopy(self.__data_node)
         old_error_text = self.error_text
         self.original_expression = expression
-        self.__data_node, self.error_text = parse_expression(expression.split("\n"), variable_map, context)
+        computation_context = ComputationContext(self, context)
+        computation_variable_map = copy.copy(variable_map)
+        for object in self.objects:
+            computation_variable_map[object.name] = object.specifier
+        for variable in self.variables:
+            computation_variable_map[variable.name] = variable.variable_specifier
+        self.__data_node, self.error_text = parse_expression(expression.split("\n"), computation_variable_map, computation_context)
         if self.__data_node:
             self.node = self.__data_node.write()
             self.bind(context)
@@ -1651,9 +1979,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         # normally I would think re-bind should not be valid; but for testing, the expression
         # is often evaluated and bound. it also needs to be bound a new data item is added to a document
         # model. so special case to see if it already exists. this may prove troublesome down the road.
+        computation_context = ComputationContext(self, context)
         if len(self.__bound_items) == 0:  # check if already bound
             if self.__data_node:  # error condition
-                self.__data_node.bind(context, self.__bound_items)
+                self.__data_node.bind(computation_context, self.__bound_items)
                 def needs_update():
                     self.needs_update_event.fire()
                 for bound_item_uuid, bound_item in self.__bound_items.items():
@@ -1680,10 +2009,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def reconstruct(self, variable_map):
         if self.__data_node:
             lines = list()
-            variable_map_copy = copy.deepcopy(variable_map)
+            computation_variable_map = copy.copy(variable_map)
+            for variable in self.variables:
+                computation_variable_map[variable.name] = variable.variable_specifier
+            for object in self.objects:
+                computation_variable_map[object.name] = object.specifier
+            variable_map_copy = copy.deepcopy(computation_variable_map)
             expression, precedence = self.__data_node.reconstruct(variable_map_copy)
             for variable, object_specifier in variable_map_copy.items():
-                if not variable in variable_map:
+                if not variable in computation_variable_map:
                     lines.append("{0} = {1}".format(variable, self.__get_object_specifier_expression(object_specifier)))
             lines.append(expression)
             return "\n".join(lines)
