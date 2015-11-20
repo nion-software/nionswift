@@ -914,6 +914,9 @@ class QtComboBoxWidget(QtWidget):
             self.on_current_item_changed(self.current_item)
 
     def bind_current_index(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.current_item = self.__items[binding.get_target_value()]
         self.__binding = binding
         def update_current_index(current_index):
@@ -1021,6 +1024,9 @@ class QtCheckBoxWidget(QtWidget):
 
     # bind to state. takes ownership of binding.
     def bind_checked(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.checked = binding.get_target_value()
         self.__binding = binding
         def update_checked(checked):
@@ -1031,6 +1037,9 @@ class QtCheckBoxWidget(QtWidget):
 
     # bind to state. takes ownership of binding.
     def bind_check_state(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.check_state = binding.get_target_value()
         self.__binding = binding
         def update_check_state(check_state):
@@ -1065,6 +1074,9 @@ class QtLabelWidget(QtWidget):
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.text = binding.get_target_value()
         self.__binding = binding
         def update_text(text):
@@ -1145,6 +1157,9 @@ class QtSliderWidget(QtWidget):
 
     # bind to value. takes ownership of binding.
     def bind_value(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.value = binding.get_target_value()
         self.__binding = binding
         def update_value(value):
@@ -1239,6 +1254,9 @@ class QtLineEditWidget(QtWidget):
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.text = binding.get_target_value()
         def update_field(text):
             if self.widget:  # may be called as task, so verify it hasn't closed yet
@@ -1301,6 +1319,9 @@ class QtTextEditWidget(QtWidget):
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.text = binding.get_target_value()
         def update_field(text):
             if self.widget:  # may be called as task, so verify it hasn't closed yet
@@ -1777,6 +1798,9 @@ class QtNewListWidget(QtColumnWidget):
             self.header_for_empty_list_widget.visible = not has_content
 
     def bind_items(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.__binding = binding
         def insert_item(item, before_index):
             self.queue_task(lambda: self.insert_item(item, before_index))
