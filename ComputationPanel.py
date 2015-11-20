@@ -41,7 +41,7 @@ class ComputationModel(object):
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
         self.__data_item_changed_event_listener = display_specifier_binding.data_item_changed_event.listen(data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
-        self.__computation_changed_event_listener = None
+        self.__computation_changed_or_mutated_event_listener = None
         self.__computation_object_inserted_event_listener = None
         self.__computation_object_removed_event_listener = None
         self.__computation_variable_inserted_event_listener = None
@@ -134,7 +134,7 @@ class ComputationModel(object):
         if buffered_data_source:
             buffered_data_source.set_computation(None)
 
-    def __computation_changed(self) -> None:
+    def __computation_changed_or_mutated(self) -> None:
         expression = None
         error_text = None
         computation = self.__computation
@@ -149,7 +149,7 @@ class ComputationModel(object):
 
     def __object_inserted(self, index: int, object: Symbolic.ComputationObject) -> None:
         self.object_inserted_event.fire(index, object)
-        self.__object_name_changed_event_listeners[object.uuid] = object.name_changed_event.listen(self.__computation_changed)
+        self.__object_name_changed_event_listeners[object.uuid] = object.name_changed_event.listen(self.__computation_changed_or_mutated)
 
     def __object_removed(self, index: int, object: Symbolic.ComputationObject) -> None:
         self.object_removed_event.fire(index, object)
@@ -158,7 +158,7 @@ class ComputationModel(object):
 
     def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_inserted_event.fire(index, variable)
-        self.__variable_name_changed_event_listeners[variable.uuid] = variable.name_changed_event.listen(self.__computation_changed)
+        self.__variable_name_changed_event_listeners[variable.uuid] = variable.name_changed_event.listen(self.__computation_changed_or_mutated)
 
     def __variable_removed(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_removed_event.fire(index, variable)
@@ -168,9 +168,9 @@ class ComputationModel(object):
     # not thread safe
     def __set_display_specifier(self, display_specifier):
         if self.__display_specifier != display_specifier:
-            if self.__computation_changed_event_listener:
-                self.__computation_changed_event_listener.close()
-                self.__computation_changed_event_listener = None
+            if self.__computation_changed_or_mutated_event_listener:
+                self.__computation_changed_or_mutated_event_listener.close()
+                self.__computation_changed_or_mutated_event_listener = None
             if self.__computation_object_inserted_event_listener:
                 self.__computation_object_inserted_event_listener.close()
                 self.__computation_object_inserted_event_listener = None
@@ -193,12 +193,12 @@ class ComputationModel(object):
             computation = self.__computation
             if computation:
                 buffered_data_source = self.__display_specifier.buffered_data_source
-                self.__computation_changed_event_listener = buffered_data_source.computation_changed_event.listen(self.__computation_changed)
+                self.__computation_changed_or_mutated_event_listener = buffered_data_source.computation_changed_or_mutated_event.listen(self.__computation_changed_or_mutated)
                 self.__computation_object_inserted_event_listener = computation.object_inserted_event.listen(self.__object_inserted)
                 self.__computation_object_removed_event_listener = computation.object_removed_event.listen(self.__object_removed)
                 self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(self.__variable_inserted)
                 self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(self.__variable_removed)
-            self.__computation_changed()
+            self.__computation_changed_or_mutated()
             if computation:
                 for index, object in enumerate(computation.objects):
                     self.__object_inserted(index, object)

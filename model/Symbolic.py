@@ -1885,7 +1885,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__evaluating = False
         self.needs_update = False
         self.needs_update_event = Event.Event()
-        self.computation_changed_event = Event.Event()
+        self.computation_mutated_event = Event.Event()
         self.object_inserted_event = Event.Event()
         self.object_removed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
@@ -1916,12 +1916,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.append_item("variables", variable)
         self.__variable_map[variable.uuid] = variable
         self.variable_inserted_event.fire(count, variable)
+        self.computation_mutated_event.fire()
 
     def remove_variable(self, variable: ComputationVariable) -> None:
         index = self.item_index("variables", variable)
         del self.__variable_map[variable.uuid]
         self.remove_item("variables", variable)
         self.variable_removed_event.fire(index, variable)
+        self.computation_mutated_event.fire()
 
     def create_variable(self, name: str, value=None) -> ComputationVariable:
         variable = ComputationVariable(name, value)
@@ -1932,11 +1934,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         count = self.item_count("objects")
         self.append_item("objects", object)
         self.object_inserted_event.fire(count, object)
+        self.computation_mutated_event.fire()
 
     def remove_object(self, object: ComputationObject) -> None:
         index = self.item_index("objects", object)
         self.remove_item("objects", object)
         self.object_removed_event.fire(index, object)
+        self.computation_mutated_event.fire()
 
     def create_object(self, name: str, object_specifier: dict) -> ComputationObject:
         object = ComputationObject(name, object_specifier)
@@ -1970,7 +1974,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if self.__data_node != old_data_node or old_error_text != self.error_text:
             self.needs_update = True
             self.needs_update_event.fire()
-            self.computation_changed_event.fire()
+            self.computation_mutated_event.fire()
 
     def begin_evaluate(self):
         with self.__evaluate_lock:

@@ -200,8 +200,8 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.__subscription = None
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
-        self.__computation_changed_event_listener = None  # incoming to know when the computation changes internally
-        self.computation_changed_event = Event.Event()  # outgoing message
+        self.__computation_mutated_event_listener = None  # incoming to know when the computation changes internally
+        self.computation_changed_or_mutated_event = Event.Event()  # outgoing message
         self.data_and_metadata_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
         self.request_remove_data_item_because_operation_removed_event = Event.Event()
@@ -221,9 +221,9 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.__remove_region_listeners = None
         if self.data_source:
             self.data_source.close()
-        if self.__computation_changed_event_listener:
-            self.__computation_changed_event_listener.close()
-            self.__computation_changed_event_listener = None
+        if self.__computation_mutated_event_listener:
+            self.__computation_mutated_event_listener.close()
+            self.__computation_mutated_event_listener = None
         self.__publisher.close()
         self.__publisher = None
 
@@ -367,16 +367,16 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     def __computation_changed(self, name, old_computation, new_computation):
         if old_computation:
-            self.__computation_changed_event_listener.close()
-            self.__computation_changed_event_listener = None
+            self.__computation_mutated_event_listener.close()
+            self.__computation_mutated_event_listener = None
         if self.__data_item_manager:
             self.__data_item_manager.computation_changed(self, new_computation)
         if new_computation:
-            def computation_changed():
-                self.computation_changed_event.fire()
+            def computation_mutated():
+                self.computation_changed_or_mutated_event.fire()
                 self.__metadata_changed()
-            self.__computation_changed_event_listener = new_computation.computation_changed_event.listen(computation_changed)
-        self.computation_changed_event.fire()
+            self.__computation_mutated_event_listener = new_computation.computation_mutated_event.listen(computation_mutated)
+        self.computation_changed_or_mutated_event.fire()
         self.__metadata_changed()
 
     def __data_source_changed(self, name, old_data_source, new_data_source):
