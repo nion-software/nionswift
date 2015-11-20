@@ -16,6 +16,7 @@ import datetime
 import logging
 import numbers
 import operator
+import threading
 import uuid
 
 # third party libraries
@@ -1880,12 +1881,16 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__bound_item_listeners = dict()
         self.__data_node = None
         self.__variable_map = dict()
+        self.__evaluate_lock = threading.RLock()
+        self.__evaluating = False
+        self.needs_update = False
         self.needs_update_event = Event.Event()
         self.computation_changed_event = Event.Event()
         self.object_inserted_event = Event.Event()
         self.object_removed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
+        self._evaluation_count_for_test = 0
 
     def deepcopy_from(self, item, memo):
         super(Computation, self).deepcopy_from(item, memo)
@@ -1963,17 +1968,30 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.node = self.__data_node.write()
             self.bind(context)
         if self.__data_node != old_data_node or old_error_text != self.error_text:
+            self.needs_update = True
             self.needs_update_event.fire()
             self.computation_changed_event.fire()
 
+    def begin_evaluate(self):
+        with self.__evaluate_lock:
+            evaluating = self.__evaluating
+            self.__evaluating = True
+            return not evaluating
+
+    def end_evaluate(self):
+        self.__evaluating = False
+
     def evaluate(self):
         """Evaluate the computation and return data and metadata."""
+        self._evaluation_count_for_test += 1
         def resolve(uuid):
             bound_item = self.__bound_items[uuid]
             return bound_item.value
+        result = None
         if self.__data_node:
-            return self.__data_node.evaluate(resolve)
-        return None
+            result = self.__data_node.evaluate(resolve)
+        self.needs_update = False
+        return result
 
     def bind(self, context):
         # normally I would think re-bind should not be valid; but for testing, the expression
@@ -1984,6 +2002,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             if self.__data_node:  # error condition
                 self.__data_node.bind(computation_context, self.__bound_items)
                 def needs_update():
+                    self.needs_update = True
                     self.needs_update_event.fire()
                 for bound_item_uuid, bound_item in self.__bound_items.items():
                     self.__bound_item_listeners[bound_item_uuid] = bound_item.changed_event.listen(needs_update)

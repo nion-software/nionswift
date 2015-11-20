@@ -22,6 +22,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Image
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
+from nion.ui import Geometry
 from nion.ui import Test
 
 
@@ -1102,6 +1103,53 @@ class TestSymbolicClass(unittest.TestCase):
             computation.parse_expression(document_model, "a + x", dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
 
+    def test_computation_using_object_updates_when_data_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.create_variable("x", 5)
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.parse_expression(document_model, "a + x", dict())
+            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            d = computation.write_to_dict()
+            read_computation = Symbolic.Computation()
+            read_computation.read_from_dict(d)
+            read_computation.bind(document_model)
+            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            with data_item.maybe_data_source.data_ref() as dr:
+                dr.data = src_data2
+            self.assertTrue(numpy.array_equal(read_computation.evaluate().data, src_data2 + 5))
+
+    def test_computation_using_object_updates_efficiently_when_region_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            region = Region.RectRegion()
+            region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
+            data_item.maybe_data_source.add_region(region)
+            document_model.append_data_item(data_item)
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computation = Symbolic.Computation()
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("r", document_model.get_object_specifier(region))
+            computation.parse_expression(document_model, "crop(a, r.bounds)", dict())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[3:9, 2:6]))
+            region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
+            region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.0, 0.0), Geometry.FloatSize(0.5, 0.5))
+            region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
+            evaluation_count = computation._evaluation_count_for_test
+            document_model.recompute_all()
+            self.assertTrue(computation._evaluation_count_for_test - evaluation_count == 1)
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[0:6, 0:4]))
+
     def test_computation_with_object_writes_and_reads(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -1115,6 +1163,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = computation.write_to_dict()
             read_computation = Symbolic.Computation()
             read_computation.read_from_dict(d)
+            read_computation.bind(document_model)
             self.assertEqual(read_computation.objects[0].name, "a")
             self.assertEqual(read_computation.objects[0].specifier, a_specifier)
 
