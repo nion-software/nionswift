@@ -5,7 +5,9 @@ from __future__ import absolute_import
 import copy
 import gettext
 import operator
+import random
 import re
+import string
 import uuid
 import weakref
 
@@ -45,10 +47,12 @@ class ComputationModel(object):
         self.__computation_changed_or_mutated_event_listener = None
         self.__computation_variable_inserted_event_listener = None
         self.__computation_variable_removed_event_listener = None
+        self.__computation_label = None
         self.__computation_text = None
         self.__error_text = None
         self.__object_property_changed_event_listeners = dict()
         self.__variable_property_changed_event_listeners = dict()
+        self.computation_label_changed_event = Event.Event()
         self.computation_text_changed_event = Event.Event()
         self.error_text_changed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
@@ -87,6 +91,20 @@ class ComputationModel(object):
             computation.remove_variable(variable)
 
     @property
+    def computation_label(self):
+        return self.__computation_label
+
+    @computation_label.setter
+    def computation_label(self, label):
+        buffered_data_source = self.__display_specifier.buffered_data_source
+        if buffered_data_source:
+            computation = buffered_data_source.computation
+            if not computation:
+                computation = Symbolic.Computation()
+            computation.label = label
+            buffered_data_source.computation = computation
+
+    @property
     def computation_text(self):
         return self.__computation_text
 
@@ -104,6 +122,11 @@ class ComputationModel(object):
     def error_text(self):
         return self.__error_text
 
+    def __update_computation_label(self, computation_label):
+        if self.__computation_label != computation_label:
+            self.__computation_label = computation_label
+            self.computation_label_changed_event.fire(self.__computation_label)
+
     def __update_computation_text(self, computation_text):
         if self.__computation_text != computation_text:
             self.__computation_text = computation_text
@@ -120,6 +143,7 @@ class ComputationModel(object):
             buffered_data_source.set_computation(None)
 
     def __computation_changed_or_mutated(self) -> None:
+        label = None
         expression = None
         error_text = None
         computation = self.__computation
@@ -129,6 +153,8 @@ class ComputationModel(object):
                 expression = computation.original_expression
             else:
                 expression = computation.reconstruct(self.document_controller.build_variable_map())
+            label = computation.label
+        self.__update_computation_label(label)
         self.__update_computation_text(expression)
         self.__update_error_text(error_text)
 
@@ -425,7 +451,17 @@ class ComputationPanel(Panel.Panel):
 
         self.__sections = list()
 
-        self.__variable_column = ui.create_column_widget()
+        label_edit_widget = ui.create_line_edit_widget()
+        label_edit_widget.placeholder_text = _("Computation Label")
+        # label_edit_widget.bind_text(Binding.PropertyBinding(document_controller, "specifier", converter=SpecifierToStringConverter(specifier_type)))
+
+        label_row = ui.create_row_widget()
+        label_row.add_spacing(8)
+        label_row.add(ui.create_label_widget(_("Label")))
+        label_row.add_spacing(8)
+        label_row.add(label_edit_widget)
+        label_row.add_stretch()
+
         buttons_row = ui.create_row_widget()
         add_variable_button = ui.create_push_button_widget(_("Add Variable"))
         add_object_button = ui.create_push_button_widget(_("Add Object"))
@@ -433,7 +469,6 @@ class ComputationPanel(Panel.Panel):
         buttons_row.add_spacing(8)
         buttons_row.add(add_object_button)
         buttons_row.add_stretch()
-        self.__variable_column.add(buttons_row)
 
         text_edit_row = ui.create_row_widget()
         text_edit = ui.create_text_edit_widget()
@@ -463,9 +498,13 @@ class ComputationPanel(Panel.Panel):
         button_row.add(update_button)
         button_row.add_spacing(8)
 
+        self.__variable_column = ui.create_column_widget()
+
         column = self.ui.create_column_widget()
         column.add_spacing(6)
+        column.add(label_row)
         column.add(self.__variable_column)
+        column.add(buttons_row)
         column.add_spacing(6)
         column.add(text_edit_row)
         column.add_spacing(6)
@@ -477,12 +516,12 @@ class ComputationPanel(Panel.Panel):
         def add_object_pressed():
             document_model = document_controller.document_model
             object_specifier = document_model.get_object_specifier(document_model.data_items[0])
-            self.__computation_model.add_variable("d", specifier=object_specifier)
+            self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), specifier=object_specifier)
 
         add_object_button.on_clicked = add_object_pressed
 
         def add_variable_pressed():
-            self.__computation_model.add_variable("x", value_type="integral", value=0)
+            self.__computation_model.add_variable("".join([random.choice(string.ascii_lowercase) for _ in range(4)]), value_type="integral", value=0)
 
         add_variable_button.on_clicked = add_variable_pressed
 
@@ -502,6 +541,14 @@ class ComputationPanel(Panel.Panel):
         text_edit.on_return_pressed = update_pressed
         new_button.on_clicked = new_pressed
         update_button.on_clicked = update_pressed
+        label_edit_widget.on_editing_finished = lambda text: setattr(self.__computation_model, "computation_label", text)
+
+        def computation_label_changed(text):
+            label_edit_widget.text = text
+            if label_edit_widget.focused:
+                label_edit_widget.select_all()
+
+        self.__computation_label_changed_event_listener = self.__computation_model.computation_label_changed_event.listen(computation_label_changed)
 
         def computation_text_changed(computation_text):
             text_edit.text = computation_text
@@ -596,6 +643,8 @@ class ComputationPanel(Panel.Panel):
         self.widget = column
 
     def close(self):
+        self.__computation_label_changed_event_listener.close()
+        self.__computation_label_changed_event_listener = None
         self.__computation_text_changed_event_listener.close()
         self.__computation_text_changed_event_listener = None
         self.__error_text_changed_event_listener.close()

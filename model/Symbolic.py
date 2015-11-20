@@ -13,6 +13,7 @@ from __future__ import absolute_import
 # standard libraries
 import copy
 import datetime
+import gettext
 import logging
 import numbers
 import operator
@@ -34,7 +35,6 @@ from nion.swift.model import DataAndMetadata
 from nion.swift.model import Image
 from nion.ui import Event
 from nion.ui import Geometry
-from nion.ui import Model
 from nion.ui import Observable
 from nion.ui import Persistence
 
@@ -1857,6 +1857,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("node")
         self.define_property("original_expression")
         self.define_property("error_text")
+        self.define_property("label", changed=lambda k, v: self.computation_mutated_event.fire())
         self.define_relationship("variables", variable_factory)
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
