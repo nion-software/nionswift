@@ -698,7 +698,7 @@ class Workspace(object):
 
     def __matches_data_item(self, data_item, hardware_source_id, channel_id, view_id):
         buffered_data_source = data_item.maybe_data_source
-        if buffered_data_source:
+        if buffered_data_source and buffered_data_source.computation is None:
             hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
             existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
             existing_channel_id = hardware_source_metadata.get("channel_id")
