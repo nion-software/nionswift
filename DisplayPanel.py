@@ -115,7 +115,6 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self):
         super(DisplayPanelOverlayCanvasItem, self).__init__()
         self.wants_drag_events = True
-        self.__dropping = False
         self.__drop_region = "none"
         self.__focused = False
         self.__selected = False
@@ -223,14 +222,12 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def drag_enter(self, mime_data):
-        self.__dropping = True
         self.__set_drop_region("none")
         if self.on_drag_enter:
             self.on_drag_enter(mime_data)
         return "ignore"
 
     def drag_leave(self):
-        self.__dropping = False
         self.__set_drop_region("none")
         if self.on_drag_leave:
             self.on_drag_leave()
@@ -257,7 +254,6 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 
     def drop(self, mime_data, x, y):
         drop_region = self.__drop_region
-        self.__dropping = False
         self.__set_drop_region("none")
         if self.on_drop:
             return self.on_drop(mime_data, drop_region, x, y)
@@ -273,6 +269,8 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
 class BaseDisplayPanelContent(object):
 
     def __init__(self, document_controller):
+
+        assert document_controller is not None
 
         self.__weak_document_controller = weakref.ref(document_controller)
 
