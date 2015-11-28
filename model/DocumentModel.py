@@ -1078,7 +1078,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
         return None
 
-    def resolve_object_specifier(self, specifier, property_name=None):
+    def resolve_object_specifier(self, specifier: dict, property_name: str=None):
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
             if specifier_type == "data_item":
@@ -1086,6 +1086,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 data_item = self.get_data_item_by_uuid(object_uuid)
                 class BoundDataItem(object):
                     def __init__(self, data_item):
+                        self.__data_item = data_item
                         self.__buffered_data_source = data_item.maybe_data_source
                         self.changed_event = Event.Event()
                         def data_and_metadata_changed():
@@ -1094,6 +1095,9 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     @property
                     def value(self):
                         return self.__buffered_data_source.data_and_calibration
+                    @property
+                    def data_item(self) -> DataItem.DataItem:
+                        return self.__data_item
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None

@@ -8,6 +8,7 @@ import functools
 import gettext
 import math
 import operator
+import uuid
 
 # third party libraries
 # None
@@ -16,6 +17,7 @@ import operator
 from nion.swift import Panel
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
+from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.swift.model import Symbolic
@@ -91,7 +93,7 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector.close()
             self.__display_inspector = None
 
-        self.__display_inspector = DataItemInspector(self.ui, self.__display_specifier)
+        self.__display_inspector = DataItemInspector(self.ui, self.document_controller.document_model, self.__display_specifier)
 
         # this ugly item below, which adds a listener for a changing selection and then calls
         # back to this very method, is here to make sure the inspectors get updated when the
@@ -1177,9 +1179,10 @@ class ComputationInspectorSection(InspectorSection):
         Subclass InspectorSection to implement operations inspector.
     """
 
-    def __init__(self, ui, data_item, buffered_data_source):
+    def __init__(self, ui, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, buffered_data_source: DataItem.BufferedDataSource):
         super(ComputationInspectorSection, self).__init__(ui, "computation", _("Computation"))
         computation = buffered_data_source.computation
+        self.__widget_wrappers = list()
         if computation:
             label_row = self.ui.create_row_widget()
             label_widget = self.ui.create_label_widget()
@@ -1189,8 +1192,12 @@ class ComputationInspectorSection(InspectorSection):
 
             column = self.ui.create_column_widget()
 
+            stretch_column = self.ui.create_column_widget()
+            stretch_column.add_stretch()
+
             self.add_widget_to_content(label_row)
             self.add_widget_to_content(column)
+            self.add_widget_to_content(stretch_column)
 
             def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
                 # boolean (label)
@@ -1211,6 +1218,14 @@ class ComputationInspectorSection(InspectorSection):
                 # float, duration (units)
                 # image
 
+                class WidgetWrapper:
+                    def __init__(self, widget, closeables=[]):
+                        self.widget = widget
+                        self.__closeables = copy.copy(closeables)
+                    def close(self):
+                        for closeable in self.__closeables:
+                            closeable.close()
+
                 def make_checkbox(variable):
                     column = self.ui.create_column_widget()
                     row = self.ui.create_row_widget()
@@ -1220,7 +1235,7 @@ class ComputationInspectorSection(InspectorSection):
                     row.add_stretch()
                     column.add(row)
                     column.add_spacing(4)
-                    return column
+                    return WidgetWrapper(column)
 
                 def make_slider(variable, converter):
                     column = self.ui.create_column_widget()
@@ -1241,7 +1256,7 @@ class ComputationInspectorSection(InspectorSection):
                     row.add_spacing(8)
                     column.add(row)
                     column.add_spacing(4)
-                    return column
+                    return WidgetWrapper(column)
 
                 def make_field(variable, converter):
                     column = self.ui.create_column_widget()
@@ -1256,27 +1271,186 @@ class ComputationInspectorSection(InspectorSection):
                     row.add_stretch()
                     column.add(row)
                     column.add_spacing(4)
-                    return column
+                    return WidgetWrapper(column)
 
-                if variable.variable_type == "boolean":
-                    column.insert(make_checkbox(variable), index)
-                elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
-                    column.insert(make_slider(variable, Converter.IntegerToStringConverter()), index)
-                elif variable.variable_type == "integral":
-                    column.insert(make_field(variable, Converter.IntegerToStringConverter()), index)
-                elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
-                    column.insert(make_slider(variable, Converter.FloatToStringConverter()), index)
-                elif variable.variable_type == "real":
-                    column.insert(make_field(variable, Converter.FloatToStringConverter()), index)
-                elif variable.variable_type == "data_item":
-                    column.insert(self.ui.create_row_widget(), index)
-                elif variable.variable_type == "region":
-                    column.insert(self.ui.create_row_widget(), index)
-                else:
-                    column.insert(self.ui.create_row_widget(), index)
+                class ImageChooserCanvasWidget:
+                    def __init__(self, data_item: DataItem.DataItem):
+                        self.__canvas_item_root = CanvasItem.RootCanvasItem(ui, properties={"height": 80, "width": 80})
+                        self.on_data_item_drop = None
+                        self.on_data_item_delete = None
+
+                        class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
+                            def __init__(self):
+                                super().__init__()
+                                self.wants_drag_events = True
+                                self.focusable = True
+                                self.__dropping = False
+                                self.__focused = False
+                                self.on_data_item_drop = None
+                                self.on_data_item_delete = None
+
+                            def close(self):
+                                self.on_data_item_drop = None
+                                self.on_data_item_delete = None
+                                super().close()
+
+                            @property
+                            def focused(self):
+                                return self.__focused
+
+                            @focused.setter
+                            def focused(self, focused):
+                                if self.__focused != focused:
+                                    self.__focused = focused
+                                    self.update()
+
+                            def _repaint(self, drawing_context):
+                                super()._repaint(drawing_context)
+                                # canvas size
+                                canvas_width = self.canvas_size[1]
+                                canvas_height = self.canvas_size[0]
+                                if self.__dropping:
+                                    with drawing_context.saver():
+                                        drawing_context.begin_path()
+                                        drawing_context.rect(0, 0, canvas_width, canvas_height)
+                                        drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
+                                        drawing_context.fill()
+                                        if self.focused:
+                                            focused_style = "#3876D6"  # TODO: platform dependent
+                                            stroke_style = focused_style
+                                            drawing_context.begin_path()
+                                            drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
+                                            drawing_context.line_join = "miter"
+                                            drawing_context.stroke_style = stroke_style
+                                            drawing_context.line_width = 4.0
+                                            drawing_context.stroke()
+
+                            def drag_enter(self, mime_data):
+                                self.__dropping = True
+                                self.update()
+                                return "ignore"
+
+                            def drag_leave(self):
+                                self.__dropping = False
+                                self.update()
+                                return False
+
+                            def drop(self, mime_data, x, y):
+                                if mime_data.has_format("text/data_item_uuid"):
+                                    data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+                                    if callable(self.on_data_item_drop):
+                                        self.on_data_item_drop(data_item_uuid)
+                                        return "copy"
+                                    return "ignore"
+
+                            def key_pressed(self, key):
+                                if key.is_delete:
+                                    if callable(self.on_data_item_delete):
+                                        self.on_data_item_delete()
+                                        return True
+                                return super().key_pressed(key)
+
+                        bitmap_overlay_canvas_item = BitmapOverlayCanvasItem()
+                        def data_item_drop(data_item_uuid):
+                            if callable(self.on_data_item_drop):
+                                self.on_data_item_drop(data_item_uuid)
+                        def data_item_delete():
+                            if callable(self.on_data_item_delete):
+                                self.on_data_item_delete()
+                        bitmap_overlay_canvas_item.on_data_item_drop = data_item_drop
+                        bitmap_overlay_canvas_item.on_data_item_delete = data_item_delete
+                        self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#0F0")
+                        bitmap_overlay_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
+                        self.__canvas_item_root.add_canvas_item(bitmap_overlay_canvas_item)
+                        self.__data_item = data_item
+                        self.__update_thumbnail()
+                        self.__data_item_content_changed_event_listener = None
+                        if data_item:
+                            def data_item_content_changed(changes):
+                                self.__update_thumbnail()
+                            self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
+                    def close(self):
+                        if self.__data_item_content_changed_event_listener:
+                            self.__data_item_content_changed_event_listener.close()
+                            self.__data_item_content_changed_event_listener = None
+                        self.__canvas_item_root.close()
+                        self.__canvas_item_root = None
+                        self.on_data_item_drop = None
+                        self.on_data_item_delete = None
+                    def __update_thumbnail(self) -> None:
+                        data_item = self.__data_item
+                        display = data_item.primary_display_specifier.display if data_item else None
+                        thumbnail_data = display.get_processed_data("thumbnail") if display else None
+                        self.__bitmap_canvas_item.rgba_bitmap_data = thumbnail_data
+                    @property
+                    def canvas_widget(self):
+                        return self.__canvas_item_root.canvas_widget
+                    @property
+                    def data_item(self):
+                        return self.__data_item
+                    @data_item.setter
+                    def data_item(self, value):
+                        self.__data_item = value
+                        self.__update_thumbnail()
+
+                def make_image_chooser(variable):
+                    column = self.ui.create_column_widget()
+                    row = self.ui.create_row_widget()
+                    label_column = self.ui.create_column_widget()
+                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
+                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+                    label_column.add(label_widget)
+                    label_column.add_stretch()
+                    row.add(label_column)
+                    row.add_spacing(8)
+                    bound_data_item = document_model.resolve_object_specifier(variable.specifier)
+                    data_item = bound_data_item.data_item if bound_data_item else None
+                    def data_item_drop(data_item_uuid):
+                        data_item = document_model.get_data_item_by_key(data_item_uuid)
+                        variable.specifier = document_model.get_object_specifier(data_item)
+                    def data_item_delete():
+                        variable.specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+                    image_chooser_canvas_widget = ImageChooserCanvasWidget(data_item)
+                    image_chooser_canvas_widget.on_data_item_drop = data_item_drop
+                    image_chooser_canvas_widget.on_data_item_delete = data_item_delete
+                    def property_changed(key, value):
+                        if key == "specifier":
+                            bound_data_item = document_model.resolve_object_specifier(variable.specifier)
+                            data_item = bound_data_item.data_item if bound_data_item else None
+                            image_chooser_canvas_widget.data_item = data_item
+                    property_changed_listener = variable.property_changed_event.listen(property_changed)
+                    row.add(image_chooser_canvas_widget.canvas_widget)
+                    row.add_stretch()
+                    column.add(row)
+                    column.add_spacing(4)
+                    return WidgetWrapper(column, [image_chooser_canvas_widget, property_changed_listener])
+
+                def make_widget_from_variable(variable):
+                    if variable.variable_type == "boolean":
+                        return make_checkbox(variable)
+                    elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
+                        return make_slider(variable, Converter.IntegerToStringConverter())
+                    elif variable.variable_type == "integral":
+                        return make_field(variable, Converter.IntegerToStringConverter())
+                    elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
+                        return make_slider(variable, Converter.FloatToStringConverter())
+                    elif variable.variable_type == "real":
+                        return make_field(variable, Converter.FloatToStringConverter())
+                    elif variable.variable_type == "data_item":
+                        return make_image_chooser(variable)
+                    elif variable.variable_type == "region":
+                        return WidgetWrapper(self.ui.create_row_widget())
+                    else:
+                        return WidgetWrapper(self.ui.create_row_widget())
+
+                widget_wrapper = make_widget_from_variable(variable)
+                self.__widget_wrappers.insert(index, widget_wrapper)
+                column.insert(widget_wrapper.widget, index)
 
             def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
                 column.remove(column.children[index])
+                self.__widget_wrappers[index].close()
+                del self.__widget_wrappers[index]
 
             self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(variable_inserted)
             self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(variable_removed)
@@ -1292,6 +1466,9 @@ class ComputationInspectorSection(InspectorSection):
         self.finish_widget_content()
 
     def close(self):
+        for widget_wrapper in self.__widget_wrappers:
+            widget_wrapper.close()
+        self.__widget_wrappers = None
         if self.__computation_variable_inserted_event_listener:
             self.__computation_variable_inserted_event_listener.close()
             self.__computation_variable_inserted_event_listener = None
@@ -1304,11 +1481,11 @@ class ComputationInspectorSection(InspectorSection):
 class DataItemInspector(object):
     """A class to manage creation of a widget representing an inspector for a display specifier.
 
-    A new data item inpspector is created whenever the display specifier changes, but not when the content of the items
+    A new data item inspector is created whenever the display specifier changes, but not when the content of the items
     within the display specifier mutate.
     """
 
-    def __init__(self, ui, display_specifier: DataItem.DisplaySpecifier):
+    def __init__(self, ui, document_model: DocumentModel.DocumentModel, display_specifier: DataItem.DisplaySpecifier):
         self.ui = ui
 
         data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
@@ -1329,7 +1506,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(LinePlotInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, data_item, buffered_data_source))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
@@ -1340,7 +1517,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, data_item, buffered_data_source))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
@@ -1352,7 +1529,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, data_item, buffered_data_source))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
