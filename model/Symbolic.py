@@ -1484,6 +1484,9 @@ class VariableDataNode(DataNode):
         variable_map[variable_name] = copy.deepcopy(self.__object_specifier)
         return variable_name, 10
 
+    def __getattr__(self, name):
+        return PropertyDataNode(self.__object_specifier, name)
+
     def __str__(self):
         return "{0} ({1})".format(self.__repr__(), self.__object_specifier)
 
@@ -1737,7 +1740,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def variable_specifier(self) -> dict:
-        return self.specifier if self.specifier else {"type": "variable", "version": 1, "uuid": str(self.uuid)}
+        return {"type": "variable", "version": 1, "uuid": str(self.uuid)}
 
     @property
     def bound_variable(self):
@@ -1838,10 +1841,55 @@ class ComputationContext(object):
         return None
 
     def resolve_object_specifier(self, object_specifier, property_name=None):
-        bound_object = self.__computation.resolve_object_specifier(object_specifier)
-        if not bound_object:
-            bound_object = self.__context.resolve_object_specifier(object_specifier, property_name)
-        return bound_object
+        """Resolve the object specifier, returning a bound variable.
+
+        Ask the computation for the variable associated with the object specifier. If it doesn't exist, let the
+        enclosing context handle it. Otherwise, check to see if the variable directly includes a value (i.e. has no
+        specifier). If so, let the variable return the bound variable directly. Otherwise (again) let the enclosing
+        context resolve, but use the specifier in the variable.
+
+        Structuring this method this way allows the variable to provide a second level of indirection. The computation
+        can store variable specifiers only. The variable specifiers can hold values directly or specifiers to the
+        enclosing context. This isolates the computation further from the enclosing context.
+        """
+        variable = self.__computation.resolve_variable(object_specifier)
+        if not variable:
+            return self.__context.resolve_object_specifier(object_specifier, property_name)
+        elif variable.specifier is None:
+            return variable.bound_variable
+        else:
+            # BoundVariable is used here to watch for changes to the variable in addition to watching for changes
+            # to the context of the variable. Fire changed_event for either type of change.
+            class BoundVariable:
+                def __init__(self, variable, context, property_name):
+                    self.__bound_object_changed_listener = None
+                    self.__variable = variable
+                    self.changed_event = Event.Event()
+                    def update_bound_object():
+                        if self.__bound_object_changed_listener:
+                            self.__bound_object_changed_listener.close()
+                            self.__bound_object_changed_listener = None
+                        self.__bound_object = context.resolve_object_specifier(self.__variable.specifier, property_name)
+                        if self.__bound_object:
+                            def bound_object_changed():
+                                self.changed_event.fire()
+                            self.__bound_object_changed_listener = self.__bound_object.changed_event.listen(bound_object_changed)
+                    def property_changed(key, value):
+                        if key == "specifier":
+                            update_bound_object()
+                            self.changed_event.fire()
+                    self.__variable_property_changed_listener = variable.property_changed_event.listen(property_changed)
+                    update_bound_object()
+                @property
+                def value(self):
+                    return self.__bound_object.value if self.__bound_object else None
+                def close(self):
+                    self.__variable_property_changed_listener.close()
+                    self.__variable_property_changed_listener = None
+                    if self.__bound_object_changed_listener:
+                        self.__bound_object_changed_listener.close()
+                        self.__bound_object_changed_listener = None
+            return BoundVariable(variable, self.__context, property_name)
 
 
 class Computation(Observable.Observable, Persistence.PersistentObject):
@@ -1919,13 +1967,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def resolve_object_specifier(self, object_specifier: dict):
+    def resolve_variable(self, object_specifier: dict) -> ComputationVariable:
         uuid_str = object_specifier.get("uuid")
         uuid_ = uuid.UUID(uuid_str) if uuid_str else None
         if uuid_:
             for variable in self.variables:
                 if variable.uuid == uuid_:
-                    return variable.bound_variable
+                    return variable
         return None
 
     def parse_expression(self, context, expression, variable_map):

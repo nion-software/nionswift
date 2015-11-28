@@ -1145,7 +1145,7 @@ class TestSymbolicClass(unittest.TestCase):
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
             evaluation_count = computation._evaluation_count_for_test
             document_model.recompute_all()
-            self.assertTrue(computation._evaluation_count_for_test - evaluation_count == 1)
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[0:6, 0:4]))
 
     def test_computation_with_object_writes_and_reads(self):
@@ -1181,6 +1181,86 @@ class TestSymbolicClass(unittest.TestCase):
             computation2.bind(document_model)
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
             self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
+
+    def test_computation_with_object_evaluates_correctly_after_changing_the_variable_name(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            x = computation.create_variable("x", value_type="integral", value=5)
+            computation.parse_expression(document_model, "a + x", dict())
+            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertEqual(computation.reconstruct(dict()), "a + x")
+            x.name = "xx"
+            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertEqual(computation.reconstruct(dict()), "a + xx")
+
+    def test_computation_with_object_evaluates_correctly_after_changing_the_specifier(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item1 = DataItem.DataItem(src_data1)
+            data_item2 = DataItem.DataItem(src_data2)
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            computation = Symbolic.Computation()
+            a = computation.create_object("a", document_model.get_object_specifier(data_item1))
+            expression = "a + 1"
+            computation.parse_expression(document_model, expression, dict())
+            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data1 + 1))
+            self.assertEqual(computation.reconstruct(dict()), expression)
+            a.specifier = document_model.get_object_specifier(data_item2)
+            computation.parse_expression(document_model, computation.reconstruct(dict()), dict())
+            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data2 + 1))
+            self.assertEqual(computation.reconstruct(dict()), expression)
+
+    def test_computation_fires_needs_update_event_when_specifier_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item1 = DataItem.DataItem(src_data1)
+            data_item2 = DataItem.DataItem(src_data2)
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            computation = Symbolic.Computation()
+            a = computation.create_object("a", document_model.get_object_specifier(data_item1))
+            expression = "a + 1"
+            computation.parse_expression(document_model, expression, dict())
+            needs_update_ref = [False]
+            def needs_update():
+                needs_update_ref[0] = True
+            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            with contextlib.closing(needs_update_event_listener):
+                a.specifier = document_model.get_object_specifier(data_item2)
+            self.assertTrue(needs_update_ref[0])
+
+    def test_computation_in_document_recomputes_when_specifier_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data1 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            data_item1 = DataItem.DataItem(src_data1)
+            data_item2 = DataItem.DataItem(src_data2)
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            computation = Symbolic.Computation()
+            a = computation.create_object("a", document_model.get_object_specifier(data_item1))
+            expression = "a + 1"
+            computation.parse_expression(document_model, expression, dict())
+            computed_data_item = DataItem.DataItem(src_data1.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            computation.needs_update_event.fire()  # ugh. bootstrap.
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data1 + 1))
+            a.specifier = document_model.get_object_specifier(data_item2)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data2 + 1))
 
     def test_computation_with_raw_reference_node_reloads(self):
         document_model = DocumentModel.DocumentModel()
