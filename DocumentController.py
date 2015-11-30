@@ -19,6 +19,7 @@ import weakref
 
 # local libraries
 from nion.swift import DataPanel
+from nion.swift import Decorators
 from nion.swift import DisplayPanel
 from nion.swift import FilterPanel
 from nion.swift import Task
@@ -398,7 +399,7 @@ class DocumentController(Observable.Broadcaster):
                 super(AboutDialog, self).__init__(ui, include_cancel=False)
                 row = self.ui.create_row_widget()
                 logo_button = self.ui.create_push_button_widget()
-                image = self.ui.load_rgba_data_from_file(":/Graphics/logo3.png")
+                image = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/logo3.png"))
                 logo_button.icon = image
                 column = self.ui.create_column_widget()
                 row_one = self.ui.create_row_widget()

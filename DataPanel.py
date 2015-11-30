@@ -14,6 +14,7 @@ import weakref
 # None
 
 # local libraries
+from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -1149,8 +1150,8 @@ class DataPanel(Panel.Panel):
         self.buttons_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 44})
         self.buttons_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
 
-        list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/list_icon_20.png"))
-        grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(":/Graphics/grid_icon_20.png"))
+        list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/list_icon_20.png")))
+        grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/grid_icon_20.png")))
 
         list_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
         grid_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
