@@ -233,7 +233,10 @@ class Application(object):
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
-        PlugInManager.notify_modules("document_model_loaded", self, document_model)
+        # parse the hardware aliases file
+        alias_path = os.path.join(self.workspace_dir, "aliases.ini")
+        HardwareSource.parse_hardware_aliases_config_file(alias_path)
+        # create the document controller
         document_controller = self.create_document_controller(document_model, "library")
         if self.resources_path is not None:
             document_model.create_sample_images(self.resources_path)
