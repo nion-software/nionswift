@@ -45,7 +45,7 @@ class Application(object):
 
         self.ui = ui
         self.ui.persistence_root = "3"  # sets of preferences
-        self.resources_path = resources_path
+        self.__resources_path = resources_path
         self.version_str = "0.5.7"
 
         if set_global:
@@ -238,8 +238,8 @@ class Application(object):
         HardwareSource.parse_hardware_aliases_config_file(alias_path)
         # create the document controller
         document_controller = self.create_document_controller(document_model, "library")
-        if self.resources_path is not None:
-            document_model.create_sample_images(self.resources_path)
+        if self.__resources_path is not None:
+            document_model.create_sample_images(self.__resources_path)
         workspace_history = self.ui.get_persistent_object("workspace_history", list())
         if workspace_dir in workspace_history:
             workspace_history.remove(workspace_dir)
