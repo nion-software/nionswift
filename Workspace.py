@@ -581,11 +581,15 @@ class Workspace(object):
             container.splits = splits
 
     def remove_display_panel(self, display_panel):
+        # first make sure the display panel has no content
+        display_panel.change_display_panel_content({"type": "image", "display-panel-type": "empty-display-panel"})
+        # now remove it
         container = display_panel.canvas_item.container
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             if len(container.canvas_items) > 0:
                 container.remove_canvas_item(display_panel.canvas_item)
                 self.display_panels.remove(display_panel)
+                display_panel.close()
                 if len(container.canvas_items) == 1:
                     container.unwrap_canvas_item(container.canvas_items[0])
 
