@@ -27,6 +27,7 @@ else:
 # none
 
 # local libraries
+from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import Geometry
 from nion.ui import Unicode
@@ -1374,7 +1375,7 @@ class QtDrawingContextStorage(object):
 
 class QtCanvasWidget(QtWidget):
 
-    def __init__(self, proxy, properties):
+    def __init__(self, proxy, properties, do_create_canvas_item: bool):
         super(QtCanvasWidget, self).__init__(proxy, "canvas", properties)
         self.proxy.Canvas_connect(self.widget, self)
         self.on_periodic = None
@@ -1397,9 +1398,16 @@ class QtCanvasWidget(QtWidget):
         self.height = 0
         self.__focusable = False
         self.__draw_mutex = threading.Lock()  # don't delete while drawing
+        if do_create_canvas_item:
+            self.__canvas_item = CanvasItem.RootCanvasItem(None, properties={"height": 20, "width": 20}, canvas_widget=self)
+        else:
+            self.__canvas_item = None
 
     def close(self):
         with self.__draw_mutex:
+            if self.__canvas_item:
+                self.__canvas_item.close()
+                self.__canvas_item = None
             self.on_periodic = None
             self.on_mouse_entered = None
             self.on_mouse_exited = None
@@ -1422,6 +1430,10 @@ class QtCanvasWidget(QtWidget):
         super(QtCanvasWidget, self).periodic()
         if self.on_periodic:
             self.on_periodic()
+
+    @property
+    def canvas_item(self):
+        return self.__canvas_item
 
     @property
     def canvas_size(self):
@@ -2207,7 +2219,10 @@ class QtUserInterface(object):
         return QtTextEditWidget(self.proxy, properties)
 
     def create_canvas_widget(self, properties=None):
-        return QtCanvasWidget(self.proxy, properties)
+        return QtCanvasWidget(self.proxy, properties, False)
+
+    def create_canvas_widget_new(self, properties=None):
+        return QtCanvasWidget(self.proxy, properties, True)
 
     def create_tree_widget(self, properties=None):
         return QtTreeWidget(self.proxy, properties)

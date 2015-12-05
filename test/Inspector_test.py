@@ -91,7 +91,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
-        content_section = inspector_section.widget.children[1].children[0].children[0].content_section
+        content_section = inspector_section._section_content_for_test.children[0].content_section
         calibration_row = content_section.children[0].children[0]
         offset_field = calibration_row.children[1]
         scale_field = calibration_row.children[2]

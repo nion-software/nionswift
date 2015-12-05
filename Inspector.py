@@ -15,6 +15,7 @@ import uuid
 
 # local libraries
 from nion.swift import Panel
+from nion.swift import Widgets
 from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -165,38 +166,12 @@ class InspectorSection(object):
     """
 
     def __init__(self, ui, section_id, section_title):
-        self.ui = ui
-
-        section_widget = self.ui.create_column_widget()
-        section_title_row = self.ui.create_row_widget()
-
-        self.twist_down_canvas_item_root = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 20})
-        twist_down_canvas_item = CanvasItem.TwistDownCanvasItem()
-        self.twist_down_canvas_item_root.add_canvas_item(twist_down_canvas_item)
-        section_title_row.add(self.twist_down_canvas_item_root.canvas_widget)
-        section_title_row.add(self.ui.create_label_widget(section_title, properties={"stylesheet": "font-weight: bold"}))
-        section_title_row.add_stretch()
-        section_widget.add(section_title_row)
-        section_content_row = self.ui.create_row_widget()
+        self.ui = ui  # for use in subclasses
         self.__section_content_column = self.ui.create_column_widget()
-        section_content_row.add_spacing(20)
-        section_content_row.add(self.__section_content_column)
-        section_widget.add(section_content_row)
-        section_widget.add_spacing(4)
-        self.widget = section_widget
-
-        def toggle():
-            twist_down_canvas_item.checked = not twist_down_canvas_item.checked
-            self.__section_content_column.visible = twist_down_canvas_item.checked
-            self.ui.set_persistent_string("inspector/" + section_id + "/open", "true" if twist_down_canvas_item.checked else "false")
-        section_open = self.ui.get_persistent_string("inspector/" + section_id + "/open", "true") == "true"
-        twist_down_canvas_item.checked = section_open
-        self.__section_content_column.visible = section_open
-        twist_down_canvas_item.on_button_clicked = toggle
+        self.widget = Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open")
 
     def close(self):
-        self.twist_down_canvas_item_root.close()
-        self.twist_down_canvas_item_root = None
+        pass
 
     def add_widget_to_content(self, widget):
         """Subclasses should call this to add content in the section's top level column."""
@@ -205,7 +180,7 @@ class InspectorSection(object):
 
     def finish_widget_content(self):
         """Subclasses should all this after calls to add_widget_content."""
-        self.__section_content_column.add_stretch()
+        pass
 
     @property
     def _section_content_for_test(self):
