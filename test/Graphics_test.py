@@ -18,6 +18,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Region
+from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Test
 
@@ -327,7 +328,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
                 "constraints": ["bounds"]
             },
-            "drag": [(250, 250), (150, 140), Test.KeyboardModifiers(alt=True)],
+            "drag": [(250, 250), (150, 140), CanvasItem.KeyboardModifiers(alt=True)],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -347,7 +348,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
                 "constraints": ["position"]
             },
-            "drag": [(250, 250), (150, 140), Test.KeyboardModifiers()],
+            "drag": [(250, 250), (150, 140), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -367,7 +368,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
                 "constraints": ["bounds"]
             },
-            "drag": [(210, 220), (-190, -180), Test.KeyboardModifiers(alt=True)],
+            "drag": [(210, 220), (-190, -180), CanvasItem.KeyboardModifiers(alt=True)],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -387,7 +388,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
                 "constraints": ["bounds"]
             },
-            "drag": [(210, 220), (1500, 220), Test.KeyboardModifiers(alt=True)],
+            "drag": [(210, 220), (1500, 220), CanvasItem.KeyboardModifiers(alt=True)],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -407,7 +408,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
                 "constraints": ["bounds"]
             },
-            "drag": [(210, 220), (210, 1500), Test.KeyboardModifiers(alt=True)],
+            "drag": [(210, 220), (210, 1500), CanvasItem.KeyboardModifiers(alt=True)],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -427,7 +428,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.2, 0.3), (0.4, 0.5)) },
                 "constraints": ["bounds"]
             },
-            "drag": [(200, 300), (1500, 1500), Test.KeyboardModifiers(shift=True)],
+            "drag": [(200, 300), (1500, 1500), CanvasItem.KeyboardModifiers(shift=True)],
             "output": {
                 "properties": {
                     "_bounds.top_left": "_bounds.bottom_right",
@@ -448,7 +449,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
                 "constraints": ["bounds"]
             },
-            "drag": [(400, 400), (200, 400), Test.KeyboardModifiers(shift=True)],
+            "drag": [(400, 400), (200, 400), CanvasItem.KeyboardModifiers(shift=True)],
             "output": {
                 "properties": {
                     "_bounds.bottom_right": "_bounds.bottom_right",
@@ -468,7 +469,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.1, 0.3), (0.2, 0.2)) },  # center 0.2, 0.4
                 "constraints": ["bounds"]
             },
-            "drag": [(100, 300), (-200, -200), Test.KeyboardModifiers(shift=True, alt=True)],
+            "drag": [(100, 300), (-200, -200), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -489,7 +490,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
                 "constraints": ["bounds"]
             },
-            "drag": [(400, 400), (300, 200), Test.KeyboardModifiers(shift=True, alt=True)],
+            "drag": [(400, 400), (300, 200), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -509,7 +510,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.7, 0.7), (0.2, 0.2)) },  # center 0.8, 0.8
                 "constraints": ["bounds"]
             },
-            "drag": [(700, 700), (0, 0), Test.KeyboardModifiers(shift=True, alt=True)],
+            "drag": [(700, 700), (0, 0), CanvasItem.KeyboardModifiers(shift=True, alt=True)],
             "output": {
                 "properties": {
                     "_bounds.center": "_bounds.center",
@@ -530,7 +531,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
                 "constraints": ["shape"]
             },
-            "drag": [(300, 200), (-100, -100), Test.KeyboardModifiers()],
+            "drag": [(300, 200), (-100, -100), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_bounds.center": Geometry.FloatPoint(),
@@ -549,7 +550,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "type": "rectangle-region",
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
             },
-            "drag": [(400, 300), (0, 0), Test.KeyboardModifiers()],
+            "drag": [(400, 300), (0, 0), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_bounds.center": Geometry.FloatPoint(),
@@ -569,7 +570,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
                 "constraints": ["bounds"]
             },
-            "drag": [(400, 300), (0, 0), Test.KeyboardModifiers()],
+            "drag": [(400, 300), (0, 0), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_bounds.center": Geometry.FloatPoint(0.1, 0.1),
@@ -589,7 +590,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
                 "constraints": ["bounds"]
             },
-            "drag": [(400, 300), (1000, 1000), Test.KeyboardModifiers()],
+            "drag": [(400, 300), (1000, 1000), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_bounds.center": Geometry.FloatPoint(0.9, 0.9),
@@ -608,7 +609,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "type": "rectangle-region",
                 "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
             },
-            "drag": [(500, 500), (800, 600), Test.KeyboardModifiers(shift=True)],
+            "drag": [(500, 500), (800, 600), CanvasItem.KeyboardModifiers(shift=True)],
             "output": {
                 "properties": {
                     "_bounds.center": Geometry.FloatPoint(0.8, 0.5),
@@ -630,7 +631,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
                 # "constraints": ["bounds"]
             },
-            "drag": [(200, 300), (-100, -100), Test.KeyboardModifiers()],
+            "drag": [(200, 300), (-100, -100), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_position": Geometry.FloatPoint(-0.1, -0.1),
@@ -649,7 +650,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
                 "constraints": ["bounds"]
             },
-            "drag": [(200, 300), (-100, -100), Test.KeyboardModifiers()],
+            "drag": [(200, 300), (-100, -100), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_position": Geometry.FloatPoint(),
@@ -668,7 +669,7 @@ class TestGraphicsClass(unittest.TestCase):
                 "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
                 "constraints": ["bounds"]
             },
-            "drag": [(200, 300), (100, 100), Test.KeyboardModifiers(shift=True)],
+            "drag": [(200, 300), (100, 100), CanvasItem.KeyboardModifiers(shift=True)],
             "output": {
                 "properties": {
                     "_position": Geometry.FloatPoint(0.2, 0.1),
@@ -692,7 +693,7 @@ class TestGraphicsClass(unittest.TestCase):
                 },
                 # "constraints": ["bounds"]
             },
-            "drag": [(400, 400), (600, 700), Test.KeyboardModifiers()],
+            "drag": [(400, 400), (600, 700), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_start": Geometry.FloatPoint(0.4, 0.6),
@@ -715,7 +716,7 @@ class TestGraphicsClass(unittest.TestCase):
                 },
                 "constraints": ["shape"]
             },
-            "drag": [(200, 300), (400, 600), Test.KeyboardModifiers()],
+            "drag": [(200, 300), (400, 600), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_start": Geometry.FloatPoint(0.4, 0.6),
@@ -738,7 +739,7 @@ class TestGraphicsClass(unittest.TestCase):
                 },
                 "constraints": ["bounds"]
             },
-            "drag": [(400, 400), (1000, 1000), Test.KeyboardModifiers()],
+            "drag": [(400, 400), (1000, 1000), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_start": Geometry.FloatPoint(0.6, 0.8),
@@ -761,7 +762,7 @@ class TestGraphicsClass(unittest.TestCase):
                 },
                 # "constraints": ["bounds"]
             },
-            "drag": [(200, 300), (600, 700), Test.KeyboardModifiers()],
+            "drag": [(200, 300), (600, 700), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_start": Geometry.FloatPoint(0.6, 0.7),
@@ -784,7 +785,7 @@ class TestGraphicsClass(unittest.TestCase):
                 },
                 "constraints": ["bounds"]
             },
-            "drag": [(200, 300), (-100, 300), Test.KeyboardModifiers()],
+            "drag": [(200, 300), (-100, 300), CanvasItem.KeyboardModifiers()],
             "output": {
                 "properties": {
                     "_start": Geometry.FloatPoint(0.0, 0.3),
@@ -807,7 +808,7 @@ class TestGraphicsClass(unittest.TestCase):
                 },
                 "constraints": ["bounds"]
             },
-            "drag": [(200, 300), (500, 500), Test.KeyboardModifiers(shift=True)],
+            "drag": [(200, 300), (500, 500), CanvasItem.KeyboardModifiers(shift=True)],
             "output": {
                 "properties": {
                     "_start": Geometry.FloatPoint(0.5, 0.5),

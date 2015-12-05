@@ -177,11 +177,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_specifier.display.graphic_selection.indexes)
         # add the ellipse to the selection. click inside the right side.
-        self.display_panel.display_canvas_item.simulate_click((725, 500), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(shift=True))
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 2)
         self.assertTrue(0 in self.display_specifier.display.graphic_selection.indexes)
         # remove the ellipse from the selection. click inside the right side.
-        self.display_panel.display_canvas_item.simulate_click((725, 500), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(shift=True))
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_specifier.display.graphic_selection.indexes)
 
@@ -232,51 +232,51 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (0.3, 0.4))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (0.8, 0.8))
         # shift drag a part, should not deselect and should align horizontally
-        self.display_panel.display_canvas_item.simulate_drag((300,400), (350,700), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((300,400), (350,700), CanvasItem.KeyboardModifiers(shift=True))
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (0.35, 0.8))
         # shift drag start to top left quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((350,800), (370,340), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((350,800), (370,340), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (0.34, 0.34))
-        self.display_panel.display_canvas_item.simulate_drag((340,340), (240,270), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((340,340), (240,270), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (0.24, 0.24))
         # shift drag start to bottom left quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((240,240), (370,1140), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((240,240), (370,1140), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (0.37, 1.23))
-        self.display_panel.display_canvas_item.simulate_drag((370,1230), (370,1350), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((370,1230), (370,1350), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (0.25, 1.35))
         # shift drag start to bottom right quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((250,1350), (1230,1175), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((250,1350), (1230,1175), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (1.23, 1.23))
-        self.display_panel.display_canvas_item.simulate_drag((1230,1230), (1150,1210), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((1230,1230), (1150,1210), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (1.21, 1.21))
         # shift drag start to top right quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((1210,1210), (1230,310), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((1210,1210), (1230,310), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (1.29, 0.31))
-        self.display_panel.display_canvas_item.simulate_drag((1290,310), (1110,420), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((1290,310), (1110,420), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].start, (1.18, 0.42))
         # now reverse start/end and run the same test
         self.display_panel.display_canvas_item.simulate_drag((800,800), (200,200))
         self.display_panel.display_canvas_item.simulate_drag((1180,420), (800,800))
         # shift drag start to top left quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((200,200), (370,340), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((200,200), (370,340), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (0.34, 0.34))
-        self.display_panel.display_canvas_item.simulate_drag((340,340), (240,270), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((340,340), (240,270), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (0.24, 0.24))
         # shift drag start to bottom left quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((240,240), (370,1140), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((240,240), (370,1140), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (0.37, 1.23))
-        self.display_panel.display_canvas_item.simulate_drag((370,1230), (370,1350), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((370,1230), (370,1350), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (0.25, 1.35))
         # shift drag start to bottom right quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((250,1350), (1230,1175), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((250,1350), (1230,1175), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (1.23, 1.23))
-        self.display_panel.display_canvas_item.simulate_drag((1230,1230), (1150,1210), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((1230,1230), (1150,1210), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (1.21, 1.21))
         # shift drag start to top right quadrant. check both y-maj and x-maj.
-        self.display_panel.display_canvas_item.simulate_drag((1210,1210), (1230,310), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((1210,1210), (1230,310), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (1.29, 0.31))
-        self.display_panel.display_canvas_item.simulate_drag((1290,310), (1110,420), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((1290,310), (1110,420), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].end, (1.18, 0.42))
 
     def test_nudge_line(self):
@@ -412,7 +412,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[0], (0.30, 0.25))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.45, 0.5))
         # drag with shift key
-        self.display_panel.display_canvas_item.simulate_drag((300,250), (350,250), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((300,250), (350,250), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[0], (0.25, 0.25))
         self.assertClosePoint(self.display_specifier.display.drawn_graphics[0].bounds[1], (0.5, 0.5))
 
@@ -436,7 +436,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (8, 2.5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (7, 5))
         # drag with shift key
-        self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), CanvasItem.KeyboardModifiers(shift=True))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (9, 1.5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (6, 6))
 
@@ -456,11 +456,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         # select it
         self.display_specifier.display.graphic_selection.set(0)
         # drag top left corner
-        self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250), Test.KeyboardModifiers(alt=True))
+        self.display_panel.display_canvas_item.simulate_drag((500,250), (800,250), CanvasItem.KeyboardModifiers(alt=True))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (8, 2.5))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (4, 5))
         # drag with shift key
-        self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), Test.KeyboardModifiers(shift=True, alt=True))
+        self.display_panel.display_canvas_item.simulate_drag((800,250), (900,250), CanvasItem.KeyboardModifiers(shift=True, alt=True))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[0]), (9, 4))
         self.assertClosePoint(self.display_panel.display_canvas_item.map_image_norm_to_image(self.display_specifier.display.drawn_graphics[0].bounds[1]), (2, 2))
 
@@ -480,7 +480,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_delete_key_when_graphic_selected_removes_the_graphic(self):
         self.document_controller.add_rectangle_region()
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertEqual(len(self.display_specifier.display.drawn_graphics), 1)
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
@@ -491,7 +491,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.display_specifier.display.drawn_graphics), 0)
 
     def test_delete_key_when_nothing_selected_does_nothing(self):
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertIsNotNone(self.display_panel.data_item)
         # do focusing click, then delete
@@ -513,7 +513,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_mouse_tracking_moves_horizontal_scale(self):
         line_plot_canvas_item = self.setup_line_plot()
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_horizontal(Geometry.IntPoint(x=320, y=465), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=360, y=465), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
@@ -525,7 +525,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item = self.setup_line_plot()
         # notice: dragging increasing y drags down.
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
@@ -544,7 +544,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_max
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
@@ -563,7 +563,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_max
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
@@ -585,7 +585,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_max
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
@@ -608,7 +608,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item.data_info.y_properties.calibrated_data_max
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.begin_tracking_vertical(Geometry.IntPoint(x=30, y=270), rescale=False)
         line_plot_canvas_item.continue_tracking(Geometry.IntPoint(x=30, y=240), modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
@@ -624,7 +624,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=-96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -639,7 +639,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -655,7 +655,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         pos = Geometry.IntPoint(x=plot_left + 200, y=465)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=-96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -670,7 +670,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         pos = Geometry.IntPoint(x=plot_left + 400, y=465)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=96, height=0)
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -684,7 +684,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
         pos = Geometry.IntPoint(x=30, y=plot_bottom - 200)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=40)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -704,7 +704,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=50)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -725,7 +725,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=50)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -748,7 +748,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=50)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -769,7 +769,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=20)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=plot_height)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -789,7 +789,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch way past top
         pos = Geometry.IntPoint(x=30, y=plot_height-20)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         offset = Geometry.IntSize(width=0, height=-plot_height)
         line_plot_canvas_item.begin_tracking_vertical(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
@@ -804,12 +804,12 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
         v = line_plot_canvas_item.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)[0] + 8
-        line_plot_canvas_item.mouse_pressed(plot_left, v, Test.KeyboardModifiers(control=True))
-        line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers(control=True))
+        line_plot_canvas_item.mouse_pressed(plot_left, v, CanvasItem.KeyboardModifiers(control=True))
+        line_plot_canvas_item.mouse_position_changed(plot_left+96, v, CanvasItem.KeyboardModifiers(control=True))
         # continue
-        line_plot_canvas_item.mouse_position_changed(plot_left+96, v, Test.KeyboardModifiers())
-        line_plot_canvas_item.mouse_position_changed(plot_left+196, v, Test.KeyboardModifiers())
-        line_plot_canvas_item.mouse_released(plot_left+116, 190, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_position_changed(plot_left+96, v, CanvasItem.KeyboardModifiers())
+        line_plot_canvas_item.mouse_position_changed(plot_left+196, v, CanvasItem.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+116, 190, CanvasItem.KeyboardModifiers())
         channel_per_pixel = 1024.0/10 / plot_width
         self.assertEqual(self.display_specifier.display.left_channel, int(0 - channel_per_pixel * 100))
         self.assertEqual(self.display_specifier.display.right_channel, int(int(1024/10.0) - channel_per_pixel * 100))
@@ -828,8 +828,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         # make sure assumptions are correct
         self.assertEqual(len(line_plot_display_specifier.display.graphic_selection.indexes), 0)
         # do the click
-        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
-        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
         # make sure results are correct
         self.assertEqual(len(line_plot_display_specifier.display.graphic_selection.indexes), 1)
 
@@ -847,13 +847,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         # make sure assumptions are correct
         self.assertEqual(len(line_plot_display_specifier.display.graphic_selection.indexes), 0)
         # do the first click to select
-        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
-        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.35, 100, CanvasItem.KeyboardModifiers())
         # make sure results are correct
         self.assertEqual(len(line_plot_display_specifier.display.graphic_selection.indexes), 1)
         # do the second click to deselect
-        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.1, 100, Test.KeyboardModifiers())
-        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.1, 100, Test.KeyboardModifiers())
+        line_plot_canvas_item.mouse_pressed(plot_left+plot_width * 0.1, 100, CanvasItem.KeyboardModifiers())
+        line_plot_canvas_item.mouse_released(plot_left+plot_width * 0.1, 100, CanvasItem.KeyboardModifiers())
         # make sure results are correct
         self.assertEqual(len(line_plot_display_specifier.display.graphic_selection.indexes), 0)
 
@@ -869,7 +869,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         region.end = 0.4
         line_plot_display_specifier.buffered_data_source.add_region(region)
         # select, then click drag
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.35, 100, modifiers)
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.4, 100, modifiers)
@@ -891,7 +891,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         region.end = 0.4
         DataItem.DisplaySpecifier.from_data_item(line_plot_data_item).buffered_data_source.add_region(region)
         # select, then click drag
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.35, 100, modifiers)
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.4, 100, modifiers)
@@ -912,7 +912,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # make sure assumptions are correct
         self.assertEqual(len(line_plot_display_specifier.buffered_data_source.regions), 0)
         # click drag
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         line_plot_canvas_item.mouse_pressed(plot_left + plot_width * 0.35, 100, modifiers)
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.40, 100, modifiers)
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.50, 100, modifiers)
@@ -943,7 +943,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(line_plot_display_specifier.buffered_data_source.regions), 0)
 
     def test_key_gets_dispatched_to_image_canvas_item(self):
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "up", modifiers))
         # self.display_panel.display_canvas_item.key_pressed(Test.Key(None, "up", modifiers))  # direct dispatch, should work
@@ -1016,7 +1016,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_enter_key_recalculates_display_limits(self):
         self.assertIsNone(self.display_specifier.display.display_limits)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         # focus and enter key
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
@@ -1085,7 +1085,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # test preliminary assumptions (no display limits)
         self.assertIsNone(self.display_specifier.display.display_limits)
         # focus on the display panel, then press the enter key
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
         # confirm that display limits were set
@@ -1213,8 +1213,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_rectangle_region()
         self.document_controller.add_ellipse_region()
         self.document_controller.add_interval_region()
-        display_canvas_item.mouse_pressed(100, 100, Test.KeyboardModifiers())
-        display_canvas_item.mouse_released(100, 100, Test.KeyboardModifiers())
+        display_canvas_item.mouse_pressed(100, 100, CanvasItem.KeyboardModifiers())
+        display_canvas_item.mouse_released(100, 100, CanvasItem.KeyboardModifiers())
 
     def test_all_graphic_types_hit_test_on_2d_display(self):
         self.document_controller.add_point_region()
@@ -1223,8 +1223,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_ellipse_region()
         self.document_controller.add_interval_region()
         self.display_panel.display_canvas_item.prepare_display()  # force layout
-        self.display_panel.display_canvas_item.mouse_pressed(10, 10, Test.KeyboardModifiers())
-        self.display_panel.display_canvas_item.mouse_released(10, 10, Test.KeyboardModifiers())
+        self.display_panel.display_canvas_item.mouse_pressed(10, 10, CanvasItem.KeyboardModifiers())
+        self.display_panel.display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
 
     def test_all_graphic_types_hit_test_on_3d_display(self):
         display_canvas_item = self.setup_3d_data()
@@ -1233,8 +1233,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_rectangle_region()
         self.document_controller.add_ellipse_region()
         self.document_controller.add_interval_region()
-        display_canvas_item.mouse_pressed(10, 10, Test.KeyboardModifiers())
-        display_canvas_item.mouse_released(10, 10, Test.KeyboardModifiers())
+        display_canvas_item.mouse_pressed(10, 10, CanvasItem.KeyboardModifiers())
+        display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display

@@ -137,7 +137,7 @@ class TestWorkspaceClass(unittest.TestCase):
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         # click in first panel
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_focused())
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
@@ -150,7 +150,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_focused())
         self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_selected())
         # and back to the first panel
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_focused())
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
@@ -170,7 +170,7 @@ class TestWorkspaceClass(unittest.TestCase):
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         # click in first panel
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_focused())
         self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
@@ -190,7 +190,7 @@ class TestWorkspaceClass(unittest.TestCase):
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         # click in right panel and change the display type
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas_item.canvas_widget.on_mouse_clicked(480, 240, modifiers)
         self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_focused())
         self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_selected())
@@ -498,7 +498,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.periodic()
         display_binding = document_controller.create_selected_data_item_binding()
         self.assertIsNone(display_binding.data_item)
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(True)
         display_panel.canvas_item.root_container.canvas_widget.on_mouse_entered()
         display_panel.canvas_item.root_container.canvas_widget.on_mouse_pressed(40, 40, modifiers)
