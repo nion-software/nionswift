@@ -143,6 +143,20 @@ class TaskSectionController(object):
         widget.add(task_header)
         widget.add(task_spacer_row)
 
+        self.__title_text = None
+        copy_button = self.ui.create_push_button_widget(_("Copy to Clipboard"))
+        def copy_to_clipboard():
+            clipboard_text = self.task_ui_controller.clipboard_text
+            if clipboard_text:
+                if self.__title_text:
+                    clipboard_text = self.__title_text + "\n" + clipboard_text
+                self.ui.clipboard_set_text(clipboard_text + "\n")
+        copy_button.on_clicked = copy_to_clipboard
+        copy_button_row = self.ui.create_row_widget()
+        copy_button_row.add(copy_button)
+        copy_button_row.add_stretch()
+        widget.add(copy_button_row)
+
         self.widget = widget
 
         self.update()
@@ -151,21 +165,26 @@ class TaskSectionController(object):
     def update(self):
 
         # update the title
-        self.title_widget.text = "{}".format(self.task.title)
+        self.__title_text = str(self.task.title).upper()
+        self.title_widget.text = str(self.task.title)
 
         # update the progress label
         in_progress = self.task.in_progress
         if in_progress:
             self.task_progress_label.visible = True
             done_percentage_str = "{0:.0f}%".format(float(self.task.progress[0])/self.task.progress[1] * 100) if self.task.progress else "--"
-            self.task_progress_label.text = "{0} {1}".format(done_percentage_str, self.task.progress_text)
+            progress_text = "{0} {1}".format(done_percentage_str, self.task.progress_text)
+            self.task_progress_label.text = progress_text
+            self.__title_text += " (" + progress_text + ")"
         else:
             self.task_progress_label.visible = False
 
         # update the state text
         task_state_str = _("In Progress") if in_progress else _("Done")
         task_time_str = time.strftime("%c", time.localtime(self.task.start_time if in_progress else self.task.finish_time))
-        self.task_progress_state.text = "{} {}".format(task_state_str, task_time_str)
+        progress_state_text = "{} {}".format(task_state_str, task_time_str)
+        self.task_progress_state.text = progress_state_text
+        self.__title_text += "\n" + progress_state_text
 
         # update the custom builder, if any
         if self.task_ui_controller:
@@ -306,7 +325,8 @@ class TableController(object):
 
     def __init__(self, ui):
         self.ui = ui
-        self.widget = self.ui.create_row_widget()
+        self.clipboard_text = None
+        self.widget = self.ui.create_column_widget()
         self.column_widgets = self.ui.create_row_widget()
         self.widget.add(self.column_widgets)
 
@@ -318,16 +338,21 @@ class TableController(object):
             while self.column_widgets.count() < column_count:
                 self.column_widgets.add(self.ui.create_column_widget())
             row_count = len(task.task_data["data"]) if "data" in task.task_data else 0
+            text_lines = [list() for _ in range(row_count + 1)]
             for column_index, column_widget in enumerate(self.column_widgets.children):
                 while column_widget.count() > row_count + 1:
                     column_widget.remove(column_widget.count() - 1)
                 while column_widget.count() < row_count + 1:
-                    # bold on first row. not working?
                     properties = {"stylesheet": "font-weight: bold"} if column_widget.count() == 0 else None
-                    column_widget.add(self.ui.create_label_widget(properties))
-                column_widget.children[0].text = task.task_data["headers"][column_index]
+                    column_widget.add(self.ui.create_label_widget(properties=properties))
+                header_text = task.task_data["headers"][column_index]
+                column_widget.children[0].text = header_text
+                text_lines[0].append(header_text)
                 for row_index in range(row_count):
-                    column_widget.children[row_index + 1].text = str(task.task_data["data"][row_index][column_index])
+                    data_text = str(task.task_data["data"][row_index][column_index])
+                    column_widget.children[row_index + 1].text = data_text
+                    text_lines[row_index + 1].append(data_text)
+            self.clipboard_text = "\n".join(["  ".join(text_line) for text_line in text_lines])
         else:
             self.column_widgets.remove_all()
 
@@ -337,10 +362,12 @@ class StringListController(object):
     def __init__(self, ui):
         self.ui = ui
         self.widget = self.ui.create_label_widget("[]")
+        self.clipboard_text = None
 
     def update_task(self, task):
         strings = task.task_data["strings"] if task.task_data else list()
-        self.widget.text = "[" + ":".join(strings) + "]"
+        self.clipboard_text = "[" + ":".join(strings) + "]"
+        self.widget.text = self.clipboard_text
 
 TaskManager().register_task_type_builder("string_list", lambda ui: StringListController(ui))
 TaskManager().register_task_type_builder("table", lambda ui: TableController(ui))
