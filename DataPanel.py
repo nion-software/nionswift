@@ -221,6 +221,10 @@ class DataListController(object):
             def is_item_selected(self, index):
                 return self.__data_list_controller.selection.contains(index)
 
+            @property
+            def selected_indexes(self):
+                return self.__data_list_controller.selected_indexes
+
             def extend_selection(self, index):
                 self.__data_list_controller.selection.extend(index)
 
@@ -425,6 +429,10 @@ class DataGridController(object):
             @property
             def item_count(self):
                 return self.__data_grid_controller.display_item_count
+
+            @property
+            def selected_indexes(self):
+                return self.__data_grid_controller.selected_indexes
 
             def get_item_thumbnail(self, index):
                 return self.__data_grid_controller.get_display_item_thumbnail(index)
