@@ -36,16 +36,25 @@ class Region(Observable.Observable, Observable.Broadcaster, Persistence.Persiste
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.remove_region_because_graphic_removed_event = Event.Event()
-        self.__graphic = None
+        self._about_to_be_removed = False
         self._closed = False
+        self._about_to_be_removed_stack = list()
         self._close_stack = list()
         # TODO: add unit type to region (relative, absolute, calibrated)
 
     def close(self):
         for close_item in reversed(self._close_stack):
             close_item.close()
+        assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
+
+    def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        for remove_item in reversed(self._about_to_be_removed_stack):
+            remove_item.about_to_be_removed()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -67,6 +76,7 @@ class PointRegion(Region):
         self.__graphic = Graphics.PointGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._about_to_be_removed_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position"))
@@ -108,6 +118,7 @@ class LineRegion(Region):
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.end_arrow_enabled = True
+        self._about_to_be_removed_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector"))
@@ -189,6 +200,7 @@ class RectRegion(Region):
         self.__graphic = Graphics.RectangleGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._about_to_be_removed_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center"))
@@ -240,6 +252,7 @@ class EllipseRegion(Region):
         self.__graphic = Graphics.EllipseGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._about_to_be_removed_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center"))
@@ -285,6 +298,7 @@ class IntervalRegion(Region):
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._about_to_be_removed_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval"))

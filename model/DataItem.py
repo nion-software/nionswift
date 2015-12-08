@@ -209,17 +209,19 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
             self.__set_data(data)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
+        self._about_to_be_removed = False
+        self._closed = False
 
     def close(self):
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
-        for remove_region_listener in self.__remove_region_listeners:
-            remove_region_listener.close()
-        self.__remove_region_listeners = None
-        for region in copy.copy(self.regions):
+        for region in self.regions:
+            self.__disconnect_region(0, region)
             region.close()
-        for display in copy.copy(self.displays):
+        self.__remove_region_listeners = None
+        for display in self.displays:
+            self.__disconnect_display(display)
             display.close()
         if self.data_source:
             self.data_source.close()
@@ -228,6 +230,22 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
             self.__computation_mutated_event_listener = None
         self.__publisher.close()
         self.__publisher = None
+        assert self._about_to_be_removed
+        assert not self._closed
+        self._closed = True
+
+    def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        with self.__recompute_lock:
+            self.__recompute_allowed = False
+        for region in self.regions:
+            region.about_to_be_removed()
+        for display in self.displays:
+            display.about_to_be_removed()
+        if self.data_source:
+            self.data_source.about_to_be_removed()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()
@@ -322,14 +340,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
     @property
     def _data_item(self):
         return self.__get_dependent_data_item()
-
-    def about_to_be_removed(self):
-        with self.__recompute_lock:
-            self.__recompute_allowed = False
-        for display in self.displays:
-            display.about_to_be_removed()
-        if self.data_source:
-            self.data_source.about_to_be_removed()
 
     def will_remove_operation_region(self, region):
         self.remove_region(region)
@@ -522,13 +532,16 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
                 display.add_region_graphic(region_graphic)
 
     def __remove_display(self, name, index, display):
+        display.about_to_be_removed()
+        self.__disconnect_display(display)# close the display
+        display.close()
+
+    def __disconnect_display(self, display):
         # disconnect the regions
         for region in self.regions:
             region_graphic = region.graphic
             if region_graphic:
                 display.remove_region_graphic(region_graphic)
-        # close the display
-        display.close()
 
     def add_display(self, display):
         self.append_item("displays", display)
@@ -542,21 +555,25 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.__remove_region_listeners.insert(before_index, remove_region_listener)
         # connect to the displays
         region_graphic = region.graphic
-        if region_graphic:
-            for display in self.displays:
-                display.add_region_graphic(region_graphic)
+        assert region_graphic
+        for display in self.displays:
+            display.add_region_graphic(region_graphic)
 
     def __remove_region(self, name, index, region):
+        region.about_to_be_removed()
+        self.__disconnect_region(index, region)
+        region.close()
+
+    def __disconnect_region(self, index, region):
         # disconnect from displays
         region_graphic = region.graphic
-        if region_graphic:
-            for display in self.displays:
-                display.remove_region_graphic(region_graphic)
+        assert region_graphic
+        for display in self.displays:
+            display.remove_region_graphic(region_graphic)
         # and unlisten
         remove_region_listener = self.__remove_region_listeners[index]
         remove_region_listener.close()
         self.__remove_region_listeners.remove(remove_region_listener)
-        region.close()
 
     def add_region(self, region):
         self.append_item("regions", region)
@@ -896,6 +913,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         if data is not None:
             data_source = BufferedDataSource(data)
             self.append_data_source(data_source)
+        self._about_to_be_removed = False
+        self._closed = False
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
@@ -920,7 +939,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         return data_item_copy
 
     def close(self):
-        for data_source in copy.copy(self.data_sources):
+        for data_source in self.data_sources:
+            self.__disconnect_data_source(0, data_source)
             data_source.close()
         for subscription in self.__subscriptions:
             subscription.close()
@@ -928,6 +948,16 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             connection.close()
         self.__subscriptions = list()
         self.__get_data_item_by_uuid = None
+        assert self._about_to_be_removed
+        assert not self._closed
+        self._closed = True
+
+    def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        for data_source in self.data_sources:
+            data_source.about_to_be_removed()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
 
     def snapshot(self):
         """
@@ -947,11 +977,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         for data_source in self.data_sources:
             data_item_copy.append_data_source(data_source.snapshot())
         return data_item_copy
-
-    def about_to_be_removed(self):
-        """ Tell contained objects that this data item is about to be removed from its container. """
-        for data_source in self.data_sources:
-            data_source.about_to_be_removed()
 
     def connect_data_items(self, lookup_data_item):
         for data_item_uuid in self.data_item_uuids:
@@ -1305,10 +1330,14 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.notify_insert_item("data_sources", data_source, before_index)
 
     def __remove_data_source(self, name, index, data_source):
+        data_source.about_to_be_removed()
+        self.__disconnect_data_source(index, data_source)
+        data_source.close()
+
+    def __disconnect_data_source(self, index, data_source):
         subscription = self.__subscriptions[index]
         del self.__subscriptions[index]
         subscription.close()
-        data_source.about_to_be_removed()
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
         request_remove_listener = self.__request_remove_listeners[index]

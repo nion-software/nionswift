@@ -167,6 +167,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.display_graphic_selection_changed_event = Event.Event()
         self.display_processor_needs_recompute_event = Event.Event()
         self.display_processor_data_updated_event = Event.Event()
+        self._about_to_be_removed = False
+        self._closed = False
 
     def close(self):
         for processor in self.__processors.values():
@@ -174,12 +176,21 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__processors = None
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
-        self.graphic_selection = None
         for graphic in copy.copy(self.graphics):
+            self.__disconnect_graphic(graphic)
             graphic.close()
+        self.graphic_selection = None
+        assert self._about_to_be_removed
+        assert not self._closed
+        self._closed = True
 
     def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        for graphic in self.graphics:
+            graphic.about_to_be_removed()
         self.about_to_be_removed_event.fire()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
 
     def get_processor(self, processor_id):
         # check for case where we might already be closed. not pretty.
@@ -489,7 +500,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             # will in turn remove the same region.
             # bad architecture.
             region_graphic.remove_listener(self)
-            region_graphic.about_to_be_removed()
+            # region_graphic.about_to_be_removed()
             index = self.__drawn_graphics.index(region_graphic)
             self.__drawn_graphics.remove(region_graphic)
             graphic_changed_listener = self.__graphic_changed_listeners[index]
@@ -512,6 +523,11 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.display_changed_event.fire()
 
     def __remove_graphic(self, name, index, graphic):
+        graphic.about_to_be_removed()
+        self.__disconnect_graphic(graphic)
+        graphic.close()
+
+    def __disconnect_graphic(self, graphic):
         graphic.remove_listener(self)
         index = self.__drawn_graphics.index(graphic)
         self.__drawn_graphics.remove(graphic)
@@ -523,7 +539,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__remove_region_graphic_listeners.remove(remove_region_graphic_listener)
         self.graphic_selection.remove_index(index)
         self.display_changed_event.fire()
-        graphic.close()
 
     def insert_graphic(self, before_index, graphic):
         """ Insert a graphic before the index """

@@ -706,6 +706,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         HardwareSource.HardwareSourceManager().abort_all_and_close()
         self.__thread_pool.close()
         for data_item in self.data_items:
+            data_item.about_to_be_removed()
             data_item.close()
         self.storage_cache.close()
 
