@@ -6,7 +6,6 @@
 from __future__ import absolute_import
 
 # standard libraries
-import logging
 import uuid
 
 # third party libraries
@@ -24,9 +23,11 @@ class Connection(Observable.Observable, Observable.Broadcaster, Persistence.Pers
     def __init__(self, type):
         super(Connection, self).__init__()
         self.define_type(type)
+        self._closed = False
 
-    def about_to_be_removed(self):
-        pass
+    def close(self):
+        assert not self._closed
+        self._closed = True
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -65,6 +66,15 @@ class PropertyConnection(Connection):
         if target_property:
             self.target_property = target_property
 
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        if self.__target_property_changed_listener:
+            self.__target_property_changed_listener.close()
+            self.__target_property_changed_listener = None
+        super().close()
+
     def __set_target_from_source(self, value):
         if not self.__suppress:
             self.__suppress = True
@@ -81,29 +91,36 @@ class PropertyConnection(Connection):
     def persistent_object_context_changed(self):
         super(PropertyConnection, self).persistent_object_context_changed()
         """ Override from PersistentObject. """
+
         def register():
             if self.__source is not None and self.__target is not None:
                 self.__binding = Binding.PropertyBinding(self.__source, self.source_property)
                 self.__binding.target_setter = self.__set_target_from_source
                 self.__binding.update_target_direct(self.__binding.get_target_value())
+
         def source_registered(source):
             self.__source = source
             register()
+
         def target_registered(target):
             self.__target = target
+
             def property_changed(property_name, value):
                 if property_name == self.target_property:
                     self.__set_source_from_target(value)
+
             assert self.__target_property_changed_listener is None
             self.__target_property_changed_listener = target.property_changed_event.listen(property_changed)
             register()
+
         def unregistered(source=None):
             if self.__binding:
                 self.__binding.close()
                 self.__binding = None
-            if self.__target is not None:
+            if self.__target_property_changed_listener:
                 self.__target_property_changed_listener.close()
                 self.__target_property_changed_listener = None
+
         if self.persistent_object_context:
             self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
             self.persistent_object_context.subscribe(self.target_uuid, target_registered, unregistered)

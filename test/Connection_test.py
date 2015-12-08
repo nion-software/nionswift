@@ -96,6 +96,40 @@ class TestConnectionClass(unittest.TestCase):
             interval.start = 7
             self.assertEqual(display_specifier_3d.display.slice_center, 7)
 
+    def test_connection_closed_when_removed_from_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
+            data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
+            document_model.append_data_item(data_item_3d)
+            document_model.append_data_item(data_item_1d)
+            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+            interval = Region.IntervalRegion()
+            display_specifier_1d.buffered_data_source.add_region(interval)
+            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
+            data_item_1d.add_connection(connection)
+            self.assertFalse(connection._closed)
+            data_item_1d.remove_connection(connection)
+            self.assertTrue(connection._closed)
+
+    def test_connection_closed_when_data_item_removed_from_model(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
+            data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
+            document_model.append_data_item(data_item_3d)
+            document_model.append_data_item(data_item_1d)
+            display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
+            display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
+            interval = Region.IntervalRegion()
+            display_specifier_1d.buffered_data_source.add_region(interval)
+            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
+            data_item_1d.add_connection(connection)
+            self.assertFalse(connection._closed)
+            document_model.remove_data_item(data_item_1d)
+            self.assertTrue(connection._closed)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

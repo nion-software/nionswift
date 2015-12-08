@@ -872,7 +872,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
-        self.define_relationship("connections", Connection.connection_factory)
+        self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__get_data_item_by_uuid = None
         self.__data_items = list()
         self.__request_remove_listeners = list()
@@ -923,6 +923,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             data_source.close()
         for subscription in self.__subscriptions:
             subscription.close()
+        for connection in copy.copy(self.connections):
+            connection.close()
         self.__subscriptions = list()
 
     def snapshot(self):
@@ -946,8 +948,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
 
     def about_to_be_removed(self):
         """ Tell contained objects that this data item is about to be removed from its container. """
-        for connection in self.connections:
-            connection.about_to_be_removed()
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
         self.__get_data_item_by_uuid = None
@@ -1332,6 +1332,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
 
     def remove_connection(self, connection):
         self.remove_item("connections", connection)
+
+    def __remove_connection(self, name, index, connection):
+        connection.close()
 
     @property
     def operation(self):
