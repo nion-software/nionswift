@@ -264,9 +264,11 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Persistence.Persist
         self.about_to_be_removed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
+        self._closed = False
 
     def close(self):
-        pass
+        assert not self._closed
+        self._closed = True
 
     def about_to_be_removed(self):
         self.about_to_be_removed_event.fire()

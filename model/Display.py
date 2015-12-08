@@ -175,6 +175,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         self.graphic_selection = None
+        for graphic in copy.copy(self.graphics):
+            graphic.close()
 
     def about_to_be_removed(self):
         self.about_to_be_removed_event.fire()
@@ -509,10 +511,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.graphic_selection.insert_index(before_index)
         self.display_changed_event.fire()
 
-    def __remove_graphic(self, name, index, item):
-        item.remove_listener(self)
-        index = self.__drawn_graphics.index(item)
-        self.__drawn_graphics.remove(item)
+    def __remove_graphic(self, name, index, graphic):
+        graphic.remove_listener(self)
+        index = self.__drawn_graphics.index(graphic)
+        self.__drawn_graphics.remove(graphic)
         graphic_changed_listener = self.__graphic_changed_listeners[index]
         graphic_changed_listener.close()
         self.__graphic_changed_listeners.remove(graphic_changed_listener)
@@ -521,6 +523,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__remove_region_graphic_listeners.remove(remove_region_graphic_listener)
         self.graphic_selection.remove_index(index)
         self.display_changed_event.fire()
+        graphic.close()
 
     def insert_graphic(self, before_index, graphic):
         """ Insert a graphic before the index """

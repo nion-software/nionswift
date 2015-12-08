@@ -67,6 +67,7 @@ class PointRegion(Region):
         self.__graphic = Graphics.PointGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))
@@ -107,6 +108,7 @@ class LineRegion(Region):
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.end_arrow_enabled = True
+        self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width"))
@@ -187,6 +189,7 @@ class RectRegion(Region):
         self.__graphic = Graphics.RectangleGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size"))
@@ -237,6 +240,7 @@ class EllipseRegion(Region):
         self.__graphic = Graphics.EllipseGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size"))
@@ -281,6 +285,7 @@ class IntervalRegion(Region):
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
+        self._close_stack.append(self.__graphic)
         self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))

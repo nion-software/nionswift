@@ -4,6 +4,7 @@ from __future__ import division
 
 # standard libraries
 import collections
+import contextlib
 import copy
 import logging
 import unittest
@@ -822,6 +823,62 @@ class TestGraphicsClass(unittest.TestCase):
                 do_drag_test(reflect(d, v, h))
 
         document_controller.close()
+
+    def test_removing_graphic_from_display_closes_it(self):
+        # make the document controller
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+        document_model.append_data_item(data_item)
+        display_panel.set_displayed_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        graphic = Graphics.PointGraphic()
+        display_specifier.display.append_graphic(graphic)
+        self.assertFalse(graphic._closed)
+        display_specifier.display.remove_graphic(graphic)
+        self.assertTrue(graphic._closed)
+
+    def test_removing_data_item_closes_graphic_attached_to_display(self):
+        # make the document controller
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+        document_model.append_data_item(data_item)
+        display_panel.set_displayed_data_item(data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        graphic = Graphics.PointGraphic()
+        display_specifier.display.append_graphic(graphic)
+        self.assertFalse(graphic._closed)
+        document_model.remove_data_item(data_item)
+        self.assertTrue(graphic._closed)
+
+    def test_removing_region_closes_associated_drawn_graphic(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            point_region = Region.PointRegion()
+            display_specifier.buffered_data_source.add_region(point_region)
+            drawn_graphic = display_specifier.display.drawn_graphics[0]
+            self.assertFalse(drawn_graphic._closed)
+            display_specifier.buffered_data_source.remove_region(point_region)
+            self.assertTrue(drawn_graphic._closed)
+
+    def test_removing_data_item_closes_associated_drawn_graphic(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            point_region = Region.PointRegion()
+            display_specifier.buffered_data_source.add_region(point_region)
+            drawn_graphic = display_specifier.display.drawn_graphics[0]
+            self.assertFalse(drawn_graphic._closed)
+            document_model.remove_data_item(data_item)
+            self.assertTrue(drawn_graphic._closed)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
