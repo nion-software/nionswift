@@ -257,6 +257,9 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.P
     def close(self):
         for data_source in self.data_sources:
             data_source.close()
+        for remove_region_listener in self.__remove_region_listeners:
+            remove_region_listener.close()
+        self.__remove_region_listeners = None
 
     def about_to_be_removed(self):
         """ When the operation is about to be removed, remove the region on data source, if any. """
@@ -268,9 +271,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.P
             # various ways, but there is probably a better way to handle this
             # in the long run.
             self.will_remove_operation_region(region)
-        for remove_region_listener in self.__remove_region_listeners:
-            remove_region_listener.close()
-        self.__remove_region_listeners = None
 
     def will_remove_operation_region(self, region):
         for data_source in self.data_sources:

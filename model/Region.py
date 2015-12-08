@@ -21,7 +21,12 @@ from nion.ui import Persistence
 
 
 class Region(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
-    # Regions are associated with exactly one data item.
+    """An object to specify a region and its display properties on a data item.
+
+    Regions are associated with exactly one data item.
+
+    Subclasses can append closable items _close_stack and they will be automatically closed when the Region is closed.
+    """
 
     def __init__(self, type):
         super(Region, self).__init__()
@@ -32,13 +37,15 @@ class Region(Observable.Observable, Observable.Broadcaster, Persistence.Persiste
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.remove_region_because_graphic_removed_event = Event.Event()
         self.__graphic = None
-        self.__remove_region_graphic_listener = None
+        self._closed = False
+        self._close_stack = list()
         # TODO: add unit type to region (relative, absolute, calibrated)
 
-    def about_to_be_removed(self):
-        if self.__remove_region_graphic_listener:
-            self.__remove_region_graphic_listener.close()
-            self.__remove_region_graphic_listener = None
+    def close(self):
+        for close_item in reversed(self._close_stack):
+            close_item.close()
+        assert not self._closed
+        self._closed = True
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -60,12 +67,12 @@ class PointRegion(Region):
         self.__graphic = Graphics.PointGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
-        self.__position_binding = RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position")
-        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
-        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
-        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
-        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
+        self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "position", self.__graphic, "position"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained"))
 
     @property
     def graphic(self):
@@ -100,13 +107,13 @@ class LineRegion(Region):
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
         self.__graphic.end_arrow_enabled = True
-        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
-        self.__vector_binding = RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector")
-        self.__width_binding = RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width")
-        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
-        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
-        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
-        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
+        self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained"))
 
     def __vector_changed(self, name, value):
         self._property_changed(name, value)
@@ -180,13 +187,13 @@ class RectRegion(Region):
         self.__graphic = Graphics.RectangleGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
-        self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
-        self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
-        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
-        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
-        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
-        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
+        self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained"))
 
     @property
     def graphic(self):
@@ -230,13 +237,13 @@ class EllipseRegion(Region):
         self.__graphic = Graphics.EllipseGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
-        self.__center_binding = RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center")
-        self.__size_binding = RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size")
-        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
-        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
-        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
-        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
+        self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "center", self.__graphic, "center"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "size", self.__graphic, "size"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained"))
 
     @property
     def graphic(self):
@@ -274,12 +281,12 @@ class IntervalRegion(Region):
         self.__graphic = Graphics.IntervalGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
-        self.__remove_region_graphic_listener = self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic)
-        self.__interval_binding = RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval")
-        self.__label_binding = RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label")
-        self.__is_position_locked_binding = RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked")
-        self.__is_shape_locked_binding = RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked")
-        self.__is_bounds_constrained_binding = RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained")
+        self._close_stack.append(self.__graphic.remove_region_graphic_event.listen(self.remove_region_graphic))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "interval", self.__graphic, "interval"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained"))
 
     @property
     def graphic(self):

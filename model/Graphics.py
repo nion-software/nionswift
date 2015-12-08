@@ -265,6 +265,9 @@ class Graphic(Observable.Observable, Observable.Broadcaster, Persistence.Persist
         self.label_padding = 4
         self.label_font = "normal 11px serif"
 
+    def close(self):
+        pass
+
     def about_to_be_removed(self):
         self.about_to_be_removed_event.fire()
 

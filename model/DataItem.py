@@ -214,11 +214,13 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
-        for display in self.displays:
-            display.close()
         for remove_region_listener in self.__remove_region_listeners:
             remove_region_listener.close()
         self.__remove_region_listeners = None
+        for region in copy.copy(self.regions):
+            region.close()
+        for display in copy.copy(self.displays):
+            display.close()
         if self.data_source:
             self.data_source.close()
         if self.__computation_mutated_event_listener:
@@ -324,8 +326,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
     def about_to_be_removed(self):
         with self.__recompute_lock:
             self.__recompute_allowed = False
-        for region in self.regions:
-            region.about_to_be_removed()
         for display in self.displays:
             display.about_to_be_removed()
         if self.data_source:
@@ -556,6 +556,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         remove_region_listener = self.__remove_region_listeners[index]
         remove_region_listener.close()
         self.__remove_region_listeners.remove(remove_region_listener)
+        region.close()
 
     def add_region(self, region):
         self.append_item("regions", region)
@@ -926,6 +927,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         for connection in copy.copy(self.connections):
             connection.close()
         self.__subscriptions = list()
+        self.__get_data_item_by_uuid = None
 
     def snapshot(self):
         """
@@ -950,7 +952,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         """ Tell contained objects that this data item is about to be removed from its container. """
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
-        self.__get_data_item_by_uuid = None
 
     def connect_data_items(self, lookup_data_item):
         for data_item_uuid in self.data_item_uuids:

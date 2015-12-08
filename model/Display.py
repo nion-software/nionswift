@@ -172,12 +172,12 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         for processor in self.__processors.values():
             processor.close()
         self.__processors = None
-
-    def about_to_be_removed(self):
-        self.about_to_be_removed_event.fire()
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         self.graphic_selection = None
+
+    def about_to_be_removed(self):
+        self.about_to_be_removed_event.fire()
 
     def get_processor(self, processor_id):
         # check for case where we might already be closed. not pretty.

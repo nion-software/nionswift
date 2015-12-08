@@ -82,6 +82,31 @@ class TestRegionClass(unittest.TestCase):
         self.assertIsNone(region.label)
         self.assertIsNone(region_copy.label)
 
+    def test_removing_region_from_data_source_closes_it(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            point_region = Region.PointRegion()
+            display_specifier.buffered_data_source.add_region(point_region)
+            self.assertFalse(point_region._closed)
+            display_specifier.buffered_data_source.remove_region(point_region)
+            self.assertTrue(point_region._closed)
+
+    def test_removing_data_item_closes_point_region(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            point_region = Region.PointRegion()
+            display_specifier.buffered_data_source.add_region(point_region)
+            self.assertFalse(point_region._closed)
+            document_model.remove_data_item(data_item)
+            self.assertTrue(point_region._closed)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
