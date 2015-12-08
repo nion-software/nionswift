@@ -1048,8 +1048,10 @@ class DocumentController(Observable.Broadcaster):
             operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", (0.25,0.25))
             operation.set_property("end", (0.75,0.75))
-            operation.establish_associated_region("line", buffered_data_source)  # after setting operation properties
-            return self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
+            line_profile_region = operation.establish_associated_region("line", buffered_data_source)  # after setting operation properties
+            line_profile_display_specifier = self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
+            line_profile_display_specifier.data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_profile_region))
+            return line_profile_display_specifier
         return DataItem.DisplaySpecifier()
 
     def processing_invert(self):

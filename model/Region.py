@@ -114,6 +114,7 @@ class LineRegion(Region):
         # vector is stored in image normalized coordinates
         self.define_property("vector", ((0.0, 0.0), (1.0, 1.0)), changed=self.__vector_changed, reader=read_vector, writer=write_vector, validate=lambda s: (tuple(s[0]), tuple(s[1])))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda s: float(s))
+        self.define_property("interval_descriptors", list(), changed=self._property_changed)
         self.__graphic = Graphics.LineProfileGraphic()
         self.__graphic.set_region(self)
         self.__graphic.color = "#F80"
@@ -124,6 +125,7 @@ class LineRegion(Region):
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "vector", self.__graphic, "vector"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "width", self.__graphic, "width"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "label", self.__graphic, "label"))
+        self._close_stack.append(RegionPropertyToGraphicBinding(self, "interval_descriptors", self.__graphic, "interval_descriptors"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_position_locked", self.__graphic, "is_position_locked"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_shape_locked", self.__graphic, "is_shape_locked"))
         self._close_stack.append(RegionPropertyToGraphicBinding(self, "is_bounds_constrained", self.__graphic, "is_bounds_constrained"))

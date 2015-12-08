@@ -19,6 +19,7 @@ from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
+from nion.swift.model import Connection
 from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import Operation
@@ -696,11 +697,12 @@ class DataItemDataSourceDisplay(object):
             operation = Operation.OperationItem("line-profile-operation")
             operation.set_property("start", pos)  # requires a tuple
             operation.set_property("end", pos)  # requires a tuple
-            region = operation.establish_associated_region("line", display_specifier.buffered_data_source)  # after setting operation properties
-            self.__delegate.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
-            region.start = pos
-            region.end = pos
-            return region.graphic
+            line_profile_region = operation.establish_associated_region("line", display_specifier.buffered_data_source)  # after setting operation properties
+            line_profile_display_specifier = self.__delegate.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
+            line_profile_display_specifier.data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_profile_region))
+            line_profile_region.start = pos
+            line_profile_region.end = pos
+            return line_profile_region.graphic
         return None
 
 
@@ -898,7 +900,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     display_panel_content.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
                 def add_processing_operation(self, buffered_data_source_specifier, operation, prefix):
-                    display_panel_content.document_controller.add_processing_operation(buffered_data_source_specifier, operation, prefix)
+                    return display_panel_content.document_controller.add_processing_operation(buffered_data_source_specifier, operation, prefix)
 
             self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self.__data_item, Delegate(), display_type, self.ui.get_font_metrics)
             self.content_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)

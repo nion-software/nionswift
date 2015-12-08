@@ -431,7 +431,7 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.P
             # save this to remove region if this object gets removed.
             self.__regions.append(region)
 
-    def establish_associated_region(self, region_connection_id, buffered_data_source, region=None):
+    def establish_associated_region(self, region_connection_id, buffered_data_source, region=None) -> Region.Region:
         """
             Associate the region with this operation, update its initial values, and connect it to this operation.
 

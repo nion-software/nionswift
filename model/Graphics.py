@@ -823,6 +823,8 @@ class LineProfileGraphic(LineTypeGraphic):
     def __init__(self):
         super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
+        self.define_property("interval_descriptors", list(), changed=self._property_changed)
+        # self.interval_descriptors = [{"interval": (0.1, 0.3), "color": "#F00"}, {"interval": (0.7, 0.74), "color": "#0F0"}]
     # accessors
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -838,11 +840,11 @@ class LineProfileGraphic(LineTypeGraphic):
             ctx.line_width = 1
             ctx.stroke_style = self.color
             ctx.stroke()
+            length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
+            dy = (p2[0] - p1[0]) / length if length > 0 else 0.0
+            dx = (p2[1] - p1[1]) / length if length > 0 else 0.0
             if self.width > 1.0:
                 half_width = self.width * 0.5
-                length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
-                dy = (p2[0] - p1[0]) / length
-                dx = (p2[1] - p1[1]) / length
                 with ctx.saver():
                     ctx.begin_path()
                     ctx.move_to(p1[1] + dy * half_width, p1[0] - dx * half_width)
@@ -854,6 +856,22 @@ class LineProfileGraphic(LineTypeGraphic):
                     ctx.line_dash = 2
                     ctx.stroke_style = self.color
                     ctx.stroke()
+            for interval_descriptor in self.interval_descriptors:
+                interval = interval_descriptor.get("interval")
+                color = interval_descriptor.get("color", self.color)
+                interval_marker_half_width = 4
+                if interval:
+                    with ctx.saver():
+                        pa = p1.x + length * interval[0] * dx, p1.y + length * interval[0] * dy
+                        pb = p1.x + length * interval[1] * dx, p1.y + length * interval[1] * dy
+                        ctx.begin_path()
+                        ctx.move_to(pa[0] + dy * interval_marker_half_width, pa[1] - dx * interval_marker_half_width)
+                        ctx.line_to(pa[0] - dy * interval_marker_half_width, pa[1] + dx * interval_marker_half_width)
+                        ctx.move_to(pb[0] + dy * interval_marker_half_width, pb[1] - dx * interval_marker_half_width)
+                        ctx.line_to(pb[0] - dy * interval_marker_half_width, pb[1] + dx * interval_marker_half_width)
+                        ctx.line_width = 1
+                        ctx.stroke_style = color
+                        ctx.stroke()
         if is_selected:
             self.draw_marker(ctx, p1)
             self.draw_marker(ctx, p2)

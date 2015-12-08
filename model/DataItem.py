@@ -558,6 +558,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         assert region_graphic
         for display in self.displays:
             display.add_region_graphic(region_graphic)
+        self.notify_insert_item("region", region, before_index)
 
     def __remove_region(self, name, index, region):
         region.about_to_be_removed()
@@ -574,6 +575,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         remove_region_listener = self.__remove_region_listeners[index]
         remove_region_listener.close()
         self.__remove_region_listeners.remove(remove_region_listener)
+        self.notify_remove_item("region", region, index)
 
     def add_region(self, region):
         self.append_item("regions", region)
