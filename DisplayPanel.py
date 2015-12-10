@@ -111,6 +111,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             on_drag_move(mime_data, x, y)
             on_drop(mime_data, drop_region, x, y)
             on_key_pressed(key)
+            on_key_released(key)
     """
 
     def __init__(self):
@@ -127,6 +128,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drag_move = None
         self.on_drop = None
         self.on_key_pressed = None
+        self.on_key_released = None
 
     def close(self):
         self.on_context_menu_event = None
@@ -135,6 +137,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drag_move = None
         self.on_drop = None
         self.on_key_pressed = None
+        self.on_key_released = None
         super(DisplayPanelOverlayCanvasItem, self).close()
 
     @property
@@ -264,7 +267,13 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         if self.on_key_pressed:
             if self.on_key_pressed(key):
                 return True
-        return super(DisplayPanelOverlayCanvasItem, self).key_pressed(key)
+        return super().key_pressed(key)
+
+    def key_released(self, key):
+        if self.on_key_released:
+            if self.on_key_released(key):
+                return True
+        return super().key_released(key)
 
 
 class BaseDisplayPanelContent(object):
@@ -302,6 +311,7 @@ class BaseDisplayPanelContent(object):
         self.display_panel_id = None
 
         self.on_key_pressed = None
+        self.on_key_released = None
         self.on_mouse_clicked = None
         self.on_drag_enter = None
         self.on_drag_leave = None
@@ -335,6 +345,7 @@ class BaseDisplayPanelContent(object):
         self.__content_canvas_item.on_drag_move = drag_move
         self.__content_canvas_item.on_drop = drop
         self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
+        self.__content_canvas_item.on_key_released = self._handle_key_released
 
         self.on_focused = None
         self.on_close = None
@@ -356,6 +367,7 @@ class BaseDisplayPanelContent(object):
         self.__content_canvas_item = None
         self.__header_canvas_item = None
         self.on_key_pressed = None
+        self.on_key_released = None
         self.on_mouse_clicked = None
         self.on_drag_enter = None
         self.on_drag_leave = None
@@ -466,6 +478,13 @@ class BaseDisplayPanelContent(object):
     def _handle_key_pressed(self, key):
         if self.on_key_pressed:
             return self.on_key_pressed(key)
+        return False
+
+    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
+    # doesn't handle it, gives the display controller a chance to handle it.
+    def _handle_key_released(self, key):
+        if self.on_key_released:
+            return self.on_key_released(key)
         return False
 
     def perform_action(self, fn, *args, **keywords):
@@ -969,7 +988,17 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
-        return super(DataDisplayPanelContent, self)._handle_key_pressed(key)
+        return super()._handle_key_pressed(key)
+
+    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
+    # doesn't handle it, gives the display controller a chance to handle it.
+    def _handle_key_released(self, key):
+        display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
+        if display_canvas_item and display_canvas_item.key_released(key):
+            return True
+        if self.__display_panel_controller and self.__display_panel_controller.key_released(key):
+            return True
+        return super()._handle_key_released(key)
 
     def perform_action(self, fn, *args, **keywords):
         display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
@@ -1164,6 +1193,9 @@ class DisplayPanel(object):
         def key_pressed(key):
             return DisplayPanelManager().key_pressed(self, key)
 
+        def key_released(key):
+            return DisplayPanelManager().key_released(self, key)
+
         def mouse_clicked(image_position, modifiers):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
             DisplayPanelManager().mouse_clicked(self, display_specifier, image_position, modifiers)
@@ -1190,6 +1222,7 @@ class DisplayPanel(object):
             return True
 
         self.__display_panel_content.on_key_pressed = key_pressed
+        self.__display_panel_content.on_key_released = key_released
         self.__display_panel_content.on_mouse_clicked = mouse_clicked
         self.__display_panel_content.on_show_context_menu = show_context_menu
         self.__display_panel_content.on_drag_enter = drag_enter
@@ -1291,6 +1324,11 @@ class DisplayPanelManager(Decorators.Singleton("DisplayPanelManagerSingleton", (
     # events from the image panels
     def key_pressed(self, display_panel, key):
         self.notify_listeners("image_panel_key_pressed", display_panel, key)
+        return False
+
+    # events from the image panels
+    def key_released(self, display_panel, key):
+        self.notify_listeners("image_panel_key_released", display_panel, key)
         return False
 
     def mouse_clicked(self, display_panel, display_specifier, image_position, modifiers):
