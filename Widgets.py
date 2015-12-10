@@ -24,6 +24,7 @@ class CompositeWidgetBase:
 
     @property
     def widget(self):
+        """Pass through the widget for UI hosts that use it."""
         return self.__content_widget.widget
 
     @property

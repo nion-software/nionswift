@@ -613,7 +613,8 @@ class QtBoxWidget(QtWidget):
         for child in self.children:
             child.periodic()
 
-    def count(self):
+    @property
+    def child_count(self):
         return len(self.children)
 
     def index(self, child):
@@ -624,7 +625,7 @@ class QtBoxWidget(QtWidget):
         if isinstance(before, numbers.Integral):
             index = before
         else:
-            index = self.index(before) if before else self.count() + self.spacer_count
+            index = self.index(before) if before else self.child_count + self.spacer_count
         self.children.insert(index, child)
         child._set_root_container(self.root_container)
         assert self.widget is not None
@@ -642,7 +643,7 @@ class QtBoxWidget(QtWidget):
         child.close()
 
     def remove_all(self):
-        while self.count() > 0:
+        while self.child_count > 0:
             self.remove(0)
 
     def add_stretch(self):
@@ -1399,7 +1400,7 @@ class QtCanvasWidget(QtWidget):
         self.__focusable = False
         self.__draw_mutex = threading.Lock()  # don't delete while drawing
         if do_create_canvas_item:
-            self.__canvas_item = CanvasItem.RootCanvasItem(None, properties={"height": 20, "width": 20}, canvas_widget=self)
+            self.__canvas_item = CanvasItem.RootCanvasItem(None, canvas_widget=self)
         else:
             self.__canvas_item = None
 
@@ -1803,7 +1804,7 @@ class QtNewListWidget(QtColumnWidget):
 
     def __sync_header(self):
         # select the right header item
-        has_content = self.content_section.count() > 0
+        has_content = self.content_section.child_count > 0
         if self.header_widget:
             self.header_widget.visible = has_content
         if self.header_for_empty_list_widget:

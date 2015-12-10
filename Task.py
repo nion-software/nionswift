@@ -333,17 +333,17 @@ class TableController(object):
     def update_task(self, task):
         if task.task_data:
             column_count = len(task.task_data["headers"])
-            while self.column_widgets.count() > column_count:
-                self.column_widgets.remove(self.column_widgets.count() - 1)
-            while self.column_widgets.count() < column_count:
+            while self.column_widgets.child_count > column_count:
+                self.column_widgets.remove(self.column_widgets.child_count - 1)
+            while self.column_widgets.child_count < column_count:
                 self.column_widgets.add(self.ui.create_column_widget())
             row_count = len(task.task_data["data"]) if "data" in task.task_data else 0
             text_lines = [list() for _ in range(row_count + 1)]
             for column_index, column_widget in enumerate(self.column_widgets.children):
-                while column_widget.count() > row_count + 1:
-                    column_widget.remove(column_widget.count() - 1)
-                while column_widget.count() < row_count + 1:
-                    properties = {"stylesheet": "font-weight: bold"} if column_widget.count() == 0 else None
+                while column_widget.child_count > row_count + 1:
+                    column_widget.remove(column_widget.child_count - 1)
+                while column_widget.child_count < row_count + 1:
+                    properties = {"stylesheet": "font-weight: bold"} if column_widget.child_count == 0 else None
                     column_widget.add(self.ui.create_label_widget(properties=properties))
                 header_text = task.task_data["headers"][column_index]
                 column_widget.children[0].text = header_text
