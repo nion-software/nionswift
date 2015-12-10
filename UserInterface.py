@@ -1390,6 +1390,7 @@ class QtCanvasWidget(QtWidget):
         self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
         self.on_key_pressed = None
+        self.on_key_released = None
         self.on_size_changed = None
         self.on_drag_enter = None
         self.on_drag_leave = None
@@ -1419,7 +1420,7 @@ class QtCanvasWidget(QtWidget):
             self.on_mouse_position_changed = None
             self.on_grabbed_mouse_position_changed = None
             self.on_wheel_changed = None
-            self.on_key_pressed = None
+            self.on_key_released = None
             self.on_size_changed = None
             self.on_drag_enter = None
             self.on_drag_leave = None
@@ -1510,6 +1511,11 @@ class QtCanvasWidget(QtWidget):
     def keyPressed(self, text, key, raw_modifiers):
         if self.on_key_pressed:
             return self.on_key_pressed(QtKey(text, key, raw_modifiers))
+        return False
+
+    def keyReleased(self, text, key, raw_modifiers):
+        if self.on_key_released:
+            return self.on_key_released(QtKey(text, key, raw_modifiers))
         return False
 
     def dragEnterEvent(self, raw_mime_data):
