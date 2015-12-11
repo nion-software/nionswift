@@ -369,12 +369,10 @@ class DataListController(object):
                 draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
                 drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
             drawing_context.fill_style = "#000"
+            drawing_context.font = "11px italic"
             drawing_context.fill_text(display_item.title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
-            drawing_context.font = "11px italic"
             drawing_context.fill_text(display_item.format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
-            drawing_context.font = "11px italic"
             drawing_context.fill_text(display_item.datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
-            drawing_context.font = "11px italic"
             drawing_context.fill_text(display_item.status_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
 
 
