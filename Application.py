@@ -18,6 +18,7 @@ from nion.swift import DocumentController
 from nion.swift import FilterPanel
 from nion.swift import HistogramPanel
 from nion.swift import Inspector
+from nion.swift import MetadataPanel
 from nion.swift import Panel
 from nion.swift import Task
 from nion.swift import Test
@@ -26,7 +27,6 @@ from nion.swift import Workspace
 from nion.swift import SessionPanel
 from nion.swift import InfoPanel
 from nion.swift.model import Cache
-from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
@@ -72,6 +72,7 @@ class Application(object):
         workspace_manager.register_panel(Panel.ConsolePanel, "console-panel", _("Console"), ["bottom"], "bottom")
         workspace_manager.register_panel(ToolbarPanel.ToolbarPanel, "toolbar-panel", _("Toolbar"), ["top"], "top", {"height": 30})
         workspace_manager.register_panel(ComputationPanel.ComputationPanel, "computation-panel", _("Computation"), ["left", "right"], "left", {"min-width": 320, "height": 8})
+        workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
     def initialize(self):
