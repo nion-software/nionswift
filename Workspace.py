@@ -74,6 +74,9 @@ class Workspace(object):
 
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__filtered_data_items_binding.container = document_model
+        def temporary_filter(data_item):
+            return data_item.category == "temporary"
+        self.__filtered_data_items_binding.filter = temporary_filter
         self.__filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
         self.__filtered_data_items_binding.sort_reverse = True
 
@@ -765,24 +768,11 @@ class Workspace(object):
             if data_item and not self.__matches_data_item(data_item, hardware_source_id, channel_id, view_id):
                 data_item = None
 
-            # if everything but session or live state matches, copy it and re-use. this keeps the users display
-            # preferences intact.
-            buffered_data_source = data_item.maybe_data_source if data_item else None
-            if data_item and buffered_data_source and buffered_data_source.has_data and data_item.session_id != session_id:
-                do_copy = True
-            # finally, verify that this data item is live. if it isn't live, copy it and add the copy to the group,
-            # but re-use the original. this helps preserve the users display choices. for the copy, delete derived data.
-            # keep only the master.
-            if data_item and buffered_data_source and buffered_data_source.has_data and not data_item.is_live:
-                do_copy = True
-            if do_copy:
-                data_item_copy = copy.deepcopy(data_item)
-                data_item.session_id = session_id  # immediately update the session id
-                self.document_controller.queue_task(functools.partial(append_data_item, data_item_copy))
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
                 data_item.title = "%s (%s)" % (display_name, channel_name) if channel_name else display_name
+                data_item.category = "temporary"
                 buffered_data_source = DataItem.BufferedDataSource()
                 data_item.append_data_source(buffered_data_source)
                 self.document_controller.queue_task(functools.partial(append_data_item, data_item))

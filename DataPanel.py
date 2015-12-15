@@ -1023,9 +1023,11 @@ class DataPanel(Panel.Panel):
 
         all_items_binding = document_controller.create_data_item_binding(None, None)
         all_items_controller = LibraryItemController(_("All"), all_items_binding)
+        live_items_binding = document_controller.create_data_item_binding(None, "temporary")
+        live_items_controller = LibraryItemController(_("Live"), live_items_binding)
         latest_items_binding = document_controller.create_data_item_binding(None, "latest-session")
         latest_items_controller = LibraryItemController(_("Latest Session"), latest_items_binding)
-        self.__item_controllers = [all_items_controller, latest_items_controller]
+        self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
 
         self.library_model_controller = LibraryModelController(document_controller.ui, self.__item_controllers)
         self.library_model_controller.on_receive_files = self.library_model_receive_files
@@ -1042,8 +1044,10 @@ class DataPanel(Panel.Panel):
                 self.__blocked = True
                 try:
                     index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
-                    if index == 1:
+                    if index == 2:
                         self.__data_browser_controller.set_data_browser_selection(filter_id="latest-session")
+                    elif index == 1:
+                        self.__data_browser_controller.set_data_browser_selection(filter_id="temporary")
                     else:
                         self.__data_browser_controller.set_data_browser_selection()
                 finally:
@@ -1262,7 +1266,9 @@ class DataPanel(Panel.Panel):
         else:
             self.data_group_widget.clear_current_row()
             if filter_id == "latest-session":
-                self.library_widget.set_current_row(1, -1, 0)  # select the 'latest' group
+                self.library_widget.set_current_row(2, -1, 0)  # select the 'latest' group
+            elif filter_id == "temporary":
+                self.library_widget.set_current_row(1, -1, 0)  # select the 'live' group
             else:
                 self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
 

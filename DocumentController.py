@@ -497,6 +497,13 @@ class DocumentController(Observable.Broadcaster):
                 binding.filter = latest_session_filter
                 binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
+            elif filter_id == "temporary":
+                binding.container = self.document_model
+                def temporary_filter(data_item):
+                    return data_item.category != "persistent"
+                binding.filter = temporary_filter
+                binding.sort_key = DataItem.sort_by_date_key
+                binding.sort_reverse = True
             elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
                 def none_filter(data_item):
@@ -506,7 +513,9 @@ class DocumentController(Observable.Broadcaster):
                 binding.sort_reverse = True
             else:
                 binding.container = self.document_model
-                binding.filter = None
+                def all_filter(data_item):
+                    return data_item.category == "persistent"
+                binding.filter = all_filter
                 binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
 
@@ -885,6 +894,7 @@ class DocumentController(Observable.Broadcaster):
             new_data_item = DataItem.DataItem()
             new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
             new_data_item.set_operation(operation)
+            new_data_item.category = data_item.category
             self.document_model.append_data_item(new_data_item)
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
             self.display_data_item(new_display_specifier, source_data_item=data_item)
@@ -896,6 +906,10 @@ class DocumentController(Observable.Broadcaster):
             new_data_item = DataItem.DataItem()
             new_data_item.title = (prefix if prefix else "") + buffered_data_source_specifier1.data_item.title + (suffix if suffix else "")
             new_data_item.set_operation(operation)
+            if buffered_data_source_specifier1.data_item.category == "temporary":
+                new_data_item.category = "temporary"
+            if buffered_data_source_specifier2.data_item.category == "temporary":
+                new_data_item.category = "temporary"
             data_source1 = Operation.DataItemDataSource(buffered_data_source_specifier1.buffered_data_source)
             if crop_region1:
                 crop_operation = Operation.OperationItem("crop-operation")
@@ -1064,6 +1078,7 @@ class DocumentController(Observable.Broadcaster):
         if data_item:
             new_data_item = copy.deepcopy(data_item)
             new_data_item.title = _("Clone of ") + data_item.title
+            new_data_item.category = data_item.category
             self.document_model.append_data_item(new_data_item)
             self.select_data_item_in_data_panel(new_data_item)
             self.notify_selected_data_item_changed(new_data_item)
@@ -1116,6 +1131,12 @@ class DocumentController(Observable.Broadcaster):
         data_item.title = _("Computation on ") + data_item.title
         computation = Symbolic.Computation()
         computation.parse_expression(self.document_model, expression, map)
+        for variable in computation.variables:
+            specifier = variable.specifier
+            if specifier:
+                object = self.document_model.resolve_object_specifier(variable.specifier)
+                if isinstance(object, DataItem.DataItem) and object.category == "temporary":
+                    data_item.category = "temporary"
         buffered_data_source = DataItem.BufferedDataSource()
         data_item.append_data_source(buffered_data_source)
         buffered_data_source.set_computation(computation)

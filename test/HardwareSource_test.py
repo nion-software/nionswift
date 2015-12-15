@@ -1,7 +1,5 @@
-# futures
-from __future__ import absolute_import
-
 import contextlib
+import copy
 import datetime
 import logging
 import threading
@@ -251,6 +249,8 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     testcase.assertFalse(data_item.is_live)
     frame_index = data_item.data_sources[0].metadata.get("hardware_source")["frame_index"]
     # play the second time. it should make a copy of the first data item and use the original.
+    new_data_item = copy.deepcopy(document_model.data_items[0])
+    document_model.append_data_item(new_data_item)
     hardware_source.start_playing()
     with hardware_source.get_data_element_generator(False) as data_element_generator:
         data_element_generator()
@@ -570,6 +570,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.workspace_controller.setup_channel(hardware_source_id, None, hardware_source_id, data_item)
         # at this point the data item contains 2.0. the acquisition will produce a 1.0.
         # the 2.0 will get copied to data_item 1 and the 1.0 will be replaced into data_item 0.
+        new_data_item = copy.deepcopy(document_model.data_items[0])
+        document_model.append_data_item(new_data_item)
         self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(len(document_model.data_items), 2)  # old one is copied
         self.assertAlmostEqual(document_model.data_items[0].data_sources[0].data[0], 1.0)
@@ -716,6 +718,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_model.recompute_all()
         document_model.start_new_session()
         document_controller.workspace_controller._clear_channel_data_items()
+        new_data_item = copy.deepcopy(document_model.data_items[0])
+        document_model.append_data_item(new_data_item)
         self.__acquire_one(document_controller, hardware_source)
         document_controller.periodic()
         document_model.recompute_all()
@@ -734,6 +738,8 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_model.session_id = "20000630-150200"
         self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(len(document_model.data_items), 1)
+        new_data_item = copy.deepcopy(document_model.data_items[0])
+        document_model.append_data_item(new_data_item)
         document_model.session_id = "20000630-150201"
         self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(len(document_model.data_items), 2)
