@@ -37,6 +37,7 @@ class CompositeWidgetBase:
 
     def _set_root_container(self, root_container):
         self.__root_container = root_container
+        self.__content_widget._set_root_container(root_container)
 
     # not thread safe
     def periodic(self):
