@@ -311,6 +311,64 @@ class InfoInspectorSection(InspectorSection):
         self.finish_widget_content()
 
 
+class SessionInspectorSection(InspectorSection):
+
+    def __init__(self, ui, data_item):
+        super().__init__(ui, "session", _("Session"))
+
+        field_descriptions = [
+            [_("Site"), _("Site Description"), "site"],
+            [_("Instrument"), _("Instrument Description"), "instrument"],
+            [_("Task"), _("Task Description"), "task"],
+            [_("Microscopist"), _("Microscopist Name(s)"), "microscopist"],
+            [_("Sample"), _("Sample Description"), "sample"],
+            [_("Sample Area"), _("Sample Area Description"), "sample_area"],
+        ]
+
+        widget = self.ui.create_column_widget()
+
+        def line_edit_changed(line_edit_widget, field_id, text):
+            session_metadata = data_item.session_metadata
+            session_metadata[field_id] = str(text)
+            data_item.session_metadata = session_metadata
+            line_edit_widget.select_all()
+
+        field_line_edit_widget_map = dict()
+
+        first_field = True
+        for field_description in field_descriptions:
+            title, placeholder, field_id = field_description
+            row = self.ui.create_row_widget()
+            row.add(self.ui.create_label_widget(title, properties={"width": 100}))
+            line_edit_widget = self.ui.create_line_edit_widget()
+            line_edit_widget.placeholder_text = placeholder
+            line_edit_widget.on_editing_finished = functools.partial(line_edit_changed, line_edit_widget, field_id)
+            field_line_edit_widget_map[field_id] = line_edit_widget
+            row.add(line_edit_widget)
+            if not first_field:
+                widget.add_spacing(4)
+            first_field = False
+            widget.add(row)
+
+        def update_fields(fields):
+            for field_id, line_edit_widget in field_line_edit_widget_map.items():
+                line_edit_widget.text = fields.get(field_id)
+
+        def fields_changed(key, value):
+            if key == 'session_metadata':
+                widget.add_task("update_fields", functools.partial(update_fields, value))
+        self.__property_changed_listener = data_item.property_changed_event.listen(fields_changed)
+
+        update_fields(data_item.session_metadata)
+
+        self.add_widget_to_content(widget)
+        self.finish_widget_content()
+
+    def close(self):
+        self.__property_changed_listener.close()
+        self.__property_changed_listener = None
+
+
 class CalibrationPublisherToObservable(Observable.Observable):
     """Provides observable calibration object.
 
@@ -1477,6 +1535,7 @@ class DataItemInspector(object):
             self.__focus_default = focus_default
         elif buffered_data_source and buffered_data_source.is_data_1d:
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(LinePlotInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
@@ -1488,6 +1547,7 @@ class DataItemInspector(object):
             self.__focus_default = focus_default
         elif buffered_data_source and buffered_data_source.is_data_2d:
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
@@ -1499,6 +1559,7 @@ class DataItemInspector(object):
             self.__focus_default = focus_default
         elif buffered_data_source and buffered_data_source.is_data_3d:
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
@@ -1511,6 +1572,7 @@ class DataItemInspector(object):
             self.__focus_default = focus_default
         elif data_item:
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()

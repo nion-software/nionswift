@@ -663,6 +663,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
+        self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
         self.define_property("workspace_uuid", converter=UuidToStringConverter())
         self.__buffered_data_source_set = set()
         self.__buffered_data_source_set_changed_event = Event.Event()
@@ -713,9 +714,25 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def about_to_delete(self):
         # override from ReferenceCounted. several DocumentControllers may retain references
         self.close()
+        # these are here so that the document model gets garbage collected.
+        # TODO: generalize this behavior into a close method on persistent object
+        self.undefine_properties()
+        self.undefine_items()
+        self.undefine_relationships()
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    def __property_changed(self, name, value):
+        self.notify_set_property("session_metadata", self.session_metadata)
+
+    def set_session_field(self, field_id: str, value: str) -> None:
+        session_metadata = self.session_metadata
+        session_metadata[field_id] = str(value)
+        self.session_metadata = session_metadata
+
+    def get_session_field(self, field_id: str) -> str:
+        return self.session_metadata.get(field_id)
 
     def append_workspace(self, workspace):
         self.insert_workspace(len(self.workspaces), workspace)

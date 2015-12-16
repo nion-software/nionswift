@@ -779,6 +779,9 @@ class Workspace(object):
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
             if data_item.session_id != session_id:
                 data_item.session_id = session_id
+            session_metadata = document_model.session_metadata
+            if data_item.session_metadata != session_metadata:
+                data_item.session_metadata = session_metadata
             with self.__mutex:
                 self.__channel_data_items[channel_key] = data_item
                 data_items[channel_index] = data_item
