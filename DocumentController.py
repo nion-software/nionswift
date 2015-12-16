@@ -6,7 +6,6 @@ import copy
 import functools
 import gettext
 import logging
-import operator
 import os.path
 import random
 import threading
@@ -21,6 +20,7 @@ import weakref
 from nion.swift import DataPanel
 from nion.swift import Decorators
 from nion.swift import DisplayPanel
+from nion.swift import ExportDialog
 from nion.swift import FilterPanel
 from nion.swift import Task
 from nion.swift import Workspace
@@ -656,91 +656,8 @@ class DocumentController(Observable.Broadcaster):
 
     def export_files(self, data_items):
         if len(data_items) > 1:
-
-            class ExportDialog(Dialog.OkCancelDialog):
-                def __init__(self, ui):
-                    super(ExportDialog, self).__init__(ui, ok_title=_("Export"))
-
-                    io_handler_id = self.ui.get_persistent_string("export_io_handler_id", "png-io-handler")
-
-                    self.directory = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
-                    self.writer = ImportExportManager.ImportExportManager().get_writer_by_id(io_handler_id)
-
-                    column = self.ui.create_column_widget()
-                    column.add_spacing(12)
-
-                    row = self.ui.create_row_widget()
-                    row.add_spacing(13)
-                    row.add(self.ui.create_label_widget(_("Export Folder: ")))
-                    row.add_stretch()
-                    row.add_spacing(13)
-                    column.add(row)
-                    column.add_spacing(4)
-
-                    row = self.ui.create_row_widget()
-                    row.add_spacing(13)
-                    directory_label = self.ui.create_label_widget(self.directory)
-                    row.add(directory_label)
-                    row.add_stretch()
-                    row.add_spacing(13)
-                    column.add(row)
-                    column.add_spacing(4)
-
-                    def choose():
-                        existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Export Directory"), self.directory)
-                        if existing_directory:
-                            self.directory = existing_directory
-                            directory_label.text = self.directory
-                            self.ui.set_persistent_string("export_directory", self.directory)
-
-                    row = self.ui.create_row_widget()
-                    row.add_spacing(13)
-                    choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
-                    choose_directory_button.on_clicked = choose
-                    row.add(choose_directory_button)
-                    row.add_stretch()
-                    row.add_spacing(13)
-                    column.add(row)
-                    column.add_spacing(4)
-
-                    row = self.ui.create_row_widget()
-                    row.add_spacing(13)
-                    writers = ImportExportManager.ImportExportManager().get_writers()
-                    file_types_combo_box = self.ui.create_combo_box_widget(items=writers, item_getter=operator.attrgetter("name"))
-                    def writer_changed(writer):
-                        self.ui.set_persistent_string("export_io_handler_id", writer.io_handler_id)
-                        self.writer = writer
-                    file_types_combo_box.on_current_item_changed = writer_changed
-                    file_types_combo_box.current_item = self.writer
-                    row.add(file_types_combo_box)
-                    row.add_stretch()
-                    row.add_spacing(13)
-                    column.add(row)
-                    column.add_spacing(4)
-
-                    column.add_spacing(12)
-                    column.add_stretch()
-
-                    self.content.add(column)
-
-            def do_export():
-                directory = export_dialog.directory
-                writer = export_dialog.writer
-                if directory:
-                    for index, data_item in enumerate(data_items):
-                        try:
-                            pixel_dimension_str = "x".join([str(shape_n) for shape_n in data_item.maybe_data_source.dimensional_shape])
-                            date_str = data_item.created_local.isoformat().replace(':', '')
-                            extension = writer.extensions[0]
-                            path = os.path.join(directory, "Data_{0}_{1}_{2:05d}.{3}".format(date_str, pixel_dimension_str, index, extension))
-                            ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, writer, data_item, path)
-                        except Exception as e:
-                            logging.debug("Could not export image %s / %s", str(data_item), str(e))
-                            traceback.print_exc()
-                            traceback.print_stack()
-
-            export_dialog = ExportDialog(self.ui)
-            export_dialog.on_accept = do_export
+            export_dialog = ExportDialog.ExportDialog(self.ui)
+            export_dialog.on_accept = functools.partial(export_dialog.do_export, data_items)
             export_dialog.show()
         elif len(data_items) == 1:
             self.export_file(data_items[0])
