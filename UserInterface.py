@@ -1199,7 +1199,7 @@ class QtLineEditWidget(QtWidget):
     def __get_text(self):
         return self.proxy.LineEdit_getText(self.widget)
     def __set_text(self, text):
-        self.proxy.LineEdit_setText(self.widget, Unicode.u(text) if text is not None else Unicode.u())
+        self.proxy.LineEdit_setText(self.widget, Unicode.u(text))
     text = property(__get_text, __set_text)
 
     def __get_placeholder_text(self):
@@ -1297,7 +1297,7 @@ class QtTextEditWidget(QtWidget):
     def __get_text(self):
         return self.proxy.TextEdit_getText(self.widget)
     def __set_text(self, text):
-        self.proxy.TextEdit_setText(self.widget, Unicode.u(text) if text is not None else Unicode.u())
+        self.proxy.TextEdit_setText(self.widget, Unicode.u(text))
     text = property(__get_text, __set_text)
 
     def __get_placeholder_text(self):
