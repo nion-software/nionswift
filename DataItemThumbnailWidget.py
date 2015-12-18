@@ -8,7 +8,6 @@ import uuid
 from nion.swift import Widgets
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
-from nion.swift.model import DocumentModel
 from nion.swift.model import Image
 from nion.ui import CanvasItem
 from nion.ui import Geometry
@@ -96,27 +95,6 @@ class FilteredDataItemThumbnailSource(DataItemThumbnailSource):
     @property
     def data_item(self):
         return self.__data_item
-
-
-def make_hardware_source_filter(hardware_source_id: str, document_model: DocumentModel.DocumentModel) -> DataItemsBinding.DataItemsInContainerBinding:
-
-    filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-    filtered_data_items_binding.container = document_model
-    filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-    filtered_data_items_binding.container = document_model
-
-    def matches_hardware_source(data_item):
-        buffered_data_source = data_item.maybe_data_source
-        if buffered_data_source and buffered_data_source.computation is None:
-            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-            return hardware_source_id == hardware_source_metadata.get("hardware_source_id")
-        return False
-
-    filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
-    filtered_data_items_binding.sort_reverse = True
-    filtered_data_items_binding.filter = matches_hardware_source
-
-    return filtered_data_items_binding
 
 
 class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
