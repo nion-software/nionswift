@@ -21,6 +21,7 @@ class CompositeWidgetBase:
     # subclasses should override to clear their variables.
     def close(self):
         self.__root_container = None
+        self.__content_widget.close()
 
     @property
     def widget(self):
