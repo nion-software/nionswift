@@ -14,6 +14,7 @@ import uuid
 # None
 
 # local libraries
+from nion.swift import DataItemThumbnailWidget
 from nion.swift import Panel
 from nion.swift import Widgets
 from nion.swift.model import Calibration
@@ -23,8 +24,8 @@ from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.swift.model import Symbolic
 from nion.ui import Binding
-from nion.ui import CanvasItem
 from nion.ui import Converter
+from nion.ui import Geometry
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -1306,126 +1307,6 @@ class ComputationInspectorSection(InspectorSection):
                     column.add_spacing(4)
                     return WidgetWrapper(column)
 
-                class ImageChooserCanvasWidget:
-                    def __init__(self, data_item: DataItem.DataItem):
-                        self.__canvas_item_root = CanvasItem.RootCanvasItem(ui, properties={"height": 80, "width": 80})
-                        self.on_data_item_drop = None
-                        self.on_data_item_delete = None
-
-                        class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
-                            def __init__(self):
-                                super().__init__()
-                                self.wants_drag_events = True
-                                self.focusable = True
-                                self.__dropping = False
-                                self.__focused = False
-                                self.on_data_item_drop = None
-                                self.on_data_item_delete = None
-
-                            def close(self):
-                                self.on_data_item_drop = None
-                                self.on_data_item_delete = None
-                                super().close()
-
-                            @property
-                            def focused(self):
-                                return self.__focused
-
-                            @focused.setter
-                            def focused(self, focused):
-                                if self.__focused != focused:
-                                    self.__focused = focused
-                                    self.update()
-
-                            def _repaint(self, drawing_context):
-                                super()._repaint(drawing_context)
-                                # canvas size
-                                canvas_width = self.canvas_size[1]
-                                canvas_height = self.canvas_size[0]
-                                if self.__dropping:
-                                    with drawing_context.saver():
-                                        drawing_context.begin_path()
-                                        drawing_context.rect(0, 0, canvas_width, canvas_height)
-                                        drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
-                                        drawing_context.fill()
-                                        if self.focused:
-                                            focused_style = "#3876D6"  # TODO: platform dependent
-                                            stroke_style = focused_style
-                                            drawing_context.begin_path()
-                                            drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
-                                            drawing_context.line_join = "miter"
-                                            drawing_context.stroke_style = stroke_style
-                                            drawing_context.line_width = 4.0
-                                            drawing_context.stroke()
-
-                            def drag_enter(self, mime_data):
-                                self.__dropping = True
-                                self.update()
-                                return "ignore"
-
-                            def drag_leave(self):
-                                self.__dropping = False
-                                self.update()
-                                return False
-
-                            def drop(self, mime_data, x, y):
-                                if mime_data.has_format("text/data_item_uuid"):
-                                    data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-                                    if callable(self.on_data_item_drop):
-                                        self.on_data_item_drop(data_item_uuid)
-                                        return "copy"
-                                    return "ignore"
-
-                            def key_pressed(self, key):
-                                if key.is_delete:
-                                    if callable(self.on_data_item_delete):
-                                        self.on_data_item_delete()
-                                        return True
-                                return super().key_pressed(key)
-
-                        bitmap_overlay_canvas_item = BitmapOverlayCanvasItem()
-                        def data_item_drop(data_item_uuid):
-                            if callable(self.on_data_item_drop):
-                                self.on_data_item_drop(data_item_uuid)
-                        def data_item_delete():
-                            if callable(self.on_data_item_delete):
-                                self.on_data_item_delete()
-                        bitmap_overlay_canvas_item.on_data_item_drop = data_item_drop
-                        bitmap_overlay_canvas_item.on_data_item_delete = data_item_delete
-                        self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#0F0")
-                        bitmap_overlay_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
-                        self.__canvas_item_root.add_canvas_item(bitmap_overlay_canvas_item)
-                        self.__data_item = data_item
-                        self.__update_thumbnail()
-                        self.__data_item_content_changed_event_listener = None
-                        if data_item:
-                            def data_item_content_changed(changes):
-                                self.__update_thumbnail()
-                            self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
-                    def close(self):
-                        if self.__data_item_content_changed_event_listener:
-                            self.__data_item_content_changed_event_listener.close()
-                            self.__data_item_content_changed_event_listener = None
-                        self.__canvas_item_root.close()
-                        self.__canvas_item_root = None
-                        self.on_data_item_drop = None
-                        self.on_data_item_delete = None
-                    def __update_thumbnail(self) -> None:
-                        data_item = self.__data_item
-                        display = data_item.primary_display_specifier.display if data_item else None
-                        thumbnail_data = display.get_processed_data("thumbnail") if display else None
-                        self.__bitmap_canvas_item.rgba_bitmap_data = thumbnail_data
-                    @property
-                    def canvas_widget(self):
-                        return self.__canvas_item_root.canvas_widget
-                    @property
-                    def data_item(self):
-                        return self.__data_item
-                    @data_item.setter
-                    def data_item(self, value):
-                        self.__data_item = value
-                        self.__update_thumbnail()
-
                 def make_image_chooser(variable):
                     column = self.ui.create_column_widget()
                     row = self.ui.create_row_widget()
@@ -1438,25 +1319,39 @@ class ComputationInspectorSection(InspectorSection):
                     row.add_spacing(8)
                     bound_data_item = document_model.resolve_object_specifier(variable.specifier)
                     data_item = bound_data_item.data_item if bound_data_item else None
+
                     def data_item_drop(data_item_uuid):
                         data_item = document_model.get_data_item_by_key(data_item_uuid)
                         variable.specifier = document_model.get_object_specifier(data_item)
+
                     def data_item_delete():
                         variable.specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
-                    image_chooser_canvas_widget = ImageChooserCanvasWidget(data_item)
-                    image_chooser_canvas_widget.on_data_item_drop = data_item_drop
-                    image_chooser_canvas_widget.on_data_item_delete = data_item_delete
+
+                    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(data_item)
+                    data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(self.ui,
+                                                                                               data_item_thumbnail_source,
+                                                                                               Geometry.IntSize(80, 80))
+
+                    def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+                        # use this convoluted base object for drag so that it doesn't disappear after the drag.
+                        column.root_container.widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+
+                    data_item_chooser_widget.on_drag = thumbnail_widget_drag
+                    data_item_chooser_widget.on_data_item_drop = data_item_drop
+                    data_item_chooser_widget.on_data_item_delete = data_item_delete
+
                     def property_changed(key, value):
                         if key == "specifier":
                             bound_data_item = document_model.resolve_object_specifier(variable.specifier)
                             data_item = bound_data_item.data_item if bound_data_item else None
-                            image_chooser_canvas_widget.data_item = data_item
+                            data_item_thumbnail_source.data_item = data_item
+
                     property_changed_listener = variable.property_changed_event.listen(property_changed)
-                    row.add(image_chooser_canvas_widget.canvas_widget)
+                    row.add(data_item_chooser_widget)
                     row.add_stretch()
                     column.add(row)
                     column.add_spacing(4)
-                    return WidgetWrapper(column, [image_chooser_canvas_widget, property_changed_listener])
+                    return WidgetWrapper(column, [property_changed_listener])
 
                 def make_widget_from_variable(variable):
                     if variable.variable_type == "boolean":
