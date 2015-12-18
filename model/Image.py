@@ -130,6 +130,14 @@ def get_alpha_view(rgba_image, byteorder=None):
         return bytes[..., 0]  # A of ARGB
 
 
+def get_rgba_view_from_rgba_data(rgba_data):
+    return rgba_data.view(numpy.uint8).reshape(rgba_data.shape + (4,))
+
+
+def get_rgba_data_from_rgba(rgba_image):
+    return rgba_image.view(numpy.uint32).reshape(rgba_image.shape[:-1])
+
+
 def create_checkerboard(size):
     data = numpy.zeros(size, numpy.uint32)
     xx, yy = numpy.meshgrid(numpy.linspace(0,1,size[0]), numpy.linspace(0,1,size[1]))
