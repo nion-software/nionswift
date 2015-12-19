@@ -902,22 +902,22 @@ def parse_hardware_aliases_config_file(config_path):
     return False
 
 
+def matches_hardware_source(hardware_source_id, channel_id, data_item):
+    buffered_data_source = data_item.maybe_data_source
+    if buffered_data_source and buffered_data_source.computation is None:
+        hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+        data_item_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+        data_item_channel_id = hardware_source_metadata.get("channel_id")
+        return data_item.category == "temporary" and hardware_source_id == data_item_hardware_source_id and channel_id == data_item_channel_id
+    return False
+
+
 def make_hardware_source_filter(document_model, hardware_source_id: str, channel_id: str=None) -> DataItemsBinding.DataItemsInContainerBinding:
 
     filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
     filtered_data_items_binding.container = document_model
-
-    def matches_hardware_source(data_item):
-        buffered_data_source = data_item.maybe_data_source
-        if buffered_data_source and buffered_data_source.computation is None:
-            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-            data_item_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
-            data_item_channel_id = hardware_source_metadata.get("channel_id")
-            return hardware_source_id == data_item_hardware_source_id and channel_id == data_item_channel_id
-        return False
-
     filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
     filtered_data_items_binding.sort_reverse = True
-    filtered_data_items_binding.filter = matches_hardware_source
+    filtered_data_items_binding.filter = functools.partial(matches_hardware_source, hardware_source_id, channel_id)
 
     return filtered_data_items_binding

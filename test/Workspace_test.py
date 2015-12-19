@@ -524,9 +524,13 @@ class TestWorkspaceClass(unittest.TestCase):
             pass
 
     class DisplayPanelControllerFactory(object):
+        def __init__(self):
+            self.priority = 1
         def make_new(self, controller_type, display_panel_content, d):
             if controller_type == "test":
                 return TestWorkspaceClass.DisplayPanelController(display_panel_content)
+            return None
+        def match(self, data_item):
             return None
 
     def test_switch_from_layout_with_controller_with_footer_works(self):

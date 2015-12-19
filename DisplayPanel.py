@@ -1285,9 +1285,13 @@ class DisplayPanel(object):
         if self.__display_panel_content:
             self.__display_panel_content.content_canvas_item.request_focus()
 
-    def set_displayed_data_item(self, data_item):
+    def set_displayed_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
         if data_item is not None:
             d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
+            if detect_controller:
+                d2 = DisplayPanelManager().detect_controller(data_item)
+                if d2:
+                    d.update(d2)
         else:
             d = {"type": "image"}
         self.change_display_panel_content(d)
@@ -1356,6 +1360,16 @@ class DisplayPanelManager(Decorators.Singleton("DisplayPanelManagerSingleton", (
     def unregister_display_panel_controller_factory(self, factory_id):
         assert factory_id in self.__display_controller_factories
         del self.__display_controller_factories[factory_id]
+
+    def detect_controller(self, data_item: DataItem.DataItem) -> dict:
+        priority = 0
+        result = None
+        for factory in self.__display_controller_factories.values():
+            controller_type = factory.match(data_item)
+            if controller_type and factory.priority > priority:
+                priority = factory.priority
+                result = controller_type
+        return result
 
     def make_display_panel_controller(self, controller_type, display_panel_content, d):
         for factory in self.__display_controller_factories.values():
