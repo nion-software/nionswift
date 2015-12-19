@@ -844,7 +844,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def restore_contents(self, d):
         super(DataDisplayPanelContent, self).restore_contents(d)
         controller_type = d.get("controller_type")
-        self.__display_panel_controller = DisplayPanelManager().make_display_panel_controller(controller_type, self, d)
+        self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
         if not self.__display_panel_controller:
             data_item_uuid_str = d.get("data_item_uuid")
             if data_item_uuid_str:

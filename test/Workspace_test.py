@@ -607,6 +607,26 @@ class TestWorkspaceClass(unittest.TestCase):
         DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
         document_controller.close()
 
+    def test_restore_panel_like_drag_and_drop_closes_display_panel_controller(self):
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        document_controller.workspace_controller.change_workspace(workspace1)
+        display_panel_content = document_controller.workspace_controller.display_panels[0]._content_for_test
+        self.assertTrue(isinstance(display_panel_content._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
+        display_panel_controller = display_panel_content._display_panel_controller_for_test
+        self.assertFalse(display_panel_controller.closed)
+        display_panel_content.restore_contents({"type": "image"})
+        self.assertIsNone(display_panel_content._display_panel_controller_for_test)
+        self.assertTrue(display_panel_controller.closed)  # the old one
+        DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+        document_controller.close()
+
     def test_processing_puts_new_data_into_empty_display_panel_if_possible(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
