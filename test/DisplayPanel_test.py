@@ -1095,13 +1095,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
         # show, delete, sep, split h, split v, sep, none, sep, browser, sep
-        self.assertEqual(len(self.document_controller.ui.popup.items), 11)
+        self.assertEqual(len(self.document_controller.ui.popup.items), 12)
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count_outside_image_area(self):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(10, 32, 10, 32)  # header + 10
         # show, delete, sep, split h, split v, sep, none, sep, browser, sep
-        self.assertEqual(len(self.document_controller.ui.popup.items), 11)
+        self.assertEqual(len(self.document_controller.ui.popup.items), 12)
 
     def test_image_display_panel_with_no_image_produces_context_menu_with_correct_item_count(self):
         self.display_panel.set_displayed_data_item(None)
@@ -1125,7 +1125,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         # show, delete, sep, split h, split v, sep, none, sep, browser, sep
-        self.assertEqual(len(self.document_controller.ui.popup.items), 11)
+        self.assertEqual(len(self.document_controller.ui.popup.items), 12)
 
     def test_browser_display_panel_produces_context_menu_with_correct_item_count_over_area_to_right_of_data_item(self):
         d = {"type": "image", "display-panel-type": "browser-display-panel"}
@@ -1160,8 +1160,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         self.document_controller.periodic()
-        # show, delete, sep, split h, split v, sep, none, sep, browser, sep
-        self.document_controller.ui.popup.items[1]()
+        # show, reveal, delete, sep, split h, split v, sep, none, sep, browser, sep
+        self.document_controller.ui.popup.items[2]()
         self.assertEqual(len(self.document_model.data_items), 0)
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):

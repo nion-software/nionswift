@@ -1339,9 +1339,15 @@ class DocumentController(Observable.Broadcaster):
                 self.new_window_with_data_item("data", data_item=data_item)
 
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
+
             if len(data_item.ordered_data_item_data_sources) == 1:
                 # TODO: show_source should handle multiple data sources
                 menu.add_menu_item(_("Go to Source"), show_source)
+
+            def show():
+                self.select_data_item_in_data_panel(data_item)
+            menu.add_menu_item(_("Reveal"), show)
+
             menu.add_menu_item(_("Delete"), delete)
 
             def export_files():

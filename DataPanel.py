@@ -308,6 +308,9 @@ class DataListController(object):
     def set_selected_index(self, index):
         self.selection.set(index)
 
+    def make_selection_visible(self):
+        self.__list_canvas_item.make_selection_visible()
+
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
         if self.on_delete_display_items:
@@ -518,6 +521,9 @@ class DataGridController(object):
     def set_selected_index(self, index):
         self.selection.set(index)
 
+    def make_selection_visible(self):
+        self.icon_view_canvas_item.make_selection_visible()
+
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
         if self.on_delete_display_items:
@@ -623,6 +629,8 @@ class DataBrowserController(object):
         self.selection_changed_event = Event.Event()
         self.selected_data_items_changed_event = Event.Event()
         self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
+        # TODO: Restructure data browser controller to avoid using re-entry flag
+        self.__blocked = False  # ugh. the smell of bad design.
 
     def close(self):
         pass
@@ -638,32 +646,42 @@ class DataBrowserController(object):
         self.__focused = focused
 
     def set_data_browser_selection(self, data_group=None, data_item=None, filter_id=None):
-        trigger = False
+        if not self.__blocked:
+            self.__blocked = True
+            try:
+                trigger = False
 
-        # check to see if the filter changed
-        if data_group != self.__data_group or filter_id != self.__filter_id:
-            # store the selection so we know when it changes
-            self.__data_group = data_group
-            self.__filter_id = filter_id
-            # update the data group that the data item model is tracking. the changes will be queued to the ui thread even
-            # though this is already on the ui thread.
-            self.document_controller.set_data_group_or_filter(data_group, filter_id)  # MARK. consolidate to one object.
-            # when the data group or filter is changed (prior to this handler being called), it will generate a new
-            # list of items to be displayed in the data browser and that new list will be queued in case it is called on
-            # a background thread (it isn't in this case). call periodic to actually sync the changes to the data
-            # browser ui.
-            self.document_controller.periodic()
-            # fire the filter changed event
-            self.filter_changed_event.fire(data_group, filter_id)
-            trigger = True
+                if data_item and data_item.category == "temporary":
+                    filter_id = "temporary"
+                else:
+                    filter_id = None
 
-        # check to see if the data item changed
-        if self.__data_item != data_item:
-            self.__data_item = data_item
-            trigger = True
+                # check to see if the filter changed
+                if data_group != self.__data_group or filter_id != self.__filter_id:
+                    # store the selection so we know when it changes
+                    self.__data_group = data_group
+                    self.__filter_id = filter_id
+                    # update the data group that the data item model is tracking. the changes will be queued to the ui thread even
+                    # though this is already on the ui thread.
+                    self.document_controller.set_data_group_or_filter(data_group, filter_id)  # MARK. consolidate to one object.
+                    # when the data group or filter is changed (prior to this handler being called), it will generate a new
+                    # list of items to be displayed in the data browser and that new list will be queued in case it is called on
+                    # a background thread (it isn't in this case). call periodic to actually sync the changes to the data
+                    # browser ui.
+                    self.document_controller.periodic()
+                    # fire the filter changed event
+                    self.filter_changed_event.fire(data_group, filter_id)
+                    trigger = True
 
-        if trigger:
-            self.selection_changed_event.fire(data_item)
+                # check to see if the data item changed
+                if self.__data_item != data_item:
+                    self.__data_item = data_item
+                    trigger = True
+
+                if trigger:
+                    self.selection_changed_event.fire(data_item)
+            finally:
+                self.__blocked = False
 
     @property
     def selected_data_items(self):
@@ -1282,11 +1300,13 @@ class DataPanel(Panel.Panel):
         if self.data_view_widget.current_index == 0:
             if data_item_index >= 0:
                 self.data_list_controller.set_selected_index(data_item_index)
+                self.data_list_controller.make_selection_visible()
             else:
                 self.data_list_controller.selection.clear()
         else:
             if data_item_index >= 0:
                 self.data_grid_controller.set_selected_index(data_item_index)
+                self.data_grid_controller.make_selection_visible()
             else:
                 self.data_grid_controller.selection.clear()
 

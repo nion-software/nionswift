@@ -299,7 +299,7 @@ class BaseDisplayPanelContent(object):
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.__content_canvas_item.on_context_menu_event = handle_context_menu_event
-        self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_sync_control=True, display_close_control=True)
+        self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_close_control=True)
         self.__footer_canvas_item = CanvasItem.LayerCanvasItem()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
