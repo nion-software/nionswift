@@ -20,6 +20,7 @@ else:
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import Geometry
 from nion.ui import Process
 
 
@@ -161,25 +162,24 @@ class ConsolePanel(Panel):
 
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
-    def __init__(self, title=None, label=None, display_drag_control=False, display_sync_control=False, display_close_control=False):
+    def __init__(self, title=None, label=None, display_close_control=False):
         super(HeaderCanvasItem, self).__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
         self.__label = label if label else ""
-        self.__display_drag_control = display_drag_control
-        self.__display_sync_control = display_sync_control
         self.__display_close_control = display_close_control
         self.header_height = 20 if sys.platform == "win32" else 22
         self.sizing.set_fixed_height(self.header_height)
+        self.on_select_pressed = None
         self.on_drag_pressed = None
-        self.on_sync_clicked = None
         self.on_close_clicked = None
         self.__start_header_color = "#ededed"
         self.__end_header_color = "#cacaca"
+        self.__mouse_pressed_position = None
 
     def close(self):
+        self.on_select_pressed = None
         self.on_drag_pressed = None
-        self.on_sync_clicked = None
         self.on_close_clicked = None
         super(HeaderCanvasItem, self).close()
 
@@ -232,23 +232,31 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
         self.update()
 
     def mouse_pressed(self, x, y, modifiers):
-        canvas_size = self.canvas_size
-        if self.__display_drag_control:
-            if x > 4 and x < 18 and y > 2 and y < canvas_size.height - 2:
-                if self.on_drag_pressed:
-                    self.on_drag_pressed()
+        self.__mouse_pressed_position = Geometry.IntPoint(y=y, x=x)
         return True
+
+    def mouse_position_changed(self, x, y, modifiers):
+        pt = Geometry.IntPoint(y=y, x=x)
+        if self.__mouse_pressed_position and Geometry.distance(self.__mouse_pressed_position, pt) > 12:
+            on_drag_pressed = self.on_drag_pressed
+            if callable(on_drag_pressed):
+                self.__mouse_pressed_position = None
+                on_drag_pressed()
 
     def mouse_released(self, x, y, modifiers):
         canvas_size = self.canvas_size
-        if self.__display_sync_control:
-            if x > 22 and x < 36 and y > 2 and y < canvas_size.height - 2:
-                if self.on_sync_clicked:
-                    self.on_sync_clicked()
+        select_ok = self.__mouse_pressed_position is not None
         if self.__display_close_control:
             if x > canvas_size.width - 20 + 4 and x < canvas_size.width - 20 + 18 and y > 2 and y < canvas_size.height - 2:
-                if self.on_close_clicked:
-                    self.on_close_clicked()
+                on_close_clicked = self.on_close_clicked
+                if callable(on_close_clicked):
+                    on_close_clicked()
+                    select_ok = False
+        if select_ok:
+            on_select_pressed = self.on_select_pressed
+            if callable(on_select_pressed):
+                on_select_pressed()
+        self.__mouse_pressed_position = None
         return True
 
     def _repaint(self, drawing_context):
@@ -284,32 +292,6 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
             drawing_context.stroke_style = '#b0b0b0'
             drawing_context.stroke()
 
-        if self.__display_drag_control:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.move_to(6, canvas_size.height//2 - 4)
-                drawing_context.line_to(16, canvas_size.height//2 - 4)
-                drawing_context.move_to(6, canvas_size.height//2 - 1)
-                drawing_context.line_to(16, canvas_size.height//2 - 1)
-                drawing_context.move_to(6, canvas_size.height//2 + 2)
-                drawing_context.line_to(16, canvas_size.height//2 + 2)
-                drawing_context.move_to(6, canvas_size.height//2 + 5)
-                drawing_context.line_to(16, canvas_size.height//2 + 5)
-                drawing_context.stroke_style = '#444'
-                drawing_context.stroke()
-
-        if self.__display_sync_control:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.move_to(24, canvas_size.height//2 - 2)
-                drawing_context.line_to(34, canvas_size.height//2 - 2)
-                drawing_context.line_to(31, canvas_size.height//2 - 4)
-                drawing_context.move_to(34, canvas_size.height//2 + 1)
-                drawing_context.line_to(24, canvas_size.height//2 + 1)
-                drawing_context.line_to(27, canvas_size.height//2 + 3)
-                drawing_context.stroke_style = '#444'
-                drawing_context.stroke()
-
         if self.__display_close_control:
             with drawing_context.saver():
                 drawing_context.begin_path()
@@ -327,7 +309,7 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'middle'
             drawing_context.fill_style = '#888'
-            drawing_context.fill_text(self.label, 42, canvas_size.height//2+1)
+            drawing_context.fill_text(self.label, 8, canvas_size.height//2+1)
 
         with drawing_context.saver():
             drawing_context.font = 'normal 11px serif'

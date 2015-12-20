@@ -311,7 +311,9 @@ class Workspace(object):
             self.__canvas_item = None
         # create new layout and canvas item
         self.__canvas_item = CanvasItem.RootCanvasItem(self.ui)
-        self.__canvas_item.focusable = True
+        # root canvas item should NOT be focusable or else it will grab focus in cases where no children have it.
+        # no point in the root canvas item having focus.
+        # self.__canvas_item.focusable = True
         # now construct the workspace
         document_model = self.document_controller.document_model
         try:

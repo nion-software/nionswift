@@ -447,6 +447,30 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_drag((12, 12), (480, 240))
         document_controller.close()
 
+    def test_clicking_in_header_selects_and_focuses_display_panel(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+        document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+        document_controller.workspace_controller.display_panels[0].request_focus()
+        self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.selected)
+        self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.focused)
+        # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
+        document_controller.workspace_controller.display_panels[1]._content_for_test.header_canvas_item.simulate_click(Geometry.IntPoint(y=12, x=12))
+        self.assertFalse(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.selected)
+        self.assertFalse(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.focused)
+        self.assertTrue(document_controller.workspace_controller.display_panels[1]._content_for_test.content_canvas_item.selected)
+        self.assertTrue(document_controller.workspace_controller.display_panels[1]._content_for_test.content_canvas_item.focused)
+        document_controller.close()
+
     def test_creating_invalid_workspace_fails_gracefully(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

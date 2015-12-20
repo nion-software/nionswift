@@ -299,7 +299,7 @@ class BaseDisplayPanelContent(object):
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.__content_canvas_item.on_context_menu_event = handle_context_menu_event
-        self.__header_canvas_item = Panel.HeaderCanvasItem(display_drag_control=True, display_close_control=True)
+        self.__header_canvas_item = Panel.HeaderCanvasItem(display_close_control=True)
         self.__footer_canvas_item = CanvasItem.LayerCanvasItem()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
@@ -354,8 +354,8 @@ class BaseDisplayPanelContent(object):
             if self.on_close:
                 self.on_close()
 
+        self.__header_canvas_item.on_select_pressed = lambda: self._select()
         self.__header_canvas_item.on_drag_pressed = lambda: self._begin_drag()
-        self.__header_canvas_item.on_sync_clicked = lambda: self._sync_data_item()
         self.__header_canvas_item.on_close_clicked = close
 
     def close(self):
@@ -467,10 +467,10 @@ class BaseDisplayPanelContent(object):
     def set_displayed_data_item(self, data_item):
         raise NotImplementedError()
 
-    def _begin_drag(self):
+    def _select(self):
         raise NotImplementedError()
 
-    def _sync_data_item(self):
+    def _begin_drag(self):
         raise NotImplementedError()
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
@@ -961,6 +961,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.content_canvas_item.wants_mouse_events = self.__display_canvas_item_delegate is None
             self.content_canvas_item.selected = display_specifier.display is not None and self._is_selected()
 
+    def _select(self):
+        self.content_canvas_item.request_focus()
+
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -974,11 +977,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     self.restore_contents(self.document_controller.replaced_display_panel_content)
                     self.document_controller.replaced_display_panel_content = None
             root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)
-
-    def _sync_data_item(self):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        if display_specifier.data_item is not None:
-            self.document_controller.select_data_item_in_data_panel(display_specifier.data_item)
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
