@@ -541,6 +541,10 @@ class DataItemDataSourceDisplay(object):
             self.__display_graphic_selection_changed_event_listener = None
 
     @property
+    def _data_item(self):
+        return self.__data_item
+
+    @property
     def display_canvas_item(self):
         return self.__display_canvas_item
 
@@ -825,6 +829,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return self.__display_panel_controller
 
     @property
+    def _display_canvas_item_delegate(self):
+        return self.__display_canvas_item_delegate
+
+    @property
     def _display_canvas_item(self):
         display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
         return display_canvas_item
@@ -945,6 +953,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__data_item = data_item
 
+        # workaround an architectural quirk (smell) so that the display_type_changed_event gets generated
+        # for the new data even if the display type doesn't change. see test_dragging_header_to_swap_works.
+        # the original bug showed up when dragging right-to-left in bottom of 2x2 workspace with two raster
+        # images.
+        self.__display_type_monitor.set_data_item(None)
         self.__display_type_monitor.set_data_item(data_item)
 
         def metadata_changed():
@@ -964,6 +977,12 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def _select(self):
         self.content_canvas_item.request_focus()
 
+    def _drag_finished(self, action):
+        # make this a method so it can be used from tests
+        if action == "move" and self.document_controller.replaced_display_panel_content is not None:
+            self.restore_contents(self.document_controller.replaced_display_panel_content)
+            self.document_controller.replaced_display_panel_content = None
+
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -972,11 +991,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             root_canvas_item = self.canvas_item.root_container
             thumbnail_data = display_specifier.display.get_processed_data("thumbnail")
-            def drag_finished(action):
-                if action == "move" and self.document_controller.replaced_display_panel_content is not None:
-                    self.restore_contents(self.document_controller.replaced_display_panel_content)
-                    self.document_controller.replaced_display_panel_content = None
-            root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=drag_finished)
+            root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=self._drag_finished)
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.

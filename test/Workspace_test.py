@@ -443,8 +443,17 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-        # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
-        document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_drag((12, 12), (480, 240))
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item1)
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item2)
+        # simulate drag. data_item2 in right panel swaps with data_item1 in left panel.
+        mime_data = self.app.ui.create_mime_data()
+        mime_data.set_data_as_string("text/data_item_uuid", str(data_item2.uuid))
+        document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)
+        document_controller.workspace_controller.display_panels[1]._content_for_test._drag_finished("move")
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item1)
+        self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_canvas_item_delegate._data_item, data_item2)
+        self.assertEqual(document_controller.workspace_controller.display_panels[1]._content_for_test._display_canvas_item_delegate._data_item, data_item1)
         document_controller.close()
 
     def test_clicking_in_header_selects_and_focuses_display_panel(self):
