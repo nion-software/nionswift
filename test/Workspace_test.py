@@ -38,6 +38,12 @@ def get_layout(layout_id):
         d = {"type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5],
             "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
                 {"type": "image", "uuid": uuid2, "identifier": "b"}]}
+    elif layout_id == "1x2x2":
+        d = {"type": "splitter", "orientation": "horizontal", "splits": [0.5, 0.5], "children": [
+            {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5],
+                "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
+                    {"type": "image", "uuid": uuid2, "identifier": "b"}]},
+            {"type": "image", "uuid": uuid3, "identifier": "c"}]}
     elif layout_id == "3x1":
         d = {"type": "splitter", "orientation": "vertical", "splits": [1.0 / 3, 1.0 / 3, 1.0 / 3],
             "children": [{"type": "image", "uuid": uuid1, "identifier": "a", "selected": True},
@@ -381,6 +387,28 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 1)
         # check that there is just one top level panel now
         self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
+        document_controller.close()
+
+    def test_removing_left_item_in_1x2x2_results_in_correct_layout(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("1x2x2"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        data_item3 = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_model.append_data_item(data_item3)
+        document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
+        document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+        document_controller.workspace_controller.display_panels[2].set_displayed_data_item(data_item3)
+        display_panel2 = document_controller.workspace_controller.display_panels[1]
+        document_controller.workspace_controller.remove_display_panel(display_panel2)
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 240, 640))
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(240, 0, 480, 640))
         document_controller.close()
 
     def test_removing_middle_item_in_3x1_results_in_sensible_splits(self):
