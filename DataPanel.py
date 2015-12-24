@@ -654,7 +654,7 @@ class DataBrowserController(object):
                 if data_item and data_item.category == "temporary":
                     filter_id = "temporary"
                 else:
-                    filter_id = None
+                    pass  # use the one that was passed in
 
                 # check to see if the filter changed
                 if data_group != self.__data_group or filter_id != self.__filter_id:
@@ -1147,7 +1147,7 @@ class DataPanel(Panel.Panel):
         self.data_grid_controller = DataGridController(document_controller.document_model.dispatch_task, document_controller.ui, selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = show_context_menu
-        self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
+        self.data_grid_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 

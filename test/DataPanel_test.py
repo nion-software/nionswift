@@ -585,6 +585,26 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.content.canvas_bounds.width, width - 16)
         document_controller.close()
 
+    def test_switching_to_temporary_group_displays_temporary_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item2 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item2.category = "temporary"
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            # index, parent_row, parent_id
+            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item1)
+            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item2)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
