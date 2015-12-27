@@ -592,8 +592,9 @@ class QtWidget(object):
 
 class QtBoxWidget(QtWidget):
 
-    def __init__(self, proxy, widget_type, properties):
+    def __init__(self, proxy, widget_type, alignment, properties):
         super(QtBoxWidget, self).__init__(proxy, widget_type, properties)
+        self.alignment = alignment
         self.children = []
         self.spacer_count = 0
 
@@ -626,6 +627,8 @@ class QtBoxWidget(QtWidget):
             index = before
         else:
             index = self.index(before) if before else self.child_count + self.spacer_count
+        if alignment is None:
+            alignment = self.alignment
         self.children.insert(index, child)
         child._set_root_container(self.root_container)
         assert self.widget is not None
@@ -657,14 +660,14 @@ class QtBoxWidget(QtWidget):
 
 class QtRowWidget(QtBoxWidget):
 
-    def __init__(self, proxy, properties):
-        super(QtRowWidget, self).__init__(proxy, "row", properties)
+    def __init__(self, proxy, alignment, properties):
+        super(QtRowWidget, self).__init__(proxy, "row", alignment, properties)
 
 
 class QtColumnWidget(QtBoxWidget):
 
-    def __init__(self, proxy, properties):
-        super(QtColumnWidget, self).__init__(proxy, "column", properties)
+    def __init__(self, proxy, alignment, properties):
+        super(QtColumnWidget, self).__init__(proxy, "column", alignment, properties)
 
 
 class QtSplitterWidget(QtWidget):
@@ -2186,11 +2189,11 @@ class QtUserInterface(object):
 
     # user interface elements
 
-    def create_row_widget(self, properties=None):
-        return QtRowWidget(self.proxy, properties)
+    def create_row_widget(self, alignment=None, properties=None):
+        return QtRowWidget(self.proxy, alignment, properties)
 
-    def create_column_widget(self, properties=None):
-        return QtColumnWidget(self.proxy, properties)
+    def create_column_widget(self, alignment=None, properties=None):
+        return QtColumnWidget(self.proxy, alignment, properties)
 
     def create_splitter_widget(self, orientation="vertical", properties=None):
         return QtSplitterWidget(self.proxy, orientation, properties)
