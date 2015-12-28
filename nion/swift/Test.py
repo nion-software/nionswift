@@ -34,15 +34,13 @@ def append_test_suites(suites):
 
 # scan through directory and look for tests (files ending in test.py)
 # load the module and add the tests
-def load_tests():
+def load_tests(base_path):
     global suites
     global suite_dict
     global alltests
 
-    base_local_path = os.path.dirname(os.path.realpath(__file__))
-    base_local_path = os.path.join(base_local_path, "..")
-    for subdir in ["swift", "../nionui/nion/ui"]:
-        localpath = os.path.join(base_local_path, subdir)
+    for subdir in ["nionswift/nion/swift", "nionui/nion/ui"]:
+        localpath = os.path.join(base_path, subdir)
         for file in os.listdir(os.path.join(localpath, "test")):
             if file.endswith("_test.py"):
                 module_name = "nion.{0}.test.".format(os.path.basename(subdir)) + file.replace(".py", "")
