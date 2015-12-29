@@ -390,7 +390,7 @@ class DocumentController(Observable.Broadcaster):
 
     def show_about_box(self):
         version_str = self.app.version_str if self.app else str()
-        root_dir = os.path.dirname(os.path.realpath(__file__))
+        root_dir = os.path.dirname((os.path.dirname(os.path.abspath(__file__))))
         path_ascend_count = 2
         for i in range(path_ascend_count):
             root_dir = os.path.dirname(root_dir)
