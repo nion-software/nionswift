@@ -50,7 +50,7 @@ class TaskPanel(Panel.Panel):
         self.__task_created_event_listener = self.document_controller.task_created_event.listen(self.task_created)
 
         # the main column widget contains a stack group for each operation
-        self.column = self.ui.create_column_widget(properties)  # TODO: put this in scroll area
+        self.column = self.ui.create_column_widget(properties=properties)  # TODO: put this in scroll area
         self.scroll_area = self.ui.create_scroll_area_widget()
         self.scroll_area.set_scrollbar_policies("off", "needed")
         self.task_column_container = self.ui.create_column_widget()

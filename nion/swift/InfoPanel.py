@@ -49,7 +49,7 @@ class InfoPanel(Panel.Panel):
 
         properties["spacing"] = 2
         properties["margin"] = 6
-        column = ui.create_column_widget(properties)
+        column = ui.create_column_widget(properties=properties)
         column.add(position_row)
         column.add(value_row)
         column.add_stretch()

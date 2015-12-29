@@ -1772,7 +1772,7 @@ class QtListWidget(QtWidget):
 class QtNewListWidget(QtColumnWidget):
 
     def __init__(self, proxy, ui, create_list_item_widget, header_widget, header_for_empty_list_widget, properties):
-        super(QtNewListWidget, self).__init__(proxy, properties)
+        super(QtNewListWidget, self).__init__(proxy, None, properties)
         self.ui = ui
         self.__binding = None
         self.content_section = self.ui.create_column_widget()
