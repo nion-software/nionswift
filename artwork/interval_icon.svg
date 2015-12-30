@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<svg width="24" height="24" 
+     viewPort="0 0 24 24" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+
+    <line x1="10" y1="4" x2="10" y2="20" fill="none" stroke="black" stroke-width="1.5px"/>
+    <line x1="14" y1="4" x2="14" y2="20" fill="none" stroke="black" stroke-width="1.5px"/>
+
+</svg>
