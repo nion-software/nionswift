@@ -107,17 +107,20 @@ def reassign_stdout(new_stdout, new_stderr):
 
 
 class ConsolePanel(Panel):
-    # TODO: Replace this with a proper console. As it is, basic functionality
-    # like raw_input is broken, pdb doesn't work and we can't embed an IPython
-    # console.
+
     def __init__(self, document_controller, panel_id, properties):
-        super(ConsolePanel, self).__init__(document_controller, panel_id, "Console")
+        super().__init__(document_controller, panel_id, "Console")
         properties["min-height"] = 180
-        self.widget = self.ui.create_console_widget(properties)
-        self.widget.on_interpret_command = lambda command: self.interpret_command(command)
+        properties["stylesheet"] = "background: black; color: white; font: 12px courier, monospace"
         # sys.ps1/2 is not always defined, we'll use it if it is
         self.ps1 = getattr(sys, "ps1", ">>> ")
         self.ps2 = getattr(sys, "ps2", "... ")
+        self.widget = self.ui.create_text_edit_widget(properties)
+        self.widget.text = self.ps1
+        self.widget.on_cursor_position_changed = self.__cursor_position_changed
+        self.widget.on_selection_changed = self.__selection_changed
+        self.widget.on_return_pressed = self.__return_pressed
+        self.widget.on_key_pressed = self.__key_pressed
 
         locals = {'__name__': None, '__console__': None, '__doc__': None, '_document_controller': document_controller}
         self.console = code.InteractiveConsole(locals)
@@ -139,7 +142,7 @@ class ConsolePanel(Panel):
 
     def close(self):
         self.document_controller.unregister_console(self)
-        super(ConsolePanel, self).close()
+        super().close()
 
     def insert_lines(self, lines):
         self.widget.insert_lines(lines)
@@ -158,6 +161,26 @@ class ConsolePanel(Panel):
             result = output.getvalue()
             error_code = 0
         return result, error_code, prompt
+
+    def __return_pressed(self):
+        command = self.widget.text.split('\n')[-1]
+        if command.startswith(self.ps1):
+            command = command[len(self.ps1):]
+        elif command.startswith(self.ps2):
+            command = command[len(self.ps2):]
+        result, error_code, prompt = self.interpret_command(command)
+        self.widget.append_text(result + prompt)
+        self.widget.move_cursor_position("end")
+        return True
+
+    def __key_pressed(self, key):
+        return False
+
+    def __cursor_position_changed(self, cursor_position):
+        print("cursor", cursor_position)
+
+    def __selection_changed(self, selection):
+        print("selection", selection)
 
 
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):

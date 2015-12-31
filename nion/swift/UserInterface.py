@@ -1280,11 +1280,21 @@ class QtLineEditWidget(QtWidget):
         self.on_editing_finished = None
 
 
+Selection = collections.namedtuple("Selection", ["start", "end"])
+
+CursorPosition = collections.namedtuple("CursorPosition", ["position", "block_number", "column_number"])
+
+
 class QtTextEditWidget(QtWidget):
 
     def __init__(self, proxy, properties):
         super(QtTextEditWidget, self).__init__(proxy, "textedit", properties)
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
         self.on_text_changed = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
         self.proxy.TextEdit_connect(self.widget, self)
         self.__binding = None
         self.__in_update = False
@@ -1297,30 +1307,103 @@ class QtTextEditWidget(QtWidget):
         self.on_text_changed = None
         super(QtTextEditWidget, self).close()
 
-    def __get_text(self):
+    @property
+    def text(self):
         return self.proxy.TextEdit_getText(self.widget)
-    def __set_text(self, text):
-        self.proxy.TextEdit_setText(self.widget, Unicode.u(text))
-    text = property(__get_text, __set_text)
 
-    def __get_placeholder_text(self):
+    @text.setter
+    def text(self, value):
+        self.proxy.TextEdit_setText(self.widget, Unicode.u(value))
+
+    @property
+    def placeholder(self):
         return self.proxy.TextEdit_getPlaceholderText(self.widget)
-    def __set_placeholder_text(self, text):
-        self.proxy.TextEdit_setPlaceholderText(self.widget, Unicode.u(text))
-    placeholder_text = property(__get_placeholder_text, __set_placeholder_text)
 
-    def __get_editable(self):
+    @placeholder.setter
+    def placeholder(self, value):
+        self.proxy.TextEdit_setPlaceholderText(self.widget, Unicode.u(value))
+
+    @property
+    def editable(self):
         return self.proxy.TextEdit_getEditable(self.widget)
-    def __set_editable(self, editable):
-        self.proxy.TextEdit_setEditable(self.widget, editable)
-    editable = property(__get_editable, __set_editable)
+
+    @editable.setter
+    def editable(self, value):
+        self.proxy.TextEdit_setEditable(self.widget, value)
+
+    @property
+    def selected_text(self):
+        return self.proxy.TextEdit_getSelectedText(self.widget)
+
+    @property
+    def cursor_position(self):
+        position, block_number, column_number, _, _ = self.proxy.TextEdit_getCursorInfo(self.widget)
+        return CursorPosition(position, block_number, column_number)
+
+    @property
+    def selection(self):
+        _, _, _, start, end = self.proxy.TextEdit_getCursorInfo(self.widget)
+        return Selection(start, end)
+
+    def append_text(self, value):
+        self.proxy.TextEdit_appendText(self.widget, Unicode.u(value))
+
+    def insert_text(self, value):
+        self.proxy.TextEdit_insertText(self.widget, Unicode.u(value))
+
+    def clear_selection(self):
+        self.proxy.TextEdit_clearSelection(self.widget)
 
     def select_all(self):
         self.proxy.TextEdit_selectAll(self.widget)
 
+    def move_cursor_position(self, operation, mode=None, n=1):
+        self.proxy.TextEdit_moveCursorPosition(self.widget, operation, mode, n)
+
+    def set_text_color(self, color):
+        if color == "red":
+            self.proxy.TextEdit_setTextColor(self.widget, 255, 0, 0)
+        elif color == "green":
+            self.proxy.TextEdit_setTextColor(self.widget, 0, 255, 0)
+        elif color == "blue":
+            self.proxy.TextEdit_setTextColor(self.widget, 0, 0, 255)
+        elif color == "black":
+            self.proxy.TextEdit_setTextColor(self.widget, 0, 0, 0)
+        else:
+            self.proxy.TextEdit_setTextColor(self.widget, 255, 255, 255)
+
+    def cursorPositionChanged(self):
+        on_cursor_position_changed = self.on_cursor_position_changed
+        if callable(on_cursor_position_changed):
+            on_cursor_position_changed(self.cursor_position)
+
+    def selectionChanged(self):
+        on_selection_changed = self.on_selection_changed
+        if callable(on_selection_changed):
+            on_selection_changed(self.selection)
+
     def textChanged(self):
-        if self.on_text_changed:
-            self.on_text_changed(self.text)
+        on_text_changed = self.on_text_changed
+        if callable(on_text_changed):
+            on_text_changed(self.text)
+
+    def escapePressed(self):
+        on_escape_pressed = self.on_escape_pressed
+        if callable(on_escape_pressed):
+            return on_escape_pressed()
+        return False
+
+    def returnPressed(self):
+        on_return_pressed = self.on_return_pressed
+        if callable(on_return_pressed):
+            return on_return_pressed()
+        return False
+
+    def keyPressed(self, text, key, raw_modifiers):
+        on_key_pressed = self.on_key_pressed
+        if callable(on_key_pressed):
+            return on_key_pressed(QtKey(text, key, raw_modifiers))
+        return False
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
@@ -1844,27 +1927,6 @@ class QtOutputWidget(QtWidget):
         self.proxy.Output_out(self.widget, Unicode.u(message))
 
 
-# pobj
-class QtConsoleWidget(QtWidget):
-
-    def __init__(self, proxy, properties):
-        super(QtConsoleWidget, self).__init__(proxy, "console", properties)
-        self.on_interpret_command = None
-        self.proxy.Console_connect(self.widget, self)
-
-    def close(self):
-        self.on_interpret_command = None
-        super(QtConsoleWidget, self).close()
-
-    def interpretCommand(self, command):
-        if self.on_interpret_command:
-            return self.on_interpret_command(command)
-        return "", 0, "?"
-
-    def insert_lines(self, lines):
-        self.proxy.Console_insertFromStringList(self.widget, lines)
-
-
 class QtAction(object):
 
     def __init__(self, proxy, native_action=None):
@@ -2245,9 +2307,6 @@ class QtUserInterface(object):
 
     def create_output_widget(self, properties=None):
         return QtOutputWidget(self.proxy, properties)
-
-    def create_console_widget(self, properties=None):
-        return QtConsoleWidget(self.proxy, properties)
 
     # file i/o
 
