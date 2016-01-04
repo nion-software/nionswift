@@ -1918,15 +1918,6 @@ class QtNewListWidget(QtColumnWidget):
         self.__sync_header()
 
 
-class QtOutputWidget(QtWidget):
-
-    def __init__(self, proxy, properties):
-        super(QtOutputWidget, self).__init__(proxy, "output", properties)
-
-    def send(self, message):
-        self.proxy.Output_out(self.widget, Unicode.u(message))
-
-
 class QtAction(object):
 
     def __init__(self, proxy, native_action=None):
@@ -2304,9 +2295,6 @@ class QtUserInterface(object):
 
     def create_new_list_widget(self, create_list_item_widget, header_widget=None, header_for_empty_list_widget=None, properties=None):
         return QtNewListWidget(self.proxy, self, create_list_item_widget, header_widget, header_for_empty_list_widget, properties)
-
-    def create_output_widget(self, properties=None):
-        return QtOutputWidget(self.proxy, properties)
 
     # file i/o
 

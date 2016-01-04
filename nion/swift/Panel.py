@@ -82,7 +82,8 @@ class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(OutputPanel, self).__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
-        self.widget = self.ui.create_output_widget(properties)
+        properties["stylesheet"] = "background: white; font: 12px courier, monospace"
+        self.widget = self.ui.create_text_edit_widget(properties)
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
         class OutputPanelHandler(logging.Handler):
             def __init__(self, ui):
@@ -90,7 +91,8 @@ class OutputPanel(Panel):
                 self.ui = ui
             def emit(self, record):
                 if record.levelno >= logging.INFO:
-                    output_widget.send(record.getMessage())
+                    output_widget.move_cursor_position("end")
+                    output_widget.append_text(record.getMessage().strip())
         self.__output_panel_handler = OutputPanelHandler(document_controller.ui)
         logging.getLogger().addHandler(self.__output_panel_handler)
     def close(self):
@@ -145,7 +147,12 @@ class ConsolePanel(Panel):
         super().close()
 
     def insert_lines(self, lines):
-        self.widget.insert_lines(lines)
+        for l in lines:
+            self.widget.move_cursor_position("end")
+            self.widget.append_text(l)
+            result, error_code, prompt = self.interpret_command(l)
+            self.widget.append_text(result + prompt)
+            self.widget.move_cursor_position("end")
 
     # interpretCommand is called from the intrinsic widget.
     def interpret_command(self, command):
@@ -177,10 +184,10 @@ class ConsolePanel(Panel):
         return False
 
     def __cursor_position_changed(self, cursor_position):
-        print("cursor", cursor_position)
+        pass
 
     def __selection_changed(self, selection):
-        print("selection", selection)
+        pass
 
 
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
