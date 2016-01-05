@@ -318,6 +318,7 @@ class BaseDisplayPanelContent(object):
         self.on_drag_move = None
         self.on_drop = None
         self.on_show_context_menu = None
+        self.on_begin_drag = None
 
         def drag_enter(mime_data):
             if self.on_drag_enter:
@@ -979,12 +980,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def _select(self):
         self.content_canvas_item.request_focus()
 
-    def _drag_finished(self, action):
-        # make this a method so it can be used from tests
-        if action == "move" and self.document_controller.replaced_display_panel_content is not None:
-            self.restore_contents(self.document_controller.replaced_display_panel_content)
-            self.document_controller.replaced_display_panel_content = None
-
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -993,7 +988,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             root_canvas_item = self.canvas_item.root_container
             thumbnail_data = display_specifier.display.get_processed_data("thumbnail")
-            root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=self._drag_finished)
+            on_begin_drag = self.on_begin_drag
+            if callable(on_begin_drag):
+                on_begin_drag(root_canvas_item.canvas_widget, mime_data, thumbnail_data)
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
@@ -1041,6 +1038,15 @@ class EmptyDisplayPanelContent(BaseDisplayPanelContent):
         d = super(EmptyDisplayPanelContent, self).save_contents()
         d["display-panel-type"] = "empty-display-panel"
         return d
+
+    # this gets called when the user initiates a drag in the drag control to move the panel around
+    def _begin_drag(self):
+        mime_data = self.ui.create_mime_data()
+        mime_data.set_data_as_string("text/display_panel_type", "empty-display-panel")
+        root_canvas_item = self.canvas_item.root_container
+        on_begin_drag = self.on_begin_drag
+        if callable(on_begin_drag):
+            on_begin_drag(root_canvas_item.canvas_widget, mime_data, None)
 
 
 class BrowserDisplayPanelContent(BaseDisplayPanelContent):
@@ -1130,6 +1136,15 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
             self.data_grid_controller.set_selected_index(data_item_index)
         else:
             self.data_grid_controller.selection.clear()
+
+    # this gets called when the user initiates a drag in the drag control to move the panel around
+    def _begin_drag(self):
+        mime_data = self.ui.create_mime_data()
+        mime_data.set_data_as_string("text/display_panel_type", "browser-display-panel")
+        root_canvas_item = self.canvas_item.root_container
+        on_begin_drag = self.on_begin_drag
+        if callable(on_begin_drag):
+            on_begin_drag(root_canvas_item.canvas_widget, mime_data, None)
 
 
 class DisplayPanel(object):
@@ -1236,6 +1251,9 @@ class DisplayPanel(object):
             menu.popup(gx, gy)
             return True
 
+        def begin_drag(canvas_widget, mime_data, thumbnail_data):
+            canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, document_controller))
+
         self.__display_panel_content.on_key_pressed = key_pressed
         self.__display_panel_content.on_key_released = key_released
         self.__display_panel_content.on_mouse_clicked = mouse_clicked
@@ -1244,6 +1262,7 @@ class DisplayPanel(object):
         self.__display_panel_content.on_drag_leave = drag_leave
         self.__display_panel_content.on_drag_move = drag_move
         self.__display_panel_content.on_drop = drop
+        self.__display_panel_content.on_begin_drag = begin_drag
         self.__display_panel_content.on_focused = focused
         self.__display_panel_content.on_close = close
 
@@ -1283,6 +1302,12 @@ class DisplayPanel(object):
         d["uuid"] = str(self.uuid)
         d["identifier"] = self.identifier
         return d
+
+    def _drag_finished(self, document_controller, action):
+        if action == "move" and document_controller.replaced_display_panel_content is not None:
+            d = document_controller.replaced_display_panel_content
+            self.__change_display_panel_content(document_controller, d)
+            document_controller.replaced_display_panel_content = None
 
     def set_selected(self, selected):
         self.__display_panel_content.set_selected(selected)

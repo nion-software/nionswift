@@ -510,16 +510,12 @@ class Workspace(object):
         self.__message_boxes[message_box_id] = message_box_widget
         return message_box_widget
 
-    def __replace_displayed_data_item(self, display_panel, data_item):
-        """ Used in drag/drop support. """
-        self.document_controller.replaced_display_panel_content = display_panel.save_contents()
-        display_panel.set_displayed_data_item(data_item, detect_controller=True)
-        display_panel.request_focus()
-
     def handle_drag_enter(self, display_panel, mime_data):
         if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         if mime_data.has_format("text/uri-list"):
+            return "copy"
+        if mime_data.has_format("text/display_panel_type"):
             return "copy"
         return "ignore"
 
@@ -530,6 +526,8 @@ class Workspace(object):
         if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         if mime_data.has_format("text/uri-list"):
+            return "copy"
+        if mime_data.has_format("text/display_panel_type"):
             return "copy"
         return "ignore"
 
@@ -552,9 +550,26 @@ class Workspace(object):
             index = len(self.document_controller.document_model.data_items)
             self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
+        if mime_data.has_format("text/display_panel_type"):
+            display_panel_type = mime_data.data_as_string("text/display_panel_type")
+            if display_panel_type in ("empty-display-panel", "browser-display-panel"):
+                if region == "right" or region == "left" or region == "top" or region == "bottom":
+                    self.insert_display_panel(display_panel, region, None, {"type": "image", "display-panel-type": display_panel_type})
+                else:
+                    self.__replace_displayed_data_item(display_panel, None, {"type": "image", "display-panel-type": display_panel_type})
+                return "move"
         return "ignore"
 
-    def insert_display_panel(self, display_panel, region, data_item=None):
+    def __replace_displayed_data_item(self, display_panel, data_item, d=None):
+        """ Used in drag/drop support. """
+        self.document_controller.replaced_display_panel_content = display_panel.save_contents()
+        if data_item:
+            display_panel.set_displayed_data_item(data_item, detect_controller=True)
+        elif d is not None:
+            display_panel.change_display_panel_content(d)
+        display_panel.request_focus()
+
+    def insert_display_panel(self, display_panel, region, data_item=None, d=None):
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
         orientation = "vertical" if region == "right" or region == "left" else "horizontal"
         container = display_panel.canvas_item.container
@@ -576,7 +591,9 @@ class Workspace(object):
             new_display_panel = self.__create_display_panel(dict())
             self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
             if data_item:
-                new_display_panel.set_displayed_data_item(data_item)
+                new_display_panel.set_displayed_data_item(data_item, detect_controller=True)
+            elif d is not None:
+                new_display_panel.change_display_panel_content(d)
             container.insert_canvas_item(index + new_index_adj, new_display_panel.canvas_item)
             self.document_controller.selected_display_panel = new_display_panel
             # adjust the splits
@@ -584,6 +601,7 @@ class Workspace(object):
             splits[index] = old_split * 0.5
             splits[index + 1] = old_split * 0.5
             container.splits = splits
+            new_display_panel.request_focus()
 
     def remove_display_panel(self, display_panel):
         # first make sure the display panel has no content

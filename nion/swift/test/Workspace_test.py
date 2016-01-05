@@ -75,12 +75,13 @@ def get_layout(layout_id):
 
 
 class MimeData(object):
-    def __init__(self, data_item):
-        self.data_item = data_item
+    def __init__(self, type, content):
+        self.type = type
+        self.content = content
     def has_format(self, format_str):
-        return format_str == "text/data_item_uuid"
+        return format_str == self.type
     def data_as_string(self, format_str):
-        return str(self.data_item.uuid)
+        return self.content
 
 
 class TestWorkspaceClass(unittest.TestCase):
@@ -298,14 +299,13 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
-        workspace_1x1 = document_controller.document_model.workspaces[0]
         data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
         data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
         document_model.append_data_item(data_item1)
         document_model.append_data_item(data_item2)
         display_panel = document_controller.workspace_controller.display_panels[0]
         display_panel.set_displayed_data_item(data_item1)
-        mime_data = MimeData(data_item2)
+        mime_data = MimeData("text/data_item_uuid", str(data_item2.uuid))
         document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
         # check that there are now two image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
@@ -332,6 +332,25 @@ class TestWorkspaceClass(unittest.TestCase):
         self.__test_drop_on_1x1("top")
         self.__test_drop_on_1x1("bottom")
 
+    def test_drop_empty_on_1x1_top(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        display_panel.set_displayed_data_item(data_item)
+        mime_data = MimeData("text/display_panel_type", "empty-display-panel")
+        document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
+        # check that there are now two image panels
+        self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
+        # check that the data items are in the right spot
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].save_contents().get("display-panel-type"), "empty-display-panel")
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
+       # check that it closes properly too
+        document_controller.close()
+
     def test_workspace_splits_when_new_item_dropped_on_non_axis_edge_of_2x1_item(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -347,7 +366,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model.append_data_item(data_item3)
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-        mime_data = MimeData(data_item3)
+        mime_data = MimeData("text/data_item_uuid", str(data_item3.uuid))
         display_panel = document_controller.workspace_controller.display_panels[0]
         document_controller.workspace_controller.handle_drop(display_panel, mime_data, "bottom", 160, 240)
         # check that there are now three image panels
@@ -477,7 +496,7 @@ class TestWorkspaceClass(unittest.TestCase):
         mime_data = self.app.ui.create_mime_data()
         mime_data.set_data_as_string("text/data_item_uuid", str(data_item2.uuid))
         document_controller.workspace_controller.handle_drop(document_controller.workspace_controller.display_panels[0], mime_data, "middle", 160, 240)
-        document_controller.workspace_controller.display_panels[1]._content_for_test._drag_finished("move")
+        document_controller.workspace_controller.display_panels[1]._drag_finished(document_controller, "move")
         self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
         self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item1)
         self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_canvas_item_delegate._data_item, data_item2)
@@ -538,7 +557,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertFalse(display_panel0._content_for_test.content_canvas_item.focused)
         self.assertTrue(display_panel1._content_for_test.content_canvas_item.focused)
         # do drop
-        mime_data = MimeData(data_item)
+        mime_data = MimeData("text/data_item_uuid", str(data_item.uuid))
         document_controller.workspace_controller.handle_drop(display_panel0, mime_data, "middle", 160, 240)
         # check focus
         self.assertTrue(display_panel0._content_for_test.content_canvas_item.focused)
@@ -585,14 +604,37 @@ class TestWorkspaceClass(unittest.TestCase):
             pass
 
     class DisplayPanelControllerFactory(object):
-        def __init__(self):
+        def __init__(self, match=None):
             self.priority = 1
+            self._match = match
         def make_new(self, controller_type, display_panel_content, d):
             if controller_type == "test":
                 return TestWorkspaceClass.DisplayPanelController(display_panel_content)
             return None
         def match(self, data_item):
+            if data_item == self._match:
+                return {"controller_type": "test"}
             return None
+
+    def test_drop_controlled_data_item_on_1x1_top_constructs_controller(self):
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory(data_item))
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        document_model.append_data_item(data_item)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        mime_data = MimeData("text/data_item_uuid", str(data_item.uuid))
+        document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
+        # check that there are now two image panels
+        self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
+        # check that the data items are in the right spot
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].save_contents().get("display-panel-type"), None)  # uninitialized
+        self.assertTrue(isinstance(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
+        # check that it closes properly too
+        DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+        document_controller.close()
 
     def test_switch_from_layout_with_controller_with_footer_works(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
