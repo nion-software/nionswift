@@ -3,7 +3,9 @@ from __future__ import absolute_import
 
 # standard libraries
 import copy
+import datetime
 import gettext
+import json
 import logging
 import os
 import sys
@@ -17,20 +19,23 @@ from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import FilterPanel
 from nion.swift import HistogramPanel
+from nion.swift import InfoPanel
 from nion.swift import Inspector
 from nion.swift import MetadataPanel
 from nion.swift import Panel
+from nion.swift import SessionPanel
 from nion.swift import Task
 from nion.swift import Test
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
-from nion.swift import SessionPanel
-from nion.swift import InfoPanel
+from nion.swift import Widgets
 from nion.swift.model import Cache
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
+from nion.swift.model import Utility
 from nion.ui import Dialog
+from nion.ui import Selection
 
 _ = gettext.gettext
 
@@ -166,13 +171,15 @@ class Application(object):
 
             def do_ignore():
                 self.continue_start(cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, True)
+                return True
 
             def do_upgrade():
                 self.continue_start(cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, False)
+                return True
 
             class UpgradeDialog(Dialog.ActionDialog):
                 def __init__(self, ui):
-                    super(UpgradeDialog, self).__init__(ui)
+                    super().__init__(ui)
 
                     self.add_button(_("Upgrade"), do_upgrade)
 
@@ -267,18 +274,113 @@ class Application(object):
         self.ui.set_persistent_string("workspace_location", recent_workspace_file_path)
         self.start(skip_choose=skip_choose, fixed_workspace_dir=fixed_workspace_dir)
 
-    def other_libraries(self):
-        workspace_dir = self.choose_workspace()
-        if workspace_dir:
-            self.switch_library(workspace_dir, skip_choose=True)
-
-    def new_library(self):
-        workspace_dir = self.choose_workspace()
-        if workspace_dir:
-            self.switch_library(workspace_dir, skip_choose=True)
-
     def clear_libraries(self):
         self.ui.remove_persistent_key("workspace_history")
+
+    def choose_library(self, queue_task_fn):
+
+        class ChooseLibraryDialog(Dialog.ActionDialog):
+
+            def __init__(self, ui, app):
+                super().__init__(ui, _("Choose Library"))
+
+                current_item_ref = [None]
+
+                workspace_history = self.ui.get_persistent_object("workspace_history", list())
+                nslib_paths = [os.path.join(file_path, "Nion Swift Workspace.nslib") for file_path in workspace_history]
+                items = [(path, datetime.datetime.fromtimestamp(os.path.getmtime(path))) for path in nslib_paths if os.path.exists(path)]
+
+                def handle_choose():
+                    current_item = current_item_ref[0]
+                    if current_item:
+                        def switch_library():
+                            app.switch_library(current_item)
+                        queue_task_fn(switch_library)
+                        return True
+                    return False
+
+                def handle_new():
+                    documents_dir = self.ui.get_document_location()
+                    workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
+                    path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+                    if not os.path.exists(path):
+                        with open(path, "w") as fp:
+                            json.dump({}, fp)
+                    items.insert(0, (path, datetime.datetime.now()))
+                    list_widget.items = items
+                    return False
+
+                self.add_button(_("New..."), handle_new)
+                self.add_button(_("Other..."), handle_new)
+                self.add_button(_("Cancel"), lambda: True)
+                self.add_button(_("Choose"), handle_choose)
+
+                path_label = ui.create_label_widget()
+
+                prompt_row = ui.create_row_widget()
+                prompt_row.add_spacing(13)
+                prompt_row.add(ui.create_label_widget(_("Which library do you want Nion Swift to use?"), properties={"stylesheet": "font-weight: bold"}))
+                prompt_row.add_spacing(13)
+                prompt_row.add_stretch()
+
+                explanation1_row = ui.create_row_widget()
+                explanation1_row.add_spacing(13)
+                explanation1_row.add(ui.create_label_widget(_("You can select a library from the list, find another library, or create a new library.")))
+                explanation1_row.add_spacing(13)
+                explanation1_row.add_stretch()
+
+                explanation2_row = ui.create_row_widget()
+                explanation2_row.add_spacing(13)
+                explanation2_row.add(ui.create_label_widget(_("The same library will be used the next time you open Nion Swift.")))
+                explanation2_row.add_spacing(13)
+                explanation2_row.add_stretch()
+
+                def selection_changed(indexes):
+                    if len(indexes) == 1:
+                        item = items[list(indexes)[0]]
+                        current_item_ref[0] = os.path.dirname(item[0])
+                        path_label.text = os.path.dirname(item[0])
+                    else:
+                        current_item_ref[0] = None
+                        path_label.text = None
+
+                def stringify_item(item):
+                    date_utc = item[1]
+                    tz_minutes = Utility.local_utcoffset_minutes(date_utc)
+                    date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
+                    return str(os.path.basename(os.path.dirname(item[0]))) + " (" + date_local.strftime("%c") + ")"
+
+                list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none, stringify_item)
+                list_widget.on_selection_changed = selection_changed
+
+                items_row = ui.create_row_widget()
+                items_row.add_spacing(13)
+                items_row.add(list_widget)
+                items_row.add_spacing(13)
+                items_row.add_stretch()
+
+                path_row = ui.create_row_widget()
+                path_row.add_spacing(13)
+                path_row.add(path_label)
+                path_row.add_spacing(13)
+                path_row.add_stretch()
+
+                column = ui.create_column_widget()
+                column.add_spacing(18)
+                column.add(prompt_row)
+                column.add_spacing(6)
+                column.add(explanation1_row)
+                column.add(explanation2_row)
+                column.add_spacing(12)
+                column.add(items_row)
+                column.add_spacing(6)
+                column.add(path_row)
+                column.add_spacing(6)
+                column.add_stretch()
+                self.content.add(column)
+
+        choose_library_dialog = ChooseLibraryDialog(self.ui, self)
+        choose_library_dialog.show()
 
     def create_document_controller(self, document_model, workspace_id, data_item=None):
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)

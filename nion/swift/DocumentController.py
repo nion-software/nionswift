@@ -199,14 +199,13 @@ class DocumentController(Observable.Broadcaster):
 
         if self.app:
             recent_workspace_file_paths = self.app.get_recent_workspace_file_paths()
-            for file_path in recent_workspace_file_paths:
+            for file_path in recent_workspace_file_paths[0:10]:
                 root_path, file_name = os.path.split(file_path)
                 name, ext = os.path.splitext(file_name)
                 self.library_menu.add_menu_item(name, lambda file_path=file_path: self.app.switch_library(file_path))
             if len(recent_workspace_file_paths) > 0:
                 self.library_menu.add_separator()
-            self.library_menu.add_menu_item(_("Other..."), self.app.other_libraries)
-            self.library_menu.add_menu_item(_("New..."), self.app.new_library)
+            self.library_menu.add_menu_item(_("Choose..."), functools.partial(self.app.choose_library, self.queue_task))
             self.library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
 
         self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window_with_data_item("library"), key_sequence="new")
@@ -446,6 +445,8 @@ class DocumentController(Observable.Broadcaster):
         #t0 = time.time()
         # perform any pending operations
         self.__periodic_queue.perform_tasks()
+        if self.__periodic_queue is None:  # handle special case where we queue'd a close
+            return
         self.__periodic_set.perform_tasks()
         #t1 = time.time()
         # workspace
