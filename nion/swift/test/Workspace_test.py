@@ -668,6 +668,21 @@ class TestWorkspaceClass(unittest.TestCase):
         DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
         document_controller.close()
 
+    def test_closing_data_item_display_after_closing_browser_detaches_browser_delegate(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+        document_controller.workspace_controller.change_workspace(workspace_2x1)
+        data_item1 = DataItem.DataItem(numpy.zeros((16, 16), numpy.double))
+        data_item2 = DataItem.DataItem(numpy.zeros((16, 16), numpy.double))
+        document_model.append_data_item(data_item1)
+        document_model.append_data_item(data_item2)
+        document_controller.workspace_controller.display_panels[0].change_display_panel_content({"type": "image", "display-panel-type": "browser-display-panel"})
+        document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item1)
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        document_controller.close()
+
     def test_restore_panel_like_drag_and_drop_closes_display_panel_controller(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
         document_model = DocumentModel.DocumentModel()

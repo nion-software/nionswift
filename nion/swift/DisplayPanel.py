@@ -798,17 +798,19 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(self.__display_type_changed)
         self.__data_item_metadata_changed_event_listener = None
 
+        # if the data item displayed in this panel gets deleted, remove it from this panel.
+
         def data_item_deleted(data_item):
-            # if our item gets deleted, clear the selection
             if data_item == self.data_item:
                 self.set_displayed_data_item(None)
 
-        # when a data item gets deleted from the data model, need to ask the display whether it is still valid.
         document_model = self.document_controller.document_model
         self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(data_item_deleted)
 
+        # the display panel controller is an object which adds and controls additional UI on top of this display.
         self.__display_panel_controller = None
 
+        # the display canvas item delegate is an object that provides the canvas item displaying the data item.
         self.__display_canvas_item_delegate = None
 
     def close(self):

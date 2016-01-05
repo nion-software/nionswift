@@ -492,8 +492,11 @@ class DataGridController(object):
         # moved to the main thread via this object.
         self.__changed_display_items = False
         self.__changed_display_items_mutex = threading.RLock()
+        self.__closed = False
 
     def close(self):
+        assert not self.__closed
+        self.icon_view_canvas_item.detach_delegate()
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
         for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
@@ -508,6 +511,7 @@ class DataGridController(object):
         self.on_drag_started = None
         self.on_focus_changed = None
         self.on_delete_display_items = None
+        self.__closed = True
 
     def periodic(self):
         # handle the 'changed' stuff
