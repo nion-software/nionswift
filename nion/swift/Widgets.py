@@ -10,6 +10,8 @@ A library of custom widgets.
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import ListCanvasItem
+from nion.ui import Selection
 
 
 class CompositeWidgetBase:
@@ -160,3 +162,89 @@ class SectionWidget(CompositeWidgetBase):
         twist_down_canvas_item.checked = section_open
         section_content_column.visible = section_open
         twist_down_canvas_item.on_button_clicked = toggle
+
+
+class StringListWidget(CompositeWidgetBase):
+    """A widget with a list in a scroll bar."""
+
+    def __init__(self, ui, items, selection_style=None, stringify_item=None):
+        super().__init__(ui.create_column_widget())
+        self.__items = items
+        content_widget = self.content_widget
+        self.on_selection_changed = None
+        stringify_item = str if None else stringify_item
+
+        class ListCanvasItemDelegate:
+            def __init__(self, items, selection):
+                self.__items = items
+                self.__selection = selection
+
+            @property
+            def items(self):
+                return self.__items
+
+            @items.setter
+            def items(self, value):
+                self.__items = value
+
+            @property
+            def item_count(self):
+                return len(self.__items)
+
+            def on_context_menu_event(self, index, x, y, gx, gy):
+                return False
+
+            def on_delete_pressed(self):
+                pass
+
+            def on_drag_started(self, index, x, y, modifiers):
+                pass
+
+            def paint_item(self, drawing_context, index, rect, is_selected):
+                item = stringify_item(self.__items[index])
+                with drawing_context.saver():
+                    drawing_context.fill_style = "#000"
+                    drawing_context.font = "12px"
+                    drawing_context.text_align = 'left'
+                    drawing_context.text_baseline = 'bottom'
+                    drawing_context.fill_text(item, rect[0][1] + 4, rect[0][0] + 20 - 4)
+
+        selection = Selection.IndexedSelection(selection_style)
+
+        def selection_changed():
+            on_selection_changed = self.on_selection_changed
+            if callable(on_selection_changed):
+                on_selection_changed(selection.indexes)
+
+        self.__selection_changed_event_listener = selection.changed_event.listen(selection_changed)
+        self.__list_canvas_item_delegate = ListCanvasItemDelegate(items, selection)
+        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(self.__list_canvas_item_delegate, selection, 20)
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
+        scroll_area_canvas_item.auto_resize_contents = True
+        scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
+        scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        scroll_group_canvas_item.border_color = "#888"
+        scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
+        scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
+
+        canvas_widget = ui.create_canvas_widget_new(properties={"height": 200, "width": 560})
+        canvas_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
+
+        content_widget.add(canvas_widget)
+
+    @property
+    def items(self):
+        return self.__items
+
+    @items.setter
+    def items(self, value):
+        self.__items = value
+        self.__list_canvas_item_delegate.items = value
+        self.__list_canvas_item.update()
+
+    def close(self):
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = None
+        self.on_selection_changed = None
+        super().close()
