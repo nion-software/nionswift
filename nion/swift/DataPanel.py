@@ -362,7 +362,6 @@ class DataListController(object):
         self.__list_canvas_item.update()
 
     # this message comes from the styled item delegate
-    # data items are actually hierarchical in nature,
     def paint_item(self, drawing_context, index, rect, is_selected):
         display_item = self.__display_items[index]
         with drawing_context.saver():
@@ -435,8 +434,8 @@ class DataGridController(object):
             def selected_indexes(self):
                 return self.__data_grid_controller.selected_indexes
 
-            def get_item_thumbnail(self, index):
-                return self.__data_grid_controller.get_display_item_thumbnail(index)
+            def paint_item(self, drawing_context, index, rect, is_selected):
+                self.__data_grid_controller.paint_item(drawing_context, index, rect, is_selected)
 
             def is_item_selected(self, index):
                 return self.__data_grid_controller.selection.contains(index)
@@ -533,9 +532,6 @@ class DataGridController(object):
     def display_item_count(self):
         return len(self.__display_items)
 
-    def get_display_item_thumbnail(self, index):
-        return self.__display_items[index].get_thumbnail(self.dispatch_task, self.ui)
-
     def context_menu_event(self, index, x, y, gx, gy):
         if self.on_context_menu_event:
             display_item = self.__display_items[index] if index is not None else None
@@ -573,6 +569,13 @@ class DataGridController(object):
         del self.__display_item_needs_recompute_listeners[index]
         del self.__display_items[index]
         self.icon_view_canvas_item.update()
+
+    def paint_item(self, drawing_context, index, rect, is_selected):
+        thumbnail_data = self.__display_items[index].get_thumbnail(self.dispatch_task, self.ui)
+        if thumbnail_data is not None:
+            draw_rect = rect.inset(6)
+            draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
+            drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
 
 
 class DataListWidget(object):
