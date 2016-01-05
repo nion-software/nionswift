@@ -218,25 +218,6 @@ class DataListController(object):
             def item_count(self):
                 return self.__data_list_controller.display_item_count
 
-            def is_item_selected(self, index):
-                return self.__data_list_controller.selection.contains(index)
-
-            @property
-            def selected_indexes(self):
-                return self.__data_list_controller.selected_indexes
-
-            def extend_selection(self, index):
-                self.__data_list_controller.selection.extend(index)
-
-            def toggle_selection(self, index):
-                self.__data_list_controller.selection.toggle(index)
-
-            def set_selection(self, index):
-                self.__data_list_controller.selection.set(index)
-
-            def set_selection_multiple(self, indexes):
-                self.__data_list_controller.selection.set_multiple(indexes)
-
             def on_context_menu_event(self, index, x, y, gx, gy):
                 return self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
 
@@ -430,27 +411,8 @@ class DataGridController(object):
             def item_count(self):
                 return self.__data_grid_controller.display_item_count
 
-            @property
-            def selected_indexes(self):
-                return self.__data_grid_controller.selected_indexes
-
             def paint_item(self, drawing_context, index, rect, is_selected):
                 self.__data_grid_controller.paint_item(drawing_context, index, rect, is_selected)
-
-            def is_item_selected(self, index):
-                return self.__data_grid_controller.selection.contains(index)
-
-            def extend_selection(self, index):
-                self.__data_grid_controller.selection.extend(index)
-
-            def toggle_selection(self, index):
-                self.__data_grid_controller.selection.toggle(index)
-
-            def set_selection(self, index):
-                self.__data_grid_controller.selection.set(index)
-
-            def set_selection_multiple(self, indexes):
-                self.__data_grid_controller.selection.set_multiple(indexes)
 
             def on_context_menu_event(self, index, x, y, gx, gy):
                 return self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
