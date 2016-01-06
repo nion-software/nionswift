@@ -92,7 +92,7 @@ class OutputPanel(Panel):
                 super(OutputPanelHandler, self).__init__()
                 self.ui = ui
                 self.__lock = threading.RLock()
-                self.__q = collections.Deque()
+                self.__q = collections.deque()
             def emit(self, record):
                 if record.levelno >= logging.INFO:
                     def safe_emit():
