@@ -3,10 +3,12 @@ from __future__ import absolute_import
 
 # standard libraries
 import code
+import collections
 import contextlib
 import gettext
 import logging
 import sys
+import threading
 import weakref
 
 # conditional imports
@@ -89,10 +91,21 @@ class OutputPanel(Panel):
             def __init__(self, ui):
                 super(OutputPanelHandler, self).__init__()
                 self.ui = ui
+                self.__lock = threading.RLock()
+                self.__q = collections.Deque()
             def emit(self, record):
                 if record.levelno >= logging.INFO:
-                    output_widget.move_cursor_position("end")
-                    output_widget.append_text(record.getMessage().strip())
+                    def safe_emit():
+                        with self.__lock:
+                            while len(self.__q) > 0:
+                                output_widget.move_cursor_position("end")
+                                output_widget.append_text(self.__q.popleft())
+                    with self.__lock:
+                        self.__q.append(record.getMessage().strip())
+                    if threading.current_thread().getName() == "MainThread":
+                        safe_emit()
+                    else:
+                        document_controller.queue_task(safe_emit)
         self.__output_panel_handler = OutputPanelHandler(document_controller.ui)
         logging.getLogger().addHandler(self.__output_panel_handler)
     def close(self):
