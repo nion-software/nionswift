@@ -104,11 +104,6 @@ class Application(object):
         # document model is reference counted; when the no document controller holds a reference to the
         # document model, it will be closed.
 
-    def choose_workspace(self):
-        documents_dir = self.ui.get_document_location()
-        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
-        return workspace_dir
-
     def migrate_library(self, workspace_dir, library_path, welcome_message=True):
         """ Migrate library to latest version. """
         library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
@@ -118,14 +113,15 @@ class Application(object):
 
     def start(self, skip_choose=False, fixed_workspace_dir=None):
         """
-            Start a new document model.
+            Start the application.
 
             Looks for workspace_location persistent string. If it doesn't find it, uses a default
             workspace location.
 
             Then checks to see if that workspace exists. If not and if skip_choose has not been
             set to True, asks the user for a workspace location. User may choose new folder or
-            existing location.
+            existing location. This works by putting up the dialog which will either call start
+            again or exit.
 
             Creates workspace in location if it doesn't exist.
 
@@ -144,11 +140,8 @@ class Application(object):
         library_path = os.path.join(workspace_dir, library_filename)
         cache_path = os.path.join(workspace_dir, cache_filename)
         if not skip_choose and not os.path.exists(library_path):
-            workspace_dir = self.choose_workspace()
-            if not workspace_dir:
-                return False
-            library_path = os.path.join(workspace_dir, library_filename)
-            cache_path = os.path.join(workspace_dir, cache_filename)
+            self.choose_library(lambda fn: fn())
+            return True
         welcome_message = fixed_workspace_dir is None
         if os.path.exists(library_path):
             self.migrate_library(workspace_dir, library_path, welcome_message)
