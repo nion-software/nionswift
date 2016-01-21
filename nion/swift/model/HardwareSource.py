@@ -49,9 +49,7 @@ _ = gettext.gettext
 
 # Keeps track of all registered hardware sources and instruments.
 # Also keeps track of aliases between hardware sources and logical names.
-class HardwareSourceManager(Utility.Singleton("HardwareSourceManagerSingleton", (object, ), {})):
-    # __metaclass__ = Utility.Singleton
-    # TODO: Fix metaclass in Python 3
+class HardwareSourceManager(metaclass=Utility.Singleton):
 
     def __init__(self):
         super(HardwareSourceManager, self).__init__()

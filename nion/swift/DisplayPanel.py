@@ -15,7 +15,6 @@ import numpy
 
 # local libraries
 from nion.swift import DataPanel
-from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
@@ -24,6 +23,7 @@ from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import Operation
 from nion.swift.model import Region
+from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Event
 from nion.ui import Geometry
@@ -1351,13 +1351,10 @@ class DisplayPanel(object):
             self.__display_panel_content.perform_action(fn, *args, **keywords)
 
 
-class DisplayPanelManager(Decorators.Singleton("DisplayPanelManagerSingleton", (Observable.Broadcaster, ), {})):
+class DisplayPanelManager(Observable.Broadcaster, metaclass=Utility.Singleton):
     """ Acts as a broker for significant events occurring regarding display panels. Listeners can attach themselves to
     this object and receive messages regarding display panels. For instance, when the user presses a key on an display
     panel that isn't handled directly, listeners will be advised of this event. """
-
-    # __metaclass__ = Decorators.Singleton
-    # TODO: Fix metaclass in Python 3
 
     def __init__(self):
         super(DisplayPanelManager, self).__init__()

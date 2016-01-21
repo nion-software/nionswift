@@ -781,5 +781,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(count_ref[0], 1)
         document_controller.close()
 
+
 if __name__ == '__main__':
     unittest.main()

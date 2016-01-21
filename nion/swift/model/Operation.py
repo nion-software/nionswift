@@ -893,9 +893,7 @@ class NodeOperation(Operation):
         return data_node.evaluate(resolve).data
 
 
-class OperationManager(Utility.Singleton("OperationManagerSingleton", (object, ), {})):
-    # __metaclass__ = Utility.Singleton
-    # TODO: Fix metaclass in Python 3
+class OperationManager(metaclass=Utility.Singleton):
 
     def __init__(self):
         self.__operations = dict()

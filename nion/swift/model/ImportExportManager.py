@@ -88,9 +88,7 @@ class ImportExportHandler(object):
         pass
 
 
-class ImportExportManager(Utility.Singleton("ImportExportManagerSingleton", (object, ), {})):
-    # __metaclass__ = Utility.Singleton
-    # TODO: Fix metaclass in Python 3
+class ImportExportManager(metaclass=Utility.Singleton):
     """
         Tracks import/export plugins.
     """

@@ -13,8 +13,8 @@ import time
 # None
 
 # local libraries
-from nion.swift import Decorators
 from nion.swift import Panel
+from nion.swift.model import Utility
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -302,9 +302,7 @@ class TaskContextManager(object):
             logging.debug("%s: %s %s", self.__task.title, progress_text, progress if progress else "")
 
 
-class TaskManager(Decorators.Singleton("TaskManagerSingleton", (object, ), {})):
-    # __metaclass__ = Decorators.Singleton
-    # TODO: Fix metaclass in Python 3
+class TaskManager(metaclass=Utility.Singleton):
 
     def __init__(self):
         self.__task_ui_builder_map = dict()

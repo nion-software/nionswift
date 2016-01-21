@@ -809,9 +809,7 @@ class Workspace(object):
         return data_items
 
 
-class WorkspaceManager(Utility.Singleton("WorkspaceManagerSingleton", (object, ), {})):
-    # __metaclass__ = Utility.Singleton
-    # TODO: Fix metaclass in Python 3
+class WorkspaceManager(metaclass=Utility.Singleton):
 
     """
         The WorkspaceManager object keeps a list of workspaces and a list of panel
