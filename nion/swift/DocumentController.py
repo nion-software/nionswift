@@ -641,15 +641,23 @@ class DocumentController(Observable.Broadcaster):
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
         name_writer_set = set()
         for writer in writers:
-            name_writer_set.add((writer.name, " ".join(["*." + extension for extension in writer.extensions])))
+            name_writer_set.add((writer.name, " ".join(["*." + extension for extension in writer.extensions]), writer))
         name_writer_list = sorted(name_writer_set)
-        filter = ";;".join(
-            [writer_name + " files (" + writer_extensions + ")" for writer_name, writer_extensions in name_writer_list])
+        filter_line_to_writer_map = dict()
+        filter_lines = list()
+        for writer_name, writer_extensions, writer in name_writer_list:
+            filter_line = writer_name + " files (" + writer_extensions + ")"
+            filter_lines.append(filter_line)
+            filter_line_to_writer_map[filter_line] = writer
+        filter = ";;".join(filter_lines)
         filter += ";;All Files (*.*)"
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, data_item.title)
         selected_filter = self.ui.get_persistent_string("export_filter")
         path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+        if not os.path.splitext(path)[1]:
+            if selected_filter in filter_line_to_writer_map:
+                path = path + os.path.extsep + filter_line_to_writer_map[selected_filter].extensions[0]
         if path:
             self.ui.set_persistent_string("export_directory", selected_directory)
             self.ui.set_persistent_string("export_filter", selected_filter)
