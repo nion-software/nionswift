@@ -408,7 +408,7 @@ class DocumentController(Observable.Broadcaster):
                 row_one.add_stretch()
                 row_two = self.ui.create_row_widget()
                 row_two.add_spacing(13)
-                row_two.add(self.ui.create_label_widget("Copyright 2012-2015 Nion Co. All Rights Reserved."))
+                row_two.add(self.ui.create_label_widget("Copyright 2012-2016 Nion Co. All Rights Reserved."))
                 row_two.add_spacing(13)
                 row_two.add_stretch()
                 column.add_spacing(26)

@@ -51,7 +51,7 @@ class Application(object):
         self.ui = ui
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
-        self.version_str = "0.5.8"
+        self.version_str = "0.6.0"
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
