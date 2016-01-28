@@ -13,7 +13,6 @@ from __future__ import absolute_import
 # standard libraries
 import copy
 import datetime
-import gettext
 import logging
 import numbers
 import operator
@@ -72,6 +71,9 @@ def take_item(data, key):
 
 def data_shape(data):
     return Image.spatial_shape_from_data(data)
+
+def astype(data, dtype):
+    return data.astype(str_to_dtype(dtype))
 
 
 def function_fft(data_and_metadata):
@@ -788,6 +790,8 @@ _function_map = {
     "real": numpy.real,
     "imag": numpy.imag,
     "conj": numpy.conj,
+    # conversions
+    "astype": astype,
     # data functions
     "data_shape": data_shape,
     "shape": function_make_shape,
@@ -853,6 +857,19 @@ def list_to_key(l):
     if len(key) == 1:
         return key[0]
     return key
+
+
+dtype_map = {int: "int", float: "float", complex: "complex", numpy.int16: "int16", numpy.int32: "int32",
+    numpy.int64: "int64", numpy.uint8: "uint8", numpy.uint16: "uint16", numpy.uint32: "uint32", numpy.uint64: "uint64",
+    numpy.float32: "float32", numpy.float64: "float64", numpy.complex64: "complex64", numpy.complex128: "complex128"}
+
+dtype_inverse_map = {dtype_map[k]: k for k in dtype_map}
+
+def str_to_dtype(str: str) -> numpy.dtype:
+    return dtype_inverse_map.get(str, float)
+
+def dtype_to_str(dtype: numpy.dtype) -> str:
+    return dtype_map.get(dtype, "float")
 
 
 class DataNode(object):
@@ -1002,16 +1019,16 @@ class DataNode(object):
         return BinaryOperationDataNode([DataNode.make(other), self], "pow")
 
     def __complex__(self):
-        return ConstantDataNode(numpy.astype(numpy.complex128))
+        raise Exception("Use astype(data, complex128) instead.")
 
     def __int__(self):
-        return ConstantDataNode(numpy.astype(numpy.uint32))
+        raise Exception("Use astype(data, int) instead.")
 
     def __long__(self):
-        return ConstantDataNode(numpy.astype(numpy.int64))
+        raise Exception("Use astype(data, int64) instead.")
 
     def __float__(self):
-        return ConstantDataNode(numpy.astype(numpy.float64))
+        raise Exception("Use astype(data, float64) instead.")
 
     def __getitem__(self, key):
         key = key_to_list(key)
@@ -1019,6 +1036,7 @@ class DataNode(object):
 
 
 class ConstantDataNode(DataNode):
+    """Represent a constant value."""
 
     def __init__(self, value=None):
         super(ConstantDataNode, self).__init__()
@@ -1074,6 +1092,10 @@ class ConstantDataNode(DataNode):
 
 
 class ScalarOperationDataNode(DataNode):
+    """Take a set of inputs and produce a scalar value output.
+
+    For example, mean(src) will produce the mean value of the data item src.
+    """
 
     def __init__(self, inputs=None, function_id=None, args=None):
         super(ScalarOperationDataNode, self).__init__(inputs=inputs)
@@ -1190,6 +1212,8 @@ class UnaryOperationDataNode(DataNode):
                 elif isinstance(slice_or_index, numbers.Integral):
                     slice_str += str(slice_or_index)
             return "{0}[{1}]".format(operator_arg, ", ".join(slice_strs)), 10
+        if self.__function_id == "astype":
+            return "{0}({1}, {2})".format(self.__function_id, operator_arg, self.__args["dtype"]), 10
         if self.__function_id in ("column", "row"):
             if self.__args.get("start") is None and self.__args.get("stop") is None:
                 return "{0}({1})".format(self.__function_id, operator_arg), 10
@@ -1589,6 +1613,18 @@ def parse_expression(expression_lines, variable_map, context):
     code_lines = []
     code_lines.append("import uuid")
     g = dict()
+    g["int16"] = numpy.int16
+    g["int32"] = numpy.int32
+    g["int64"] = numpy.int64
+    g["uint8"] = numpy.uint8
+    g["uint16"] = numpy.uint16
+    g["uint32"] = numpy.uint32
+    g["uint64"] = numpy.uint64
+    g["float32"] = numpy.float32
+    g["float64"] = numpy.float64
+    g["complex64"] = numpy.complex64
+    g["complex128"] = numpy.complex128
+    g["astype"] = lambda data_node, dtype: UnaryOperationDataNode([data_node], "astype", {"dtype": dtype_to_str(dtype)})
     g["data_slice"] = lambda data_node, key: UnaryOperationDataNode([data_node], "data_slice", {"key": key})
     g["item"] = lambda data_node, key: ScalarOperationDataNode([data_node], "item", {"key": key})
     g["column"] = lambda data_node, start=None, stop=None: UnaryOperationDataNode([data_node], "column", {"start": start, "stop": stop})

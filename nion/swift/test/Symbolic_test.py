@@ -1359,6 +1359,103 @@ class TestSymbolicClass(unittest.TestCase):
                 if data is not None:
                     self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data))
 
+    def test_conversion_to_int(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.float64)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.parse_expression(document_model, "astype(src, int)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.int_)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(int)))
+            computation.parse_expression(document_model, "astype(src, int16)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.int16)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int16)))
+            computation.parse_expression(document_model, "astype(src, int32)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.int32)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int32)))
+            computation.parse_expression(document_model, "astype(src, int64)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.int64)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int64)))
+
+    def test_conversion_to_uint(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.float64)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.parse_expression(document_model, "astype(src, uint8)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.uint8)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint8)))
+            computation.parse_expression(document_model, "astype(src, uint16)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.uint16)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint16)))
+            computation.parse_expression(document_model, "astype(src, uint32)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.uint32)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint32)))
+            computation.parse_expression(document_model, "astype(src, uint64)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.uint64)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint64)))
+
+    def test_conversion_to_float(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.int32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.parse_expression(document_model, "astype(src, float32)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.float32)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.float32)))
+            computation.parse_expression(document_model, "astype(src, float64)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.float64)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.float64)))
+
+    def test_conversion_to_complex(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.int32)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.parse_expression(document_model, "astype(src, complex64)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.complex64)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex64)))
+            computation.parse_expression(document_model, "astype(src, complex128)", dict())
+            data = computation.evaluate().data
+            self.assertEqual(data.dtype, numpy.complex128)
+            self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex128)))
+
+    def test_conversion_reconstruct(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.float64)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = Symbolic.Computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            expression_in = "astype(src, uint16)"
+            computation.parse_expression(document_model, expression_in, dict())
+            expression_out = computation.reconstruct(dict())
+            self.assertEqual(expression_in, expression_out)
+
     def disabled_test_computation_variable_gets_closed(self):
         assert False
 
