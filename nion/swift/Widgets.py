@@ -5,6 +5,9 @@ A library of custom widgets.
 # standard libraries
 # None
 
+# types
+from typing import AbstractSet
+
 # third party libraries
 # None
 
@@ -172,7 +175,7 @@ class StringListWidget(CompositeWidgetBase):
         self.__items = items
         content_widget = self.content_widget
         self.on_selection_changed = None
-        stringify_item = str if None else stringify_item
+        stringify_item = str if stringify_item is None else stringify_item
 
         class ListCanvasItemDelegate:
             def __init__(self, items, selection):
@@ -209,16 +212,16 @@ class StringListWidget(CompositeWidgetBase):
                     drawing_context.text_baseline = 'bottom'
                     drawing_context.fill_text(item, rect[0][1] + 4, rect[0][0] + 20 - 4)
 
-        selection = Selection.IndexedSelection(selection_style)
+        self.__selection = Selection.IndexedSelection(selection_style)
 
         def selection_changed():
             on_selection_changed = self.on_selection_changed
             if callable(on_selection_changed):
-                on_selection_changed(selection.indexes)
+                on_selection_changed(self.__selection.indexes)
 
-        self.__selection_changed_event_listener = selection.changed_event.listen(selection_changed)
-        self.__list_canvas_item_delegate = ListCanvasItemDelegate(items, selection)
-        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(self.__list_canvas_item_delegate, selection, 20)
+        self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
+        self.__list_canvas_item_delegate = ListCanvasItemDelegate(items, self.__selection)
+        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(self.__list_canvas_item_delegate, self.__selection, 20)
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
         scroll_area_canvas_item.auto_resize_contents = True
         scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
@@ -243,7 +246,11 @@ class StringListWidget(CompositeWidgetBase):
         self.__list_canvas_item_delegate.items = value
         self.__list_canvas_item.update()
 
-    def close(self):
+    @property
+    def selected_items(self) -> AbstractSet[int]:
+        return self.__selection.indexes
+
+    def close(self) -> None:
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
         self.on_selection_changed = None

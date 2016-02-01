@@ -2,26 +2,18 @@
 Provides a user interface object that can render to an Qt host.
 """
 
-# futures
-from __future__ import absolute_import
-from __future__ import division
+# typing
+from typing import List
 
 # standard libraries
 import binascii
 import collections
 import copy
-import logging
 import numbers
 import os
+import pickle
 import threading
 import weakref
-
-# conditional imports
-import sys
-if sys.version < '3':
-    import cPickle as pickle
-else:
-    import pickle
 
 # third party libraries
 # none
@@ -2088,7 +2080,7 @@ class QtDocumentWindow(object):
         if self.on_clear_task:
             self.on_clear_task(key + str(id(self)))
 
-    def get_file_paths_dialog(self, title, directory, filter, selected_filter=None):
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (List[str], str, str):
         selected_filter = selected_filter if selected_filter else Unicode.u()
         file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", Unicode.u(title), Unicode.u(directory), Unicode.u(filter), Unicode.u(selected_filter))
         return file_paths, filter, directory
