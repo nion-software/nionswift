@@ -1,0 +1,353 @@
+# system imports
+import ast
+import collections
+import copy
+import functools
+import gettext
+import os
+import threading
+import traceback
+
+# typing
+from typing import AbstractSet
+
+# third part imports
+# None
+
+# local libraries
+from nion.ui import Converter
+from nion.ui import Dialog
+from nion.ui import Selection
+from nion.swift import Widgets
+from nion.swift.model import Utility
+
+_ = gettext.gettext
+
+
+def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None):
+    if accepted_text is None: accepted_text = _("OK")
+    if rejected_text is None: rejected_text = _("Cancel")
+    message_box_widget = ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
+    caption_row = ui.create_row_widget()
+    caption_row.add_spacing(12)
+    caption_row.add(ui.create_label_widget(caption))
+    caption_row.add_stretch()
+    inside_row = ui.create_row_widget()
+
+    def reject_button_clicked():
+        if rejected_fn: rejected_fn()
+        message_column.remove(message_box_widget)
+
+    def accept_button_clicked():
+        accepted_fn(string_edit_widget.text)
+        message_column.remove(message_box_widget)
+
+    string_edit_widget = ui.create_line_edit_widget()
+    string_edit_widget.text = text
+    string_edit_widget.on_return_pressed = accept_button_clicked
+    string_edit_widget.on_escape_pressed = reject_button_clicked
+    reject_button = ui.create_push_button_widget(rejected_text)
+    reject_button.on_clicked = reject_button_clicked
+    accepted_button = ui.create_push_button_widget(accepted_text)
+    accepted_button.on_clicked = accept_button_clicked
+    inside_row.add_spacing(12)
+    inside_row.add(string_edit_widget)
+    inside_row.add_spacing(12)
+    inside_row.add(reject_button)
+    inside_row.add_spacing(12)
+    inside_row.add(accepted_button)
+    inside_row.add_stretch()
+    message_box_widget.add_spacing(6)
+    message_box_widget.add(caption_row)
+    message_box_widget.add_spacing(4)
+    message_box_widget.add(inside_row)
+    message_box_widget.add_spacing(4)
+    message_column.add(message_box_widget)
+    string_edit_widget.select_all()
+    string_edit_widget.focused = True
+    return message_box_widget
+
+
+def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True, message_box_id=None):
+    if accepted_text is None: accepted_text = _("OK")
+    if rejected_text is None: rejected_text = _("Cancel")
+    message_box_widget = ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
+
+    def reject_button_clicked():
+        if rejected_fn: rejected_fn()
+        message_column.remove(message_box_widget)
+
+    def accept_button_clicked():
+        accepted_fn()
+        message_column.remove(message_box_widget)
+
+    reject_button = ui.create_push_button_widget(rejected_text)
+    reject_button.on_clicked = reject_button_clicked
+    accepted_button = ui.create_push_button_widget(accepted_text)
+    accepted_button.on_clicked = accept_button_clicked
+    caption_row = ui.create_row_widget()
+    caption_row.add_spacing(12)
+    caption_row.add(ui.create_label_widget(caption))
+    if display_rejected:
+        caption_row.add_spacing(12)
+        caption_row.add(reject_button)
+    caption_row.add_spacing(12)
+    caption_row.add(accepted_button)
+    caption_row.add_stretch()
+    message_box_widget.add_spacing(6)
+    message_box_widget.add(caption_row)
+    message_box_widget.add_spacing(4)
+    message_column.add(message_box_widget)
+    return message_box_widget
+
+
+class RunScriptDialog(Dialog.ActionDialog):
+
+    def __init__(self, ui):
+        super().__init__(ui, _("Interactive Dialog"))
+
+        self.ui = ui
+
+        self.__thread = None
+
+        properties = dict()
+        properties["min-height"] = 180
+        properties["min-width"] = 540
+        properties["stylesheet"] = "background: white; font: 12px courier, monospace"
+
+        self.__output_widget = self.ui.create_text_edit_widget(properties)
+
+        self.__message_column = ui.create_column_widget()
+
+        items = self.ui.get_persistent_object("interactive_scripts_0", list())
+
+        def selected_changed(indexes: AbstractSet[int]) -> None:
+            run_button_widget.enabled = len(indexes) == 1
+
+        def add_clicked() -> None:
+            add_dir = self.ui.get_persistent_string("import_directory", "")
+            file_paths, filter, directory = self.document_window.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
+            self.ui.set_persistent_string("import_directory", directory)
+            items.extend(file_paths)
+            items.sort()
+            list_widget.items = items
+            self.ui.set_persistent_object("interactive_scripts_0", items)
+
+        def run_clicked() -> None:
+            indexes = list_widget.selected_items
+            if len(indexes) == 1:
+                script_path = items[list(indexes)[0]]
+                self.run_script(script_path)
+
+        list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none)
+        list_widget.on_selection_changed = selected_changed
+
+        add_button_widget = ui.create_push_button_widget(_("Add..."))
+        add_button_widget.on_clicked = add_clicked
+
+        remove_button_widget = ui.create_push_button_widget(_("Remove"))
+
+        run_button_widget = ui.create_push_button_widget(_("Run"))
+        run_button_widget.on_clicked = run_clicked
+        run_button_widget.enabled = False
+
+        list_widget_row = ui.create_row_widget()
+        list_widget_row.add_spacing(8)
+        list_widget_row.add(list_widget)
+        list_widget_row.add_spacing(8)
+
+        self.__error_label = ui.create_label_widget(properties={"stylesheet": "color: red"})
+
+        close_button_widget = ui.create_push_button_widget(_("Close"))
+        close_button_widget.on_clicked = self.document_window.request_close
+
+        button_row = ui.create_row_widget()
+        button_row.add_spacing(12)
+        button_row.add(add_button_widget)
+        button_row.add(remove_button_widget)
+        button_row.add_stretch()
+        button_row.add(run_button_widget)
+        button_row.add_spacing(12)
+
+        error_button_row = ui.create_row_widget()
+        error_button_row.add_spacing(12)
+        error_button_row.add_stretch()
+        error_button_row.add(close_button_widget)
+        error_button_row.add_spacing(12)
+
+        select_column = ui.create_column_widget()
+        select_column.add_spacing(8)
+        select_column.add(list_widget_row)
+        select_column.add_spacing(8)
+        select_column.add(button_row)
+        select_column.add_spacing(8)
+        select_column.add_stretch()
+
+        run_column = ui.create_column_widget()
+        run_column.add(self.__output_widget)
+        run_column.add_spacing(6)
+        run_column.add(self.__message_column)
+        run_column.add_stretch()
+
+        error_label_row = ui.create_row_widget()
+        error_label_row.add_spacing(12)
+        error_label_row.add(self.__error_label)
+        error_label_row.add_spacing(12)
+
+        error_column = ui.create_column_widget()
+        error_column.add_spacing(8)
+        error_column.add(error_label_row)
+        error_column.add_stretch()
+        error_column.add(error_button_row)
+        error_column.add_spacing(8)
+
+        self.__stack = ui.create_stack_widget()
+
+        self.__stack.add(select_column)
+        self.__stack.add(run_column)
+        self.__stack.add(error_column)
+
+        self.content.add(self.__stack)
+
+        self.__lock = threading.RLock()
+
+        self.__q = collections.deque()
+        self.__output_queue = collections.deque()
+
+    def run_script(self, script_path: str) -> None:
+        script_name = os.path.basename(script_path)
+
+        with open(script_path) as f:
+            script = f.read()
+
+        try:
+            script_ast = ast.parse(script, script_name, 'exec')
+        except Exception as e:
+            self.__stack.current_index = 2
+            self.__error_label.text = str(e)
+            return
+
+        class AddCallFunctionNodeTransformer(ast.NodeTransformer):
+            def __init__(self, func_id, arg_id):
+                self.__func_id = func_id
+                self.__arg_id = arg_id
+
+            def visit_Module(self, node):
+                name_expr = ast.Name(id=self.__func_id, ctx=ast.Load())
+                arg_expr = ast.Name(id=self.__arg_id, ctx=ast.Load())
+                call_expr = ast.Expr(value=ast.Call(func=name_expr, args=[arg_expr], keywords=[]))
+                new_node = copy.deepcopy(node)
+                new_node.body.append(call_expr)
+                ast.fix_missing_locations(new_node)
+                return new_node
+
+        compiled = compile(AddCallFunctionNodeTransformer('script_main', 'api_broker').visit(script_ast), script_name, 'exec')
+
+        def run_it(compiled, interactive_session):
+            class APIBroker:
+                def get_interactive(self, version=None):
+                    actual_version = "1.0.0"
+                    if Utility.compare_versions(version, actual_version) > 0:
+                        raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
+                    return interactive_session
+
+            try:
+                g = dict()
+                g["api_broker"] = APIBroker()
+                exec(compiled, g)
+            except Exception as e:
+                self.print("{}: {}".format(_("Error"), traceback.format_exc()))
+                self.alert(_("An exception was raised."), _("Close"))
+
+        self.__stack.current_index = 1
+
+        self.run(functools.partial(run_it, compiled))
+
+    def run(self, func):
+        def func_run(func):
+            try:
+                func(self)
+            except Exception as e:
+                pass
+            def request_close():
+                self.document_window.request_close()
+            with self.__lock:
+                self.__q.append(request_close)
+        self.__thread = threading.Thread(target=func_run, args=(func, ))
+        self.__thread.start()
+
+    def periodic(self):
+        func = None
+        with self.__lock:
+            while len(self.__output_queue) > 0:
+                self.__output_widget.move_cursor_position("end")
+                self.__output_widget.append_text(self.__output_queue.popleft())
+            while len(self.__q) > 0:
+                func = self.__q.popleft()
+        if callable(func):
+            func()
+
+    def print(self, text):
+        with self.__lock:
+            self.__output_queue.append(str(text))
+
+    def get_string(self, prompt, default_str=None):
+        """Return a string value that the user enters. Raises exception for cancel."""
+        accept_event = threading.Event()
+        value_ref = [None]
+        def perform():
+            def accepted(text):
+                value_ref[0] = text
+                accept_event.set()
+            def rejected():
+                accept_event.set()
+            pose_get_string_message_box(self.ui, self.__message_column, prompt, str(default_str), accepted, rejected)
+        with self.__lock:
+            self.__q.append(perform)
+        accept_event.wait()
+        if value_ref[0] is None:
+            raise Exception("Cancel")
+        return value_ref[0]
+
+    def get_integer(self, prompt: str, default_value: int=0) -> int:
+        converter = Converter.IntegerToStringConverter()
+        str = self.get_string(prompt, converter.convert(default_value))
+        return converter.convert_back(str)
+
+    def get_float(self, prompt: str, default_value: float=0, format: str=None) -> float:
+        converter = Converter.FloatToStringConverter(format)
+        str = self.get_string(prompt, converter.convert(default_value))
+        return converter.convert_back(str)
+
+    def __accept_reject(self, prompt, accepted_text, rejected_text, display_rejected):
+        """Return a boolean value for accept/reject."""
+        accept_event = threading.Event()
+        result_ref = [False]
+        def perform():
+            def accepted():
+                result_ref[0] = True
+                accept_event.set()
+            def rejected():
+                result_ref[0] = False
+                accept_event.set()
+            pose_confirmation_message_box(self.ui, self.__message_column, prompt, accepted, rejected, accepted_text, rejected_text, display_rejected)
+        with self.__lock:
+            self.__q.append(perform)
+        accept_event.wait()
+        return result_ref[0]
+
+    def confirm_ok_cancel(self, prompt: str) -> bool:
+        return self.__accept_reject(prompt, _("OK"), _("Cancel"), True)
+
+    def confirm_yes_no(self, prompt: str) -> bool:
+        return self.__accept_reject(prompt, _("Yes"), _("No"), True)
+
+    def confirm(self, prompt: str, accepted_text: str, rejected_text: str) -> bool:
+        return self.__accept_reject(prompt, accepted_text, rejected_text, True)
+
+    def alert(self, prompt: str, button_label: str=None) -> None:
+        self.__accept_reject(prompt, button_label, None, False)
+        def request_close():
+            self.document_window.request_close()
+        with self.__lock:
+            self.__q.append(request_close)

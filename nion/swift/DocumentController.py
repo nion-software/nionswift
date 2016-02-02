@@ -22,6 +22,7 @@ from nion.swift import Decorators
 from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
+from nion.swift import ScriptsDialog
 from nion.swift import Task
 from nion.swift import Workspace
 from nion.swift.model import Connection
@@ -227,6 +228,8 @@ class DocumentController(Observable.Broadcaster):
         #self.file_menu.add_separator()
         #self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
         #self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
+        self.file_menu.add_separator()
+        self.add_group_action = self.file_menu.add_menu_item(_("Scripts..."), lambda: self.new_interactive_script_dialog(), key_sequence="Ctrl+R")
         self.file_menu.add_separator()
         self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
         self.file_menu.add_separator()
@@ -677,6 +680,10 @@ class DocumentController(Observable.Broadcaster):
         task_context_manager = Task.TaskContextManager(self, task, logging)
         self.task_created_event.fire(task)
         return task_context_manager
+
+    def new_interactive_script_dialog(self):
+        interactive_dialog = ScriptsDialog.RunScriptDialog(self.ui)
+        interactive_dialog.show()
 
     def add_group(self):
         data_group = DataGroup.DataGroup()
