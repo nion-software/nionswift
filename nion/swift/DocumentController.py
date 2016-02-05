@@ -682,7 +682,7 @@ class DocumentController(Observable.Broadcaster):
         return task_context_manager
 
     def new_interactive_script_dialog(self):
-        interactive_dialog = ScriptsDialog.RunScriptDialog(self.ui)
+        interactive_dialog = ScriptsDialog.RunScriptDialog(self)
         interactive_dialog.show()
 
     def add_group(self):

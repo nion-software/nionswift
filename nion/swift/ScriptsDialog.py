@@ -12,7 +12,7 @@ import traceback
 from typing import AbstractSet
 
 # third part imports
-# None
+import numpy
 
 # local libraries
 from nion.ui import Converter
@@ -24,9 +24,11 @@ from nion.swift.model import Utility
 _ = gettext.gettext
 
 
-def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, message_box_id=None):
-    if accepted_text is None: accepted_text = _("OK")
-    if rejected_text is None: rejected_text = _("Cancel")
+def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None):
+    if accepted_text is None:
+        accepted_text = _("OK")
+    if rejected_text is None:
+        rejected_text = _("Cancel")
     message_box_widget = ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
     caption_row = ui.create_row_widget()
     caption_row.add_spacing(12)
@@ -35,7 +37,8 @@ def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, 
     inside_row = ui.create_row_widget()
 
     def reject_button_clicked():
-        if rejected_fn: rejected_fn()
+        if rejected_fn:
+            rejected_fn()
         message_column.remove(message_box_widget)
 
     def accept_button_clicked():
@@ -68,13 +71,16 @@ def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, 
     return message_box_widget
 
 
-def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True, message_box_id=None):
-    if accepted_text is None: accepted_text = _("OK")
-    if rejected_text is None: rejected_text = _("Cancel")
+def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=True):
+    if accepted_text is None:
+        accepted_text = _("OK")
+    if rejected_text is None:
+        rejected_text = _("Cancel")
     message_box_widget = ui.create_column_widget()  # properties={"stylesheet": "background: #FFD"}
 
     def reject_button_clicked():
-        if rejected_fn: rejected_fn()
+        if rejected_fn:
+            rejected_fn()
         message_column.remove(message_box_widget)
 
     def accept_button_clicked():
@@ -103,10 +109,14 @@ def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, reje
 
 class RunScriptDialog(Dialog.ActionDialog):
 
-    def __init__(self, ui):
+    def __init__(self, document_controller):
+        ui = document_controller.ui
         super().__init__(ui, _("Interactive Dialog"))
 
         self.ui = ui
+        self.document_controller = document_controller
+
+        self.__cancelled = False
 
         self.__thread = None
 
@@ -119,6 +129,8 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.__message_column = ui.create_column_widget()
 
+        self.__message_column.add(self.__make_cancel_row())
+
         items = self.ui.get_persistent_object("interactive_scripts_0", list())
 
         def selected_changed(indexes: AbstractSet[int]) -> None:
@@ -126,7 +138,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         def add_clicked() -> None:
             add_dir = self.ui.get_persistent_string("import_directory", "")
-            file_paths, filter, directory = self.document_window.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
+            file_paths, filter_str, directory = self.document_window.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
             self.ui.set_persistent_string("import_directory", directory)
             items.extend(file_paths)
             items.sort()
@@ -214,6 +226,23 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__q = collections.deque()
         self.__output_queue = collections.deque()
 
+    @property
+    def cancelled(self):
+        return self.__cancelled
+
+    def __make_cancel_row(self):
+        def cancel_script():
+            self.__cancelled = True
+
+        cancel_button = self.ui.create_push_button_widget(_("Cancel"))
+        cancel_button.on_clicked = cancel_script
+        cancel_row = self.ui.create_row_widget()
+        cancel_row.add_stretch()
+        cancel_row.add(cancel_button)
+        cancel_row.add_spacing(12)
+        return cancel_row
+
+
     def run_script(self, script_path: str) -> None:
         script_name = os.path.basename(script_path)
 
@@ -255,7 +284,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 g = dict()
                 g["api_broker"] = APIBroker()
                 exec(compiled, g)
-            except Exception as e:
+            except Exception:
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
                 self.alert(_("An exception was raised."), _("Close"))
 
@@ -267,13 +296,16 @@ class RunScriptDialog(Dialog.ActionDialog):
         def func_run(func):
             try:
                 func(self)
-            except Exception as e:
+            except Exception:
                 pass
+
             def request_close():
                 self.document_window.request_close()
+
             with self.__lock:
                 self.__q.append(request_close)
-        self.__thread = threading.Thread(target=func_run, args=(func, ))
+
+        self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
 
     def periodic(self):
@@ -291,17 +323,33 @@ class RunScriptDialog(Dialog.ActionDialog):
         with self.__lock:
             self.__output_queue.append(str(text))
 
-    def get_string(self, prompt, default_str=None):
+    def print_debug(self, text):
+        self.print(text)
+
+    def print_info(self, text):
+        self.print(text)
+
+    def print_warn(self, text):
+        self.print(text)
+
+    def get_string(self, prompt, default_str=None) -> str:
         """Return a string value that the user enters. Raises exception for cancel."""
         accept_event = threading.Event()
         value_ref = [None]
+
         def perform():
             def accepted(text):
                 value_ref[0] = text
+                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
+
             def rejected():
+                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
+
+            self.__message_column.remove_all()
             pose_get_string_message_box(self.ui, self.__message_column, prompt, str(default_str), accepted, rejected)
+
         with self.__lock:
             self.__q.append(perform)
         accept_event.wait()
@@ -311,26 +359,47 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def get_integer(self, prompt: str, default_value: int=0) -> int:
         converter = Converter.IntegerToStringConverter()
-        str = self.get_string(prompt, converter.convert(default_value))
-        return converter.convert_back(str)
+        result = self.get_string(prompt, converter.convert(default_value))
+        return converter.convert_back(result)
 
-    def get_float(self, prompt: str, default_value: float=0, format: str=None) -> float:
-        converter = Converter.FloatToStringConverter(format)
-        str = self.get_string(prompt, converter.convert(default_value))
-        return converter.convert_back(str)
+    def get_float(self, prompt: str, default_value: float=0, format_str: str=None) -> float:
+        converter = Converter.FloatToStringConverter(format_str)
+        result = self.get_string(prompt, converter.convert(default_value))
+        return converter.convert_back(result)
+
+    def show_ndarray(self, data: numpy.ndarray, title:str = None) -> None:
+        accept_event = threading.Event()
+        def perform():
+            data_item = self.document_controller.add_data(data, title)
+            result_display_panel = self.document_controller.next_result_display_panel()
+            if result_display_panel:
+                result_display_panel.set_displayed_data_item(data_item)
+                result_display_panel.request_focus()
+            accept_event.set()
+
+        with self.__lock:
+            self.__q.append(perform)
+        accept_event.wait()
 
     def __accept_reject(self, prompt, accepted_text, rejected_text, display_rejected):
         """Return a boolean value for accept/reject."""
         accept_event = threading.Event()
         result_ref = [False]
+
         def perform():
             def accepted():
                 result_ref[0] = True
+                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
+
             def rejected():
                 result_ref[0] = False
+                self.__message_column.add(self.__make_cancel_row())
                 accept_event.set()
+
+            self.__message_column.remove_all()
             pose_confirmation_message_box(self.ui, self.__message_column, prompt, accepted, rejected, accepted_text, rejected_text, display_rejected)
+
         with self.__lock:
             self.__q.append(perform)
         accept_event.wait()
@@ -345,9 +414,11 @@ class RunScriptDialog(Dialog.ActionDialog):
     def confirm(self, prompt: str, accepted_text: str, rejected_text: str) -> bool:
         return self.__accept_reject(prompt, accepted_text, rejected_text, True)
 
-    def alert(self, prompt: str, button_label: str=None) -> None:
+    def alert(self, prompt: str, button_label: str = None) -> None:
         self.__accept_reject(prompt, button_label, None, False)
+
         def request_close():
             self.document_window.request_close()
+
         with self.__lock:
             self.__q.append(request_close)
