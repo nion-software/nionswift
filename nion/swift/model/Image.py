@@ -4,7 +4,6 @@ from __future__ import division
 
 # standard libraries
 import functools
-import logging
 import math
 import sys
 
@@ -73,7 +72,7 @@ def scaled(image, size, method='linear'):
     return None
 
 
-def rebin_1d(src, len, retained=None):
+def rebin_1d(src: numpy.ndarray, len: int, retained: dict=None) -> numpy.ndarray:
     src_len = src.shape[0]
     if len < src_len:
         if retained is not None and (retained.get("src_len") != src_len or retained.get("len") != len):
@@ -98,10 +97,9 @@ def rebin_1d(src, len, retained=None):
     else:
         # linear
         result = numpy.empty((len, ), dtype=numpy.double)
-        index = numpy.linspace(0, src_len-1, len).astype(numpy.int32)
+        index = (numpy.arange(len) * src_len / len).astype(numpy.int32)
         result[:] = src[index]
         return result
-    return src
 
 
 def get_byte_view(rgba_image):
