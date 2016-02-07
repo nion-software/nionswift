@@ -31,17 +31,16 @@ class LinePlotCanvasItemMapping(object):
         self.__drawn_channel_per_pixel = float(right_channel - left_channel) / plot_rect.width
 
     def map_point_widget_to_channel_norm(self, pos):
-        return (self.__left_channel + (pos.x - self.__plot_rect.left) * self.__drawn_channel_per_pixel) / self.__data_size[0]
+        return (self.__left_channel + (pos.x - self.__plot_rect.left) * self.__drawn_channel_per_pixel) / self.__data_size[-1]
 
     def map_point_channel_norm_to_widget(self, x):
-        return (x * self.__data_size[0] - self.__left_channel) / self.__drawn_channel_per_pixel + self.__plot_rect.left
+        return (x * self.__data_size[-1] - self.__left_channel) / self.__drawn_channel_per_pixel + self.__plot_rect.left
 
     def map_point_channel_norm_to_channel(self, x):
-        return x * self.__data_size[0]
+        return x * self.__data_size[-1]
 
 
 class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
-
     """Display a line plot.
 
     Callers are expected to pass in a font metrics function and a delegate.
@@ -82,11 +81,17 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         font_size = 12
 
-        line_graph_canvas_area_item = CanvasItem.CanvasItemComposition()
-        self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
+        self.line_graph_canvas_item = None
+
+        self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
+        self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
+        self.__line_graph_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
-        line_graph_canvas_area_item.add_canvas_item(self.line_graph_canvas_item)
-        line_graph_canvas_area_item.add_canvas_item(self.__line_graph_regions_canvas_item)
+        self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_regions_canvas_item)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
 
         self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
         self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
@@ -111,7 +116,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         margins = Geometry.Margins(left=6, right=12, top=font_size + 4, bottom=6)
         line_graph_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), margins=margins)
         line_graph_group_canvas_item.add_canvas_item(self.__line_graph_vertical_axis_group_canvas_item, Geometry.IntPoint(x=0, y=0))
-        line_graph_group_canvas_item.add_canvas_item(line_graph_canvas_area_item, Geometry.IntPoint(x=1, y=0))
+        line_graph_group_canvas_item.add_canvas_item(self.__line_graph_area_stack, Geometry.IntPoint(x=1, y=0))
         line_graph_group_canvas_item.add_canvas_item(self.line_graph_horizontal_axis_group_canvas_item, Geometry.IntPoint(x=1, y=1))
 
         # draw the background
@@ -195,8 +200,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
 
-        data_length = data_and_calibration.dimensional_shape[0]
-        dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display_calibrated_values else Calibration.Calibration()
+        data_length = data_and_calibration.dimensional_shape[-1]
+        dimensional_calibration = data_and_calibration.dimensional_calibrations[-1] if display_calibrated_values else Calibration.Calibration()
         calibrated_data_left = dimensional_calibration.convert_to_calibrated_value(0)
         calibrated_data_right = dimensional_calibration.convert_to_calibrated_value(data_length)
         calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
@@ -238,13 +243,13 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
             if data_and_calibration:
                 # make sure we have the correct data
-                assert data_and_calibration.is_data_1d
+                # assert data_and_calibration.is_data_1d
 
                 # update the line graph data
                 left_channel = left_channel if left_channel is not None else 0
-                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[0]
+                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[-1]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = data_and_calibration.dimensional_calibrations[0] if display_calibrated_values else None
+                dimensional_calibration = data_and_calibration.dimensional_calibrations[-1] if display_calibrated_values else None
                 intensity_calibration = data_and_calibration.intensity_calibration if display_calibrated_values else None
 
                 def get_data():
@@ -308,8 +313,34 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # the display has been changed, so this method has been called. it must be called on the ui thread.
         # data_info is a new copy of data info. it will be owned by this line plot after calling this method.
         # this method stores the data_info into each line plot canvas item and updates the canvas item.
-        self.line_graph_canvas_item.data_info = data_info
+        data = data_info.data
+        if Image.is_data_1d(data):
+            if len(self.__line_graph_stack.canvas_items) != 1:
+                self.__line_graph_stack.remove_all_canvas_items()
+                self.__line_graph_stack.add_canvas_item(LineGraphCanvasItem.LineGraphCanvasItem())
+        elif Image.is_data_2d(data):
+            rows = min(16, data.shape[0])
+            if len(self.__line_graph_stack.canvas_items) != rows:
+                self.__line_graph_stack.remove_all_canvas_items()
+                colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
+                filled = True
+                for row in range(rows):
+                    line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
+                    line_graph_canvas_item.wants_mouse_events = False
+                    line_graph_canvas_item.slice = slice(row, row + 1)
+                    line_graph_canvas_item.filled = filled
+                    line_graph_canvas_item.color = colors[row]
+                    self.__line_graph_stack.add_canvas_item(line_graph_canvas_item)
+                    filled = False
+
+        self.line_graph_canvas_item = self.__line_graph_stack.canvas_items[0]
+
+        for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
+            line_graph_canvas_item.data_info = data_info
+
+        self.__line_graph_background_canvas_item.data_info = data_info
         self.__line_graph_regions_canvas_item.data_info = data_info
+        self.__line_graph_frame_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_label_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_label_canvas_item.size_to_content()
         self.__line_graph_vertical_axis_scale_canvas_item.data_info = data_info
@@ -399,7 +430,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if self.delegate.tool_mode == "interval":
             if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
                 data_size = self.__get_dimensional_shape()
-                if data_size and len(data_size) == 1:
+                if data_size and len(data_size) > 0:
                     widget_mapping = self.__get_mouse_mapping()
                     x = widget_mapping.map_point_widget_to_channel_norm(pos)
                     region = Region.IntervalRegion()
@@ -458,7 +489,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__graphic_drag_start_pos = Geometry.IntPoint.make(pos)
         self.__graphic_drag_changed = False
         data_size = self.__get_dimensional_shape()
-        if self.__data_and_calibration and data_size and len(data_size) == 1:
+        if self.__data_and_calibration and data_size and len(data_size) > 0:
             self.__tracking_selections = True
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
@@ -505,7 +536,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
 
     def begin_tracking_vertical(self, pos, rescale):
-        plot_height = self.line_graph_canvas_item.canvas_bounds.height - 1
+        plot_height = self.__line_graph_area_stack.canvas_bounds.height - 1
         y_properties = self.__data_info.y_properties
         self.__tracking_vertical = True
         self.__tracking_rescale = rescale
@@ -645,7 +676,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if self.__mouse_in and self.__last_mouse:
             data_size = self.__get_dimensional_shape()
             pos_1d = None
-            if data_size and len(data_size) == 1:
+            if data_size and self.line_graph_canvas_item:
                 last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
                 pos_1d = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
             self.delegate.cursor_changed(self, pos_1d)

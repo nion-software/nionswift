@@ -25,6 +25,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Symbolic
+from nion.ui import CanvasItem
 from nion.ui import Event
 from nion.ui import Model
 from nion.ui import Observable
@@ -664,14 +665,22 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         assert data is not None
         assert Image.is_data_1d(data)
         data = Image.convert_to_grayscale(data)
+        data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, data_left=0, data_right=data.shape[0])
+        line_graph_area_stack = CanvasItem.CanvasItemComposition()
+        line_graph_background = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
+        line_graph_background.draw_grid = False
+        line_graph_background.background_color = "#EEEEEE"
+        line_graph_background.data_info = data_info
         line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
         line_graph_canvas_item.draw_captions = False
-        line_graph_canvas_item.draw_grid = False
-        line_graph_canvas_item.draw_frame = True
-        line_graph_canvas_item.background_color = "#EEEEEE"
         line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, data_left=0, data_right=data.shape[0])
-        line_graph_canvas_item.update_layout(((height - width / 1.618) * 0.5, 0), (width / 1.618, width))
+        line_graph_canvas_item.data_info = data_info
+        line_graph_frame = LineGraphCanvasItem.LineGraphFrameCanvasItem()
+        line_graph_frame.data_info = data_info
+        line_graph_area_stack.add_canvas_item(line_graph_background)
+        line_graph_area_stack.add_canvas_item(line_graph_canvas_item)
+        line_graph_area_stack.add_canvas_item(line_graph_frame)
+        line_graph_area_stack.update_layout(((height - width / 1.618) * 0.5, 0), (width / 1.618, width))
         drawing_context = ui.create_offscreen_drawing_context()
         drawing_context.save()
         drawing_context.begin_path()
@@ -680,7 +689,7 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         drawing_context.fill()
         drawing_context.restore()
         drawing_context.translate(0, (height - width / 1.618) * 0.5)
-        line_graph_canvas_item._repaint(drawing_context)
+        line_graph_area_stack._repaint(drawing_context)
         return ui.create_rgba_image(drawing_context, width, height)
 
     def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):

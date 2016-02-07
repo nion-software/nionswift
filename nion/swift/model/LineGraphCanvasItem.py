@@ -10,10 +10,6 @@
     combined into a grid layout with the line graph.
 """
 
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import collections
 import gettext
@@ -31,8 +27,14 @@ _ = gettext.gettext
 
 
 class LineGraphDataInfo(object):
+    """Cache data, statistics about the data, and other information about a line graph.
 
-    """ LineGraphDataInfo is used to pass data, drawing limits, and calibrations to various canvas items. """
+    Some operations such as calculating statistics or even calculating optimal tick positions
+    are somewhat expensive. This object caches that information and can be shared between
+    the different drawing components such as the graph, tick marks, labels, etc. of a line graph.
+
+    This object is read-only.
+    """
 
     def __init__(self, data_fn=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None, data_style=None):
         # these items are considered to be input items
@@ -87,9 +89,7 @@ class LineGraphDataInfo(object):
         return self.__data
 
     def __prepare_y_axis(self):
-
-        """
-        Calculate various parameters relating to the y-axis.
+        """Calculate various parameters relating to the y-axis.
 
         The specific parameters calculated from this method are:
             y_tick_precision, y_tick_values
@@ -103,7 +103,7 @@ class LineGraphDataInfo(object):
 
             min_specified = self.data_min is not None
             max_specified = self.data_max is not None
-            if self.data.shape[0] > 0:
+            if self.data.shape[-1] > 0:
                 raw_data_min = self.data_min if min_specified else numpy.amin(self.uncalibrated_data)
                 raw_data_max = self.data_max if max_specified else numpy.amax(self.uncalibrated_data)
             else:
@@ -153,8 +153,7 @@ class LineGraphDataInfo(object):
             self.__y_axis_valid = True
 
     def calculate_y_ticks(self, plot_height):
-
-        """ Calculate the y-axis items dependent on the plot height. """
+        """Calculate the y-axis items dependent on the plot height."""
 
         y_properties = self.y_properties
 
@@ -203,9 +202,7 @@ class LineGraphDataInfo(object):
                 return uncalibrated_y_value
 
     def __prepare_x_axis(self):
-
-        """
-        Calculate various parameters relating to the x-axis.
+        """Calculate various parameters relating to the x-axis.
 
         The specific parameters calculated from this method are: drawn_left_channel, drawn_right_channel,
         x_tick_precision, x_tick_values.
@@ -218,7 +215,7 @@ class LineGraphDataInfo(object):
             left_specified = self.data_left is not None
             right_specified = self.data_right is not None
             raw_data_left = self.data_left if left_specified else 0.0
-            raw_data_right = self.data_right if right_specified else self.data.shape[0]
+            raw_data_right = self.data_right if right_specified else self.data.shape[-1]
 
             calibrated_data_left = calibration.convert_to_calibrated_value(raw_data_left) if calibration is not None else raw_data_left
             calibrated_data_right = calibration.convert_to_calibrated_value(raw_data_right) if calibration is not None else raw_data_right
@@ -241,8 +238,7 @@ class LineGraphDataInfo(object):
             self.__x_axis_valid = True
 
     def calculate_x_ticks(self, plot_width):
-
-        """ Calculate the x-axis items dependent on the plot width. """
+        """Calculate the x-axis items dependent on the plot width."""
 
         calibration = self.spatial_calibration
         x_properties = self.x_properties
@@ -271,20 +267,117 @@ class LineGraphDataInfo(object):
                             self.__x_tick_values)
 
 
-class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
+def draw_background(drawing_context, plot_rect, background_color):
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        drawing_context.rect(plot_rect[0][1], plot_rect[0][0], plot_rect[1][1], plot_rect[1][0])
+        drawing_context.fill_style = background_color
+        drawing_context.fill()
 
-    """ Canvas item to draw the line plot itself. """
+
+def draw_horizontal_grid_lines(drawing_context, plot_width, plot_origin_x, y_ticks):
+    with drawing_context.saver():
+        for y, _ in y_ticks:
+            drawing_context.begin_path()
+            drawing_context.move_to(plot_origin_x, y)
+            drawing_context.line_to(plot_origin_x + plot_width, y)
+        drawing_context.line_width = 1
+        drawing_context.stroke_style = '#DDD'
+        drawing_context.stroke()
+
+
+def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks):
+    with drawing_context.saver():
+        for x, _ in x_ticks:
+            drawing_context.begin_path()
+            drawing_context.move_to(x, plot_origin_y)
+            drawing_context.line_to(x, plot_origin_y + plot_height)
+        drawing_context.line_width = 1
+        drawing_context.stroke_style = '#DDD'
+        drawing_context.stroke()
+
+
+def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, data, calibrated_data_min, calibrated_data_range, data_left, data_width, fill: bool, color: str, rebin_cache):
+    # TODO: optimize filled case using not-filled drawing. be careful to handle baseline crossings.
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        if calibrated_data_range != 0.0:
+            baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
+            baseline = min(plot_origin_y + plot_height, baseline)
+            baseline = max(plot_origin_y, baseline)
+            # rebin so that data_width corresponds to plot width
+            binned_length = int(data.shape[-1] * plot_width / data_width)
+            binned_data = Image.rebin_1d(data, binned_length, rebin_cache)
+            binned_left = int(data_left * plot_width / data_width)
+            # draw the plot
+            last_py = baseline
+            for i in range(0, plot_width):
+                px = plot_origin_x + i
+                binned_index = binned_left + i
+                data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
+                # plot_origin_y is the TOP of the drawing
+                # py extends DOWNWARDS
+                py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
+                py = max(plot_origin_y, py)
+                py = min(plot_origin_y + plot_height, py)
+                if fill:
+                    drawing_context.move_to(px, baseline)
+                    drawing_context.line_to(px, py)
+                else:
+                    if i == 0:
+                        drawing_context.move_to(px, py)
+                    else:
+                        # only draw horizontal lines when necessary
+                        if py != last_py:
+                            # draw forward from last_px to px at last_py level
+                            drawing_context.line_to(px, last_py)
+                            drawing_context.line_to(px, py)
+                    last_py = py
+            if not fill:
+                drawing_context.line_to(plot_origin_x + plot_width, last_py)
+        else:
+            drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
+            drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
+        drawing_context.line_width = 1.0 if fill else 0.5
+        drawing_context.stroke_style = color
+        drawing_context.stroke()
+
+
+def draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_width):
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
+    drawing_context.line_width = 1
+    drawing_context.stroke_style = '#888'
+    drawing_context.stroke()
+
+
+def draw_marker(drawing_context, p, fill=None, stroke=None):
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        drawing_context.move_to(p[1] - 3, p[0] - 3)
+        drawing_context.line_to(p[1] + 3, p[0] - 3)
+        drawing_context.line_to(p[1] + 3, p[0] + 3)
+        drawing_context.line_to(p[1] - 3, p[0] + 3)
+        drawing_context.close_path()
+        if fill:
+            drawing_context.fill_style = fill
+            drawing_context.fill()
+        if stroke:
+            drawing_context.stroke_style = stroke
+            drawing_context.stroke()
+
+
+class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw the line plot background and grid lines."""
 
     def __init__(self):
-        super(LineGraphCanvasItem, self).__init__()
+        super().__init__()
         self.__drawing_context = None
         self.__needs_update = True
         self.__data_info = None
         self.draw_grid = True
-        self.draw_frame = True
         self.background_color = "#FFF"
-        self.font_size = 12
-        self.__retained_rebin_1d = dict()
 
     @property
     def data_info(self):
@@ -293,6 +386,64 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     @data_info.setter
     def data_info(self, value):
         self.__data_info = value
+        self.__needs_update = True
+
+    def _repaint(self, drawing_context):
+        # draw the data, if any
+        data_info = self.data_info
+        y_properties = self.data_info.y_properties if data_info else None
+        x_properties = self.data_info.x_properties if data_info else None
+        if data_info and y_properties and x_properties:
+            plot_rect = self.canvas_bounds
+            plot_width = int(plot_rect[1][1]) - 1
+            plot_height = int(plot_rect[1][0]) - 1
+            plot_origin_x = int(plot_rect[0][1])
+            plot_origin_y = int(plot_rect[0][0])
+
+            # extract the data we need for drawing axes
+            y_ticks = data_info.calculate_y_ticks(plot_height)
+            x_ticks = data_info.calculate_x_ticks(plot_width)
+
+            draw_background(drawing_context, plot_rect, self.background_color)
+
+            # draw the horizontal grid lines
+            if self.draw_grid:
+                draw_horizontal_grid_lines(drawing_context, plot_width, plot_origin_x, y_ticks)
+
+            # draw the vertical grid lines
+            if self.draw_grid:
+                draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks)
+
+
+class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw the line plot itself."""
+
+    def __init__(self):
+        super().__init__()
+        self.__drawing_context = None
+        self.__needs_update = True
+        self.__data_info = None
+        self.__slice = None
+        self.__retained_rebin_1d = dict()
+        self.filled = True
+        self.color = '#1E90FF'  # dodger blue
+
+    @property
+    def data_info(self):
+        return self.__data_info
+
+    @data_info.setter
+    def data_info(self, value):
+        self.__data_info = value
+        self.__needs_update = True
+
+    @property
+    def slice(self):
+        return self.__slice
+
+    @slice.setter
+    def slice(self, value):
+        self.__slice = value
         self.__needs_update = True
 
     def map_mouse_to_position(self, mouse, data_size):
@@ -323,10 +474,9 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def update(self):
         self.__needs_update = True
-        super(LineGraphCanvasItem, self).update()
+        super().update()
 
     def __paint(self, drawing_context):
-
         # draw the data, if any
         data_info = self.data_info
         y_properties = self.data_info.y_properties if data_info else None
@@ -339,102 +489,26 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             plot_origin_x = int(plot_rect[0][1])
             plot_origin_y = int(plot_rect[0][0])
 
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(plot_rect[0][1], plot_rect[0][0], plot_rect[1][1], plot_rect[1][0])
-                drawing_context.fill_style = self.background_color
-                drawing_context.fill()
-
             # extract the data we need for drawing y-axis
             calibrated_data_min = y_properties.calibrated_data_min
             calibrated_data_max = y_properties.calibrated_data_max
             calibrated_data_range = calibrated_data_max - calibrated_data_min
-            y_ticks = data_info.calculate_y_ticks(plot_height)
 
             # extract the data we need for drawing x-axis
             data_left = x_properties.drawn_left_channel
             data_width = x_properties.drawn_right_channel - x_properties.drawn_left_channel
-            x_ticks = data_info.calculate_x_ticks(plot_width)
-
-            # draw the horizontal grid lines
-            if self.draw_grid:
-                with drawing_context.saver():
-                    for y, _ in y_ticks:
-                        drawing_context.begin_path()
-                        drawing_context.move_to(plot_origin_x, y)
-                        drawing_context.line_to(plot_origin_x + plot_width, y)
-                        drawing_context.line_width = 1
-                        drawing_context.stroke_style = '#DDD'
-                        drawing_context.stroke()
-
-            # draw the vertical grid lines
-            with drawing_context.saver():
-                for x, _ in x_ticks:
-                    drawing_context.begin_path()
-                    if self.draw_grid:
-                        drawing_context.move_to(x, plot_origin_y)
-                        drawing_context.line_to(x, plot_origin_y + plot_height)
-                    drawing_context.line_width = 1
-                    drawing_context.stroke_style = '#DDD'
-                    drawing_context.stroke()
 
             # draw the line plot itself
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                if calibrated_data_range != 0.0:
-                    baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
-                    baseline = min(plot_origin_y + plot_height, baseline)
-                    baseline = max(plot_origin_y, baseline)
-                    # rebin so that data_width corresponds to plot width
-                    binned_length = int(data_info.data.shape[0] * plot_width / data_width)
-                    binned_data = Image.rebin_1d(data_info.data, binned_length, self.__retained_rebin_1d)
-                    binned_left = int(data_left * plot_width / data_width)
-                    # draw the plot
-                    for i in range(0, plot_width):
-                        px = plot_origin_x + i
-                        binned_index = binned_left + i
-                        data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
-                        # plot_origin_y is the TOP of the drawing
-                        # py extends DOWNWARDS
-                        py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
-                        py = max(plot_origin_y, py)
-                        py = min(plot_origin_y + plot_height, py)
-                        drawing_context.move_to(px, baseline)
-                        drawing_context.line_to(px, py)
-                else:
-                    drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
-                    drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
-                drawing_context.line_width = 1.0
-                drawing_context.stroke_style = '#1E90FF'  # dodger blue
-                drawing_context.stroke()
-                if self.draw_frame:
-                    drawing_context.begin_path()
-                    drawing_context.rect(plot_origin_x, plot_origin_y, plot_width, plot_height)
-                drawing_context.line_width = 1
-                drawing_context.stroke_style = '#888'
-                drawing_context.stroke()
-
-
-def draw_marker(ctx, p, fill=None, stroke=None):
-    ctx.save()
-    ctx.begin_path()
-    ctx.move_to(p[1] - 3, p[0] - 3)
-    ctx.line_to(p[1] + 3, p[0] - 3)
-    ctx.line_to(p[1] + 3, p[0] + 3)
-    ctx.line_to(p[1] - 3, p[0] + 3)
-    ctx.close_path()
-    if fill:
-        ctx.fill_style = fill
-        ctx.fill()
-    if stroke:
-        ctx.stroke_style = stroke
-        ctx.stroke()
-    ctx.restore()
+            rebin_cache = self.__retained_rebin_1d
+            if self.__slice is not None:
+                data = data_info.data[self.__slice].reshape((data_info.data.shape[-1], ))
+            else:
+                data = data_info.data
+            draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, data, calibrated_data_min, calibrated_data_range, data_left, data_width, self.filled, self.color, rebin_cache)
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    """ Canvas item to draw the line plot itself. """
+    """Canvas item to draw the line plot itself."""
 
     def __init__(self):
         super(LineGraphRegionsCanvasItem, self).__init__()
@@ -461,7 +535,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             data_right = x_properties.drawn_right_channel
 
             def convert_coordinate_to_pixel(c):
-                px = c * data_info.data.shape[0]
+                px = c * data_info.data.shape[-1]
                 return plot_rect.width * (px - data_left) / (data_right - data_left)
 
             for region in self.regions:
@@ -521,9 +595,44 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                         last_x = x
 
 
-class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
+class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw the line plot frame."""
 
-    """ Canvas item to draw the horizontal tick marks. """
+    def __init__(self):
+        super().__init__()
+        self.__drawing_context = None
+        self.__needs_update = True
+        self.__data_info = None
+        self.draw_frame = True
+
+    @property
+    def data_info(self):
+        return self.__data_info
+
+    @data_info.setter
+    def data_info(self, value):
+        self.__data_info = value
+        self.__needs_update = True
+
+    def _repaint(self, drawing_context):
+        # draw the data, if any
+        data_info = self.data_info
+        y_properties = self.data_info.y_properties if data_info else None
+        x_properties = self.data_info.x_properties if data_info else None
+        if data_info and y_properties and x_properties:
+
+            plot_rect = self.canvas_bounds
+            plot_width = int(plot_rect[1][1]) - 1
+            plot_height = int(plot_rect[1][0]) - 1
+            plot_origin_x = int(plot_rect[0][1])
+            plot_origin_y = int(plot_rect[0][0])
+
+            if self.draw_frame:
+                draw_frame(drawing_context, plot_height, plot_origin_x, plot_origin_y, plot_width)
+
+
+class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw the horizontal tick marks."""
 
     def __init__(self):
         super(LineGraphHorizontalAxisTicksCanvasItem, self).__init__()
@@ -556,8 +665,7 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    """ Canvas item to draw the horizontal scale. """
+    """Canvas item to draw the horizontal scale."""
 
     def __init__(self):
         super(LineGraphHorizontalAxisScaleCanvasItem, self).__init__()
@@ -590,8 +698,7 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    """ Canvas item to draw the horizontal label. """
+    """Canvas item to draw the horizontal label."""
 
     def __init__(self):
         super(LineGraphHorizontalAxisLabelCanvasItem, self).__init__()
@@ -633,8 +740,7 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    """ Canvas item to draw the vertical tick marks. """
+    """Canvas item to draw the vertical tick marks."""
 
     def __init__(self):
         super(LineGraphVerticalAxisTicksCanvasItem, self).__init__()
@@ -669,8 +775,7 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    """ Canvas item to draw the vertical scale. """
+    """Canvas item to draw the vertical scale."""
 
     def __init__(self):
         super(LineGraphVerticalAxisScaleCanvasItem, self).__init__()
@@ -728,8 +833,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
 
 class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    """ Canvas item to draw the vertical label. """
+    """Canvas item to draw the vertical label."""
 
     def __init__(self):
         super(LineGraphVerticalAxisLabelCanvasItem, self).__init__()
