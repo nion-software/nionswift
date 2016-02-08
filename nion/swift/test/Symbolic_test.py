@@ -145,6 +145,30 @@ class TestSymbolicClass(unittest.TestCase):
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.sum(d[1:7, ...], 0))
 
+    def test_concatenate_two_images(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4, 4)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "concatenate(a[0:2, 0:2], a[2:4, 2:4])", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[2:4, 2:4])))
+
+    def test_concatenate_three_images(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4, 4)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "concatenate(a[0:2, 0:2], a[1:3, 1:3], a[2:4, 2:4])", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[1:3, 1:3], d[2:4, 2:4])))
+
     def test_ability_to_write_read_basic_nodes(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -1455,6 +1479,9 @@ class TestSymbolicClass(unittest.TestCase):
             computation.parse_expression(document_model, expression_in, dict())
             expression_out = computation.reconstruct(dict())
             self.assertEqual(expression_in, expression_out)
+
+    def disabled_test_computation_with_data_error_gets_reported(self):
+        assert False  # when the data node returns None
 
     def disabled_test_computation_variable_gets_closed(self):
         assert False

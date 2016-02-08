@@ -41,9 +41,6 @@ from nion.ui import Persistence
 def arange(data):
     return numpy.amax(data) - numpy.amin(data)
 
-def data_slice(data, key):
-    return data[list_to_key(key)].copy()
-
 def column(data, start, stop):
     start_0 = start if start is not None else 0
     stop_0 = stop if stop is not None else data_shape(data)[0]
@@ -490,6 +487,74 @@ def function_pick(data_and_metadata, position):
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
+def function_data_slice(data_and_metadata, key):
+
+    slices = list_to_key(key)
+
+    def calculate_data():
+        data = data_and_metadata.data
+        return data[slices].copy()
+
+    if data_and_metadata is None:
+        return None
+
+    dimensional_calibrations = [Calibration.Calibration() for _ in data_and_metadata.data_shape]
+
+    def slice_size(s, size):
+        if isinstance(s, numbers.Integral):
+            s = slice(s)
+        elif isinstance(s, type(Ellipsis)):
+            s = slice(0, size)
+        elif s is None:
+            s = slice(0, 1)
+        s_start = s.start
+        s_stop = s.stop
+        s_step = s.step
+        s_start = s_start if s_start is not None else 0
+        s_start = size + s_start if s_start < 0 else s_start
+        s_stop = s_stop if s_stop is not None else 0
+        s_stop = size + s_stop if s_stop < 0 else s_stop
+        s_step = s_step if s_step is not None else 1
+        return abs(s_start - s_stop) // s_step
+
+    data_shape = [slice_size(s, sz) for s, sz in zip(slices, data_and_metadata.data_shape)]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, (data_shape, data_and_metadata.data_dtype),
+                                           Calibration.Calibration(), dimensional_calibrations, dict(),
+                                           datetime.datetime.utcnow())
+
+
+def function_concatenate(*args):
+    data_and_metadata_list = tuple(args)
+
+    partial_shape = data_and_metadata_list[0].data_shape
+
+    def calculate_data():
+        if any([data_and_metadata.data is None for data_and_metadata in data_and_metadata_list]):
+            return None
+        if all([data_and_metadata.data_shape[1:] == partial_shape[1:] for data_and_metadata in data_and_metadata_list]):
+            data_list = list(data_and_metadata.data for data_and_metadata in data_and_metadata_list)
+            return numpy.concatenate(data_list)
+        return None
+
+    if len(data_and_metadata_list) < 1:
+        return None
+
+    if any([data_and_metadata.data is None for data_and_metadata in data_and_metadata_list]):
+        return None
+
+    if any([data_and_metadata.data_shape != partial_shape[1:] is None for data_and_metadata in data_and_metadata_list]):
+        return None
+
+    dimensional_calibrations = [Calibration.Calibration() for _ in partial_shape]
+
+    new_shape = [sum([data_and_metadata.data_shape[0] for data_and_metadata in data_and_metadata_list]), ] + partial_shape[1:]
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, (new_shape, data_and_metadata_list[0].data_dtype),
+                                           Calibration.Calibration(), dimensional_calibrations, dict(),
+                                           datetime.datetime.utcnow())
+
+
 def function_project(data_and_metadata):
     data_shape = data_and_metadata.data_shape
     data_dtype = data_and_metadata.data_dtype
@@ -710,6 +775,8 @@ _function2_map = {
     "resample_image": function_resample_2d,
     "histogram": function_histogram,
     "line_profile": function_line_profile,
+    "data_slice": function_data_slice,
+    "concatenate": function_concatenate,
 }
 
 _operator_map = {
@@ -737,7 +804,6 @@ _function_map = {
     "floordiv": operator.floordiv,
     "mod": operator.mod,
     "pow": operator.pow,
-    "data_slice": data_slice,
     "column": column,
     "row": row,
     "radius": radius,
@@ -1032,7 +1098,7 @@ class DataNode(object):
 
     def __getitem__(self, key):
         key = key_to_list(key)
-        return UnaryOperationDataNode([self], "data_slice", {"key": key})
+        return FunctionOperationDataNode([self], "data_slice", {"key": key})
 
 
 class ConstantDataNode(DataNode):
@@ -1201,17 +1267,6 @@ class UnaryOperationDataNode(DataNode):
             if precedence >= inputs[0][1]:
                 operator_arg = "({0})".format(operator_arg)
             return "{0}{1}".format(operator_text, operator_arg), precedence
-        if self.__function_id == "data_slice":
-            slice_strs = list()
-            for slice_or_index in list_to_key(self.__args["key"]):
-                if isinstance(slice_or_index, slice):
-                    slice_str = str(slice_or_index.start) if slice_or_index.start is not None else ""
-                    slice_str += ":" + str(slice_or_index.stop) if slice_or_index.stop is not None else ":"
-                    slice_str += ":" + str(slice_or_index.step) if slice_or_index.step is not None else ""
-                    slice_strs.append(slice_str)
-                elif isinstance(slice_or_index, numbers.Integral):
-                    slice_str += str(slice_or_index)
-            return "{0}[{1}]".format(operator_arg, ", ".join(slice_strs)), 10
         if self.__function_id == "astype":
             return "{0}({1}, {2})".format(self.__function_id, operator_arg, self.__args["dtype"]), 10
         if self.__function_id in ("column", "row"):
@@ -1327,6 +1382,19 @@ class FunctionOperationDataNode(DataNode):
     def reconstruct(self, variable_map):
         inputs = reconstruct_inputs(variable_map, self.inputs)
         input_texts = [input[0] for input in inputs]
+        if self.__function_id == "data_slice":
+            operator_arg = input_texts[0]
+            slice_strs = list()
+            for slice_or_index in list_to_key(self.__args["key"]):
+                if isinstance(slice_or_index, slice):
+                    slice_str = str(slice_or_index.start) if slice_or_index.start is not None else ""
+                    slice_str += ":" + str(slice_or_index.stop) if slice_or_index.stop is not None else ":"
+                    slice_str += ":" + str(slice_or_index.step) if slice_or_index.step is not None else ""
+                    slice_strs.append(slice_str)
+                elif isinstance(slice_or_index, numbers.Integral):
+                    slice_str += str(slice_or_index)
+                    slice_strs.append(slice_str)
+            return "{0}[{1}]".format(operator_arg, ", ".join(slice_strs)), 10
         return "{0}({1})".format(self.__function_id, ", ".join(input_texts)), 10
 
     def __str__(self):
@@ -1625,7 +1693,8 @@ def parse_expression(expression_lines, variable_map, context):
     g["complex64"] = numpy.complex64
     g["complex128"] = numpy.complex128
     g["astype"] = lambda data_node, dtype: UnaryOperationDataNode([data_node], "astype", {"dtype": dtype_to_str(dtype)})
-    g["data_slice"] = lambda data_node, key: UnaryOperationDataNode([data_node], "data_slice", {"key": key})
+    g["concatenate"] = lambda *args: FunctionOperationDataNode(tuple(args), "concatenate")
+    g["data_slice"] = lambda data_node, key: FunctionOperationDataNode([data_node], "data_slice", {"key": key})
     g["item"] = lambda data_node, key: ScalarOperationDataNode([data_node], "item", {"key": key})
     g["column"] = lambda data_node, start=None, stop=None: UnaryOperationDataNode([data_node], "column", {"start": start, "stop": stop})
     g["row"] = lambda data_node, start=None, stop=None: UnaryOperationDataNode([data_node], "row", {"start": start, "stop": stop})
