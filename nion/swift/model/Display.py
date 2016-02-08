@@ -136,6 +136,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
     def __init__(self):
         super(Display, self).__init__()
         self.__graphics = list()
+        self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
         self.define_property("y_min", changed=self.__property_changed)
@@ -165,6 +166,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
         self.about_to_be_removed_event = Event.Event()
         self.display_changed_event = Event.Event()
+        self.display_type_changed_event = Event.Event()
         self.display_graphic_selection_changed_event = Event.Event()
         self.display_processor_needs_recompute_event = Event.Event()
         self.display_processor_data_updated_event = Event.Event()
@@ -368,6 +370,10 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             self.remove_cached_value("data_sample")
         self.__validate_data_stats()
         self.notify_set_property("slice_interval", self.slice_interval)
+
+    def __display_type_changed(self, property_name, value):
+        self.__property_changed(property_name, value)
+        self.display_type_changed_event.fire()
 
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called

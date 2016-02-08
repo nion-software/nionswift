@@ -769,13 +769,14 @@ class DataItemDisplayTypeMonitor(object):
             def get_display_type():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # thread safe
-                display_type = None
-                data_and_calibration = display.data_and_calibration
-                if data_and_calibration:
-                    if data_and_calibration.is_data_1d:
-                        display_type = "line_plot"
-                    elif data_and_calibration.is_data_2d or data_and_calibration.is_data_3d:
-                        display_type = "image"
+                display_type = display.display_type
+                if not display_type in ("line_plot", "image"):
+                    data_and_calibration = display.data_and_calibration
+                    if data_and_calibration:
+                        if data_and_calibration.is_data_1d:
+                            display_type = "line_plot"
+                        elif data_and_calibration.is_data_2d or data_and_calibration.is_data_3d:
+                            display_type = "image"
                 return display_type
 
             def display_changed():

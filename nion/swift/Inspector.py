@@ -89,6 +89,9 @@ class InspectorPanel(Panel.Panel):
     def __update_display_inspector(self):
         self.column.remove_all()
         if self.__display_inspector:
+            if self.__display_type_changed_listener:
+                self.__display_type_changed_listener.close()
+                self.__display_type_changed_listener = None
             if self.__display_graphic_selection_changed_event_listener:
                 self.__display_graphic_selection_changed_event_listener.close()
                 self.__display_graphic_selection_changed_event_listener = None
@@ -108,8 +111,15 @@ class InspectorPanel(Panel.Panel):
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
                 self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
-            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen( display_graphic_selection_changed)
+            def display_type_changed():
+                # not really a recursive call; only delayed
+                # this may come in on a thread (superscan probe position connection closing). delay even more.
+                self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
+
+            self.__display_type_changed_listener = display.display_type_changed_event.listen(display_type_changed)
+            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
         else:
+            self.__display_type_changed_listener = None
             self.__display_graphic_selection_changed_event_listener = None
 
         self.column.add(self.__display_inspector.widget)
@@ -567,49 +577,72 @@ class CalibrationsInspectorSection(InspectorSection):
         return column
 
 
-class DisplayLimitsInspectorSection(InspectorSection):
+def make_display_type_chooser(ui, display):
+    display_type_row = ui.create_row_widget()
+    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"))
+    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
+    display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
+    display_type_chooser.on_current_item_changed = lambda item: setattr(display, "display_type", item[1])
+    display_type_chooser.current_item = display_type_items[display_type_reverse_map.get(display.display_type, 0)]
+    display_type_row.add(ui.create_label_widget(_("Display Type:"), properties={"width": 120}))
+    display_type_row.add(display_type_chooser)
+    display_type_row.add_stretch()
+    return display_type_row
+
+
+class ImageDisplayInspectorSection(InspectorSection):
 
     """
         Subclass InspectorSection to implement display limits inspector.
     """
 
     def __init__(self, ui, display):
-        super(DisplayLimitsInspectorSection, self).__init__(ui, "display-limits", _("Display Limits"))
+        super().__init__(ui, "display-limits", _("Display"))
+
+        # display type
+        display_type_row = make_display_type_chooser(ui, display)
+
         # configure the display limit editor
-        self.display_limits_range_row = self.ui.create_row_widget()
-        self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
-        self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
+        self.display_limits_range_row = ui.create_row_widget()
+        self.display_limits_range_low = ui.create_label_widget(properties={"width": 80})
+        self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
         float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
         self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(display, "data_range", 0, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(display, "data_range", 1, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
+        self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
         self.display_limits_range_row.add(self.display_limits_range_high)
         self.display_limits_range_row.add_stretch()
-        self.display_limits_limit_row = self.ui.create_row_widget()
-        self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
-        self.display_limits_limit_high = self.ui.create_line_edit_widget(properties={"width": 80})
+        self.display_limits_limit_row = ui.create_row_widget()
+        self.display_limits_limit_low = ui.create_line_edit_widget(properties={"width": 80})
+        self.display_limits_limit_high = ui.create_line_edit_widget(properties={"width": 80})
         self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(display, "display_range", 0, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(display, "display_range", 1, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_limit_row.add(self.ui.create_label_widget(_("Display:"), properties={"width": 120}))
+        self.display_limits_limit_row.add(ui.create_label_widget(_("Display Limits:"), properties={"width": 120}))
         self.display_limits_limit_row.add(self.display_limits_limit_low)
         self.display_limits_limit_row.add_spacing(8)
         self.display_limits_limit_row.add(self.display_limits_limit_high)
         self.display_limits_limit_row.add_stretch()
+
+        self.add_widget_to_content(display_type_row)
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
+
         self.finish_widget_content()
 
 
-class LinePlotInspectorSection(InspectorSection):
+class LinePlotDisplayInspectorSection(InspectorSection):
 
     """
         Subclass InspectorSection to implement display limits inspector.
     """
 
     def __init__(self, ui, display):
-        super(LinePlotInspectorSection, self).__init__(ui, "line-plot", _("Line Plot"))
+        super().__init__(ui, "line-plot", _("Display"))
+
+        # display type
+        display_type_row = make_display_type_chooser(ui, display)
 
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
@@ -668,6 +701,7 @@ class LinePlotInspectorSection(InspectorSection):
         self.style_row.add(self.style_y_log)
         self.style_row.add_stretch()
 
+        self.add_widget_to_content(display_type_row)
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)
@@ -1428,11 +1462,11 @@ class DataItemInspector(object):
             def focus_default():
                 pass
             self.__focus_default = focus_default
-        elif buffered_data_source and buffered_data_source.is_data_1d:
+        elif buffered_data_source and (buffered_data_source.is_data_1d or display.display_type == "line_plot"):
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(LinePlotInspectorSection(self.ui, display))
+            self.__inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
@@ -1440,11 +1474,11 @@ class DataItemInspector(object):
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
             self.__focus_default = focus_default
-        elif buffered_data_source and buffered_data_source.is_data_2d:
+        elif buffered_data_source and (buffered_data_source.is_data_2d or display.display_type == "image"):
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
+            self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
@@ -1456,7 +1490,7 @@ class DataItemInspector(object):
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(DisplayLimitsInspectorSection(self.ui, display))
+            self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
