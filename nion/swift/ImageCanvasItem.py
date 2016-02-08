@@ -197,7 +197,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             scale_marker_height = 6
             dimensional_shape = self.__dimensional_shape
             widget_mapping = ImageCanvasItemMapping(dimensional_shape, image_canvas_origin, image_canvas_size)
-            if dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
+            if dimensional_shape[0] > 1.0 and dimensional_shape[1] > 0.0:
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / dimensional_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
@@ -312,9 +312,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if data_and_calibration:
             self.__data_and_calibration = data_and_calibration
             # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-            self.__info_overlay_canvas_item.set_data_and_calibration(data_and_calibration)
+            self.__info_overlay_canvas_item.set_data_and_calibration(self.__data_and_calibration)
             if self.__display_frame_rate_id:
-                frame_index = data_and_calibration.metadata.get("hardware_source", dict()).get("frame_index", 0)
+                frame_index = self.__data_and_calibration.metadata.get("hardware_source", dict()).get("frame_index", 0)
                 if frame_index != self.__display_frame_rate_last_index:
                     Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                     self.__display_frame_rate_last_index = frame_index

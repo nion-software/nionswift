@@ -62,6 +62,12 @@ class TestInfoPanelClass(unittest.TestCase):
         self.assertEqual(p, "500.0")
         self.assertEqual(v, "0")
 
+    def test_cursor_over_1d_image_without_exception(self):
+        data_item = DataItem.DataItem(numpy.zeros((50,)))
+        p, v = InfoPanel.get_value_and_position_text(data_item.maybe_data_source.data_and_calibration, False, (0.5, 25))
+        self.assertEqual(p, "25.0")
+        self.assertEqual(v, "0")
+
     def test_cursor_over_3d_data_displays_without_exception(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

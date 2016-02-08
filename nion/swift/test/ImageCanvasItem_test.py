@@ -162,6 +162,19 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_panel.display_canvas_item.simulate_click((500, 500))
             self.assertEqual(display_specifier.display.graphic_selection.indexes, set((1, )))
 
+    def test_1d_data_displayed_as_2d(self):
+        # setup
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, )))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            DataItem.DisplaySpecifier.from_data_item(data_item).display.display_type = "image"
+            header_height = Panel.HeaderCanvasItem().header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

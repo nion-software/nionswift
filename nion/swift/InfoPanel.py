@@ -41,10 +41,17 @@ def get_value_and_position_text(data_and_calibration, display_calibrated_values:
     if len(pos) == 2:
         # 2d image
         # make sure the position is within the bounds of the image
-        if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
-            position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
-                dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
-            value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
+        if len(data_shape) == 1:
+            if pos[-1] >= 0 and pos[-1] < data_shape[-1]:
+                position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
+                full_pos = [0, ] * len(data_shape)
+                full_pos[-1] = pos[-1]
+                value_text = get_calibrated_value_text(data_and_calibration.get_data_value(full_pos), intensity_calibration)
+        else:
+            if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
+                position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
+                value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
     if len(pos) == 1:
         # 1d plot
         # make sure the position is within the bounds of the line plot

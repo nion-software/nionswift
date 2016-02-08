@@ -222,6 +222,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
     def preview_2d(self):
         if self.__preview is None:
             data_2d = self.display_data
+            if Image.is_data_1d(data_2d):
+                data_2d = data_2d.reshape(1, data_2d.shape[0])
             if data_2d is not None:
                 data_range = self.data_range
                 display_limits = self.display_limits
@@ -299,6 +301,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             return self.__data_and_calibration.dimensional_shape
         elif self.__data_and_calibration.is_data_3d:
             return self.__data_and_calibration.dimensional_shape[1:]
+        elif self.__data_and_calibration.is_data_1d:
+            return [1, ] + list(self.__data_and_calibration.dimensional_shape)
         else:
             return None
 
