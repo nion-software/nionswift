@@ -600,6 +600,11 @@ class DataItem(object):
     def regions(self):
         return [Region(region) for region in self.__data_item.maybe_data_source.regions]
 
+    @property
+    def display(self):
+        display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
+        return Display(display_specifier.display)
+
     def add_point_region(self, y, x):
         """Add a point region to the data item.
 
@@ -779,6 +784,14 @@ class Display(object):
     @property
     def specifier(self):
         return ObjectSpecifier("display", self.__display.uuid)
+
+    @property
+    def display_type(self):
+        return self.__display.display_type
+
+    @display_type.setter
+    def display_type(self, value):
+        self.__display.display_type = value
 
     @property
     def selected_graphics(self):
@@ -1505,6 +1518,7 @@ class DocumentController(object):
         if result_display_panel:
             result_display_panel.set_displayed_data_item(data_item._data_item)
             result_display_panel.request_focus()
+        return DisplayPanel(result_display_panel)
 
     @property
     def target_display_panel(self):
