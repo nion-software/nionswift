@@ -19,6 +19,7 @@ from nion.ui import Converter
 from nion.ui import Dialog
 from nion.ui import Selection
 from nion.swift import Widgets
+from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 
 _ = gettext.gettext
@@ -279,7 +280,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                     if Utility.compare_versions(version, actual_version) > 0:
                         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
                     return interactive_session
-
+                def get_api(self, version, ui_version):
+                    return PlugInManager.api_broker_fn(version, ui_version)
             try:
                 g = dict()
                 g["api_broker"] = APIBroker()
