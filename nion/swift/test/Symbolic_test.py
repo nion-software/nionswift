@@ -107,7 +107,19 @@ class TestSymbolicClass(unittest.TestCase):
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[:,4,4])
 
-    def test_ability_to_take_slice_with_ellipses(self):
+    def test_slice_with_empty_dimension_produces_error(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(1, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a[2:2, :, :]", map)
+            self.assertIsNone(computation.evaluate())
+
+    def test_ability_to_take_slice_with_ellipses_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
@@ -119,6 +131,22 @@ class TestSymbolicClass(unittest.TestCase):
             computation.parse_expression(document_model, "a[2, ...]", map)
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[2, ...])
+
+    def test_ability_to_take_slice_with_ellipses_produces_correct_calibration(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
+            d[:] = random.randint(1, 100)
+            data_item = DataItem.DataItem(d)
+            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(10, 20, "m"), Calibration.Calibration(11, 21, "mm"), Calibration.Calibration(12, 22, "nm")])
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "a[2, ...]", map)
+            data_and_metadata = computation.evaluate()
+            self.assertEqual(len(data_and_metadata.data_shape), len(data_and_metadata.dimensional_calibrations))
+            self.assertEqual("mm", data_and_metadata.dimensional_calibrations[0].units)
+            self.assertEqual("nm", data_and_metadata.dimensional_calibrations[1].units)
 
     def test_ability_to_take_slice_with_newaxis(self):
         document_model = DocumentModel.DocumentModel()
@@ -145,6 +173,89 @@ class TestSymbolicClass(unittest.TestCase):
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.sum(d[1:7, ...], 0))
 
+    def test_reshape_1d_to_2d_produces_correct_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "reshape(a, shape(2, 2))", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.reshape(d, (2, 2)))
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "reshape(a, shape(4, -1))", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.reshape(d, (4, -1)))
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "reshape(a, shape(-1, 4))", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.reshape(d, (-1, 4)))
+
+    def test_reconstruct_reshape(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            expression = "reshape(a, shape(2, 2))"
+            computation.parse_expression(document_model, expression, map)
+            self.assertEqual(expression, computation.reconstruct(map))
+
+    def test_reshape_1d_to_2d_preserves_calibration(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4)
+            data_item = DataItem.DataItem(d)
+            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m")])
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            expression = "reshape(a, shape(4, -1))"
+            computation.parse_expression(document_model, expression, map)
+            data_and_metadata = computation.evaluate()
+            self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
+            self.assertEqual("", data_and_metadata.dimensional_calibrations[1].units)
+            computation = Symbolic.Computation()
+            expression = "reshape(a, shape(-1, 4))"
+            computation.parse_expression(document_model, expression, map)
+            data_and_metadata = computation.evaluate()
+            self.assertEqual("", data_and_metadata.dimensional_calibrations[0].units)
+            self.assertEqual("m", data_and_metadata.dimensional_calibrations[1].units)
+
+    def test_reshape_2d_n_x_1_to_1d_preserves_calibration(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4, 1)
+            data_item = DataItem.DataItem(d)
+            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration()])
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            expression = "reshape(a, shape(4))"
+            computation.parse_expression(document_model, expression, map)
+            data_and_metadata = computation.evaluate()
+            self.assertEqual(1, len(data_and_metadata.dimensional_calibrations))
+            self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
+
+    def test_reshape_to_match_another_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4)
+            d2 = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem(d2)
+            document_model.append_data_item(data_item2)
+            map = {"a": document_model.get_object_specifier(data_item), "b": document_model.get_object_specifier(data_item2)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "reshape(a, data_shape(b))", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.reshape(d, (2, 2)))
+
     def test_concatenate_two_images(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -153,11 +264,39 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation = Symbolic.Computation()
-            computation.parse_expression(document_model, "concatenate(a[0:2, 0:2], a[2:4, 2:4])", map)
+            computation.parse_expression(document_model, "concatenate((a[0:2, 0:2], a[2:4, 2:4]))", map)
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[2:4, 2:4])))
 
-    def test_concatenate_three_images(self):
+    def test_concatenate_keeps_calibrations_in_non_axis_dimensions(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4, 4)
+            data_item = DataItem.DataItem(d)
+            data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
+            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "s")])
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "concatenate((a[0:2, 0:2], a[2:4, 2:4]))", map)
+            data_and_metadata = computation.evaluate()
+            self.assertEqual("nm", data_and_metadata.intensity_calibration.units)
+            self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
+            self.assertEqual("", data_and_metadata.dimensional_calibrations[1].units)
+
+    def test_concatenate_along_alternate_axis_images(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            computation.parse_expression(document_model, "concatenate((reshape(a, shape(1, -1)), reshape(a, shape(1, -1))), 0)", map)
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, numpy.concatenate((numpy.reshape(d, (1, -1)), numpy.reshape(d, (1, -1))), 0))
+
+    def test_concatenate_three_images_along_second_axis(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.random.randn(4, 4)
@@ -165,9 +304,21 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
             computation = Symbolic.Computation()
-            computation.parse_expression(document_model, "concatenate(a[0:2, 0:2], a[1:3, 1:3], a[2:4, 2:4])", map)
+            computation.parse_expression(document_model, "concatenate((a[0:2, 0:2], a[1:3, 1:3], a[2:4, 2:4]), 1)", map)
             data = computation.evaluate().data
-            assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[1:3, 1:3], d[2:4, 2:4])))
+            assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[1:3, 1:3], d[2:4, 2:4]), 1))
+
+    def test_reconstruct_concatenate(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            computation = Symbolic.Computation()
+            expression = "concatenate((a, a))"
+            computation.parse_expression(document_model, expression, map)
+            self.assertEqual(computation.reconstruct(map), expression)
 
     def test_ability_to_write_read_basic_nodes(self):
         document_model = DocumentModel.DocumentModel()
@@ -1480,6 +1631,9 @@ class TestSymbolicClass(unittest.TestCase):
             expression_out = computation.reconstruct(dict())
             self.assertEqual(expression_in, expression_out)
 
+    def disabled_test_reshape_rgb(self):
+        assert False
+
     def disabled_test_computation_with_data_error_gets_reported(self):
         assert False  # when the data node returns None
 
@@ -1496,6 +1650,23 @@ class TestSymbolicClass(unittest.TestCase):
     def disabled_test_computations_update_data_item_dependencies_list(self):
         assert False
 
+    def disabled_test_function_to_modify_intensity_calibration(self):
+        assert False
+
+    def disabled_test_function_to_modify_dimensional_calibrations(self):
+        assert False
+
+    def disabled_test_function_to_modify_metadata(self):
+        assert False
+
+    def test_data_slice_calibration_with_step(self):
+        # d[::2, :, :]
+        pass
+
+    def disabled_test_invalid_computation_produces_error_message(self):
+        # example d[3:3, ...]
+        # should return None be allowed? what about raise exception in all cases?
+        pass
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

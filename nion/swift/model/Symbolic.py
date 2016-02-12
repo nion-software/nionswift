@@ -7,9 +7,6 @@
     DataNodes represent data items, operations, numpy arrays, and constants.
 """
 
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import copy
 import datetime
@@ -18,6 +15,9 @@ import numbers
 import operator
 import threading
 import uuid
+
+# typing
+from typing import List
 
 # third party libraries
 import numpy
@@ -488,6 +488,20 @@ def function_pick(data_and_metadata, position):
 
 
 def function_data_slice(data_and_metadata, key):
+    """Slice data.
+
+    a[2, :]
+
+    Keeps calibrations.
+    """
+
+    # (4, 8, 8)[:, 4, 4]
+    # (4, 8, 8)[:, :, 4]
+    # (4, 8, 8)[:, 4:4, 4]
+    # (4, 8, 8)[:, 4:5, 4]
+    # (4, 8, 8)[2, ...]
+    # (4, 8, 8)[..., 2]
+    # (4, 8, 8)[2, ..., 2]
 
     slices = list_to_key(key)
 
@@ -498,33 +512,71 @@ def function_data_slice(data_and_metadata, key):
     if data_and_metadata is None:
         return None
 
-    dimensional_calibrations = [Calibration.Calibration() for _ in data_and_metadata.data_shape]
+    def non_ellipses_count(slices):
+        return sum(1 if isinstance(slice, type(Ellipsis)) else 0 for slice in slices)
 
-    def slice_size(s, size):
-        if isinstance(s, numbers.Integral):
-            s = slice(s)
-        elif isinstance(s, type(Ellipsis)):
-            s = slice(0, size)
+    def normalize_slice(index: int, s: slice, shape: List[int], ellipse_count: int):
+        size = shape[index]
+        collapsible = False
+        if isinstance(s, type(Ellipsis)):
+            # for the ellipse, return a full slice for each ellipse dimension
+            slices = list()
+            for ellipse_index in range(ellipse_count):
+                slices.append((False, slice(0, shape[index + ellipse_index], 1)))
+            return slices
+        elif isinstance(s, numbers.Integral):
+            s = slice(s, s + 1, 1)
+            collapsible = True
         elif s is None:
-            s = slice(0, 1)
+            s = slice(0, size, 1)
         s_start = s.start
         s_stop = s.stop
         s_step = s.step
         s_start = s_start if s_start is not None else 0
         s_start = size + s_start if s_start < 0 else s_start
-        s_stop = s_stop if s_stop is not None else 0
+        s_stop = s_stop if s_stop is not None else size
         s_stop = size + s_stop if s_stop < 0 else s_stop
         s_step = s_step if s_step is not None else 1
-        return abs(s_start - s_stop) // s_step
+        return [(collapsible, slice(s_start, s_stop, s_step))]
 
-    data_shape = [slice_size(s, sz) for s, sz in zip(slices, data_and_metadata.data_shape)]
+    ellipse_count = len(data_and_metadata.data_shape) - non_ellipses_count(slices)
+    normalized_slices = list()  # type: List[(bool, slice)]
+    for index, s in enumerate(slices):
+        normalized_slices.extend(normalize_slice(index, s, data_and_metadata.data_shape, ellipse_count))
+
+    if any(s.start >= s.stop for c, s in normalized_slices):
+        return None
+
+    data_shape = [abs(s.start - s.stop) // s.step for c, s in normalized_slices if not c]
+
+    uncollapsed_data_shape = [abs(s.start - s.stop) // s.step for c, s in normalized_slices]
+
+    cropped_dimensional_calibrations = list()
+
+    for index, dimensional_calibration in enumerate(data_and_metadata.dimensional_calibrations):
+        if not normalized_slices[index][0]:  # not collapsible
+            cropped_calibration = Calibration.Calibration(
+                dimensional_calibration.offset + uncollapsed_data_shape[index] * normalized_slices[index][1].start * dimensional_calibration.scale,
+                dimensional_calibration.scale / normalized_slices[index][1].step, dimensional_calibration.units)
+            cropped_dimensional_calibrations.append(cropped_calibration)
 
     return DataAndMetadata.DataAndMetadata(calculate_data, (data_shape, data_and_metadata.data_dtype),
-                                           Calibration.Calibration(), dimensional_calibrations, dict(),
-                                           datetime.datetime.utcnow())
+                                           data_and_metadata.intensity_calibration, cropped_dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
-def function_concatenate(*args):
+def function_concatenate(*args, axis=0):
+    """Concatenate multiple data_and_metadatas.
+
+    concatenate((a, b, c), 1)
+
+    Function is called by passing a tuple of the list of source items, which matches the
+    form of the numpy function of the same name.
+
+    Keeps intensity calibration of first source item.
+
+    Keeps dimensional calibration in axis dimension.
+    """
     data_and_metadata_list = tuple(args)
 
     partial_shape = data_and_metadata_list[0].data_shape
@@ -534,7 +586,7 @@ def function_concatenate(*args):
             return None
         if all([data_and_metadata.data_shape[1:] == partial_shape[1:] for data_and_metadata in data_and_metadata_list]):
             data_list = list(data_and_metadata.data for data_and_metadata in data_and_metadata_list)
-            return numpy.concatenate(data_list)
+            return numpy.concatenate(data_list, axis)
         return None
 
     if len(data_and_metadata_list) < 1:
@@ -546,12 +598,18 @@ def function_concatenate(*args):
     if any([data_and_metadata.data_shape != partial_shape[1:] is None for data_and_metadata in data_and_metadata_list]):
         return None
 
-    dimensional_calibrations = [Calibration.Calibration() for _ in partial_shape]
+    dimensional_calibrations = list()
+    for index, dimensional_calibration in enumerate(data_and_metadata_list[0].dimensional_calibrations):
+        if index != axis:
+            dimensional_calibrations.append(Calibration.Calibration())
+        else:
+            dimensional_calibrations.append(dimensional_calibration)
 
-    new_shape = [sum([data_and_metadata.data_shape[0] for data_and_metadata in data_and_metadata_list]), ] + partial_shape[1:]
+    new_shape = [sum([data_and_metadata.data_shape[0] for data_and_metadata in data_and_metadata_list]), ] + list(partial_shape[1:])
 
-    return DataAndMetadata.DataAndMetadata(calculate_data, (new_shape, data_and_metadata_list[0].data_dtype),
-                                           Calibration.Calibration(), dimensional_calibrations, dict(),
+    intensity_calibration = data_and_metadata_list[0].intensity_calibration
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, (new_shape, data_and_metadata_list[0].data_dtype), intensity_calibration, dimensional_calibrations, dict(),
                                            datetime.datetime.utcnow())
 
 
@@ -591,6 +649,70 @@ def function_project(data_and_metadata):
 
     return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
                                            data_and_metadata.intensity_calibration, dimensional_calibrations,
+                                           data_and_metadata.metadata, datetime.datetime.utcnow())
+
+
+def function_reshape(data_and_metadata, shape):
+    """Reshape a data and metadata to shape.
+
+    reshape(a, shape(4, 5))
+    reshape(a, data_shape(b))
+
+    Handles special cases when going to one extra dimension and when going to one fewer
+    dimension -- namely to keep the calibrations intact.
+
+    When increasing dimension, a -1 can be passed for the new dimension and this function
+    will calculate the missing value.
+    """
+    data_shape = data_and_metadata.data_shape
+    data_dtype = data_and_metadata.data_dtype
+
+    def calculate_data():
+        data = data_and_metadata.data
+        if not Image.is_data_valid(data):
+            return None
+        return numpy.reshape(data, shape)
+
+    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+
+    if not Image.is_shape_and_dtype_valid(data_shape, data_dtype) or dimensional_calibrations is None:
+        return None
+
+    total_old_pixels = 1
+    for dimension in data_shape:
+        total_old_pixels *= dimension
+    total_new_pixels = 1
+    for dimension in shape:
+        total_new_pixels *= dimension if dimension > 0 else 1
+    new_dimensional_calibrations = list()
+    new_dimensions = list()
+    if len(data_shape) + 1 == len(shape) and -1 in shape:
+        # special case going to one more dimension
+        index = 0
+        for dimension in shape:
+            if dimension == -1:
+                new_dimensional_calibrations.append(Calibration.Calibration())
+                new_dimensions.append(total_old_pixels / total_new_pixels)
+            else:
+                new_dimensional_calibrations.append(dimensional_calibrations[index])
+                new_dimensions.append(dimension)
+                index += 1
+    elif len(data_shape) - 1 == len(shape) and 1 in data_shape:
+        # special case going to one fewer dimension
+        for dimension, dimensional_calibration in zip(data_shape, dimensional_calibrations):
+            if dimension == 1:
+                continue
+            else:
+                new_dimensional_calibrations.append(dimensional_calibration)
+                new_dimensions.append(dimension)
+    else:
+        for _ in range(len(shape)):
+            new_dimensional_calibrations.append(Calibration.Calibration())
+
+    data_shape_and_dtype = new_dimensions, data_dtype
+
+    return DataAndMetadata.DataAndMetadata(calculate_data, data_shape_and_dtype,
+                                           data_and_metadata.intensity_calibration, new_dimensional_calibrations,
                                            data_and_metadata.metadata, datetime.datetime.utcnow())
 
 
@@ -777,6 +899,7 @@ _function2_map = {
     "line_profile": function_line_profile,
     "data_slice": function_data_slice,
     "concatenate": function_concatenate,
+    "reshape": function_reshape,
 }
 
 _operator_map = {
@@ -1395,6 +1518,14 @@ class FunctionOperationDataNode(DataNode):
                     slice_str += str(slice_or_index)
                     slice_strs.append(slice_str)
             return "{0}[{1}]".format(operator_arg, ", ".join(slice_strs)), 10
+        if self.__function_id == "concatenate":
+            axis = self.__args.get("axis", 0)
+            axis_str = (", " + str(axis)) if axis != 0 else str()
+            return "{0}(({1}){2})".format(self.__function_id, ", ".join(input_texts), axis_str), 10
+        if self.__function_id == "reshape":
+            shape = self.__args.get("shape", 0)
+            shape_str = (", " + str(shape)) if shape != 0 else str()
+            return "{0}({1}{2})".format(self.__function_id, ", ".join(input_texts), shape_str), 10
         return "{0}({1})".format(self.__function_id, ", ".join(input_texts)), 10
 
     def __str__(self):
@@ -1693,7 +1824,8 @@ def parse_expression(expression_lines, variable_map, context):
     g["complex64"] = numpy.complex64
     g["complex128"] = numpy.complex128
     g["astype"] = lambda data_node, dtype: UnaryOperationDataNode([data_node], "astype", {"dtype": dtype_to_str(dtype)})
-    g["concatenate"] = lambda *args: FunctionOperationDataNode(tuple(args), "concatenate")
+    g["concatenate"] = lambda data_nodes, axis=0: FunctionOperationDataNode(tuple(data_nodes), "concatenate", {"axis": axis})
+    g["reshape"] = lambda data_node, shape: FunctionOperationDataNode([data_node, DataNode.make(shape)], "reshape")
     g["data_slice"] = lambda data_node, key: FunctionOperationDataNode([data_node], "data_slice", {"key": key})
     g["item"] = lambda data_node, key: ScalarOperationDataNode([data_node], "item", {"key": key})
     g["column"] = lambda data_node, start=None, stop=None: UnaryOperationDataNode([data_node], "column", {"start": start, "stop": stop})
