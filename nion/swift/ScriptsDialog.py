@@ -146,6 +146,13 @@ class RunScriptDialog(Dialog.ActionDialog):
             list_widget.items = items
             self.ui.set_persistent_object("interactive_scripts_0", items)
 
+        def remove_clicked() -> None:
+            indexes = list(list_widget.selected_items)
+            for index in sorted(indexes, reverse=True):
+                del items[index]
+            list_widget.items = items
+            self.ui.set_persistent_object("interactive_scripts_0", items)
+
         def run_clicked() -> None:
             indexes = list_widget.selected_items
             if len(indexes) == 1:
@@ -159,6 +166,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         add_button_widget.on_clicked = add_clicked
 
         remove_button_widget = ui.create_push_button_widget(_("Remove"))
+        remove_button_widget.on_clicked = remove_clicked
 
         run_button_widget = ui.create_push_button_widget(_("Run"))
         run_button_widget.on_clicked = run_clicked
