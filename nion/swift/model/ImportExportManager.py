@@ -1,22 +1,13 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import datetime
+import io
 import json
 import os
-import string
+import pathlib
 import zipfile
 
-# conditional imports
-import sys
-if sys.version < '3':
-    from io import BytesIO
-    import cStringIO as io
-else:
-    import io
-    from io import BytesIO
+# types
+from typing import List
 
 # third party libraries
 import numpy
@@ -396,7 +387,7 @@ class NDataImportExportHandler(ImportExportHandler):
         if "metadata.json" in namelist and "data.npy" in namelist:
             metadata = json.loads(zip_file.read("metadata.json").decode("utf-8"))
             data_bytes = zip_file.read("data.npy")
-            data = numpy.load(BytesIO(data_bytes))
+            data = numpy.load(io.BytesIO(data_bytes))
         if data is not None:
             data_element = metadata
             data_element["data"] = data
@@ -425,8 +416,57 @@ class NDataImportExportHandler(ImportExportHandler):
                 os.remove(data_path)
 
 
+class NumPyImportExportHandler(ImportExportHandler):
+    """A file import/export handler to read/write the npy file type.
+
+    The npy file type is the one included in the NumPy package.
+
+    This i/o handler will optionally read metadata with the same name but the
+    '.json' suffix located in the same directory.
+
+    This i/o handler will write metadata to a file with the same name in the same
+    directory but with the '.json' suffix.
+    """
+
+    def __init__(self, io_handler_id, name, extensions):
+        super().__init__(io_handler_id, name, extensions)
+
+    def read_data_elements(self, ui, extension: str, path_str: str) -> List[dict]:
+        path = pathlib.Path(path_str)
+        data = numpy.load(str(path))
+        metadata_path = path.with_suffix(".json")
+        if metadata_path.exists():
+            metadata = json.load(metadata_path)
+        else:
+            metadata = dict()
+        if data is not None:
+            data_element = metadata
+            data_element["data"] = data
+            return [data_element]
+        return list()
+
+    def can_write(self, data_and_calibration, extension: str) -> bool:
+        return True
+
+    def write(self, ui, data_item: DataItem.DataItem, path_str: str, extension: str) -> None:
+        data_path = pathlib.Path(path_str)
+        metadata_path = data_path.with_suffix(".json")
+        data_element = create_data_element_from_data_item(data_item, include_data=False)
+        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
+        if data is not None:
+            try:
+                with open(str(metadata_path), "w") as fp:
+                    json.dump(data_element, fp)
+                numpy.save(str(data_path), data)
+            except Exception:
+                os.remove(str(metadata_path))
+                os.remove(str(data_path))
+                raise
+
+
+# Register the intrinsic I/O handlers.
 ImportExportManager().register_io_handler(StandardImportExportHandler("jpeg-io-handler", "JPEG", ["jpg", "jpeg"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("png-io-handler", "PNG", ["png"]))
-#ImportExportManager().register_io_handler(StandardImportExportHandler("tiff-io-handler", "TIFF", ["tif", "tiff"]))
 ImportExportManager().register_io_handler(CSVImportExportHandler("csv-io-handler", "CSV", ["csv"]))
 ImportExportManager().register_io_handler(NDataImportExportHandler("ndata1-io-handler", "NData 1", ["ndata1"]))
+ImportExportManager().register_io_handler(NumPyImportExportHandler("numpy-io-handler", "Raw NumPy", ["npy"]))
