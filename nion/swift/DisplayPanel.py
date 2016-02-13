@@ -115,7 +115,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
     """
 
     def __init__(self):
-        super(DisplayPanelOverlayCanvasItem, self).__init__()
+        super().__init__()
         self.wants_drag_events = True
         self.__drop_region = "none"
         self.__focused = False
@@ -138,16 +138,16 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drop = None
         self.on_key_pressed = None
         self.on_key_released = None
-        super(DisplayPanelOverlayCanvasItem, self).close()
+        super().close()
 
     @property
     def focused(self):
         return self.__focused
 
     @focused.setter
-    def focused(self, focused):
-        if self.__focused != focused:
-            self.__focused = focused
+    def focused(self, value):
+        if self.__focused != value:
+            self.__focused = value
             self.update()
 
     @property
@@ -182,8 +182,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             self.update()
 
     def _repaint(self, drawing_context):
-
-        super(DisplayPanelOverlayCanvasItem, self)._repaint(drawing_context)
+        super()._repaint(drawing_context)
 
         # canvas size
         canvas_width = self.canvas_size[1]
@@ -219,7 +218,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                     drawing_context.stroke()
 
     def context_menu_event(self, x, y, gx, gy):
-        if super(DisplayPanelOverlayCanvasItem, self).context_menu_event(x, y, gx, gy):
+        if super().context_menu_event(x, y, gx, gy):
             return True
         if self.on_context_menu_event:
             self.on_context_menu_event(x, y, gx, gy)
@@ -276,10 +275,8 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return super().key_released(key)
 
 
-class BaseDisplayPanelContent(object):
-
+class BaseDisplayPanelContent:
     def __init__(self, document_controller):
-
         assert document_controller is not None
 
         self.__weak_document_controller = weakref.ref(document_controller)
@@ -624,8 +621,8 @@ class DataItemDataSourceDisplay(object):
     def end_mouse_tracking(self):
         self.__delegate.end_data_item_transaction(self.__data_item)
 
-    def mouse_clicked(self, image_position, modifiers):
-        return self.__delegate.mouse_clicked(image_position, modifiers)
+    def image_clicked(self, image_position, modifiers):
+        return self.__delegate.image_clicked(image_position, modifiers)
 
     def delete_key_pressed(self):
         return self.__delegate.remove_selected_graphic()
@@ -865,8 +862,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     self.set_displayed_data_item(data_item)
 
     def image_panel_mouse_clicked(self, image_position, modifiers):
-        if self.on_mouse_clicked:
-            self.on_mouse_clicked(image_position, modifiers)
+        if self.on_image_clicked:
+            return self.on_image_clicked(image_position, modifiers)
+        return False
 
     def image_panel_get_font_metrics(self, font, text):
         return self.ui.get_font_metrics(font, text)
@@ -919,7 +917,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 def end_data_item_transaction(self, data_item):
                     display_panel_content.document_controller.document_model.end_data_item_transaction(data_item)
 
-                def mouse_clicked(self, image_position, modifiers):
+                def image_clicked(self, image_position, modifiers):
                     return display_panel_content.image_panel_mouse_clicked(image_position, modifiers)
 
                 def remove_selected_graphic(self):
@@ -1227,9 +1225,9 @@ class DisplayPanel(object):
         def key_released(key):
             return DisplayPanelManager().key_released(self, key)
 
-        def mouse_clicked(image_position, modifiers):
+        def image_clicked(image_position, modifiers):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-            DisplayPanelManager().mouse_clicked(self, display_specifier, image_position, modifiers)
+            return DisplayPanelManager().image_display_clicked(self, display_specifier, image_position, modifiers)
 
         def focused():
             document_controller.selected_display_panel = self  # MARK
@@ -1257,7 +1255,7 @@ class DisplayPanel(object):
 
         self.__display_panel_content.on_key_pressed = key_pressed
         self.__display_panel_content.on_key_released = key_released
-        self.__display_panel_content.on_mouse_clicked = mouse_clicked
+        self.__display_panel_content.on_image_clicked = image_clicked
         self.__display_panel_content.on_show_context_menu = show_context_menu
         self.__display_panel_content.on_drag_enter = drag_enter
         self.__display_panel_content.on_drag_leave = drag_leave
@@ -1373,7 +1371,7 @@ class DisplayPanelManager(Observable.Broadcaster, metaclass=Utility.Singleton):
         self.notify_listeners("image_panel_key_released", display_panel, key)
         return False
 
-    def mouse_clicked(self, display_panel, display_specifier, image_position, modifiers):
+    def image_display_clicked(self, display_panel, display_specifier, image_position, modifiers):
         self.notify_listeners("image_panel_mouse_clicked", display_panel, display_specifier, image_position, modifiers)
         return False
 

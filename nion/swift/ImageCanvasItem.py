@@ -1,7 +1,3 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import copy
 import logging
@@ -87,6 +83,10 @@ class ImageCanvasItemMapping(object):
 
 
 class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
+    """A canvas item to paint the graphic items on the image.
+
+    Callers should call update_graphics when the graphics changes.
+    """
 
     def __init__(self, get_font_metrics_fn):
         super(GraphicsCanvasItem, self).__init__()
@@ -124,8 +124,13 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
                             traceback.print_stack()
 
 
-
 class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+    """A canvas item to paint the scale marker as an overlay.
+
+    Callers should set the image_canvas_origin and image_canvas_size properties.
+
+    Callers should also call set_data_and_calibration when the data changes.
+    """
 
     def __init__(self):
         super(InfoOverlayCanvasItem, self).__init__()
@@ -222,9 +227,9 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                         drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
                         drawing_context.fill_text(self.__info_text, origin[1], origin[0] - scale_marker_height - 4 - 20)
 
-class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
-    """Display an image.
+class ImageCanvasItem(CanvasItem.LayerCanvasItem):
+    """A canvas item to paint an image.
 
     Callers are expected to pass in a delegate.
 
@@ -433,7 +438,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             return True
         # now let the image panel handle mouse clicking if desired
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
-        self.delegate.mouse_clicked(image_position, modifiers)
+        self.delegate.image_clicked(image_position, modifiers)
         return True
 
     def mouse_double_clicked(self, x, y, modifiers):
