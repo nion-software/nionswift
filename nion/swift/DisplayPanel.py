@@ -624,6 +624,15 @@ class DataItemDataSourceDisplay(object):
     def image_clicked(self, image_position, modifiers):
         return self.__delegate.image_clicked(image_position, modifiers)
 
+    def image_mouse_pressed(self, image_position, modifiers):
+        return self.__delegate.image_mouse_pressed(image_position, modifiers)
+
+    def image_mouse_released(self, image_position, modifiers):
+        return self.__delegate.image_mouse_released(image_position, modifiers)
+
+    def image_mouse_position_changed(self, image_position, modifiers):
+        return self.__delegate.image_mouse_position_changed(image_position, modifiers)
+
     def delete_key_pressed(self):
         return self.__delegate.remove_selected_graphic()
 
@@ -812,8 +821,17 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         # the display canvas item delegate is an object that provides the canvas item displaying the data item.
         self.__display_canvas_item_delegate = None
 
+        self.on_image_clicked = None
+        self.on_image_mouse_pressed = None
+        self.on_image_mouse_released = None
+        self.on_image_mouse_position_changed = None
+
     def close(self):
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
+        self.on_image_clicked = None
+        self.on_image_mouse_pressed = None
+        self.on_image_mouse_released = None
+        self.on_image_mouse_position_changed = None
         self.__set_display_panel_controller(None)
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
@@ -861,9 +879,24 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 if data_item:
                     self.set_displayed_data_item(data_item)
 
-    def image_panel_mouse_clicked(self, image_position, modifiers):
-        if self.on_image_clicked:
+    def image_clicked(self, image_position, modifiers):
+        if callable(self.on_image_clicked):
             return self.on_image_clicked(image_position, modifiers)
+        return False
+
+    def image_mouse_pressed(self, image_position, modifiers):
+        if callable(self.on_image_mouse_pressed):
+            return self.on_image_mouse_pressed(image_position, modifiers)
+        return False
+
+    def image_mouse_released(self, image_position, modifiers):
+        if callable(self.on_image_mouse_released):
+            return self.on_image_mouse_released(image_position, modifiers)
+        return False
+
+    def image_mouse_position_changed(self, image_position, modifiers):
+        if callable(self.on_image_mouse_position_changed):
+            return self.on_image_mouse_position_changed(image_position, modifiers)
         return False
 
     def image_panel_get_font_metrics(self, font, text):
@@ -918,7 +951,16 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     display_panel_content.document_controller.document_model.end_data_item_transaction(data_item)
 
                 def image_clicked(self, image_position, modifiers):
-                    return display_panel_content.image_panel_mouse_clicked(image_position, modifiers)
+                    return display_panel_content.image_clicked(image_position, modifiers)
+
+                def image_mouse_pressed(self, image_position, modifiers):
+                    return display_panel_content.image_mouse_pressed(image_position, modifiers)
+
+                def image_mouse_released(self, image_position, modifiers):
+                    return display_panel_content.image_mouse_released(image_position, modifiers)
+
+                def image_mouse_position_changed(self, image_position, modifiers):
+                    return display_panel_content.image_mouse_position_changed(image_position, modifiers)
 
                 def remove_selected_graphic(self):
                     if display_panel_content.document_controller.remove_graphic():
@@ -1229,6 +1271,18 @@ class DisplayPanel(object):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
             return DisplayPanelManager().image_display_clicked(self, display_specifier, image_position, modifiers)
 
+        def image_mouse_pressed(image_position, modifiers):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+            return DisplayPanelManager().image_display_mouse_pressed(self, display_specifier, image_position, modifiers)
+
+        def image_mouse_released(image_position, modifiers):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+            return DisplayPanelManager().image_display_mouse_released(self, display_specifier, image_position, modifiers)
+
+        def image_mouse_position_changed(image_position, modifiers):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+            return DisplayPanelManager().image_display_mouse_position_changed(self, display_specifier, image_position, modifiers)
+
         def focused():
             document_controller.selected_display_panel = self  # MARK
             document_controller.notify_selected_data_item_changed(self.data_item)
@@ -1256,6 +1310,9 @@ class DisplayPanel(object):
         self.__display_panel_content.on_key_pressed = key_pressed
         self.__display_panel_content.on_key_released = key_released
         self.__display_panel_content.on_image_clicked = image_clicked
+        self.__display_panel_content.on_image_mouse_pressed = image_mouse_pressed
+        self.__display_panel_content.on_image_mouse_released = image_mouse_released
+        self.__display_panel_content.on_image_mouse_position_changed = image_mouse_position_changed
         self.__display_panel_content.on_show_context_menu = show_context_menu
         self.__display_panel_content.on_drag_enter = drag_enter
         self.__display_panel_content.on_drag_leave = drag_leave
@@ -1350,7 +1407,7 @@ class DisplayPanel(object):
             self.__display_panel_content.perform_action(fn, *args, **keywords)
 
 
-class DisplayPanelManager(Observable.Broadcaster, metaclass=Utility.Singleton):
+class DisplayPanelManager(metaclass=Utility.Singleton):
     """ Acts as a broker for significant events occurring regarding display panels. Listeners can attach themselves to
     this object and receive messages regarding display panels. For instance, when the user presses a key on an display
     panel that isn't handled directly, listeners will be advised of this event. """
@@ -1360,20 +1417,32 @@ class DisplayPanelManager(Observable.Broadcaster, metaclass=Utility.Singleton):
         self.__display_panel_controllers = dict()  # maps controller_type to make_fn
         self.__display_controller_factories = dict()
         self.__display_panel_factories = dict()
+        self.key_pressed_event = Event.Event()
+        self.key_released_event = Event.Event()
+        self.image_display_clicked_event = Event.Event()
+        self.image_display_mouse_pressed_event = Event.Event()
+        self.image_display_mouse_released_event = Event.Event()
+        self.image_display_mouse_position_changed_event = Event.Event()
 
     # events from the image panels
     def key_pressed(self, display_panel, key):
-        self.notify_listeners("image_panel_key_pressed", display_panel, key)
-        return False
+        return self.key_pressed_event.fire_any(display_panel, key)
 
     # events from the image panels
     def key_released(self, display_panel, key):
-        self.notify_listeners("image_panel_key_released", display_panel, key)
-        return False
+        return self.key_released_event.fire_any(display_panel, key)
 
     def image_display_clicked(self, display_panel, display_specifier, image_position, modifiers):
-        self.notify_listeners("image_panel_mouse_clicked", display_panel, display_specifier, image_position, modifiers)
-        return False
+        return self.image_display_clicked_event.fire_any(display_panel, display_specifier, image_position, modifiers)
+
+    def image_display_mouse_pressed(self, display_panel, display_specifier, image_position, modifiers):
+        return self.image_display_mouse_pressed_event.fire_any(display_panel, display_specifier, image_position, modifiers)
+
+    def image_display_mouse_released(self, display_panel, display_specifier, image_position, modifiers):
+        return self.image_display_mouse_released_event.fire_any(display_panel, display_specifier, image_position, modifiers)
+
+    def image_display_mouse_position_changed(self, display_panel, display_specifier, image_position, modifiers):
+        return self.image_display_mouse_position_changed_event.fire_any(display_panel, display_specifier, image_position, modifiers)
 
     def register_display_panel_factory(self, factory_id, factory):
         assert factory_id not in self.__display_panel_factories

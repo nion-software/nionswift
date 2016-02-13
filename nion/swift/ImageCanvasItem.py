@@ -257,7 +257,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     """
 
     def __init__(self, get_font_metrics_fn, delegate):
-        super(ImageCanvasItem, self).__init__()
+        super().__init__()
 
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.delegate = delegate
@@ -307,7 +307,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     def close(self):
         # call super
-        super(ImageCanvasItem, self).close()
+        super().close()
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
@@ -434,22 +434,24 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__composite_canvas_item.update()
 
     def mouse_clicked(self, x, y, modifiers):
-        if super(ImageCanvasItem, self).mouse_clicked(x, y, modifiers):
+        if super().mouse_clicked(x, y, modifiers):
             return True
         # now let the image panel handle mouse clicking if desired
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
-        self.delegate.image_clicked(image_position, modifiers)
-        return True
+        return self.delegate.image_clicked(image_position, modifiers)
 
     def mouse_double_clicked(self, x, y, modifiers):
         self.set_fit_mode()
         return True
 
     def mouse_pressed(self, x, y, modifiers):
-        if super(ImageCanvasItem, self).mouse_pressed(x, y, modifiers):
+        if super().mouse_pressed(x, y, modifiers):
             return True
         if not self.__data_and_calibration:
             return False
+        image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
+        if self.delegate.image_mouse_pressed(image_position, modifiers):
+            return True
         self.delegate.begin_mouse_tracking()
         # figure out clicked graphic
         self.__graphic_drag_items = []
@@ -625,7 +627,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return True
 
     def mouse_released(self, x, y, modifiers):
-        if super(ImageCanvasItem, self).mouse_released(x, y, modifiers):
+        if super().mouse_released(x, y, modifiers):
+            return True
+        image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
+        if self.delegate.image_mouse_released(image_position, modifiers):
             return True
         if self.__data_and_calibration:
             graphics = self.__graphics
@@ -658,20 +663,23 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return True
 
     def mouse_entered(self):
-        if super(ImageCanvasItem, self).mouse_entered():
+        if super().mouse_entered():
             return True
         self.__mouse_in = True
         return True
 
     def mouse_exited(self):
-        if super(ImageCanvasItem, self).mouse_exited():
+        if super().mouse_exited():
             return True
         self.__mouse_in = False
         self.__update_cursor_info()
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
-        if super(ImageCanvasItem, self).mouse_position_changed(x, y, modifiers):
+        if super().mouse_position_changed(x, y, modifiers):
+            return True
+        image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
+        if self.delegate.image_mouse_position_changed(image_position, modifiers):
             return True
         if self.delegate.tool_mode == "pointer":
             self.cursor_shape = "arrow"
@@ -719,7 +727,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     # ths message comes from the widget
     def key_pressed(self, key):
-        if super(ImageCanvasItem, self).key_pressed(key):
+        if super().key_pressed(key):
             return True
         # only handle keys if we're directly embedded in an image panel
         if key.is_delete:
@@ -836,7 +844,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.delegate.cursor_changed(self, None)
 
     def _repaint(self, drawing_context):
-        super(ImageCanvasItem, self)._repaint(drawing_context)
+        super()._repaint(drawing_context)
 
         if self.__display_frame_rate_id:
             fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
@@ -872,7 +880,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.prepare_display()
         if self.__display_frame_rate_id:
             Utility.fps_tick("display_"+self.__display_frame_rate_id)
-        super(ImageCanvasItem, self)._repaint_layer(drawing_context)
+        super()._repaint_layer(drawing_context)
 
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
