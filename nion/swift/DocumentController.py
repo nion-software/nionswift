@@ -9,6 +9,7 @@ import logging
 import os.path
 import random
 import threading
+import time
 import traceback
 import uuid
 import weakref
@@ -98,6 +99,8 @@ class DocumentController(Observable.Broadcaster):
         self.__tool_mode = "pointer"
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
+        self.__weak_periodic_listeners = []
+        self.__weak_periodic_listeners_mutex = threading.RLock()
 
         selection = Selection.IndexedSelection()
 
@@ -443,10 +446,53 @@ class DocumentController(Observable.Broadcaster):
         assert task
         self.__periodic_queue.put(task)
 
+    def add_periodic(self, interval: float, listener_fn):
+        """Add a listener function and return listener token. Token can be closed or deleted to unlisten."""
+        class PeriodicListener:
+            def __init__(self, interval: float, listener_fn):
+                self.interval = interval
+                self.__listener_fn = listener_fn
+                # the call function is very performance critical; make it fast by using a property
+                # instead of a logic statement each time.
+                if callable(listener_fn):
+                    self.call = self.__listener_fn
+                else:
+                    def void(*args, **kwargs):
+                        pass
+                    self.call = void
+                self.next_scheduled_time = time.time() + interval
+            def close(self):
+                self.__listener_fn = None
+                def void(*args, **kwargs):
+                    pass
+                self.call = void
+        listener = PeriodicListener(interval, listener_fn)
+        def remove_listener(weak_listener):
+            with self.__weak_periodic_listeners_mutex:
+                self.__weak_periodic_listeners.remove(weak_listener)
+        weak_listener = weakref.ref(listener, remove_listener)
+        with self.__weak_periodic_listeners_mutex:
+            self.__weak_periodic_listeners.append(weak_listener)
+        return listener
+
     def periodic(self):
         #import time
         #t0 = time.time()
         # perform any pending operations
+        with self.__weak_periodic_listeners_mutex:
+            periodic_listeners = copy.copy(self.__weak_periodic_listeners)
+        current_time = time.time()
+        for weak_periodic_listener in periodic_listeners:
+            periodic_listener = weak_periodic_listener()
+            if periodic_listener and current_time >= periodic_listener.next_scheduled_time:
+                try:
+                    periodic_listener.call()
+                except Exception as e:
+                    import traceback
+                    logging.debug("Event Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+                periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
         self.__periodic_queue.perform_tasks()
         if self.__periodic_queue is None:  # handle special case where we queue'd a close
             return
@@ -456,7 +502,7 @@ class DocumentController(Observable.Broadcaster):
         if self.workspace_controller:
             self.workspace_controller.periodic()
         #t2 = time.time()
-        self.filter_controller.periodic()
+        # self.filter_controller.periodic()
         #t3 = time.time()
         #logging.debug("t %s %s %s", t1-t0, t2-t1, t3-t2)
 

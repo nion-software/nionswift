@@ -48,6 +48,7 @@ class FilterController(object):
 
     def __init__(self, document_controller):
         self.ui = document_controller.ui
+        self.__periodic_listener = document_controller.add_periodic(1.0, self.__periodic)
         self.item_model_controller = self.ui.create_item_model_controller(["display"])
         self.__document_controller_weakref = weakref.ref(document_controller)
 
@@ -99,8 +100,6 @@ class FilterController(object):
         self.__mapping[id(self.__data_item_tree)] = self.item_model_controller.root
         self.__node_counts_dirty = False
 
-        self.__last_node_count_update_time = 0
-
         self.__date_filter = None
         self.__text_filter = None
 
@@ -111,19 +110,17 @@ class FilterController(object):
         """
         del self.__data_item_list_binding.inserters[id(self)]
         del self.__data_item_list_binding.removers[id(self)]
+        self.__periodic_listener.close()
+        self.__periodic_listener = None
         self.item_model_controller.close()
         self.item_model_controller = None
 
-    def __get_document_controller(self):
-        """ The :py:class:`nion.swift.DocumentController` associated with this object. """
+    @property
+    def document_controller(self):
         return self.__document_controller_weakref()
-    document_controller = property(__get_document_controller)
 
-    def periodic(self):
-        """ Perform periodic tasks. In this case, update the counts if needed. """
-        if time.time() - self.__last_node_count_update_time > 1.0:  # update node counts once per second
-            self.update_all_nodes()
-            self.__last_node_count_update_time = time.time()
+    def __periodic(self):
+        self.update_all_nodes()
 
     def __display_for_tree_node(self, tree_node):
         """ Return the text display for the given tree node. Based on number of keys associated with tree node. """
