@@ -170,7 +170,7 @@ class MetadataPanel(Panel.Panel):
 
         delegate = MetadataEditorTreeDelegate(dict())
 
-        metadata_editor_widget = ui.create_canvas_widget_new()
+        metadata_editor_widget = ui.create_canvas_widget()
         metadata_editor_canvas_item = TreeCanvasItem.TreeCanvasItem(ui.get_font_metrics, delegate)
         metadata_editor_widget.canvas_item.add_canvas_item(metadata_editor_canvas_item)
 

@@ -277,10 +277,10 @@ class HistogramPanel(Panel.Panel):
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
-        # create a root canvas item for this panel and put a histogram canvas item in it.
-        self.__root_histogram_canvas_item = CanvasItem.RootCanvasItem(document_controller.ui, properties={"min-height": 80, "max-height": 80})
+        # create a canvas widget for this panel and put a histogram canvas item in it.
         self.__histogram_canvas_item = HistogramCanvasItem()
-        self.__root_histogram_canvas_item.add_canvas_item(self.__histogram_canvas_item)
+        histogram_widget = self.ui.create_canvas_widget(properties={"min-height": 80, "max-height": 80})
+        histogram_widget.canvas_item.add_canvas_item(self.__histogram_canvas_item)
 
         # create a statistics section
         stats_column1 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
@@ -298,7 +298,7 @@ class HistogramPanel(Panel.Panel):
 
         # create the main column with the histogram and the statistics section
         column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3})
-        column.add(self.__root_histogram_canvas_item.canvas_widget)
+        column.add(histogram_widget)
         column.add_spacing(6)
         column.add(stats_section)
         column.add_spacing(6)
@@ -325,8 +325,6 @@ class HistogramPanel(Panel.Panel):
         self.__data_item_changed(self.__selected_data_item_binding.data_item)
 
     def close(self):
-        self.__root_histogram_canvas_item.close()
-        self.__root_histogram_canvas_item = None
         # disconnect data item binding
         self.__data_item_changed(None)
         self.__data_item_changed_event_listener.close()

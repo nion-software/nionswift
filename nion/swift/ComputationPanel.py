@@ -203,10 +203,10 @@ class ComputationPanelSection:
         section_widget = ui.create_column_widget()
         section_title_row = ui.create_row_widget()
 
-        self.twist_down_canvas_item_root = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 20})
         twist_down_canvas_item = CanvasItem.TwistDownCanvasItem()
-        self.twist_down_canvas_item_root.add_canvas_item(twist_down_canvas_item)
-        section_title_row.add(self.twist_down_canvas_item_root.canvas_widget)
+        twist_down_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
+        twist_down_canvas_widget.canvas_item.add_canvas_item(twist_down_canvas_item)
+        section_title_row.add(twist_down_canvas_widget)
         twist_down_label_widget = ui.create_label_widget(variable.name, properties={"stylesheet": "font-weight: bold"})
         twist_down_label_widget.bind_text(Binding.PropertyBinding(variable, "name"))
         section_title_row.add(twist_down_label_widget)
@@ -432,8 +432,6 @@ class ComputationPanelSection:
         self.widget = section_widget
 
     def close(self):
-        self.twist_down_canvas_item_root.close()
-        self.twist_down_canvas_item_root = None
         self.__variable_type_changed_event_listener.close()
         self.__variable_type_changed_event_listener = None
 

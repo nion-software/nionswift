@@ -16,6 +16,7 @@ import weakref
 # local libraries
 from nion.swift import Decorators
 from nion.swift import Panel
+from nion.swift import Widgets
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.ui import CanvasItem
@@ -552,44 +553,44 @@ class DataGridController:
             drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
 
 
-class DataListWidget(object):
+class DataListWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui, data_list_controller):
+        super().__init__(ui.create_column_widget())
         self.data_list_controller = data_list_controller
-        self.root_canvas_item = CanvasItem.RootCanvasItem(ui)
-        self.root_canvas_item.add_canvas_item(data_list_controller.canvas_item)
-        self.widget = self.root_canvas_item.canvas_widget
+        data_list_widget = ui.create_canvas_widget()
+        data_list_widget.canvas_item.add_canvas_item(data_list_controller.canvas_item)
+        self.content_widget.add(data_list_widget)
 
         def data_list_drag_started(mime_data, thumbnail_data):
-            self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+            self.drag(mime_data, thumbnail_data)
 
         data_list_controller.on_drag_started = data_list_drag_started
 
     def close(self):
         self.data_list_controller.on_drag_started = None
         self.data_list_controller = None
-        self.root_canvas_item.close()
-        self.root_canvas_item = None
+        super().close()
 
 
-class DataGridWidget(object):
+class DataGridWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui, data_grid_controller):
+        super().__init__(ui.create_column_widget())
         self.data_grid_controller = data_grid_controller
-        self.root_canvas_item = CanvasItem.RootCanvasItem(ui)
-        self.root_canvas_item.add_canvas_item(data_grid_controller.canvas_item)
-        self.widget = self.root_canvas_item.canvas_widget
+        data_grid_widget = ui.create_canvas_widget()
+        data_grid_widget.canvas_item.add_canvas_item(data_grid_controller.canvas_item)
+        self.content_widget.add(data_grid_widget)
 
-        def data_grid_drag_started(mime_data, thumbnail_data):
-            self.root_canvas_item.canvas_widget.drag(mime_data, thumbnail_data)
+        def data_list_drag_started(mime_data, thumbnail_data):
+            self.drag(mime_data, thumbnail_data)
 
-        data_grid_controller.on_drag_started = data_grid_drag_started
+        data_grid_controller.on_drag_started = data_list_drag_started
 
     def close(self):
         self.data_grid_controller.on_drag_started = None
         self.data_grid_controller = None
-        self.root_canvas_item.close()
-        self.root_canvas_item = None
+        super().close()
 
 
 class DataBrowserController(object):
@@ -1128,8 +1129,8 @@ class DataPanel(Panel.Panel):
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
-        self.data_list_widget = DataListWidget(document_controller.ui, self.data_list_controller)
-        self.data_grid_widget = DataGridWidget(document_controller.ui, self.data_grid_controller)
+        data_list_widget = DataListWidget(document_controller.ui, self.data_list_controller)
+        data_grid_widget = DataGridWidget(document_controller.ui, self.data_grid_controller)
 
         def data_item_inserted(data_item, before_index):
             display_item = DisplayItem(data_item)
@@ -1152,17 +1153,19 @@ class DataPanel(Panel.Panel):
         for index, data_item in enumerate(self.__binding.data_items):
             data_item_inserted(data_item, index)
 
-        self.buttons_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 20, "width": 44})
-        self.buttons_canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
-
         list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/list_icon_20.png")))
         grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/grid_icon_20.png")))
 
         list_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
         grid_icon_button.sizing.set_fixed_size(Geometry.IntSize(20, 20))
 
-        self.buttons_canvas_item.add_canvas_item(list_icon_button)
-        self.buttons_canvas_item.add_canvas_item(grid_icon_button)
+        button_row = CanvasItem.CanvasItemComposition()
+        button_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
+        button_row.add_canvas_item(list_icon_button)
+        button_row.add_canvas_item(grid_icon_button)
+
+        buttons_widget = ui.create_canvas_widget(properties={"height": 20, "width": 44})
+        buttons_widget.canvas_item.add_canvas_item(button_row)
 
         search_widget = ui.create_row_widget()
         search_widget.add_spacing(8)
@@ -1175,12 +1178,12 @@ class DataPanel(Panel.Panel):
         search_line_edit.on_editing_finished = self.document_controller.filter_controller.text_filter_changed
         search_widget.add(search_line_edit)
         search_widget.add_spacing(6)
-        search_widget.add(self.buttons_canvas_item.canvas_widget)
+        search_widget.add(buttons_widget)
         search_widget.add_spacing(8)
 
         self.data_view_widget = ui.create_stack_widget()
-        self.data_view_widget.add(self.data_list_widget.widget)
-        self.data_view_widget.add(self.data_grid_widget.widget)
+        self.data_view_widget.add(data_list_widget)
+        self.data_view_widget.add(data_grid_widget)
         self.data_view_widget.current_index = 0
 
         self.__view_button_group = CanvasItem.RadioButtonGroup([list_icon_button, grid_icon_button])
@@ -1201,6 +1204,9 @@ class DataPanel(Panel.Panel):
 
         self.widget = self.splitter
 
+        self._data_list_widget = data_list_widget
+        self._data_grid_widget = data_grid_widget
+
     def close(self):
         # binding should not be closed since it isn't created in this object
         self.splitter.save_state("window/v1/data_panel_splitter")
@@ -1216,12 +1222,8 @@ class DataPanel(Panel.Panel):
         self.library_model_controller = None
         self.data_list_controller.close()
         self.data_list_controller = None
-        self.data_list_widget.close()
-        self.data_list_widget = None
         self.data_grid_controller.close()
         self.data_grid_controller = None
-        self.data_grid_widget.close()
-        self.data_grid_widget = None
         # display items
         for display_item in self.__display_items:
             display_item.close()
@@ -1233,8 +1235,6 @@ class DataPanel(Panel.Panel):
         # button group
         self.__view_button_group.close()
         self.__view_button_group = None
-        self.buttons_canvas_item.close()
-        self.buttons_canvas_item = None
         # finish closing
         super(DataPanel, self).close()
 

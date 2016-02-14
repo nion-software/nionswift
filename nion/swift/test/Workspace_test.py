@@ -228,7 +228,7 @@ class TestWorkspaceClass(unittest.TestCase):
         root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         # deconstruct
         desc1 = get_layout("2x1")[1]
-        desc2 = document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0])
+        desc2 = document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0].canvas_items[0])
         self.assertEqual(desc1, desc2)
         document_controller.close()
 
@@ -372,8 +372,8 @@ class TestWorkspaceClass(unittest.TestCase):
         # check that there are now three image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 3)
         # check that there are still two top level image panels
-        self.assertTrue(isinstance(root_canvas_item.canvas_items[0], CanvasItem.SplitterCanvasItem))
-        self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items), 2)
+        self.assertTrue(isinstance(root_canvas_item.canvas_items[0].canvas_items[0], CanvasItem.SplitterCanvasItem))
+        self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items[0].canvas_items), 2)
         # check that the first top level item is a splitter and has two image panels
         self.assertTrue(isinstance(root_canvas_item.canvas_items[0].canvas_items[0], CanvasItem.SplitterCanvasItem))
         self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items[0].canvas_items), 2)
@@ -448,7 +448,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
         document_controller.workspace_controller.display_panels[2].set_displayed_data_item(data_item3)
         display_panel = document_controller.workspace_controller.display_panels[1]
-        splits = root_canvas_item.canvas_items[0].splits
+        splits = root_canvas_item.canvas_items[0].canvas_items[0].splits
         #logging.debug(document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0]))
         document_controller.workspace_controller.remove_display_panel(display_panel)
         # check that there are now two image panels
@@ -457,7 +457,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item1)
         self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item3)
         # check that the splits are the same at the top level
-        self.assertEqual(root_canvas_item.canvas_items[0].splits, splits)
+        self.assertEqual(root_canvas_item.canvas_items[0].canvas_items[0].splits, splits)
         document_controller.close()
 
     def test_close_button_in_header_works(self):
@@ -533,7 +533,7 @@ class TestWorkspaceClass(unittest.TestCase):
         workspace_bad = document_controller.workspace_controller.new_workspace(layout={"type": "bad_component_type"})
         document_controller.workspace_controller.change_workspace(workspace_bad)
         root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-        panel_0_dict = document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0])
+        panel_0_dict = document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0].canvas_items[0])
         panel_0_dict.pop("identifier")
         panel_0_dict.pop("uuid")
         self.assertEqual(panel_0_dict, {'selected': True, 'type': 'image'})

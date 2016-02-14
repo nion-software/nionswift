@@ -1454,7 +1454,7 @@ class QtDrawingContextStorage(object):
 
 class QtCanvasWidget(QtWidget):
 
-    def __init__(self, proxy, properties, do_create_canvas_item: bool):
+    def __init__(self, proxy, properties):
         super(QtCanvasWidget, self).__init__(proxy, "canvas", properties)
         self.proxy.Canvas_connect(self.widget, self)
         self.on_periodic = None
@@ -1478,10 +1478,7 @@ class QtCanvasWidget(QtWidget):
         self.height = 0
         self.__focusable = False
         self.__draw_mutex = threading.Lock()  # don't delete while drawing
-        if do_create_canvas_item:
-            self.__canvas_item = CanvasItem.RootCanvasItem(None, canvas_widget=self)
-        else:
-            self.__canvas_item = None
+        self.__canvas_item = CanvasItem.RootCanvasItem(self)
 
     def close(self):
         with self.__draw_mutex:
@@ -2265,10 +2262,7 @@ class QtUserInterface(object):
         return QtTextEditWidget(self.proxy, properties)
 
     def create_canvas_widget(self, properties=None):
-        return QtCanvasWidget(self.proxy, properties, False)
-
-    def create_canvas_widget_new(self, properties=None):
-        return QtCanvasWidget(self.proxy, properties, True)
+        return QtCanvasWidget(self.proxy, properties)
 
     def create_tree_widget(self, properties=None):
         return QtTreeWidget(self.proxy, properties)

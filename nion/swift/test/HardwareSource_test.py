@@ -760,7 +760,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         count_ref = [0]
         def metric_update():
             count_ref[0] += 1
-        with contextlib.closing(document_controller.workspace_controller._canvas_item._metric_update_event.listen(metric_update)):
+        with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
             self.assertEqual(count_ref[0], 0)
             self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(count_ref[0], 1)
@@ -775,7 +775,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         count_ref = [0]
         def metric_update():
             count_ref[0] += 1
-        with contextlib.closing(document_controller.workspace_controller._canvas_item._metric_update_event.listen(metric_update)):
+        with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
             self.assertEqual(count_ref[0], 0)
             self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(count_ref[0], 1)

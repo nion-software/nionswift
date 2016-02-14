@@ -145,11 +145,11 @@ class DocumentController(Observable.Broadcaster):
         self.window_menu = None
         self.help_menu = None
         self.library_menu = None
-        self.document_window.request_close()
-        self.document_window = None
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
+        self.document_window.request_close()
+        self.document_window = None
         # get rid of the bindings
         self.__data_item_will_be_removed_event_listener.close()
         self.__data_item_will_be_removed_event_listener = None

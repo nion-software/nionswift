@@ -139,7 +139,7 @@ class SectionWidget(CompositeWidgetBase):
 
         twist_down_canvas_item = CanvasItem.TwistDownCanvasItem()
 
-        twist_down_canvas_widget = ui.create_canvas_widget_new(properties={"height": 20, "width": 20})
+        twist_down_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
         twist_down_canvas_widget.canvas_item.add_canvas_item(twist_down_canvas_item)
 
         section_title_row.add(twist_down_canvas_widget)
@@ -231,7 +231,7 @@ class StringListWidget(CompositeWidgetBase):
         scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
         scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
 
-        canvas_widget = ui.create_canvas_widget_new(properties={"height": 200, "width": 560})
+        canvas_widget = ui.create_canvas_widget(properties={"height": 200, "width": 560})
         canvas_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
 
         content_widget.add(canvas_widget)

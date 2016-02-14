@@ -108,8 +108,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         canvas_item = display_panel.canvas_item
         container = CanvasItem.SplitterCanvasItem()
         container.add_canvas_item(canvas_item)
-        root_canvas_item = CanvasItem.RootCanvasItem(self.app.ui)
-        root_canvas_item.add_canvas_item(container)
+        canvas_widget = self.app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(container)
         # now take the weakref
         display_panel_weak_ref = weakref.ref(display_panel)
         canvas_item = display_panel.canvas_item

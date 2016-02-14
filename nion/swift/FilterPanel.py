@@ -272,31 +272,32 @@ class FilterPanel(object):
 
     def __init__(self, document_controller):
 
-        self.ui = document_controller.ui
+        ui = document_controller.ui
         self.document_controller = document_controller
 
         self.__filter_controller = self.document_controller.filter_controller
 
-        date_browser_tree_widget = self.ui.create_tree_widget()
+        date_browser_tree_widget = ui.create_tree_widget()
         date_browser_tree_widget.selection_mode = "extended"
         date_browser_tree_widget.item_model_controller = self.__filter_controller.item_model_controller
         date_browser_tree_widget.on_selection_changed = self.__filter_controller.date_browser_selection_changed
 
-        date_browser = self.ui.create_column_widget()
-        date_browser.add(self.ui.create_label_widget(_("Date"), properties={"stylesheet": "font-weight: bold"}))
+        date_browser = ui.create_column_widget()
+        date_browser.add(ui.create_label_widget(_("Date"), properties={"stylesheet": "font-weight: bold"}))
         date_browser.add(date_browser_tree_widget)
         date_browser.add_stretch()
 
         header_canvas_item = Panel.HeaderCanvasItem(_("Filter"))
-        self.header_canvas_item_container = CanvasItem.RootCanvasItem(self.ui, properties={"height": header_canvas_item.header_height})
-        self.header_canvas_item_container.add_canvas_item(Panel.HeaderCanvasItem(_("Filter")))
 
-        filter_bar_row = self.ui.create_row_widget()
-        filter_bar_row.add(self.ui.create_label_widget(_("Search")))
-        filter_text_widget = self.ui.create_line_edit_widget(properties={"width": 160})
+        header_widget = ui.create_canvas_widget(properties={"height": header_canvas_item.header_height})
+        header_widget.canvas_item.add_canvas_item(Panel.HeaderCanvasItem(_("Filter")))
+
+        filter_bar_row = ui.create_row_widget()
+        filter_bar_row.add(ui.create_label_widget(_("Search")))
+        filter_text_widget = ui.create_line_edit_widget(properties={"width": 160})
         filter_text_widget.placeholder_text = _("No Filter")
         filter_text_widget.on_text_edited = self.__filter_controller.text_filter_changed
-        clear_filter_text_widget = self.ui.create_push_button_widget(_("Clear"))
+        clear_filter_text_widget = ui.create_push_button_widget(_("Clear"))
         def clear_filter():
             filter_text_widget.text = ""
             self.__filter_controller.text_filter_changed("")
@@ -307,8 +308,8 @@ class FilterPanel(object):
         filter_bar_row.add(clear_filter_text_widget)
         filter_bar_row.add_stretch()
 
-        filter_column = self.ui.create_column_widget(properties={"height": 180})
-        filter_column.add(self.header_canvas_item_container.canvas_widget)
+        filter_column = ui.create_column_widget(properties={"height": 180})
+        filter_column.add(header_widget)
         filter_column.add_spacing(4)
         filter_column.add(filter_bar_row)
         filter_column.add_spacing(4)
@@ -316,10 +317,6 @@ class FilterPanel(object):
         filter_column.add_spacing(4)
 
         self.widget = filter_column
-
-    def close(self):
-        self.header_canvas_item_container.close()
-        self.header_canvas_item_container = None
 
 
 class TreeNode(object):

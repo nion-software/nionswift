@@ -37,8 +37,8 @@ class ToolbarPanel(Panel.Panel):
 
         margins = Geometry.Margins(left=2, right=2, top=3, bottom=3)
 
-        tool_palette_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 54, "width": 164})
-        tool_palette_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=5), margins=margins)
+        tool_palette_grid_canvas_item = CanvasItem.CanvasItemComposition()
+        tool_palette_grid_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=5), margins=margins)
 
         pointer_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/pointer_icon.png")), border_color=border_color)
         pointer_tool_button.size = icon_size
@@ -72,14 +72,14 @@ class ToolbarPanel(Panel.Panel):
         interval_tool_button.size = icon_size
         interval_tool_button.tool_tip = _("Interval tool for making intervals on line plots")
 
-        tool_palette_canvas_item.add_canvas_item(pointer_tool_button, Geometry.IntPoint(x=0, y=0))
-        tool_palette_canvas_item.add_canvas_item(hand_tool_button, Geometry.IntPoint(x=0, y=1))
-        tool_palette_canvas_item.add_canvas_item(line_tool_button, Geometry.IntPoint(x=1, y=0))
-        tool_palette_canvas_item.add_canvas_item(ellipse_tool_button, Geometry.IntPoint(x=1, y=1))
-        tool_palette_canvas_item.add_canvas_item(rectangle_tool_button, Geometry.IntPoint(x=2, y=0))
-        tool_palette_canvas_item.add_canvas_item(point_tool_button, Geometry.IntPoint(x=2, y=1))
-        tool_palette_canvas_item.add_canvas_item(line_profile_tool_button, Geometry.IntPoint(x=3, y=0))
-        tool_palette_canvas_item.add_canvas_item(interval_tool_button, Geometry.IntPoint(x=3, y=1))
+        tool_palette_grid_canvas_item.add_canvas_item(pointer_tool_button, Geometry.IntPoint(x=0, y=0))
+        tool_palette_grid_canvas_item.add_canvas_item(hand_tool_button, Geometry.IntPoint(x=0, y=1))
+        tool_palette_grid_canvas_item.add_canvas_item(line_tool_button, Geometry.IntPoint(x=1, y=0))
+        tool_palette_grid_canvas_item.add_canvas_item(ellipse_tool_button, Geometry.IntPoint(x=1, y=1))
+        tool_palette_grid_canvas_item.add_canvas_item(rectangle_tool_button, Geometry.IntPoint(x=2, y=0))
+        tool_palette_grid_canvas_item.add_canvas_item(point_tool_button, Geometry.IntPoint(x=2, y=1))
+        tool_palette_grid_canvas_item.add_canvas_item(line_profile_tool_button, Geometry.IntPoint(x=3, y=0))
+        tool_palette_grid_canvas_item.add_canvas_item(interval_tool_button, Geometry.IntPoint(x=3, y=1))
 
         modes = "pointer", "hand", "line", "rectangle", "ellipse", "point", "line-profile", "interval"
         self.__tool_button_group = CanvasItem.RadioButtonGroup([pointer_tool_button, hand_tool_button, line_tool_button, rectangle_tool_button, ellipse_tool_button, point_tool_button, line_profile_tool_button, interval_tool_button])
@@ -105,8 +105,8 @@ class ToolbarPanel(Panel.Panel):
         export_button.icon = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/export_icon.png"))
         export_button.on_clicked = lambda: document_controller_weak_ref().export_action.trigger()
 
-        view_palette_canvas_item = CanvasItem.RootCanvasItem(ui, properties={"height": 54, "width": 68})
-        view_palette_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=2), margins=margins)
+        view_palette_grid_canvas_item = CanvasItem.CanvasItemComposition()
+        view_palette_grid_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=2), margins=margins)
 
         fit_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/fit_icon.png")), border_color=border_color)
         fit_view_button.size = icon_size
@@ -128,26 +128,32 @@ class ToolbarPanel(Panel.Panel):
         two_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref().two_to_one_view_action.trigger()
         two_to_one_view_button.tool_tip = _("Zoom to two image pixels per screen pixel")
 
-        view_palette_canvas_item.add_canvas_item(fit_view_button, Geometry.IntPoint(x=0, y=0))
-        view_palette_canvas_item.add_canvas_item(fill_view_button, Geometry.IntPoint(x=0, y=1))
-        view_palette_canvas_item.add_canvas_item(one_to_one_view_button, Geometry.IntPoint(x=1, y=0))
-        view_palette_canvas_item.add_canvas_item(two_to_one_view_button, Geometry.IntPoint(x=1, y=1))
+        view_palette_grid_canvas_item.add_canvas_item(fit_view_button, Geometry.IntPoint(x=0, y=0))
+        view_palette_grid_canvas_item.add_canvas_item(fill_view_button, Geometry.IntPoint(x=0, y=1))
+        view_palette_grid_canvas_item.add_canvas_item(one_to_one_view_button, Geometry.IntPoint(x=1, y=0))
+        view_palette_grid_canvas_item.add_canvas_item(two_to_one_view_button, Geometry.IntPoint(x=1, y=1))
 
         toggle_filter_button = self.ui.create_push_button_widget()
         toggle_filter_button.tool_tip = _("Toggle Filter Panel")
         toggle_filter_button.icon = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/filter_icon.png"))
         toggle_filter_button.on_clicked = lambda: document_controller_weak_ref().toggle_filter_action.trigger()
 
+        tool_palette_widget = ui.create_canvas_widget(properties={"height": 54, "width": 164})
+        tool_palette_widget.canvas_item.add_canvas_item(tool_palette_grid_canvas_item)
+
         tool_group_widget = self.ui.create_row_widget()
-        tool_group_widget.add(tool_palette_canvas_item.canvas_widget)
+        tool_group_widget.add(tool_palette_widget)
 
         commands_group_widget = self.ui.create_row_widget()
         commands_group_widget.add(new_group_button)
         commands_group_widget.add(delete_button)
         commands_group_widget.add(export_button)
 
+        view_palette_widget = ui.create_canvas_widget(properties={"height": 54, "width": 68})
+        view_palette_widget.canvas_item.add_canvas_item(view_palette_grid_canvas_item)
+
         view_group_widget = self.ui.create_row_widget()
-        view_group_widget.add(view_palette_canvas_item.canvas_widget)
+        view_group_widget.add(view_palette_widget)
 
         filter_group_widget = self.ui.create_row_widget()
         filter_group_widget.add(toggle_filter_button)
@@ -165,13 +171,6 @@ class ToolbarPanel(Panel.Panel):
 
         self.widget.add(toolbar_row_widget)
 
-        self.__tool_palette_canvas_item = tool_palette_canvas_item
-        self.__view_palette_canvas_item = view_palette_canvas_item
-
     def close(self):
         self.__tool_mode_changed_event_listener.close()
         self.__tool_mode_changed_event_listener = None
-        self.__tool_palette_canvas_item.close()
-        self.__tool_palette_canvas_item = None
-        self.__view_palette_canvas_item.close()
-        self.__view_palette_canvas_item = None

@@ -126,9 +126,7 @@ class Workspace(object):
         self.display_panels = []
         for display_panel in display_panels:
             display_panel.close()
-        if self.__canvas_item:
-            self.__canvas_item.close()
-            self.__canvas_item = None
+        self.__canvas_item = None
         self.__workspace = None
         # closing dock widgets is currently a mess due to the call to self.document_controller.periodic in
         # DataBrowserController. work in progress. to avoid weird callbacks, copy the dock widgets
@@ -139,8 +137,6 @@ class Workspace(object):
             dock_widget.panel.close()
             dock_widget.close()
         self.__content_column = None
-        self.filter_panel.close()
-        self.filter_panel = None
         self.filter_row = None
         self.image_row = None
         self.__channel_data_items = None
@@ -304,11 +300,11 @@ class Workspace(object):
             display_panel.close()
         for child in copy.copy(self.image_row.children):
             self.image_row.remove(child)
-        if self.__canvas_item:
-            self.__canvas_item.close()
-            self.__canvas_item = None
         # create new layout and canvas item
-        self.__canvas_item = CanvasItem.RootCanvasItem(self.ui)
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        canvas_widget = self.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(self.__canvas_item)
+        self._canvas_widget = canvas_widget  # only for testing
         # root canvas item should NOT be focusable or else it will grab focus in cases where no children have it.
         # no point in the root canvas item having focus.
         # self.__canvas_item.focusable = True
@@ -322,7 +318,7 @@ class Workspace(object):
                 self.__workspace = workspace
                 self.display_panels.extend(display_panels)
                 self.__canvas_item.add_canvas_item(canvas_item)
-                self.image_row.add(self.__canvas_item.canvas_widget)
+                self.image_row.add(canvas_widget)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -336,7 +332,7 @@ class Workspace(object):
                 self.__workspace = workspace
                 self.display_panels.extend(display_panels)
                 self.__canvas_item.add_canvas_item(canvas_item)
-                self.image_row.add(self.__canvas_item.canvas_widget)
+                self.image_row.add(canvas_widget)
         self.document_controller.selected_display_panel = selected_display_panel
         document_model.workspace_uuid = workspace.uuid
 

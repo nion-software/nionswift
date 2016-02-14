@@ -250,7 +250,7 @@ class DataItemThumbnailWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui, data_item_thumbnail_source: DataItemThumbnailSource, size: Geometry.IntSize):
         super().__init__(ui.create_column_widget())
         data_item_thumbnail_canvas_item = DataItemThumbnailCanvasItem(ui, data_item_thumbnail_source, size)
-        bitmap_canvas_widget = ui.create_canvas_widget_new(properties={"height": size.height, "width": size.width})
+        bitmap_canvas_widget = ui.create_canvas_widget(properties={"height": size.height, "width": size.width})
         bitmap_canvas_widget.canvas_item.add_canvas_item(data_item_thumbnail_canvas_item)
         self.content_widget.add(bitmap_canvas_widget)
         self.on_drag = None
