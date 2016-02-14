@@ -144,21 +144,9 @@ class Workspace(object):
         self.__data_item_deleted_event_listener = None
 
     def periodic(self):
-        # for each of the panels too
-        ts = []
-        t0 = time.time()
         for dock_widget in self.dock_widgets if self.dock_widgets else list():
-            start = time.time()
             dock_widget.panel.periodic()
-            time1 = time.time()
             dock_widget.periodic()
-            time2 = time.time()
-            elapsed = time.time() - start
-            if elapsed > 0.15:
-                logging.debug("panel %s %s", dock_widget.panel, elapsed)
-            ts.append("{0}: panel {1}ms / widget {2}ms".format(str(dock_widget.panel), (time1-start)*1000, (time2-time1)*1000))
-        if time.time() - t0 > 0.003:
-            pass # logging.debug("{0} --> {1}".format(time.time() - t0, " /// ".join(ts)))
 
     def restore_geometry_state(self):
         geometry = self.ui.get_persistent_string("Workspace/%s/Geometry" % self.workspace_id)
