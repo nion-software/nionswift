@@ -235,6 +235,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__q = collections.deque()
         self.__output_queue = collections.deque()
 
+    def close(self):
+        self.document_controller.clear_task(str(id(self)))
+        super().close()
+
     @property
     def cancelled(self):
         return self.__cancelled
@@ -250,7 +254,6 @@ class RunScriptDialog(Dialog.ActionDialog):
         cancel_row.add(cancel_button)
         cancel_row.add_spacing(12)
         return cancel_row
-
 
     def run_script(self, script_path: str) -> None:
         script_name = os.path.basename(script_path)
@@ -318,7 +321,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
 
-    def periodic(self):
+    def __handle_output_and_q(self):
         func = None
         with self.__lock:
             while len(self.__output_queue) > 0:
@@ -332,6 +335,7 @@ class RunScriptDialog(Dialog.ActionDialog):
     def print(self, text):
         with self.__lock:
             self.__output_queue.append(str(text))
+            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
 
     def print_debug(self, text):
         self.print(text)
@@ -362,6 +366,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         with self.__lock:
             self.__q.append(perform)
+            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
         if value_ref[0] is None:
             raise Exception("Cancel")
@@ -389,6 +394,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         with self.__lock:
             self.__q.append(perform)
+            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
 
     def __accept_reject(self, prompt, accepted_text, rejected_text, display_rejected):
@@ -412,6 +418,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         with self.__lock:
             self.__q.append(perform)
+            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
         accept_event.wait()
         return result_ref[0]
 
@@ -432,3 +439,4 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         with self.__lock:
             self.__q.append(request_close)
+            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)

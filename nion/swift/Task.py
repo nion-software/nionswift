@@ -69,6 +69,7 @@ class TaskPanel(Panel.Panel):
         self.__task_section_controller_list = list()
 
     def close(self):
+        self.document_controller.clear_task(str(id(self)))
         # disconnect to the document controller
         self.__task_created_event_listener.close()
         self.__task_created_event_listener = None
@@ -78,7 +79,7 @@ class TaskPanel(Panel.Panel):
         # finish closing
         super(TaskPanel, self).close()
 
-    def periodic(self):
+    def __perform_tasks(self):
         with self.__pending_tasks_mutex:
             pending_tasks = self.__pending_tasks
             self.__pending_tasks = list()
@@ -99,16 +100,20 @@ class TaskPanel(Panel.Panel):
                     self.__task_needs_update.remove(task)
                 # update
                 task_section_controller.update()
+        if len(self.__task_needs_update) > 0:
+            self.document_controller.add_task(str(id(self)), self.__perform_tasks)
 
     # thread safe
     def task_created(self, task):
         with self.__pending_tasks_mutex:
             self.__pending_tasks.append(task)
+            self.document_controller.add_task(str(id(self)), self.__perform_tasks)
 
     # thread safe
     def task_changed(self, task):
         with self.__task_needs_update_mutex:
             self.__task_needs_update.add(task)
+            self.document_controller.add_task(str(id(self)), self.__perform_tasks)
 
 
 # this is UI object, and not a thread safe
