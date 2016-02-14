@@ -291,6 +291,29 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
+    def test_updating_display_limits_on_fft_does_not_enter_update_cycle(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(16, 16)
+            d = (d - numpy.min(d)) / (numpy.amax(d) - numpy.amin(d)).astype(numpy.complex128)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.selected_display_panel = None
+            document_controller.selected_display_panel = display_panel
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            count = [0]
+            def property_changed(property_name, value):
+                if property_name == "display_limits":
+                    count[0] += 1
+            property_changed_listener = display_specifier.display.property_changed_event.listen(property_changed)
+            document_model.recompute_all()
+            document_model.recompute_all()
+            self.assertEqual(count[0], 0)
+            property_changed_listener.close()
+
     def disabled_test_corrupt_data_item_should_not_completely_disable_the_inspector(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
         # panels; nor should it affect the focus functionality

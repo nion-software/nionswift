@@ -402,19 +402,18 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         data_range = self.get_cached_value("data_range")
         data_sample = self.get_cached_value("data_sample")
         if display_data is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
-            self.__calculate_data_stats_for_data(display_data)
+            self.__calculate_data_stats_for_data(display_data, self.__data_and_calibration.data_shape, self.__data_and_calibration.data_dtype)
 
-    def __calculate_data_stats_for_data(self, data):
-        if data is not None and data.size:
-            if Image.is_shape_and_dtype_rgb_type(data.shape, data.dtype):
+    def __calculate_data_stats_for_data(self, display_data, data_shape, data_dtype):
+        if display_data is not None and display_data.size:
+            if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                 data_range = (0, 255)
                 data_sample = None
-            elif Image.is_shape_and_dtype_complex_type(data.shape, data.dtype):
-                scalar_data = Image.scalar_from_array(data)
-                data_range = (numpy.amin(scalar_data), numpy.amax(scalar_data))
-                data_sample = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), 200)))
+            elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
+                data_range = (numpy.amin(display_data), numpy.amax(display_data))
+                data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape)), 200))
             else:
-                data_range = (numpy.amin(data), numpy.amax(data))
+                data_range = (numpy.amin(display_data), numpy.amax(display_data))
                 data_sample = None
         else:
             data_range = None
