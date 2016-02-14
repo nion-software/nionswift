@@ -2198,17 +2198,11 @@ class QtUserInterface(object):
 
     def __init__(self, proxy):
         self.proxy = proxy
-        self.periodic_items = list()
         self.persistence_root = "0"
 
     def close(self):
         self.proxy.Application_close()
-        self.periodic_items = None
         self.proxy = None
-
-    def periodic(self):
-        for periodic_item in self.periodic_items:
-            periodic_item.periodic()
 
     # data objects
 
@@ -2224,13 +2218,10 @@ class QtUserInterface(object):
     # window elements
 
     def create_document_window(self, title=None):
-        document_window = QtDocumentWindow(self.proxy, title)
-        self.periodic_items.append(document_window)
-        return document_window
+        return QtDocumentWindow(self.proxy, title)
 
     def destroy_document_window(self, document_window):
-        if document_window in self.periodic_items:
-            self.periodic_items.remove(document_window)
+        pass
 
     # user interface elements
 
