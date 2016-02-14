@@ -161,8 +161,6 @@ class Workspace(object):
             if elapsed > 0.15:
                 logging.debug("panel %s %s", dock_widget.panel, elapsed)
             ts.append("{0}: panel {1}ms / widget {2}ms".format(str(dock_widget.panel), (time1-start)*1000, (time2-time1)*1000))
-        for display_panel in self.display_panels:
-            display_panel.periodic()
         if time.time() - t0 > 0.003:
             pass # logging.debug("{0} --> {1}".format(time.time() - t0, " /// ".join(ts)))
 

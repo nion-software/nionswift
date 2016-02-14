@@ -374,9 +374,6 @@ class BaseDisplayPanelContent:
         self.on_focused = None
         self.on_close = None
 
-    def periodic(self):
-        pass
-
     @property
     def identifier(self):
         return self.__identifier
@@ -1107,7 +1104,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
             menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
             return self.show_context_menu(menu, gx, gy)
 
-        self.data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.ui, self.__data_browser_controller.selection)
+        self.data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__data_browser_controller.selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = context_menu_event
         self.data_grid_controller.on_display_item_double_clicked = None  # replace current display?
@@ -1161,11 +1158,6 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         d["display-panel-type"] = "browser-display-panel"
         return d
 
-    def periodic(self):
-        super(BrowserDisplayPanelContent, self).periodic()
-        if self.data_grid_controller:
-            self.data_grid_controller.periodic()
-
     def __data_panel_selection_changed(self, data_item):
         # update the data item selection by determining the new index of the item, if any.
         data_item_index = -1
@@ -1207,9 +1199,6 @@ class DisplayPanel(object):
             self.__display_panel_content = None
         self.__document_controller.unregister_display_panel(self)
         self.__weak_document_controller = None
-
-    def periodic(self):
-        self.__display_panel_content.periodic()
 
     @property
     def __document_controller(self):

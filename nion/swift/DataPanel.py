@@ -168,7 +168,7 @@ class DisplayItem(object):
         return mime_data, thumbnail_data
 
 
-class DataListController(object):
+class DataListController:
     """Control a list of display items in a list widget.
 
     The following properties are available:
@@ -200,9 +200,11 @@ class DataListController(object):
         (method) recompute(dispatch_task, ui)
     """
 
-    def __init__(self, dispatch_task, ui, selection):
-        super(DataListController, self).__init__()
+    def __init__(self, dispatch_task, add_task, clear_task, ui, selection):
+        super().__init__()
         self.dispatch_task = dispatch_task
+        self.__add_task = add_task
+        self.__clear_task = clear_task
         self.ui = ui
         self.on_delete_display_items = None
 
@@ -263,6 +265,7 @@ class DataListController(object):
         self.__changed_display_items_mutex = threading.RLock()
 
     def close(self):
+        self.__clear_task(str(id(self)))
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
         for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
@@ -278,8 +281,9 @@ class DataListController(object):
         self.on_focus_changed = None
         self.on_delete_display_items = None
 
-    def periodic(self):
-        # handle the 'changed' stuff
+    def __update_display_items(self):
+        # handle the 'changed' stuff. a call to this function is scheduled
+        # whenever __changed_display_items changes.
         with self.__changed_display_items_mutex:
             changed_display_items = self.__changed_display_items
             self.__changed_display_items = False
@@ -319,6 +323,7 @@ class DataListController(object):
     def __display_item_needs_update(self):
         with self.__changed_display_items_mutex:
             self.__changed_display_items = True
+            self.__add_task(str(id(self)), self.__update_display_items)
 
     def __display_item_needs_recompute(self, display_item):
         display_item.recompute(self.dispatch_task, self.ui)
@@ -359,7 +364,7 @@ class DataListController(object):
             drawing_context.fill_text(display_item.status_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
 
 
-class DataGridController(object):
+class DataGridController:
     """Control a grid of display items in a grid widget.
 
     The following properties are available:
@@ -393,9 +398,11 @@ class DataGridController(object):
         (method) recompute(dispatch_task, ui)
     """
 
-    def __init__(self, dispatch_task, ui, selection):
+    def __init__(self, dispatch_task, add_task, clear_task, ui, selection):
         super(DataGridController, self).__init__()
         self.dispatch_task = dispatch_task
+        self.__add_task = add_task
+        self.__clear_task = clear_task
         self.ui = ui
         self.on_delete_display_items = None
 
@@ -458,6 +465,7 @@ class DataGridController(object):
 
     def close(self):
         assert not self.__closed
+        self.__clear_task(str(id(self)))
         self.icon_view_canvas_item.detach_delegate()
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
@@ -475,8 +483,7 @@ class DataGridController(object):
         self.on_delete_display_items = None
         self.__closed = True
 
-    def periodic(self):
-        # handle the 'changed' stuff
+    def __update_display_items(self):
         with self.__changed_display_items_mutex:
             changed_display_items = self.__changed_display_items
             self.__changed_display_items = False
@@ -513,6 +520,7 @@ class DataGridController(object):
     def __display_item_needs_update(self):
         with self.__changed_display_items_mutex:
             self.__changed_display_items = True
+            self.__add_task(str(id(self)), self.__update_display_items)
 
     def __display_item_needs_recompute(self, display_item):
         display_item.recompute(self.dispatch_task, self.ui)
@@ -1106,14 +1114,14 @@ class DataPanel(Panel.Panel):
             return True
 
         selection = self.__data_browser_controller.selection
-        self.data_list_controller = DataListController(document_controller.document_model.dispatch_task, document_controller.ui, selection)
+        self.data_list_controller = DataListController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, selection)
         self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
-        self.data_grid_controller = DataGridController(document_controller.document_model.dispatch_task, document_controller.ui, selection)
+        self.data_grid_controller = DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
@@ -1229,11 +1237,6 @@ class DataPanel(Panel.Panel):
         self.buttons_canvas_item = None
         # finish closing
         super(DataPanel, self).close()
-
-    def periodic(self):
-        super(DataPanel, self).periodic()
-        self.data_list_controller.periodic()
-        self.data_grid_controller.periodic()
 
     # the focused property gets set from on_focus_changed on the data item widget. when gaining focus,
     # make sure the document controller knows what is selected so it can update the inspector.
