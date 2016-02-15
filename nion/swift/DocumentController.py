@@ -476,8 +476,9 @@ class DocumentController(Observable.Broadcaster):
         return listener
 
     def periodic(self):
-        #import time
-        #t0 = time.time()
+        # import time
+        # t0 = time.time()
+        # logging.debug("t start %s ", t0)
         # perform any pending operations
         with self.__weak_periodic_listeners_mutex:
             periodic_listeners = copy.copy(self.__weak_periodic_listeners)
@@ -497,14 +498,14 @@ class DocumentController(Observable.Broadcaster):
         if self.__periodic_queue is None:  # handle special case where we queue'd a close
             return
         self.__periodic_set.perform_tasks()
-        #t1 = time.time()
+        # t1 = time.time()
         # workspace
         if self.workspace_controller:
             self.workspace_controller.periodic()
-        #t2 = time.time()
+        # t2 = time.time()
         # self.filter_controller.periodic()
-        #t3 = time.time()
-        #logging.debug("t %s %s %s", t1-t0, t2-t1, t3-t2)
+        # t3 = time.time()
+        # logging.debug("t end %s %s %s", t1-t0, t2-t1, t3-t2)
 
     @property
     def workspace_controller(self):

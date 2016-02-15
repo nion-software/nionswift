@@ -192,6 +192,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.__change_changed = False
         self.__recompute_lock = threading.RLock()
         self.__recompute_allowed = True
+        self.__recompute_last = 0
         self.__pending_data = None
         self.__pending_data_lock = threading.RLock()
         self.__is_recomputing = False
@@ -745,6 +746,10 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         with self._changes():
             with self.__recompute_lock:
                 if self.__recompute_allowed:
+                    t0 = time.time()
+                    elapsed = t0 - self.__recompute_last
+                    if elapsed < 0.02:
+                        time.sleep(max(0.02 - elapsed, 0))
                     try:
                         with self.__pending_data_lock:  # only one thread should be computing data at once
                             pending_data = self.__pending_data
@@ -765,6 +770,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
                                 self.set_intensity_calibration(operation_intensity_calibration)
                                 for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
                                     self.set_dimensional_calibration(index, dimensional_calibration)
+                            self.__recompute_last = t0
                     finally:  # this should occur so that temporary errors in computation are ignored
                         with self.__pending_data_lock:
                             self.__is_recomputing = False
