@@ -317,6 +317,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
             with self.__lock:
                 self.__q.append(request_close)
+                self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
 
         self.__thread = threading.Thread(target=func_run, args=(func,))
         self.__thread.start()
