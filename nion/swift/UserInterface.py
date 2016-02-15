@@ -1566,6 +1566,10 @@ class QtCanvasWidget(QtWidget):
             self.on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
 
     def mousePositionChanged(self, x, y, raw_modifiers):
+        # mouse tracking takes priority over timer events in newer
+        # versions of Qt, so during mouse tracking, make sure periodic
+        # gets called regularly.
+        self.periodic()
         if self.on_mouse_position_changed:
             self.on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
 
