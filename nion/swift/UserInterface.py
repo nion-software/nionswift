@@ -2047,9 +2047,11 @@ class QtDocumentWindow(object):
     def close(self):
         # this is a callback and should not be invoked directly from Python;
         # call request_close instead.
+        assert self.native_document_window is not None
         self.native_document_window = None
-        self.root_widget.close()
-        self.root_widget = None
+        if self.root_widget:
+            self.root_widget.close()
+            self.root_widget = None
         self.on_periodic = None
         self.on_queue_task = None
         self.on_add_task = None
@@ -2068,6 +2070,11 @@ class QtDocumentWindow(object):
         self.root_widget = root_widget
         self.root_widget._set_root_container(self)
         self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, self.root_widget.widget)
+
+    def detach(self):
+        assert self.root_widget is not None
+        self.root_widget.close()
+        self.root_widget = None
 
     def queue_task(self, task):
         if self.on_queue_task:
@@ -2137,6 +2144,7 @@ class QtDocumentWindow(object):
     def aboutToClose(self, geometry, state):
         if self.on_about_to_close:
             self.on_about_to_close(geometry, state)
+        self.close()
 
     def add_menu(self, title):
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, Unicode.u(title))

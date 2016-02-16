@@ -103,6 +103,7 @@ class Workspace(object):
         self.__content_column = None
         self.filter_row = None
         self.image_row = None
+        self.document_controller.document_window.detach()
 
     def periodic(self):
         for dock_widget in self.dock_widgets if self.dock_widgets else list():

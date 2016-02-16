@@ -68,6 +68,8 @@ class DocumentController(Observable.Broadcaster):
     def __init__(self, ui, document_model, workspace_id=None, app=None):
         super(DocumentController, self).__init__()
 
+        self.__closed = False  # debugging
+
         self.ui = ui
         self.uuid = uuid.uuid4()
 
@@ -137,6 +139,25 @@ class DocumentController(Observable.Broadcaster):
             self.__workspace_controller.restore(self.document_model.workspace_uuid)
 
     def close(self):
+        """Close the document controller.
+
+        This method must be called to shut down the document controller. There are several
+        paths by which it can be called, though.
+
+           * User quits application via menu item. The menu item will call back to Application.exit which will close each
+             document controller by calling this method.
+           * User quits application using dock menu item. The Qt application will call aboutToClose in the document windows
+           * User closes document window via menu item.
+           * User closes document window via close box.
+
+        The main concept of closing is that it is always triggered by the document window closing. This can be initiated
+        from within Python by calling request_close on the document window. When the window closes, either by explicit request
+        or by the user clicking a close box, it will invoke the about_to_close method on the document window. At this point,
+        the window would still be open, so the about_to_close message can be used to tell the document controller to save anything
+        it needs to save and prepare for closing.
+        """
+        assert self.__closed == False
+        self.__closed = True
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
@@ -154,8 +175,6 @@ class DocumentController(Observable.Broadcaster):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
-        self.document_window.request_close()
-        self.document_window = None
         # get rid of the bindings
         self.__data_item_will_be_removed_event_listener.close()
         self.__data_item_will_be_removed_event_listener = None
@@ -186,6 +205,7 @@ class DocumentController(Observable.Broadcaster):
     def about_to_close(self, geometry, state):
         if self.workspace_controller:
             self.workspace_controller.save_geometry_state(geometry, state)
+        self.close()
 
     def register_console(self, console):
         self.console = console
@@ -222,7 +242,7 @@ class DocumentController(Observable.Broadcaster):
 
         self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window_with_data_item("library"), key_sequence="new")
         #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
-        self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.close(), key_sequence="close")
+        self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.document_window.request_close(), key_sequence="close")
         self.file_menu.add_separator()
         self.new_action = self.file_menu.add_sub_menu(_("Switch Library"), self.library_menu)
         self.file_menu.add_separator()

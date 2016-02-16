@@ -314,6 +314,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
             def request_close():
                 self.document_window.request_close()
+                self.document_window = None
 
             with self.__lock:
                 self.__q.append(request_close)
@@ -437,6 +438,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         def request_close():
             self.document_window.request_close()
+            self.document_window = None
 
         with self.__lock:
             self.__q.append(request_close)

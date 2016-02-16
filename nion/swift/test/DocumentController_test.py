@@ -68,7 +68,8 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertIsNotNone(weak_document_controller())
         self.assertIsNotNone(weak_document_window())
         self.assertIsNotNone(weak_document_model())
-        document_controller.close()
+        document_controller.document_window.request_close()
+        # document_controller.close()
         document_controller = None
         self.assertIsNone(weak_document_controller())
         self.assertIsNone(weak_document_window())

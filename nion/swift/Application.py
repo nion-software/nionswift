@@ -60,9 +60,15 @@ class Application(object):
         logger.setLevel(logging.DEBUG)
         logger.addHandler(logging.StreamHandler())
 
+        # a list of document controllers in the application.
         self.__document_controllers = []
         self.__menu_handlers = []
 
+        # map these document controller events to listener tokens.
+        # when the document controller closes, remove its listeners and
+        # then remove it from the list of document controllers.
+        # when the document controller requests a new document controller,
+        # respond in this class by creating a new document controller.
         self.__did_close_event_listeners = dict()
         self.__create_new_event_listeners = dict()
 
@@ -93,14 +99,13 @@ class Application(object):
         self.ui.close()
 
     def exit(self):
-        # close all document windows, but can be started again.
-        for did_close_event_listener in self.__did_close_event_listeners.values():
-            did_close_event_listener.close()
-        for create_new_event_listener in self.__create_new_event_listeners.values():
-            create_new_event_listener.close()
+        # close all document windows
         for document_controller in copy.copy(self.__document_controllers):
-            document_controller.close()
-            self.__document_controllers.remove(document_controller)
+            # closing the document window will trigger the about_to_close event to be called which
+            # will then call document controller close which will fire its did_close_event which will
+            # remove the document controller from the list of document controllers.
+            document_controller.document_window.request_close()
+            document_controller.document_window = None
         # document model is reference counted; when the no document controller holds a reference to the
         # document model, it will be closed.
 
