@@ -1895,8 +1895,9 @@ class API_1(object):
             def __init__(self):
                 super(FacadeHardwareSource, self).__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
 
-            def start_acquisition(self):
+            def start_acquisition(self) -> bool:
                 hardware_source_delegate.start_acquisition()
+                return True
 
             def acquire_data_elements(self):
                 data_and_metadata = hardware_source_delegate.acquire_data_and_metadata()

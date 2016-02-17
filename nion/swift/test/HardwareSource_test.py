@@ -105,7 +105,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.top = not self.top
         return data_elements
 
-    def start_acquisition(self):
+    def start_acquisition(self) -> bool:
         self.__current_sleep = self.sleep
         self.scanning = True
         if self.is_recording:
@@ -114,6 +114,7 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         else:
             self.sleep = 0.02
             self.top = True
+        return True
 
     def stop_acquisition(self):
         self.scanning = False

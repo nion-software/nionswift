@@ -188,7 +188,6 @@ ChannelData = collections.namedtuple("Channel", ["channel_id", "index", "name", 
 
 
 class AcquisitionTask(object):
-
     """Basic acquisition task carries out acquisition repeatedly during acquisition loop, keeping track of state.
 
     The execute() method is performed repeatedly during the acquisition loop. It keeps track of the acquisition
@@ -274,10 +273,6 @@ class AcquisitionTask(object):
         self._mark_acquisition()
 
     @property
-    def is_aborted(self):
-        return self.__aborted
-
-    @property
     def is_stopping(self):
         return self.__stopped
 
@@ -290,7 +285,8 @@ class AcquisitionTask(object):
         return self.__continuous
 
     def __start(self):
-        self._start_acquisition()
+        if not self._start_acquisition():
+            self.abort()
         self.__last_acquire_time = time.time() - self.__minimum_period
 
     def __execute_acquire_data_elements(self):
@@ -368,9 +364,9 @@ class AcquisitionTask(object):
     # override these routines. the default implementation is to
     # call back to the hardware source.
 
-    def _start_acquisition(self):
+    def _start_acquisition(self) -> bool:
         self.__data_elements = None
-        self.__hardware_source.start_acquisition()
+        return self.__hardware_source.start_acquisition()
 
     def _abort_acquisition(self):
         self.__data_elements = None
@@ -490,9 +486,10 @@ class HardwareSource(object):
                 break
 
     # subclasses can implement this method which is called when acquisition starts.
+    # return True if successful, False if not.
     # must be thread safe
-    def start_acquisition(self):
-        pass
+    def start_acquisition(self) -> bool:
+        return True
 
     # subclasses can implement this method which is called when acquisition aborts.
     # must be thread safe
@@ -530,6 +527,7 @@ class HardwareSource(object):
     # or indirectly) unless the data is immediately available, which it shouldn't be on
     # a regular basis. it is an error for this function to return an empty list of data_elements.
     # this method can throw exceptions, it will result in the acquisition loop being aborted.
+    # returns a tuple of a list of data elements.
     # must be thread safe
     def acquire_data_elements(self):
         raise NotImplementedError()
@@ -546,17 +544,9 @@ class HardwareSource(object):
     def create_acquisition_record_task(self):
         return AcquisitionTask(self, False)
 
-    @property
-    def active_view_task(self):
-        return self.__view_task
-
-    @property
-    def active_record_task(self):
-        return self.__record_task
-
     # call this to set the view task
     # thread safe
-    def set_active_view_task(self, acquisition_task):
+    def __set_active_view_task(self, acquisition_task):
         self.__view_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, acquisition_task))
         self.__view_task_suspended = self.is_recording  # start suspended if already recording
         self.__view_task = acquisition_task
@@ -565,7 +555,7 @@ class HardwareSource(object):
 
     # call this to set the record task
     # thread safe
-    def set_active_record_task(self, acquisition_task):
+    def __set_active_record_task(self, acquisition_task):
         self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, acquisition_task))
         self.__record_task = acquisition_task
         self.__acquire_thread_trigger.set()
@@ -592,7 +582,7 @@ class HardwareSource(object):
     # return whether acquisition is running
     @property
     def is_playing(self):
-        acquire_thread_view = self.active_view_task  # assignment for lock free thread safety
+        acquire_thread_view = self.__view_task  # assignment for lock free thread safety
         return acquire_thread_view is not None and not acquire_thread_view.is_finished
 
     # call this to start acquisition
@@ -600,12 +590,12 @@ class HardwareSource(object):
     def start_playing(self):
         if not self.is_playing:
             acquisition_task = self.create_acquisition_view_task()
-            self.set_active_view_task(acquisition_task)
+            self.__set_active_view_task(acquisition_task)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_playing(self):
-        acquire_thread_view = self.active_view_task
+        acquire_thread_view = self.__view_task
         if acquire_thread_view:
             acquire_thread_view.abort()
             self.abort_event.fire()
@@ -613,14 +603,14 @@ class HardwareSource(object):
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_playing(self):
-        acquire_thread_view = self.active_view_task
+        acquire_thread_view = self.__view_task
         if acquire_thread_view:
             acquire_thread_view.stop()
 
     # return whether acquisition is running
     @property
     def is_recording(self):
-        acquire_thread_record = self.active_record_task  # assignment for lock free thread safety
+        acquire_thread_record = self.__record_task  # assignment for lock free thread safety
         return acquire_thread_record is not None and not acquire_thread_record.is_finished
 
     # call this to start acquisition
@@ -628,12 +618,12 @@ class HardwareSource(object):
     def start_recording(self):
         if not self.is_recording:
             acquisition_task = self.create_acquisition_record_task()
-            self.set_active_record_task(acquisition_task)
+            self.__set_active_record_task(acquisition_task)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_recording(self):
-        acquire_thread_record = self.active_record_task
+        acquire_thread_record = self.__record_task
         if acquire_thread_record:
             acquire_thread_record.abort()
             self.abort_event.fire()
@@ -641,7 +631,7 @@ class HardwareSource(object):
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_recording(self):
-        acquire_thread_record = self.active_record_task
+        acquire_thread_record = self.__record_task
         if acquire_thread_record:
             acquire_thread_record.stop()
 
