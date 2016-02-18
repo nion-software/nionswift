@@ -358,7 +358,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     def __notify_next_data_and_calibration(self):
         """Grab the data_and_calibration from the data item and pass it to subscribers."""
-        with self._changes() as changes:
+        with self._changes():
             self.__change_changed = True
 
     def __notify_next_data_and_calibration_after_subscribe(self, subscriber):
