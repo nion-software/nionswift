@@ -1081,10 +1081,7 @@ class DocumentController(Observable.Broadcaster):
     def processing_snapshot(self):
         data_item = self.selected_display_specifier.data_item
         if data_item:
-            assert isinstance(data_item, DataItem.DataItem)
-            data_item_copy = data_item.snapshot()
-            data_item_copy.title = _("Snapshot of ") + data_item.title
-            self.document_model.append_data_item(data_item_copy)
+            data_item_copy = self.get_data_item_snapshot(data_item)
             self.select_data_item_in_data_panel(data_item_copy)
             self.notify_selected_data_item_changed(data_item_copy)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
@@ -1094,6 +1091,13 @@ class DocumentController(Observable.Broadcaster):
             self.display_data_item(display_specifier, source_data_item=data_item)
             return display_specifier
         return DataItem.DisplaySpecifier()
+
+    def get_data_item_snapshot(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        assert isinstance(data_item, DataItem.DataItem)
+        data_item_copy = data_item.snapshot()
+        data_item_copy.title = _("Snapshot of ") + data_item.title
+        self.document_model.append_data_item(data_item_copy)
+        return data_item_copy
 
     def processing_convert_to_scalar(self):
         display_specifier = self.selected_display_specifier
