@@ -5,9 +5,6 @@ from __future__ import absolute_import
 import copy
 import functools
 import gettext
-import logging
-import threading
-import time
 import uuid
 import weakref
 
@@ -16,10 +13,6 @@ import weakref
 
 # local libraries
 from nion.swift import DisplayPanel
-from nion.swift.model import DataItem
-from nion.swift.model import DataItemsBinding
-from nion.swift.model import HardwareSource
-from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
@@ -46,8 +39,6 @@ class Workspace(object):
 
         document_model = self.document_controller.document_model
 
-        self.__data_item_deleted_event_listener = document_model.data_item_deleted_event.listen(self.__data_item_deleted)
-
         self.ui = self.document_controller.ui
 
         self.workspace_manager = WorkspaceManager()
@@ -72,14 +63,6 @@ class Workspace(object):
         self.filter_row.visible = False
         root_widget.add(self.__content_column)
 
-        self.__filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__filtered_data_items_binding.container = document_model
-        def temporary_filter(data_item):
-            return data_item.category == "temporary"
-        self.__filtered_data_items_binding.filter = temporary_filter
-        self.__filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
-        self.__filtered_data_items_binding.sort_reverse = True
-
         self.__message_boxes = dict()
 
         # configure the document window (central widget)
@@ -93,32 +76,13 @@ class Workspace(object):
 
         self.__workspace = None
 
-        # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
-        self.__channel_data_items = dict()  # maps channel to data item
-        self.__mutex = threading.RLock()
-
-        self.__channels_data_updated_event_listeners = dict()
-        self.__last_channel_to_data_item_dicts = dict()
-
-        self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(self.__hardware_source_added)
-        self.__hardware_source_removed_event_listener = HardwareSource.HardwareSourceManager().hardware_source_removed_event.listen(self.__hardware_source_removed)
-
-        for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
-            self.__hardware_source_added(hardware_source)
+        def queued_append_data_item(data_item, is_recording):
+            document_controller.queue_task(functools.partial(append_data_item, data_item, is_recording))
 
     def close(self):
-        self.__hardware_source_added_event_listener.close()
-        self.__hardware_source_added_event_listener = None
-        self.__hardware_source_removed_event_listener.close()
-        self.__hardware_source_removed_event_listener = None
-        for hardware_source_id in self.__channels_data_updated_event_listeners:
-            self.__channels_data_updated_event_listeners[hardware_source_id].close()
-        self.__channels_data_updated_event_listeners = None
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
             self.message_column.remove(message_box_widget)
         self.__message_boxes.clear()
-        self.__filtered_data_items_binding.close()
-        self.__filtered_data_items_binding = None
         if self.__workspace:
             # TODO: remove this; it should be updated whenever the workspace changes anyway.
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
@@ -139,9 +103,6 @@ class Workspace(object):
         self.__content_column = None
         self.filter_row = None
         self.image_row = None
-        self.__channel_data_items = None
-        self.__data_item_deleted_event_listener.close()
-        self.__data_item_deleted_event_listener = None
 
     def periodic(self):
         for dock_widget in self.dock_widgets if self.dock_widgets else list():
@@ -602,193 +563,19 @@ class Workspace(object):
         for display_panel in self.display_panels:
             display_panel.set_selected(display_panel == selected_display_panel)
 
-    def __data_item_deleted(self, data_item):
-        with self.__mutex:
-            for channel_key in self.__channel_data_items.keys():
-                if self.__channel_data_items[channel_key] == data_item:
-                    del self.__channel_data_items[channel_key]
-                    break
-
-    def setup_channel(self, hardware_source_id, channel_id, view_id, data_item):
-        with self.__mutex:
-            metadata = data_item.data_sources[0].metadata
-            hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-            hardware_source_metadata["hardware_source_id"] = hardware_source_id
-            if channel_id:
-                hardware_source_metadata["channel_id"] = channel_id
-            if view_id:
-                hardware_source_metadata["view_id"] = view_id
-            data_item.data_sources[0].set_metadata(metadata)
-            if channel_id is not None:
-                channel_key = hardware_source_id + "_" + str(channel_id) + "_" + view_id
-            else:
-                channel_key = hardware_source_id + "_" + view_id
-            self.__channel_data_items[channel_key] = data_item
-
-    def __channels_data_updated(self, hardware_source, view_id, is_recording, channels_data):
-
-        # sync to data items
-        hardware_source_id = hardware_source.hardware_source_id
-        display_name = hardware_source.display_name
-        channel_to_data_item_dict = self.__sync_channels_to_data_items(channels_data, hardware_source_id, view_id, display_name, is_recording)
-
-        # these items are now live if we're playing right now. mark as such.
-        for data_item in channel_to_data_item_dict.values():
-            data_item.increment_data_ref_counts()
-            document_model = self.document_model
-            document_model.begin_data_item_transaction(data_item)
-            document_model.begin_data_item_live(data_item)
-
-        # update the data items with the new data.
-        data_elements = []  # used to send out data elements available events
-        data_item_states = []
-        for channel_data in channels_data:
-            channel_index = channel_data.index
-            channel_id = channel_data.channel_id
-            channel_name = channel_data.name
-            data_item = channel_to_data_item_dict[channel_index]
-            # until the whole pipeline is cleaned up, recreate the data_element. guh.
-            data_element = HardwareSource.convert_data_and_metadata_to_data_element(channel_data.data_and_calibration)
-            if channel_data.sub_area:
-                data_element["sub_area"] = channel_data.sub_area
-            hardware_source_metadata = data_element.setdefault("properties", dict())
-            hardware_source_metadata["hardware_source_id"] = hardware_source_id
-            hardware_source_metadata["channel_index"] = channel_index
-            if channel_id is not None:
-                hardware_source_metadata["channel_id"] = channel_id
-            if channel_name is not None:
-                hardware_source_metadata["channel_name"] = channel_name
-            if view_id:
-                hardware_source_metadata["view_id"] = view_id
-            ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-            # make sure to send out the complete frame
-            data_elements.append(HardwareSource.convert_data_and_metadata_to_data_element(data_item.data_sources[0].data_and_calibration))
-            data_item_state = dict()
-            if channel_data.channel_id is not None:
-                data_item_state["channel_id"] = channel_data.channel_id
-            data_item_state["data_item"] = data_item
-            data_item_state["channel_state"] = channel_data.state
-            if channel_data.sub_area:
-                data_item_state["sub_area"] = channel_data.sub_area
-            data_item_states.append(data_item_state)
-        # temporary until things get cleaned up
-        hardware_source.data_item_states_changed_event.fire(data_item_states)
-        hardware_source.data_item_states_changed(data_item_states)
-
-        last_channel_to_data_item_dict = self.__last_channel_to_data_item_dicts.setdefault(hardware_source.hardware_source_id + str(is_recording), dict())
-
-        # these items are no longer live. mark live_data as False.
-        for data_item in last_channel_to_data_item_dict.values():
-            # the order of these two statements is important, at least for now (12/2013)
-            # when the transaction ends, the data will get written to disk, so we need to
-            # make sure it's still in memory. if decrement were to come before the end
-            # of the transaction, the data would be unloaded from memory, losing it forever.
-            document_model = self.document_model
-            document_model.end_data_item_transaction(data_item)
-            document_model.end_data_item_live(data_item)
-            data_item.decrement_data_ref_counts()
-
-        # keep the channel to data item map around so that we know what changed between
-        # last iteration and this one. also handle reference counts.
-        last_channel_to_data_item_dict.clear()
-        last_channel_to_data_item_dict.update(channel_to_data_item_dict)
-
-    def __hardware_source_added(self, hardware_source):
-        channels_data_updated_event_listener = hardware_source.channels_data_updated_event.listen(functools.partial(self.__channels_data_updated, hardware_source))
-        self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id] = channels_data_updated_event_listener
-
-    def __hardware_source_removed(self, hardware_source):
-        self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id].close()
-        del self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id]
-
-    # used for testing
-    def _clear_channel_data_items(self):
-        self.__channel_data_items = dict()
-
-    def __matches_data_item(self, data_item, hardware_source_id, channel_id, view_id):
-        buffered_data_source = data_item.maybe_data_source
-        if buffered_data_source and buffered_data_source.computation is None:
-            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-            existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
-            existing_channel_id = hardware_source_metadata.get("channel_id")
-            existing_view_id = hardware_source_metadata.get("view_id")
-            if existing_hardware_source_id == hardware_source_id and existing_channel_id == channel_id and existing_view_id == view_id:
-                return True
-        return False
-
-    def __sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name, is_recording):
-
-        # TODO: self.__channel_data_items never gets cleared
-
-        # data items are matched based on hardware_source_id, channel_id, and view_id.
-        # view_id is an extra parameter that can be incremented to trigger new data items. it may be None.
-
-        document_model = self.document_controller.document_model
-        session_id = document_model.session_id
-
-        # these functions will be run on the main thread.
-        # be careful about binding the parameter. cannot use 'data_item' directly.
-        def append_data_item(append_data_item):
-            document_model.append_data_item(append_data_item)
-            is_data_item_displayed = False
-            for display_panel in self.display_panels:
-                if display_panel.data_item == data_item:
-                    is_data_item_displayed = True
-                    break
-            if is_recording and not is_data_item_displayed:
-                result_display_panel = self.document_controller.next_result_display_panel()
-                if result_display_panel:
-                    result_display_panel.set_displayed_data_item(data_item)
-                    result_display_panel.request_focus()
-
-        data_items = {}
-
-        # for each channel, see if a matching data item exists.
-        # if it does, check to see if it matches this hardware source.
-        # if no matching data item exists, create one.
-        for channel in channels:
-            do_copy = False
-
-            channel_index = channel.index
-            channel_id = channel.channel_id
-            channel_name = channel.name
-
-            if channel_id is not None:
-                channel_key = hardware_source_id + "_" + str(channel_id) + "_" + view_id
-            else:
-                channel_key = hardware_source_id + "_" + view_id
-
-            with self.__mutex:
-                data_item = self.__channel_data_items.get(channel_key)
-
-            if not data_item:
-                for data_item_i in self.__filtered_data_items_binding.data_items:
-                    if self.__matches_data_item(data_item_i, hardware_source_id, channel_id, view_id):
-                        data_item = data_item_i
-                        break
-
-            if data_item and not self.__matches_data_item(data_item, hardware_source_id, channel_id, view_id):
-                data_item = None
-
-            # if we still don't have a data item, create it.
-            if not data_item:
-                data_item = DataItem.DataItem()
-                data_item.title = "%s (%s)" % (display_name, channel_name) if channel_name else display_name
-                data_item.category = "temporary"
-                buffered_data_source = DataItem.BufferedDataSource()
-                data_item.append_data_source(buffered_data_source)
-                self.document_controller.queue_task(functools.partial(append_data_item, data_item))
-            # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
-            if data_item.session_id != session_id:
-                data_item.session_id = session_id
-            session_metadata = document_model.session_metadata
-            if data_item.session_metadata != session_metadata:
-                data_item.session_metadata = session_metadata
-            with self.__mutex:
-                self.__channel_data_items[channel_key] = data_item
-                data_items[channel_index] = data_item
-
-        return data_items
+    # not thread safe.
+    def append_data_item(self, data_item, is_recording):
+        self.document_controller.document_model.append_data_item(data_item)
+        is_data_item_displayed = False
+        for display_panel in self.display_panels:
+            if display_panel.data_item == data_item:
+                is_data_item_displayed = True
+                break
+        if is_recording and not is_data_item_displayed:
+            result_display_panel = self.document_controller.next_result_display_panel()
+            if result_display_panel:
+                result_display_panel.set_displayed_data_item(data_item)
+                result_display_panel.request_focus()
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):

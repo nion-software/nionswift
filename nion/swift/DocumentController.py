@@ -120,6 +120,12 @@ class DocumentController(Observable.Broadcaster):
 
         self.__data_item_will_be_removed_event_listener = self.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
 
+        def queued_append_data_item(data_item, is_recording):
+            self.queue_task(functools.partial(self.workspace.append_data_item, data_item, is_recording))
+            return True
+
+        self.__append_data_item_event_listener = self.document_model.append_data_item_event.listen(queued_append_data_item)
+
         self.filter_controller = FilterPanel.FilterController(self)
 
         self.__data_browser_controller = DataPanel.DataBrowserController(self, selection)
@@ -153,6 +159,8 @@ class DocumentController(Observable.Broadcaster):
         # get rid of the bindings
         self.__data_item_will_be_removed_event_listener.close()
         self.__data_item_will_be_removed_event_listener = None
+        self.__append_data_item_event_listener.close()
+        self.__append_data_item_event_listener = None
         self.__filtered_data_items_binding.close()
         self.__filtered_data_items_binding = None
         self.filter_controller.close()

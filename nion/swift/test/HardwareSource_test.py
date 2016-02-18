@@ -534,6 +534,17 @@ class TestHardwareSourceClass(unittest.TestCase):
         _test_record_starts_and_finishes_in_reasonable_time(self, hardware_source, hardware_source.sleep)
         document_controller.close()
 
+    def test_view_updates_a_single_data_item_when_multiple_document_controllers_exist(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        document_controller2 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        self.__acquire_one(document_controller, hardware_source)
+        document_controller2.periodic()
+        self.__acquire_one(document_controller, hardware_source)
+        document_controller2.periodic()
+        self.assertEqual(len(document_model.data_items), 1)
+        document_controller2.close()
+        document_controller.close()
+
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         # first start playing
@@ -568,7 +579,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 0)
         data_item = DataItem.DataItem(numpy.ones(256) + 1)
         document_model.append_data_item(data_item)
-        document_controller.workspace_controller.setup_channel(hardware_source_id, None, hardware_source_id, data_item)
+        document_model.setup_channel(hardware_source_id, None, hardware_source_id, data_item)
         # at this point the data item contains 2.0. the acquisition will produce a 1.0.
         # the 2.0 will get copied to data_item 1 and the 1.0 will be replaced into data_item 0.
         new_data_item = copy.deepcopy(document_model.data_items[0])
@@ -587,7 +598,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 0)
         data_item = DataItem.DataItem(numpy.ones(256) + 1)
         document_model.append_data_item(data_item)
-        document_controller.workspace_controller.setup_channel(hardware_source_id, channel_id, view_id, data_item)
+        document_model.setup_channel(hardware_source_id, channel_id, view_id, data_item)
         # these tags are required for the workspace to work right. not sure how else to test this.
         self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["hardware_source_id"], hardware_source_id)
         self.assertEqual(data_item.maybe_data_source.metadata.get("hardware_source")["channel_id"], channel_id)
@@ -598,7 +609,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         data_item = DataItem.DataItem(numpy.zeros((256, 256)) + 16)
         document_model.append_data_item(data_item)
-        document_controller.workspace_controller.setup_channel(hardware_source.hardware_source_id, "a", str(hardware_source.hardware_source_id), data_item)
+        document_model.setup_channel(hardware_source.hardware_source_id, "a", str(hardware_source.hardware_source_id), data_item)
         hardware_source.exposure = 0.02
         hardware_source.start_playing()
         time.sleep(0.01)
@@ -718,7 +729,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.periodic()
         document_model.recompute_all()
         document_model.start_new_session()
-        document_controller.workspace_controller._clear_channel_data_items()
+        document_controller.document_model._clear_channel_data_items()
         new_data_item = copy.deepcopy(document_model.data_items[0])
         document_model.append_data_item(new_data_item)
         self.__acquire_one(document_controller, hardware_source)
