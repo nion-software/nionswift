@@ -392,7 +392,10 @@ class AcquisitionTask(object):
 
 
 class HardwareSource(object):
-    """Represent a piece of hardware and provide the means to acquire data from it in view or record mode."""
+    """Represent a piece of hardware and provide the means to acquire data from it in view or record mode.
+
+    The hardware source generates data on a background thread.
+    """
 
     def __init__(self, hardware_source_id, display_name):
         super(HardwareSource, self).__init__()
@@ -537,11 +540,11 @@ class HardwareSource(object):
         pass
 
     # create the view task
-    def create_acquisition_view_task(self):
+    def __create_acquisition_view_task(self):
         return AcquisitionTask(self, True)
 
     # create the view task
-    def create_acquisition_record_task(self):
+    def __create_acquisition_record_task(self):
         return AcquisitionTask(self, False)
 
     # call this to set the view task
@@ -589,7 +592,7 @@ class HardwareSource(object):
     # not thread safe
     def start_playing(self):
         if not self.is_playing:
-            acquisition_task = self.create_acquisition_view_task()
+            acquisition_task = self.__create_acquisition_view_task()
             self.__set_active_view_task(acquisition_task)
 
     # call this to stop acquisition immediately
@@ -617,7 +620,7 @@ class HardwareSource(object):
     # thread safe
     def start_recording(self):
         if not self.is_recording:
-            acquisition_task = self.create_acquisition_record_task()
+            acquisition_task = self.__create_acquisition_record_task()
             self.__set_active_record_task(acquisition_task)
 
     # call this to stop acquisition immediately
