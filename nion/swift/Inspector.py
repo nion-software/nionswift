@@ -1378,7 +1378,7 @@ class ComputationInspectorSection(InspectorSection):
                         if key == "specifier":
                             bound_data_item = document_model.resolve_object_specifier(variable.specifier)
                             data_item = bound_data_item.data_item if bound_data_item else None
-                            data_item_thumbnail_source.data_item = data_item
+                            data_item_thumbnail_source.set_data_item(data_item)
 
                     property_changed_listener = variable.property_changed_event.listen(property_changed)
                     row.add(data_item_chooser_widget)
