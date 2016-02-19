@@ -313,14 +313,14 @@ class AbstractDataItemsBinding(Binding.Binding):
 
 
 class DataItemsFilterBinding(AbstractDataItemsBinding):
+    """Maintain a list of data items that tracks another list of data items.
 
+    Filter and sort can be applied to this list independently of the source list.
+
+    This class can also optionally keep a selection up to date.
     """
-        Maintain a list of data items that tracks another list of data items.
 
-        Filter and sort can be applied to this list independently of the source list.
-    """
-
-    def __init__(self, data_items_binding, selection):
+    def __init__(self, data_items_binding, selection=None):
         super(DataItemsFilterBinding, self).__init__()
         self.__master_data_items = list()
         self.__selection = selection
@@ -358,7 +358,8 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
             self.__data_item_content_changed_event_listeners[data_item.uuid] = data_item_content_changed_event_listener
             self._inserted_master_data_item(before_index, data_item)
-            self.__selection.insert_index(before_index)
+            if self.__selection:
+                self.__selection.insert_index(before_index)
 
     # thread safe.
     def __data_item_removed(self, data_item, index):
@@ -370,7 +371,8 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             self.__data_item_content_changed_event_listeners[data_item.uuid].close()
             del self.__data_item_content_changed_event_listeners[data_item.uuid]
             self._removed_master_data_item(index, data_item)
-            self.__selection.remove_index(index)
+            if self.__selection:
+                self.__selection.remove_index(index)
 
     # thread safe
     def _get_master_data_items(self):
