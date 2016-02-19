@@ -192,6 +192,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.__change_changed = False
         self.__recompute_lock = threading.RLock()
         self.__recompute_allowed = True
+        self.__recompute_critical_section_lock = threading.Lock()
         self.__recompute_last = 0
         self.__pending_data = None
         self.__pending_data_lock = threading.RLock()
@@ -743,39 +744,40 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 
     def recompute_data(self):
         """Ensures that the data is synchronized with the sources/operation by recomputing if necessary."""
-        with self._changes():
-            with self.__recompute_lock:
-                if self.__recompute_allowed:
-                    t0 = time.time()
-                    elapsed = t0 - self.__recompute_last
-                    if elapsed < 0.02:
-                        time.sleep(max(0.02 - elapsed, 0))
-                    try:
-                        with self.__pending_data_lock:  # only one thread should be computing data at once
-                            pending_data = self.__pending_data
-                            self.__pending_data = None
-                            self.__is_recomputing = True
-                        if pending_data is not None:
-                            self.increment_data_ref_count()  # make sure data is loaded
-                            try:
-                                operation_data = pending_data.data_fn()
-                                if operation_data is not None:
-                                    self.__set_data(operation_data)
-                                    self.source_data_modified = pending_data.timestamp
-                            finally:
-                                self.decrement_data_ref_count()  # unload data
-                            operation_intensity_calibration = pending_data.intensity_calibration
-                            operation_dimensional_calibrations = pending_data.dimensional_calibrations
-                            if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
-                                self.set_intensity_calibration(operation_intensity_calibration)
-                                for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                                    self.set_dimensional_calibration(index, dimensional_calibration)
-                            self.__recompute_last = t0
-                    finally:  # this should occur so that temporary errors in computation are ignored
-                        with self.__pending_data_lock:
-                            self.__is_recomputing = False
-                            if self.__pending_data and self.__data_item_manager:
-                                self.__data_item_manager.dispatch_task(self.recompute_data, "data")
+        if self.__recompute_critical_section_lock.acquire(False):
+            with self._changes():
+                with self.__recompute_lock:
+                    if self.__recompute_allowed:
+                        try:
+                            with self.__pending_data_lock:  # only one thread should be computing data at once
+                                pending_data = self.__pending_data
+                                self.__pending_data = None
+                                self.__is_recomputing = True
+                            if pending_data is not None:
+                                self.increment_data_ref_count()  # make sure data is loaded
+                                try:
+                                    operation_data = pending_data.data_fn()
+                                    if operation_data is not None:
+                                        self.__set_data(operation_data)
+                                        self.source_data_modified = pending_data.timestamp
+                                finally:
+                                    self.decrement_data_ref_count()  # unload data
+                                operation_intensity_calibration = pending_data.intensity_calibration
+                                operation_dimensional_calibrations = pending_data.dimensional_calibrations
+                                if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
+                                    self.set_intensity_calibration(operation_intensity_calibration)
+                                    for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
+                                        self.set_dimensional_calibration(index, dimensional_calibration)
+                                MINIMUM_UPDATE_DELAY = 0.1  # seconds
+                                elapsed = time.time() - self.__recompute_last
+                                time.sleep(max(MINIMUM_UPDATE_DELAY - elapsed, 0))
+                                self.__recompute_last = time.time()
+                        finally:  # this should occur so that temporary errors in computation are ignored
+                            with self.__pending_data_lock:
+                                self.__is_recomputing = False
+                                if self.__pending_data and self.__data_item_manager:
+                                    self.__data_item_manager.dispatch_task(self.recompute_data, "data")
+            self.__recompute_critical_section_lock.release()
 
     @property
     def dimensional_shape(self):
