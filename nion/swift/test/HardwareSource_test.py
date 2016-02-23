@@ -349,6 +349,7 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     hardware_source.start_playing()
     hardware_source.get_next_data_elements_to_finish(timeout=10.0)
     hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+    hardware_source.abort_playing()
 
 def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_source, exposure):
     # a reasonable time is 2x of record mode exposure (record mode exposure is 2x regular exposure)
