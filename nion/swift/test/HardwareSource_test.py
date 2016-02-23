@@ -119,9 +119,10 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
     def stop_acquisition(self):
         self.scanning = False
 
-    def suspend_acquisition(self):
+    def suspend_acquisition(self) -> bool:
         self.suspended = True
         self.suspend_event.set()
+        return True
 
     def resume_acquisition(self):
         self.suspended = False

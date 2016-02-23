@@ -187,22 +187,36 @@ Channel = collections.namedtuple("Channel", ["channel_id", "index", "name", "dat
 ChannelData = collections.namedtuple("Channel", ["channel_id", "index", "name", "data_and_calibration", "state", "sub_area"])
 
 
-class AcquisitionTask(object):
-    """Basic acquisition task carries out acquisition repeatedly during acquisition loop, keeping track of state.
+class AcquisitionTask:
+    """Basic acquisition task carries out acquisition repeatedly during an acquisition loop, keeping track of state.
 
-    The execute() method is performed repeatedly during the acquisition loop. It keeps track of the acquisition
-    state, calling _start(), _abort(), _execute(), and _stop() as required.
+    The caller controls the state of the task by calling the following methods:
+        execute: start or continue acquisition, should be called repeatedly until is_finished is True
+        suspend: suspend the state of acquisition, returns bool for success
+        resume: resume a suspended state of acquisition
+        stop: notify that acquisition should stop after end of current frame
+        abort: notify that acquisition should abort as soon as possible
 
-    The caller can control the loop by calling abort() and stop().
+    In addition the caller can query the state of acquisition using the following method:
+        is_finished: whether acquisition has finished or not
+
+    Subclasses can override these methods to implement the acquisition:
+        _start_acquisition: called once at the beginning of this task
+        _abort_acquisition: called when the caller has requested to abort acquisition
+        _suspend_acquisition: called when the caller has requested to suspend acquisition
+        _resume_acquisition: called when the caller has requested to resume a suspended acquisition
+        _mark_acquisition: marks the acquisition to stop at end of current frame
+        _acquire_data_elements: return list of data elements, with metadata indicating completion status
+        _stop_acquisition: final call to indicate acquisition has stopped; subclasses should synchronize stop here
     """
 
-    def __init__(self, hardware_source, continuous):
+    def __init__(self, hardware_source: "HardwareSource", continuous: bool):
         self.__hardware_source = hardware_source
         self.__started = False
         self.__finished = False
         self.__aborted = False
-        self.__stopped = False
-        self.__continuous = continuous
+        self.__is_stopping = False
+        self.__is_continuous = continuous
         self.__last_acquire_time = None
         self.__minimum_period = 1/1000.0
         self.__frame_index = 0
@@ -212,7 +226,7 @@ class AcquisitionTask(object):
 
     def __mark_as_finished(self):
         self.__finished = True
-        self.data_elements_changed_event.fire(list(), False)
+        self.data_elements_changed_event.fire(list(), self.__is_continuous, self.__view_id, False, self.__is_stopping)
         self.finished_event.fire()
 
     # called from the hardware source
@@ -241,7 +255,7 @@ class AcquisitionTask(object):
                 else:
                     complete = self.__execute_acquire_data_elements()
                     # logging.debug("%s executed %s", self, complete)
-                    if complete and (self.__stopped or not self.__continuous):
+                    if complete and (self.__is_stopping or not self.__is_continuous):
                         # logging.debug("%s finished", self)
                         self._stop_acquisition()
                         self.__mark_as_finished()
@@ -252,8 +266,8 @@ class AcquisitionTask(object):
                 raise
 
     # called from the hardware source
-    def suspend(self):
-        self._suspend_acquisition()
+    def suspend(self) -> bool:
+        return self._suspend_acquisition()
 
     # called from the hardware source
     def resume(self):
@@ -269,20 +283,8 @@ class AcquisitionTask(object):
 
     # called from the hardware source
     def stop(self):
-        self.__stopped = True
+        self.__is_stopping = True
         self._mark_acquisition()
-
-    @property
-    def is_stopping(self):
-        return self.__stopped
-
-    @property
-    def view_id(self):
-        return self.__view_id
-
-    @property
-    def is_continuous(self):
-        return self.__continuous
 
     def __start(self):
         if not self._start_acquisition():
@@ -346,7 +348,7 @@ class AcquisitionTask(object):
                 break
 
         # notify that data elements have changed
-        self.data_elements_changed_event.fire(data_elements, complete)
+        self.data_elements_changed_event.fire(data_elements, self.__is_continuous, self.__view_id, complete, self.__is_stopping)
 
         if complete:
             self.__frame_index += 1
@@ -367,9 +369,9 @@ class AcquisitionTask(object):
         self.__data_elements = None
         self.__hardware_source.abort_acquisition()
 
-    def _suspend_acquisition(self):
+    def _suspend_acquisition(self) -> bool:
         self.__data_elements = None
-        self.__hardware_source.suspend_acquisition()
+        return self.__hardware_source.suspend_acquisition()
 
     def _resume_acquisition(self):
         self.__data_elements = None
@@ -386,7 +388,7 @@ class AcquisitionTask(object):
         return self.__hardware_source.acquire_data_elements()
 
 
-class HardwareSource(object):
+class HardwareSource:
     """Represent a piece of hardware and provide the means to acquire data from it in view or record mode.
 
     The hardware source generates data on a background thread.
@@ -439,8 +441,7 @@ class HardwareSource(object):
                     break
                 try:
                     if self.__view_task and not self.__view_task_suspended:
-                        self.__view_task.suspend()
-                        self.__view_task_suspended = True
+                        self.__view_task_suspended = self.__view_task.suspend()
                     self.__record_task.execute()
                 except Exception as e:
                     self.__record_task.abort()
@@ -497,8 +498,8 @@ class HardwareSource(object):
     # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
     # suspend.
     # must be thread safe
-    def suspend_acquisition(self):
-        pass
+    def suspend_acquisition(self) -> bool:
+        return False
 
     # subclasses can implement this method which is called when acquisition is resumed from higher priority acquisition.
     # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
@@ -544,7 +545,7 @@ class HardwareSource(object):
     # call this to set the view task
     # thread safe
     def __set_active_view_task(self, acquisition_task):
-        self.__view_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, acquisition_task))
+        self.__view_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(self.__data_elements_changed)
         self.__view_task_suspended = self.is_recording  # start suspended if already recording
         self.__view_task = acquisition_task
         self.__acquire_thread_trigger.set()
@@ -553,14 +554,14 @@ class HardwareSource(object):
     # call this to set the record task
     # thread safe
     def __set_active_record_task(self, acquisition_task):
-        self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, acquisition_task))
+        self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(self.__data_elements_changed)
         self.__record_task = acquisition_task
         self.__acquire_thread_trigger.set()
         self.recording_state_changed_event.fire(True)
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
-    def __data_elements_changed(self, acquisition_task, data_elements, is_complete):
+    def __data_elements_changed(self, data_elements, is_continuous, view_id, is_complete, is_stopping):
         channels_data = list()
         for channel_index, data_element in enumerate(data_elements):
             assert data_element is not None
@@ -568,13 +569,13 @@ class HardwareSource(object):
             channel_name = data_element.get("channel_name")
             data_and_calibration = convert_data_element_to_data_and_metadata(data_element)
             channel_state = data_element.get("state", "complete")
-            if channel_state != "complete" and acquisition_task.is_stopping:
+            if channel_state != "complete" and is_stopping:
                 channel_state = "marked"
             sub_area = data_element.get("sub_area")
             channels_data.append(ChannelData(channel_id=channel_id, index=channel_index, name=channel_name,
                                         data_and_calibration=data_and_calibration, state=channel_state,
                                         sub_area=sub_area))
-        self.channels_data_updated_event.fire(acquisition_task.view_id, not acquisition_task.is_continuous, channels_data)
+        self.channels_data_updated_event.fire(view_id, not is_continuous, channels_data)
         if is_complete:
             self.data_elements_available_event.fire(data_elements)
 
@@ -707,8 +708,7 @@ class HardwareSource(object):
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware Source API requested version %s is greater than %s." % (version, actual_version))
 
-        class HardwareSourceFacade(object):
-
+        class HardwareSourceFacade:
             def __init__(self):
                 pass
 
