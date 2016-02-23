@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 
 # standard libraries
+import contextlib
 import gc
 import logging
 import unittest
@@ -473,6 +474,18 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.fix_display_limits(display_specifier)
             self.assertEqual(len(display_specifier.display.display_limits), 2)
         document_controller.close()
+
+    def test_delete_by_context_menu_actually_deletes_item_from_library(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            context_menu = document_controller.create_context_menu_for_data_item(source_data_item)
+            context_menu_items = context_menu.items
+            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
+            delete_item.callback()
+            self.assertEqual(len(document_model.data_items), 0)
 
 
 if __name__ == '__main__':

@@ -1161,7 +1161,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         self.document_controller.periodic()
         # show, reveal, delete, sep, split h, split v, sep, none, sep, browser, sep
-        self.document_controller.ui.popup.items[2]()
+        self.document_controller.ui.popup.items[2].callback()
         self.assertEqual(len(self.document_model.data_items), 0)
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):

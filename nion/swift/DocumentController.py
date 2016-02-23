@@ -1412,7 +1412,7 @@ class DocumentController(Observable.Broadcaster):
     def create_selected_data_item_binding(self):
         return SelectedDataItemBinding(self)
 
-    def create_context_menu_for_data_item(self, data_item, container=None):
+    def create_context_menu_for_data_item(self, data_item: DataItem.DataItem, container=None):
         menu = self.ui.create_context_menu(self.document_window)
         if data_item:
             if not container:
@@ -1421,11 +1421,14 @@ class DocumentController(Observable.Broadcaster):
 
             def delete():
                 selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
-                for selected_data_item in selected_data_items:
-                    if container and selected_data_item in container.data_items:
-                        container.remove_data_item(selected_data_item)
-                        # TODO: avoid calling periodic by reworking thread support in data panel
-                        self.periodic()  # keep the display items in data panel consistent.
+                if not data_item in selected_data_items:
+                    container.remove_data_item(data_item)
+                else:
+                    for selected_data_item in selected_data_items:
+                        if container and selected_data_item in container.data_items:
+                            container.remove_data_item(selected_data_item)
+                            # TODO: avoid calling periodic by reworking thread support in data panel
+                            self.periodic()  # keep the display items in data panel consistent.
 
             def show_source():
                 self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
@@ -1443,7 +1446,7 @@ class DocumentController(Observable.Broadcaster):
                 self.select_data_item_in_data_panel(data_item)
             menu.add_menu_item(_("Reveal"), show)
 
-            menu.add_menu_item(_("Delete"), delete)
+            menu.add_menu_item(_("Delete Data Item"), delete)
 
             def export_files():
                 selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
