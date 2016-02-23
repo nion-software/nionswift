@@ -212,7 +212,7 @@ class AcquisitionTask(object):
 
     def __mark_as_finished(self):
         self.__finished = True
-        self.data_elements_changed_event.fire(list())
+        self.data_elements_changed_event.fire(list(), False)
         self.finished_event.fire()
 
     # called from the hardware source
@@ -346,17 +346,12 @@ class AcquisitionTask(object):
                 break
 
         # notify that data elements have changed
-        self.data_elements_changed_event.fire(data_elements)
+        self.data_elements_changed_event.fire(data_elements, complete)
 
-        # let listeners know too (if there are data_elements).
         if complete:
-            if self.is_continuous:
-                self.__hardware_source.viewed_data_elements_available_event.fire(data_elements)
-            else:
-                self.__hardware_source.recorded_data_elements_available_event.fire(data_elements)
-
             self.__frame_index += 1
         else:
+            # need to save data elements for next time through loop
             self.__data_elements = data_elements
 
         return complete
@@ -403,8 +398,7 @@ class HardwareSource(object):
         self.display_name = display_name
         self.channel_count = 1
         self.features = dict()
-        self.viewed_data_elements_available_event = Event.Event()
-        self.recorded_data_elements_available_event = Event.Event()
+        self.data_elements_available_event = Event.Event()
         self.abort_event = Event.Event()
         self.playing_state_changed_event = Event.Event()
         self.recording_state_changed_event = Event.Event()
@@ -566,7 +560,7 @@ class HardwareSource(object):
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
-    def __data_elements_changed(self, acquisition_task, data_elements):
+    def __data_elements_changed(self, acquisition_task, data_elements, is_complete):
         channels_data = list()
         for channel_index, data_element in enumerate(data_elements):
             assert data_element is not None
@@ -581,6 +575,8 @@ class HardwareSource(object):
                                         data_and_calibration=data_and_calibration, state=channel_state,
                                         sub_area=sub_area))
         self.channels_data_updated_event.fire(acquisition_task.view_id, not acquisition_task.is_continuous, channels_data)
+        if is_complete:
+            self.data_elements_available_event.fire(data_elements)
 
     # return whether acquisition is running
     @property
@@ -649,14 +645,13 @@ class HardwareSource(object):
         def abort():
             new_data_event.set()
 
-        with contextlib.closing(self.viewed_data_elements_available_event.listen(receive_new_data_elements)):
-            with contextlib.closing(self.recorded_data_elements_available_event.listen(receive_new_data_elements)):
-                with contextlib.closing(self.abort_event.listen(abort)):
-                    # wait for the current frame to finish
-                    if not new_data_event.wait(timeout):
-                        raise Exception("Could not start data_source " + str(self.hardware_source_id))
+        with contextlib.closing(self.data_elements_available_event.listen(receive_new_data_elements)):
+            with contextlib.closing(self.abort_event.listen(abort)):
+                # wait for the current frame to finish
+                if not new_data_event.wait(timeout):
+                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
 
-                    return new_data_elements
+                return new_data_elements
 
     def get_next_data_elements_to_start(self, timeout=None):
         new_data_event = threading.Event()
@@ -669,19 +664,18 @@ class HardwareSource(object):
         def abort():
             new_data_event.set()
 
-        with contextlib.closing(self.viewed_data_elements_available_event.listen(receive_new_data_elements)):
-            with contextlib.closing(self.recorded_data_elements_available_event.listen(receive_new_data_elements)):
-                with contextlib.closing(self.abort_event.listen(abort)):
-                    # wait for the current frame to finish
-                    if not new_data_event.wait(timeout):
-                        raise Exception("Could not start data_source " + str(self.hardware_source_id))
+        with contextlib.closing(self.data_elements_available_event.listen(receive_new_data_elements)):
+            with contextlib.closing(self.abort_event.listen(abort)):
+                # wait for the current frame to finish
+                if not new_data_event.wait(timeout):
+                    raise Exception("Could not start data_source " + str(self.hardware_source_id))
 
-                    new_data_event.clear()
+                new_data_event.clear()
 
-                    if len(new_data_elements) > 0:
-                        new_data_event.wait(timeout)
+                if len(new_data_elements) > 0:
+                    new_data_event.wait(timeout)
 
-                    return new_data_elements
+                return new_data_elements
 
     @contextmanager
     def get_data_element_generator(self, sync=True, timeout=None):
