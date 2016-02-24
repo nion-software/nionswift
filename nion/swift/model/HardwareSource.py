@@ -1,37 +1,28 @@
 """
-This module defines a couple of classes proposed as a framework for handling live data
-sources.
+This module defines classes for handling live data sources.
 
-A HardwareSource represents a source of data and metadata.
+A HardwareSource represents a source of data and metadata frames.
 
-A HardwareSourceController represents
+An AcquisitionTask tracks the state for a particular acquisition of a frame or sequence of frames.
+
+The HardwareSourceManager allows callers to register and unregister hardware sources.
+
+This module also defines individual functions that can be used to collect data from hardware sources.
 """
-
-# futures
-from __future__ import absolute_import
 
 # system imports
 import collections
-from contextlib import contextmanager
+import configparser
 import contextlib
 import copy
 import datetime
 import functools
-import gettext
 import logging
 import os
 import threading
 import time
 import traceback
 import uuid
-
-# conditional imports
-import sys
-
-if sys.version < '3':
-    import ConfigParser as configparser
-else:
-    import configparser
 
 # local imports
 from nion.swift.model import Calibration
@@ -44,13 +35,10 @@ from nion.swift.model import Utility
 from nion.ui import Event
 from nion.ui import Unicode
 
-_ = gettext.gettext
-
 
 # Keeps track of all registered hardware sources and instruments.
 # Also keeps track of aliases between hardware sources and logical names.
 class HardwareSourceManager(metaclass=Utility.Singleton):
-
     def __init__(self):
         super(HardwareSourceManager, self).__init__()
         self.hardware_sources = []
@@ -165,8 +153,7 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
         return None
 
     def make_instrument_alias(self, instrument_id, alias_instrument_id, display_name):
-        """
-            Configure an alias.
+        """ Configure an alias.
 
             Callers can use the alias to refer to the instrument or hardware source.
             The alias should be lowercase, no spaces. The display name may be used to display alias to
@@ -199,6 +186,11 @@ class AcquisitionTask:
 
     In addition the caller can query the state of acquisition using the following method:
         is_finished: whether acquisition has finished or not
+
+    Finally, the caller can listen to the following events:
+        finished_event(): fired when acquisition is finished, successful or not
+        data_elements_changed_event(data_elements, is_continuous, view_id, is_complete, is_stopping):
+            fired when data elements change. the state of acquisition is passed too.
 
     Subclasses can override these methods to implement the acquisition:
         _start_acquisition: called once at the beginning of this task
@@ -389,7 +381,7 @@ class AcquisitionTask:
 
 
 class HardwareSource:
-    """Represent a piece of hardware and provide the means to acquire data from it in view or record mode.
+    """Represents a source of data and metadata frames.
 
     The hardware source generates data on a background thread.
     """
@@ -544,18 +536,18 @@ class HardwareSource:
 
     # call this to set the view task
     # thread safe
-    def __set_active_view_task(self, acquisition_task):
-        self.__view_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(self.__data_elements_changed)
+    def __set_active_view_task(self, view_task):
+        self.__view_data_elements_changed_event_listener = view_task.data_elements_changed_event.listen(self.__data_elements_changed)
         self.__view_task_suspended = self.is_recording  # start suspended if already recording
-        self.__view_task = acquisition_task
+        self.__view_task = view_task
         self.__acquire_thread_trigger.set()
         self.playing_state_changed_event.fire(True)
 
     # call this to set the record task
     # thread safe
-    def __set_active_record_task(self, acquisition_task):
-        self.__record_data_elements_changed_event_listener = acquisition_task.data_elements_changed_event.listen(self.__data_elements_changed)
-        self.__record_task = acquisition_task
+    def __set_active_record_task(self, record_task):
+        self.__record_data_elements_changed_event_listener = record_task.data_elements_changed_event.listen(self.__data_elements_changed)
+        self.__record_task = record_task
         self.__acquire_thread_trigger.set()
         self.recording_state_changed_event.fire(True)
 
@@ -582,58 +574,58 @@ class HardwareSource:
     # return whether acquisition is running
     @property
     def is_playing(self):
-        acquire_thread_view = self.__view_task  # assignment for lock free thread safety
-        return acquire_thread_view is not None and not acquire_thread_view.is_finished
+        view_task = self.__view_task  # assignment for lock free thread safety
+        return view_task is not None and not view_task.is_finished
 
     # call this to start acquisition
     # not thread safe
     def start_playing(self):
         if not self.is_playing:
-            acquisition_task = self.__create_acquisition_view_task()
-            self.__set_active_view_task(acquisition_task)
+            view_task = self.__create_acquisition_view_task()
+            self.__set_active_view_task(view_task)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_playing(self):
-        acquire_thread_view = self.__view_task
-        if acquire_thread_view:
-            acquire_thread_view.abort()
+        view_task = self.__view_task
+        if view_task:
+            view_task.abort()
             self.abort_event.fire()
 
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_playing(self):
-        acquire_thread_view = self.__view_task
-        if acquire_thread_view:
-            acquire_thread_view.stop()
+        view_task = self.__view_task
+        if view_task:
+            view_task.stop()
 
     # return whether acquisition is running
     @property
     def is_recording(self):
-        acquire_thread_record = self.__record_task  # assignment for lock free thread safety
-        return acquire_thread_record is not None and not acquire_thread_record.is_finished
+        record_task = self.__record_task  # assignment for lock free thread safety
+        return record_task is not None and not record_task.is_finished
 
     # call this to start acquisition
     # thread safe
     def start_recording(self):
         if not self.is_recording:
-            acquisition_task = self.__create_acquisition_record_task()
-            self.__set_active_record_task(acquisition_task)
+            record_task = self.__create_acquisition_record_task()
+            self.__set_active_record_task(record_task)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_recording(self):
-        acquire_thread_record = self.__record_task
-        if acquire_thread_record:
-            acquire_thread_record.abort()
+        record_task = self.__record_task
+        if record_task:
+            record_task.abort()
             self.abort_event.fire()
 
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_recording(self):
-        acquire_thread_record = self.__record_task
-        if acquire_thread_record:
-            acquire_thread_record.stop()
+        record_task = self.__record_task
+        if record_task:
+            record_task.stop()
 
     def get_next_data_elements_to_finish(self, timeout=None):
         new_data_event = threading.Event()
@@ -678,7 +670,7 @@ class HardwareSource:
 
                 return new_data_elements
 
-    @contextmanager
+    @contextlib.contextmanager
     def get_data_element_generator(self, sync=True, timeout=None):
         """
             Return a generator for data elements.
@@ -720,12 +712,12 @@ def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=None
     return hardware_source.get_data_element_generator(sync, timeout)
 
 
-@contextmanager
+@contextlib.contextmanager
 def get_data_generator_by_id(hardware_source_id, sync=True):
     """
         Return a generator for data.
 
-        :param bool sync: whether to wait for current frame to finish then grab next frame
+        :param bool sync: whether to wait for current frame to finish then collect next frame
 
         NOTE: a new ndarray is created for each call.
     """
@@ -791,7 +783,7 @@ def convert_data_element_to_data_and_metadata(data_element):
                                            dimensional_calibrations, metadata, timestamp)
 
 
-@contextmanager
+@contextlib.contextmanager
 def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
     with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
         def get_last_data():
@@ -801,7 +793,7 @@ def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
         yield get_last_data
 
 
-@contextmanager
+@contextlib.contextmanager
 def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
     with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
         def get_last_data():
@@ -840,12 +832,12 @@ def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
         yield get_last_data
 
 
-@contextmanager
+@contextlib.contextmanager
 def get_data_item_generator_by_id(hardware_source_id, sync=True):
     """
         Return a generator for data item.
 
-        :param bool sync: whether to wait for current frame to finish then grab next frame
+        :param bool sync: whether to wait for current frame to finish then collect next frame
 
         NOTE: a new data item is created for each call.
     """
