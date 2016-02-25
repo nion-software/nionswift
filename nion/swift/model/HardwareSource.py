@@ -24,6 +24,9 @@ import time
 import traceback
 import uuid
 
+# typing
+from typing import Dict
+
 # local imports
 from nion.swift.model import Calibration
 from nion.swift.model import DataAndMetadata
@@ -206,6 +209,7 @@ class AcquisitionTask:
         self.__hardware_source = hardware_source
         self.__started = False
         self.__finished = False
+        self.__is_suspended = False
         self.__aborted = False
         self.__is_stopping = False
         self.__is_continuous = continuous
@@ -233,6 +237,11 @@ class AcquisitionTask:
                 raise
             self.__started = True
             # logging.debug("%s started", self)
+        if self.__is_suspended:
+            try:
+                self.resume()
+            finally:
+                self.__is_suspended = False
         if not self.__finished:
             try:
                 # if aborted, abort here
@@ -259,7 +268,10 @@ class AcquisitionTask:
 
     # called from the hardware source
     def suspend(self) -> bool:
-        return self._suspend_acquisition()
+        if not self.__is_suspended:
+            self.__is_suspended = True
+            return self._suspend_acquisition()
+        return True
 
     # called from the hardware source
     def resume(self):
@@ -394,22 +406,18 @@ class HardwareSource:
         self.features = dict()
         self.data_elements_available_event = Event.Event()
         self.abort_event = Event.Event()
-        self.playing_state_changed_event = Event.Event()
-        self.recording_state_changed_event = Event.Event()
+        self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
         self.channels_data_updated_event = Event.Event()
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
-        self.__view_task = None
-        self.__record_task = None
-        self.__view_task_suspended = False
+        self.__tasks = dict()  # type: Dict[str, AcquisitionTask]
         self.__view_data_elements_changed_event_listener = None
         self.__record_data_elements_changed_event_listener = None
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
         self.__acquire_thread.daemon = True
         self.__acquire_thread.start()
-        self._test_handle_record_exception = None
-        self._test_handle_view_exception = None
+        self._test_acquire_exception = None
         self._test_acquire_hook = None
 
     def close(self):
@@ -422,56 +430,42 @@ class HardwareSource:
         self.__acquire_thread = None
 
     def __acquire_thread_loop(self):
+        # acquire_thread_trigger should be set whenever the task list change.
         while self.__acquire_thread_trigger.wait():
             self.__acquire_thread_trigger.clear()
             # record task gets highest priority
             acquire_thread_break = self.__acquire_thread_break
-            if self.__record_task:
+            suspend_task_id = None
+            task_id = None
+            if self.__tasks.get('view'):
+                task_id = 'view'
+            if self.__tasks.get('record'):
+                task_id = 'record'
+                suspend_task_id = 'view'
+            if task_id:
+                task = self.__tasks[task_id]
                 if acquire_thread_break:
-                    self.__record_task.abort()
+                    task.abort()
                     self.abort_event.fire()
-                    break
-                try:
-                    if self.__view_task and not self.__view_task_suspended:
-                        self.__view_task_suspended = self.__view_task.suspend()
-                    self.__record_task.execute()
-                except Exception as e:
-                    self.__record_task.abort()
-                    self.abort_event.fire()
-                    if self._test_handle_record_exception:
-                        self._test_handle_record_exception(e)
-                    else:
-                        import traceback
-                        logging.debug("Record Error: %s", e)
-                        traceback.print_exc()
-                if self.__record_task.is_finished:
-                    self.__record_task = None
-                    self.recording_state_changed_event.fire(False)
-                self.__acquire_thread_trigger.set()
-            # view task gets next priority
-            elif self.__view_task:
-                if acquire_thread_break:
-                    self.__view_task.abort()
-                    self.abort_event.fire()
-                    break
-                try:
-                    if self.__view_task_suspended:
-                        self.__view_task.resume()
-                        self.__view_task_suspended = False
-                    self.__view_task.execute()
-                except Exception as e:
-                    self.__view_task.abort()
-                    self.abort_event.fire()
-                    if self._test_handle_view_exception:
-                        self._test_handle_view_exception(e)
-                    else:
-                        import traceback
-                        logging.debug("View Error: %s", e)
-                        traceback.print_exc()
-                if self.__view_task.is_finished:
-                    self.__view_task = None
-                    self.playing_state_changed_event.fire(False)
-                self.__acquire_thread_trigger.set()
+                else:
+                    try:
+                        suspend_task = self.__tasks.get(suspend_task_id)
+                        if suspend_task:
+                            suspend_task.suspend()
+                        task.execute()
+                    except Exception as e:
+                        task.abort()
+                        self.abort_event.fire()
+                        if callable(self._test_acquire_exception):
+                            self._test_acquire_exception(e)
+                        else:
+                            import traceback
+                            logging.debug("{} Error: {}".format(task_id.capitalize(), e))
+                            traceback.print_exc()
+                    if task.is_finished:
+                        del self.__tasks[task_id]
+                        self.acquisition_state_changed_event.fire(False)
+                    self.__acquire_thread_trigger.set()
             if acquire_thread_break:
                 break
 
@@ -538,18 +532,17 @@ class HardwareSource:
     # thread safe
     def __set_active_view_task(self, view_task):
         self.__view_data_elements_changed_event_listener = view_task.data_elements_changed_event.listen(self.__data_elements_changed)
-        self.__view_task_suspended = self.is_recording  # start suspended if already recording
-        self.__view_task = view_task
+        self.__tasks['view'] = view_task
         self.__acquire_thread_trigger.set()
-        self.playing_state_changed_event.fire(True)
+        self.acquisition_state_changed_event.fire(True)
 
     # call this to set the record task
     # thread safe
     def __set_active_record_task(self, record_task):
         self.__record_data_elements_changed_event_listener = record_task.data_elements_changed_event.listen(self.__data_elements_changed)
-        self.__record_task = record_task
+        self.__tasks['record'] = record_task
         self.__acquire_thread_trigger.set()
-        self.recording_state_changed_event.fire(True)
+        self.acquisition_state_changed_event.fire(True)
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
@@ -574,8 +567,8 @@ class HardwareSource:
     # return whether acquisition is running
     @property
     def is_playing(self):
-        view_task = self.__view_task  # assignment for lock free thread safety
-        return view_task is not None and not view_task.is_finished
+        view_task = self.__tasks.get('view')  # assignment for lock free thread safety
+        return view_task is not None
 
     # call this to start acquisition
     # not thread safe
@@ -587,7 +580,7 @@ class HardwareSource:
     # call this to stop acquisition immediately
     # not thread safe
     def abort_playing(self):
-        view_task = self.__view_task
+        view_task = self.__tasks.get('view')
         if view_task:
             view_task.abort()
             self.abort_event.fire()
@@ -595,15 +588,15 @@ class HardwareSource:
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_playing(self):
-        view_task = self.__view_task
+        view_task = self.__tasks.get('view')
         if view_task:
             view_task.stop()
 
     # return whether acquisition is running
     @property
     def is_recording(self):
-        record_task = self.__record_task  # assignment for lock free thread safety
-        return record_task is not None and not record_task.is_finished
+        record_task = self.__tasks.get('record')  # assignment for lock free thread safety
+        return record_task is not None
 
     # call this to start acquisition
     # thread safe
@@ -615,7 +608,7 @@ class HardwareSource:
     # call this to stop acquisition immediately
     # not thread safe
     def abort_recording(self):
-        record_task = self.__record_task
+        record_task = self.__tasks.get('record')
         if record_task:
             record_task.abort()
             self.abort_event.fire()
@@ -623,7 +616,7 @@ class HardwareSource:
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_recording(self):
-        record_task = self.__record_task
+        record_task = self.__tasks.get('record')
         if record_task:
             record_task.stop()
 

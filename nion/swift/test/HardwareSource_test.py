@@ -293,7 +293,7 @@ def _test_exception_during_view_halts_playback(testcase, hardware_source, exposu
         if enabled[0]:
             raise Exception("Error during acquisition")
     hardware_source._test_acquire_hook = raise_exception
-    hardware_source._test_handle_view_exception = lambda *args: None
+    hardware_source._test_acquire_exception = lambda *args: None
     hardware_source.start_playing()
     try:
         hardware_source.get_next_data_elements_to_finish(timeout=10.0)
@@ -313,7 +313,7 @@ def _test_exception_during_record_halts_playback(testcase, hardware_source, expo
         if enabled[0]:
             raise Exception("Error during acquisition")
     hardware_source._test_acquire_hook = raise_exception
-    hardware_source._test_handle_record_exception = lambda *args: None
+    hardware_source._test_acquire_exception = lambda *args: None
     # first make sure that record works as expected
     hardware_source.start_recording()
     time.sleep(exposure * 0.5)
@@ -338,7 +338,7 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
         if enabled[0]:
             raise Exception("Error during acquisition")
     hardware_source._test_acquire_hook = raise_exception
-    hardware_source._test_handle_view_exception = lambda *args: None
+    hardware_source._test_acquire_exception = lambda *args: None
     hardware_source.start_playing()
     hardware_source.get_next_data_elements_to_finish(timeout=10.0)
     testcase.assertTrue(hardware_source.is_playing)
