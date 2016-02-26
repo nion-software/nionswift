@@ -17,6 +17,7 @@ import contextlib
 import copy
 import datetime
 import functools
+import gettext
 import logging
 import os
 import threading
@@ -37,6 +38,8 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.ui import Event
 from nion.ui import Unicode
+
+_ = gettext.gettext
 
 
 # Keeps track of all registered hardware sources and instruments.
