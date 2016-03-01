@@ -176,17 +176,27 @@ def clean_item_no_list(i):
     return None
 
 
-def parse_version(version, count=3):
+def parse_version(version, count=3, max_count=None):
+    max_count = max_count if max_count is not None else count
     version_components = [int(version_component) for version_component in version.split(".")]
-    assert len(version_components) <= count
+    assert len(version_components) <= max_count
     while len(version_components) < count:
         version_components.append(0)
     return version_components
 
 
-def compare_versions(version1, version2):
-    version_components1 = parse_version(version1)
+def compare_versions(version1: str, version2: str) -> int:
+    if version1.startswith("~"):
+        version1 = version1[1:]
+        version_components1 = parse_version(version1, 1, 3)
+        assert len(version_components1) > 1
+    elif version1 == "1":  # same as "~1.0"
+        version1 = "1.0"
+        version_components1 = parse_version(version1, 2, 3)
+    else:
+        version_components1 = parse_version(version1)
     version_components2 = parse_version(version2)
+    # print(version_components1, version_components2)
     for version_component1, version_component2 in zip(version_components1, version_components2):
         if version_component1 > version_component2:
             return 1
