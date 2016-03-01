@@ -999,6 +999,7 @@ class HardwareSource(object):
     def get_frame_parameters(self):
         return self.__hardware_source.get_current_frame_parameters().as_dict()
 
+    # TODO: deprecate this method. user should pass record parameters each time record is started, so no need to read them back.
     def get_record_frame_parameters(self):
         return self.__hardware_source.get_record_frame_parameters().as_dict()
 
@@ -1008,6 +1009,7 @@ class HardwareSource(object):
     def set_frame_parameters(self, frame_parameters):
         self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
+    # TODO: deprecate this method. user should pass record parameters each time record is started.
     def set_record_frame_parameters(self, frame_parameters):
         self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 

@@ -372,7 +372,7 @@ class AcquisitionTask:
         self.__data_elements = None
         return self.__hardware_source.start_acquisition()
 
-    def _abort_acquisition(self):
+    def _abort_acquisition(self) -> None:
         self.__data_elements = None
         self.__hardware_source.abort_acquisition()
 
@@ -380,14 +380,14 @@ class AcquisitionTask:
         self.__data_elements = None
         return self.__hardware_source.suspend_acquisition()
 
-    def _resume_acquisition(self):
+    def _resume_acquisition(self) -> None:
         self.__data_elements = None
         self.__hardware_source.resume_acquisition()
 
-    def _mark_acquisition(self):
+    def _mark_acquisition(self) -> None:
         self.__hardware_source.mark_acquisition()
 
-    def _stop_acquisition(self):
+    def _stop_acquisition(self) -> None:
         self.__data_elements = None
         self.__hardware_source.stop_acquisition()
 
@@ -415,6 +415,7 @@ class HardwareSource:
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
         self.__tasks = dict()  # type: Dict[str, AcquisitionTask]
+        self.__data_elements_changed_event_listeners = dict()
         self.__view_data_elements_changed_event_listener = None
         self.__record_data_elements_changed_event_listener = None
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
@@ -438,13 +439,17 @@ class HardwareSource:
             self.__acquire_thread_trigger.clear()
             # record task gets highest priority
             acquire_thread_break = self.__acquire_thread_break
-            suspend_task_id = None
+            suspend_task_id_list = list()
             task_id = None
+            if self.__tasks.get('idle'):
+                task_id = 'idle'
             if self.__tasks.get('view'):
                 task_id = 'view'
+                suspend_task_id_list.append('idle')
             if self.__tasks.get('record'):
                 task_id = 'record'
-                suspend_task_id = 'view'
+                suspend_task_id_list.append('idle')
+                suspend_task_id_list.append('view')
             if task_id:
                 task = self.__tasks[task_id]
                 if acquire_thread_break:
@@ -452,9 +457,10 @@ class HardwareSource:
                     self.abort_event.fire()
                 else:
                     try:
-                        suspend_task = self.__tasks.get(suspend_task_id)
-                        if suspend_task:
-                            suspend_task.suspend()
+                        for suspend_task_id in suspend_task_id_list:
+                            suspend_task = self.__tasks.get(suspend_task_id)
+                            if suspend_task:
+                                suspend_task.suspend()
                         task.execute()
                     except Exception as e:
                         task.abort()
@@ -467,6 +473,8 @@ class HardwareSource:
                             traceback.print_exc()
                     if task.is_finished:
                         del self.__tasks[task_id]
+                        self.__data_elements_changed_event_listeners[task_id].close()
+                        del self.__data_elements_changed_event_listeners[task_id]
                         self.acquisition_state_changed_event.fire(False)
                     self.__acquire_thread_trigger.set()
             if acquire_thread_break:
@@ -567,61 +575,83 @@ class HardwareSource:
         if is_complete:
             self.data_elements_available_event.fire(data_elements)
 
+    # return whether task is running
+    def is_task_running(self, task_id: str) -> bool:
+        return task_id in self.__tasks
+
+    # call this to start the task running
+    # not thread safe
+    def start_task(self, task_id: str, task: AcquisitionTask) -> None:
+        assert not task in self.__tasks.values()
+        assert not task_id in self.__tasks
+        assert task_id in ('idle', 'view', 'record')
+        self.__data_elements_changed_event_listeners[task_id] = task.data_elements_changed_event.listen(self.__data_elements_changed)
+        self.__tasks[task_id] = task
+        self.__acquire_thread_trigger.set()
+        self.acquisition_state_changed_event.fire(True)
+
+    # call this to stop task immediately
+    # not thread safe
+    def abort_task(self, task_id: str) -> None:
+        task = self.__tasks.get(task_id)
+        assert task is not None
+        task.abort()
+        self.abort_event.fire()
+
+    # call this to stop acquisition gracefully
+    # not thread safe
+    def stop_task(self, task_id: str) -> None:
+        task = self.__tasks.get(task_id)
+        assert task is not None
+        task.stop()
+
     # return whether acquisition is running
     @property
     def is_playing(self):
-        view_task = self.__tasks.get('view')  # assignment for lock free thread safety
-        return view_task is not None
+        return self.is_task_running('view')
 
     # call this to start acquisition
     # not thread safe
     def start_playing(self):
         if not self.is_playing:
             view_task = self.__create_acquisition_view_task()
-            self.__set_active_view_task(view_task)
+            self.start_task('view', view_task)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_playing(self):
-        view_task = self.__tasks.get('view')
-        if view_task:
-            view_task.abort()
-            self.abort_event.fire()
+        if self.is_playing:
+            self.abort_task('view')
 
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_playing(self):
-        view_task = self.__tasks.get('view')
-        if view_task:
-            view_task.stop()
+        if self.is_playing:
+            self.stop_task('view')
 
     # return whether acquisition is running
     @property
     def is_recording(self):
-        record_task = self.__tasks.get('record')  # assignment for lock free thread safety
-        return record_task is not None
+        return self.is_task_running('record')
 
     # call this to start acquisition
     # thread safe
     def start_recording(self):
         if not self.is_recording:
             record_task = self.__create_acquisition_record_task()
-            self.__set_active_record_task(record_task)
+            self.start_task('record', record_task)
 
     # call this to stop acquisition immediately
     # not thread safe
     def abort_recording(self):
-        record_task = self.__tasks.get('record')
-        if record_task:
-            record_task.abort()
-            self.abort_event.fire()
+        if self.is_recording:
+            self.abort_task('record')
 
     # call this to stop acquisition gracefully
     # not thread safe
     def stop_recording(self):
-        record_task = self.__tasks.get('record')
-        if record_task:
-            record_task.stop()
+        if self.is_recording:
+            self.stop_task('record')
 
     def get_next_data_elements_to_finish(self, timeout=None):
         new_data_event = threading.Event()
