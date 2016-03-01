@@ -1034,7 +1034,11 @@ class HardwareSource(object):
         return self.__hardware_source.is_playing
 
     def start_recording(self, frame_parameters=None, channels_enabled=None):
-        self.__hardware_source.start_recording(frame_parameters, channels_enabled)
+        if frame_parameters is not None:
+            self.__hardware_source.set_record_frame_parameters(frame_parameters)
+        if channels_enabled is not None:
+            self.__hardware_source.set_record_channels_enabled(channels_enabled)
+        self.__hardware_source.start_recording()
 
     def abort_recording(self):
         self.__hardware_source.abort_recording()
@@ -1044,7 +1048,7 @@ class HardwareSource(object):
         return self.__hardware_source.is_recording
 
     def record(self, frame_parameters=None, channels_enabled=None, timeout=None):
-        """Record data and return a data_and_metadata object.
+        """Record data and return a list of data_and_metadata objects.
 
         .. versionadded:: 1.0
 
