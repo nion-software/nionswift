@@ -208,7 +208,7 @@ class AcquisitionTask:
         _stop_acquisition: final call to indicate acquisition has stopped; subclasses should synchronize stop here
     """
 
-    def __init__(self, hardware_source: "HardwareSource", continuous: bool):
+    def __init__(self, hardware_source, hardware_source_id, continuous: bool):
         self.__hardware_source = hardware_source
         self.__started = False
         self.__finished = False
@@ -219,7 +219,9 @@ class AcquisitionTask:
         self.__last_acquire_time = None
         self.__minimum_period = 1/1000.0
         self.__frame_index = 0
-        self.__view_id = str(uuid.uuid4()) if not continuous else hardware_source.hardware_source_id
+        self.__view_id = str(uuid.uuid4()) if not continuous else hardware_source_id
+        self._test_acquire_exception = None
+        self._test_acquire_hook = None
         self.finished_event = Event.Event()
         self.data_elements_changed_event = Event.Event()
 
@@ -304,8 +306,8 @@ class AcquisitionTask:
         elapsed = time.time() - self.__last_acquire_time
         time.sleep(max(0.0, self.__minimum_period - elapsed))
 
-        if self.__hardware_source._test_acquire_hook:
-            self.__hardware_source._test_acquire_hook()
+        if self._test_acquire_hook:
+            self._test_acquire_hook()
 
         partial_data_elements = self._acquire_data_elements()
         assert partial_data_elements is not None  # data_elements should never be empty
@@ -370,28 +372,33 @@ class AcquisitionTask:
 
     def _start_acquisition(self) -> bool:
         self.__data_elements = None
-        return self.__hardware_source.start_acquisition()
+        return self.__hardware_source.start_acquisition() if self.__hardware_source else True
 
     def _abort_acquisition(self) -> None:
         self.__data_elements = None
-        self.__hardware_source.abort_acquisition()
+        if self.__hardware_source:
+            self.__hardware_source.abort_acquisition()
 
     def _suspend_acquisition(self) -> bool:
         self.__data_elements = None
-        return self.__hardware_source.suspend_acquisition()
+        return self.__hardware_source.suspend_acquisition() if self.__hardware_source else False
 
     def _resume_acquisition(self) -> None:
         self.__data_elements = None
-        self.__hardware_source.resume_acquisition()
+        if self.__hardware_source:
+            self.__hardware_source.resume_acquisition()
 
     def _mark_acquisition(self) -> None:
-        self.__hardware_source.mark_acquisition()
+        if self.__hardware_source:
+            self.__hardware_source.mark_acquisition()
 
     def _stop_acquisition(self) -> None:
         self.__data_elements = None
-        self.__hardware_source.stop_acquisition()
+        if self.__hardware_source:
+            self.__hardware_source.stop_acquisition()
 
     def _acquire_data_elements(self):
+        assert self.__hardware_source
         return self.__hardware_source.acquire_data_elements()
 
 
@@ -533,11 +540,11 @@ class HardwareSource:
 
     # create the view task
     def __create_acquisition_view_task(self):
-        return AcquisitionTask(self, True)
+        return AcquisitionTask(self, self.hardware_source_id, True)
 
     # create the view task
     def __create_acquisition_record_task(self):
-        return AcquisitionTask(self, False)
+        return AcquisitionTask(self, self.hardware_source_id, False)
 
     # call this to set the view task
     # thread safe
