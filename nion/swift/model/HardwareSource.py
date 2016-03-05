@@ -622,6 +622,7 @@ class HardwareSource:
     def start_playing(self):
         if not self.is_playing:
             view_task = self.__create_acquisition_view_task()
+            view_task._test_acquire_hook = self._test_acquire_hook
             self.start_task('view', view_task)
 
     # call this to stop acquisition immediately
