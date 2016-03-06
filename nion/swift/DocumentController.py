@@ -1112,16 +1112,16 @@ class DocumentController(Observable.Broadcaster):
             return display_specifier
         return DataItem.DisplaySpecifier()
 
+    def processing_convert_to_scalar(self):
+        display_specifier = self.selected_display_specifier
+        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "convert-to-scalar-operation", suffix=_(" Gray"))
+
     def get_data_item_snapshot(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
         assert isinstance(data_item, DataItem.DataItem)
         data_item_copy = data_item.snapshot()
         data_item_copy.title = _("Snapshot of ") + data_item.title
         self.document_model.append_data_item(data_item_copy)
         return data_item_copy
-
-    def processing_convert_to_scalar(self):
-        display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "convert-to-scalar-operation", suffix=_(" Gray"))
 
     def fix_display_limits(self, display_specifier):
         display = display_specifier.display
@@ -1224,27 +1224,43 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_line_profile_new(self, map=None):
         display_specifier = self.selected_display_specifier
+        data_item = self.get_line_profile_new(display_specifier.data_item)
+        if data_item:
+            line_profile_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.display_data_item(line_profile_display_specifier)
+            return data_item
+        return None
+
+    def get_line_profile_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source:
             line_region = Region.LineRegion()
             line_region.start = 0.25, 0.25
             line_region.end = 0.75, 0.75
             buffered_data_source.add_region(line_region)
-            if map is None:
-                map = self.build_variable_map()
-            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
-            map["line_region"] = self.document_model.get_object_specifier(line_region)
-            data_item = DataItem.DataItem()
-            data_item.title = _("New Line Profile on ") + data_item.title
+            # if map is None:
+            #     map = self.build_variable_map()
+            # map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
+            # map["line_region"] = self.document_model.get_object_specifier(line_region)
+            line_profile_data_item = DataItem.DataItem()
+            line_profile_data_item.title = _("New Line Profile on ") + line_profile_data_item.title
             computation = Symbolic.Computation()
-            computation.parse_expression(self.document_model, "line_profile(src.display_data, line_region.vector, line_region.width)", map)
+            # computation.parse_expression(self.document_model, "line_profile(src.display_data, line_region.vector, line_region.width)", map)
+            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
+            computation.create_object("line_region", self.document_model.get_object_specifier(line_region))
+            computation.parse_expression(self.document_model, "line_profile(src.display_data, line_region.vector, line_region.width)", dict())
             buffered_data_source = DataItem.BufferedDataSource()
-            data_item.append_data_source(buffered_data_source)
+            line_profile_data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
-            self.document_model.append_data_item(data_item)
+            self.document_model.append_data_item(line_profile_data_item)
             computation.needs_update_event.fire()  # ugh. bootstrap.
-            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
-            return data_item
+            line_profile_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
+            # when the intervals on the line_profile_data_item change, update the displayed intervals on the line_region
+            line_profile_data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_region))
+            # when line_profile_data_item gets deleted, the line_region gets deleted
+            # when the line_region gets deleted, the line_profile_data_item gets deleted
+            return line_profile_data_item
         return None
 
     def toggle_filter(self):
