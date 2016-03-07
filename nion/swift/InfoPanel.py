@@ -5,8 +5,8 @@ import gettext
 # None
 
 # local libraries
+from nion.data import Calibration
 from nion.swift import Panel
-from nion.swift.model import Calibration
 
 _ = gettext.gettext
 

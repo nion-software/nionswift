@@ -2,10 +2,6 @@
     Contains classes related to display of data items.
 """
 
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import copy
 import functools
@@ -18,13 +14,13 @@ import operator
 import numpy
 
 # local libraries
+from nion.data import Core
+from nion.data import DataAndMetadata
+from nion.data import Image
 from nion.swift.model import Cache
-from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
-from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
-from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
 from nion.ui import Event
 from nion.ui import Model
@@ -250,7 +246,7 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
                     elif Image.is_data_2d(data):
                         display_data = Image.scalar_from_array(data)
                     elif Image.is_data_3d(data):
-                        display_data = Image.scalar_from_array(Symbolic.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
+                        display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
                     else:
                         display_data = None
                     self.__display_data = display_data

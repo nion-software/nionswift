@@ -14,12 +14,12 @@ import numpy
 import scipy
 
 # local libraries
+from nion.data import Calibration
+from nion.data import Image
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.swift.model import Calibration
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Image
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.ui import Geometry

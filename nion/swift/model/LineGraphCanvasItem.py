@@ -19,9 +19,9 @@ import math
 import numpy
 
 # local libraries
+from nion.data import Image
 from nion.ui import CanvasItem
 from nion.ui import Geometry
-from nion.swift.model import Image
 
 _ = gettext.gettext
 

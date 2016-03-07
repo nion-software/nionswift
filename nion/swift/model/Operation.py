@@ -15,8 +15,9 @@ import weakref
 import numpy
 
 # local libraries
-from nion.swift.model import DataAndMetadata
-from nion.swift.model import Image
+from nion.data import Core
+from nion.data import DataAndMetadata
+from nion.data import Image
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
@@ -605,7 +606,7 @@ class FFTOperation(Operation):
         super(FFTOperation, self).__init__(_("FFT"), "fft-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_fft(*data_and_calibrations)
+        data_and_metadata = Core.function_fft(*data_and_calibrations)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -615,7 +616,7 @@ class IFFTOperation(Operation):
         super(IFFTOperation, self).__init__(_("Inverse FFT"), "inverse-fft-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_ifft(*data_and_calibrations)
+        data_and_metadata = Core.function_ifft(*data_and_calibrations)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -625,7 +626,7 @@ class AutoCorrelateOperation(Operation):
         super(AutoCorrelateOperation, self).__init__(_("Auto Correlate"), "auto-correlate-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_autocorrelate(*data_and_calibrations)
+        data_and_metadata = Core.function_autocorrelate(*data_and_calibrations)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -635,7 +636,7 @@ class CrossCorrelateOperation(Operation):
         super(CrossCorrelateOperation, self).__init__(_("Cross Correlate"), "cross-correlate-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_crosscorrelate(*data_and_calibrations)
+        data_and_metadata = Core.function_crosscorrelate(*data_and_calibrations)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -666,7 +667,7 @@ class SobelOperation(Operation):
         super(SobelOperation, self).__init__(_("Sobel"), "sobel-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_sobel(*data_and_calibrations)
+        data_and_metadata = Core.function_sobel(*data_and_calibrations)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -676,7 +677,7 @@ class LaplaceOperation(Operation):
         super(LaplaceOperation, self).__init__(_("Laplace"), "laplace-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_laplace(*data_and_calibrations)
+        data_and_metadata = Core.function_laplace(*data_and_calibrations)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -689,7 +690,7 @@ class GaussianBlurOperation(Operation):
         super(GaussianBlurOperation, self).__init__(_("Gaussian Blur"), "gaussian-blur-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_gaussian_blur(data_and_calibrations[0], values.get("sigma") * 10.0)
+        data_and_metadata = Core.function_gaussian_blur(data_and_calibrations[0], values.get("sigma") * 10.0)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -702,7 +703,7 @@ class MedianFilterOperation(Operation):
         super(MedianFilterOperation, self).__init__(_("Median Filter"), "median-filter-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_median_filter(data_and_calibrations[0], values.get("size"))
+        data_and_metadata = Core.function_median_filter(data_and_calibrations[0], values.get("size"))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -715,7 +716,7 @@ class UniformFilterOperation(Operation):
         super(UniformFilterOperation, self).__init__(_("Uniform Filter"), "uniform-filter-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_uniform_filter(data_and_calibrations[0], values.get("size"))
+        data_and_metadata = Core.function_uniform_filter(data_and_calibrations[0], values.get("size"))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -730,7 +731,7 @@ class TransposeFlipOperation(Operation):
         super(TransposeFlipOperation, self).__init__(_("Transpose/Flip"), "transpose-flip-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_transpose_flip(data_and_calibrations[0], bool(values.get("transpose")), bool(values.get("flip_horizontal")), bool(values.get("flip_vertical")))
+        data_and_metadata = Core.function_transpose_flip(data_and_calibrations[0], bool(values.get("transpose")), bool(values.get("flip_horizontal")), bool(values.get("flip_vertical")))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -745,7 +746,7 @@ class Crop2dOperation(Operation):
         self.region_bindings = {"crop": [RegionBinding("bounds", "bounds")]}
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_crop(data_and_calibrations[0], values.get("bounds"))
+        data_and_metadata = Core.function_crop(data_and_calibrations[0], values.get("bounds"))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -759,7 +760,7 @@ class Slice3dOperation(Operation):
         super(Slice3dOperation, self).__init__(_("Slice"), "slice-operation", description)
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_slice_sum(data_and_calibrations[0], values.get("slice_center"), values.get("slice_width"))
+        data_and_metadata = Core.function_slice_sum(data_and_calibrations[0], values.get("slice_center"), values.get("slice_width"))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -774,7 +775,7 @@ class Pick3dOperation(Operation):
         self.region_bindings = {"pick": [RegionBinding("position", "position")]}
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_pick(data_and_calibrations[0], values.get("position"))
+        data_and_metadata = Core.function_pick(data_and_calibrations[0], values.get("position"))
         return data_and_metadata if data_and_metadata else None
 
 
@@ -785,7 +786,7 @@ class Projection2dOperation(Operation):
         super(Projection2dOperation, self).__init__(_("Projection"), "projection-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_project(data_and_calibrations[0])
+        data_and_metadata = Core.function_project(data_and_calibrations[0])
         return data_and_metadata if data_and_metadata else None
 
 
@@ -802,7 +803,7 @@ class Resample2dOperation(Operation):
         dimensional_shape = data_and_calibrations[0].dimensional_shape
         if dimensional_shape and len(dimensional_shape) == 2:
             resample_shape = values.get("height", dimensional_shape[0]), values.get("width", dimensional_shape[1])
-            data_and_metadata = Symbolic.function_resample_2d(data_and_calibrations[0], resample_shape)
+            data_and_metadata = Core.function_resample_2d(data_and_calibrations[0], resample_shape)
             return data_and_metadata if data_and_metadata else None
         else:
             return None
@@ -824,7 +825,7 @@ class HistogramOperation(Operation):
         self.bins = 256
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_histogram(data_and_calibrations[0], self.bins)
+        data_and_metadata = Core.function_histogram(data_and_calibrations[0], self.bins)
         return data_and_metadata if data_and_metadata else None
 
 
@@ -841,7 +842,7 @@ class LineProfileOperation(Operation):
                                          RegionBinding("integration_width", "width")]}
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Symbolic.function_line_profile(data_and_calibrations[0], values.get("vector"), values.get("integration_width"))
+        data_and_metadata = Core.function_line_profile(data_and_calibrations[0], values.get("vector"), values.get("integration_width"))
         return data_and_metadata if data_and_metadata else None
 
 

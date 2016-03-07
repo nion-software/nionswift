@@ -11,9 +11,9 @@ import threading
 # None
 
 # local libraries
+from nion.data import Image
 from nion.swift import Panel
 from nion.swift.model import DataItem
-from nion.swift.model import Image
 from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Model

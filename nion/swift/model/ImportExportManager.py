@@ -13,10 +13,10 @@ from typing import List
 import numpy
 
 # local libraries
-from nion.swift.model import Calibration
+from nion.data import Calibration
+from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
-from nion.swift.model import Image
 from nion.swift.model import Utility
 from nion.ui import Unicode
 

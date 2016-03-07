@@ -23,11 +23,11 @@ import uuid
 # None
 
 # local libraries
-from nion.swift.model import Calibration as CalibrationModule
-from nion.swift.model import DataAndMetadata
+from nion.data import Calibration as CalibrationModule
+from nion.data import DataAndMetadata
+from nion.data import Image
 from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import HardwareSource as HardwareSourceModule
-from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Operation

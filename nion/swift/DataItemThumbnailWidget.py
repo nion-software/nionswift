@@ -6,10 +6,10 @@ import uuid
 # None
 
 # local libraries
+from nion.data import Image
 from nion.swift import Widgets
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
-from nion.swift.model import Image
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 

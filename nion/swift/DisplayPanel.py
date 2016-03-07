@@ -14,12 +14,12 @@ import weakref
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift import DataPanel
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift.model import Connection
-from nion.swift.model import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import Operation
 from nion.swift.model import Region

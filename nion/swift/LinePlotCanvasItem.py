@@ -11,9 +11,9 @@ import math
 # None
 
 # local libraries
-from nion.swift.model import Calibration
+from nion.data import Calibration
+from nion.data import Image
 from nion.swift.model import Graphics
-from nion.swift.model import Image
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Region
 from nion.swift.model import Utility

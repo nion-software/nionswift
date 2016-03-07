@@ -16,12 +16,12 @@ import weakref
 import numpy
 
 # local libraries
+from nion.data import Calibration
+from nion.data import DataAndMetadata
+from nion.data import Image
 from nion.swift.model import Cache
-from nion.swift.model import Calibration
 from nion.swift.model import Connection
-from nion.swift.model import DataAndMetadata
 from nion.swift.model import Display
-from nion.swift.model import Image
 from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Symbolic

@@ -29,11 +29,11 @@ import uuid
 from typing import Dict
 
 # local imports
-from nion.swift.model import Calibration
-from nion.swift.model import DataAndMetadata
+from nion.data import Calibration
+from nion.data import DataAndMetadata
+from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
-from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.ui import Event

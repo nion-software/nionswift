@@ -17,10 +17,10 @@ import uuid
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift.model import Cache
-from nion.swift.model import Calibration
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel

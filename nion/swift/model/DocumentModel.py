@@ -19,12 +19,12 @@ import weakref
 import scipy
 
 # local libraries
+from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import HardwareSource
-from nion.swift.model import Image
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Region
 from nion.swift.model import Utility
