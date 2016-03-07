@@ -37,8 +37,6 @@ class Workspace(object):
     def __init__(self, document_controller, workspace_id):
         self.__document_controller_weakref = weakref.ref(document_controller)
 
-        document_model = self.document_controller.document_model
-
         self.ui = self.document_controller.ui
 
         self.workspace_manager = WorkspaceManager()
@@ -75,9 +73,6 @@ class Workspace(object):
         self.create_panels(visible_panels)
 
         self.__workspace = None
-
-        def queued_append_data_item(data_item, is_recording):
-            document_controller.queue_task(functools.partial(append_data_item, data_item, is_recording))
 
     def close(self):
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
@@ -259,7 +254,7 @@ class Workspace(object):
         # no point in the root canvas item having focus.
         # self.__canvas_item.focusable = True
         # now construct the workspace
-        document_model = self.document_controller.document_model
+        document_model = self.document_model
         try:
             display_panels = list()  # to be populated by _construct
             canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
@@ -292,30 +287,30 @@ class Workspace(object):
 
             If workspace_uuid is None then create a new workspace and use it.
         """
-        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.uuid == workspace_uuid), None)
         if workspace is None:
             workspace = self.new_workspace()
         self.change_workspace(workspace)
         #self.restore_content()
 
     def change_to_previous_workspace(self):
-        workspace_uuid = self.document_controller.document_model.workspace_uuid
-        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.uuid == workspace_uuid), None)
-        workspace_index = self.document_controller.document_model.workspaces.index(workspace)
-        workspace_index = (workspace_index - 1) % len(self.document_controller.document_model.workspaces)
-        self.change_workspace(self.document_controller.document_model.workspaces[workspace_index])
+        workspace_uuid = self.document_model.workspace_uuid
+        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace_index = self.document_model.workspaces.index(workspace)
+        workspace_index = (workspace_index - 1) % len(self.document_model.workspaces)
+        self.change_workspace(self.document_model.workspaces[workspace_index])
 
     def change_to_next_workspace(self):
-        workspace_uuid = self.document_controller.document_model.workspace_uuid
-        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.uuid == workspace_uuid), None)
-        workspace_index = self.document_controller.document_model.workspaces.index(workspace)
-        workspace_index = (workspace_index + 1) % len(self.document_controller.document_model.workspaces)
-        self.change_workspace(self.document_controller.document_model.workspaces[workspace_index])
+        workspace_uuid = self.document_model.workspace_uuid
+        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.uuid == workspace_uuid), None)
+        workspace_index = self.document_model.workspaces.index(workspace)
+        workspace_index = (workspace_index + 1) % len(self.document_model.workspaces)
+        self.change_workspace(self.document_model.workspaces[workspace_index])
 
     def new_workspace(self, name=None, layout=None, workspace_id=None):
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.WorkspaceLayout()
-        self.document_controller.document_model.append_workspace(workspace)
+        self.document_model.append_workspace(workspace)
         workspace.layout = layout if layout is not None else { "type": "image", "selected": True }
         workspace.name = name if name is not None else _("Workspace")
         if workspace_id:
@@ -327,7 +322,7 @@ class Workspace(object):
 
         If none is found, create a new one, add it, and change to it.
         """
-        workspace = next((workspace for workspace in self.document_controller.document_model.workspaces if workspace.workspace_id == workspace_id), None)
+        workspace = next((workspace for workspace in self.document_model.workspaces if workspace.workspace_id == workspace_id), None)
         if not workspace:
             workspace = self.new_workspace(name=name, layout=layout, workspace_id=workspace_id)
         self.change_workspace(workspace)
@@ -358,10 +353,10 @@ class Workspace(object):
         """ Pose a dialog to confirm removal then remove workspace. """
 
         def confirm_clicked():
-            if len(self.document_controller.document_model.workspaces) > 1:
+            if len(self.document_model.workspaces) > 1:
                 workspace = self.__workspace
                 self.change_to_previous_workspace()
-                self.document_controller.document_model.remove_workspace(workspace)
+                self.document_model.remove_workspace(workspace)
 
         caption = _("Remove workspace named '{0}'?").format(self.__workspace.name)
         self.pose_confirmation_message_box(caption, confirm_clicked, accepted_text=_("Remove Workspace"),
@@ -478,7 +473,7 @@ class Workspace(object):
     def handle_drop(self, display_panel, mime_data, region, x, y):
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
+            data_item = self.document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 if region == "right" or region == "left" or region == "top" or region == "bottom":
                     self.insert_display_panel(display_panel, region, data_item)
@@ -491,7 +486,7 @@ class Workspace(object):
                     self.__replace_displayed_data_item(display_panel, received_data_items[0])
                 if len(received_data_items) > 0:
                     self.document_controller.queue_task(update_displayed_data_item)
-            index = len(self.document_controller.document_model.data_items)
+            index = len(self.document_model.data_items)
             self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
         if mime_data.has_format("text/display_panel_type"):
@@ -566,7 +561,7 @@ class Workspace(object):
 
     # not thread safe.
     def append_data_item(self, data_item, is_recording):
-        self.document_controller.document_model.append_data_item(data_item)
+        self.document_model.append_data_item(data_item)
         is_data_item_displayed = False
         for display_panel in self.display_panels:
             if display_panel.data_item == data_item:
