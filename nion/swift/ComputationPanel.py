@@ -149,10 +149,7 @@ class ComputationModel(object):
         computation = self.__computation
         if computation:
             error_text = computation.error_text
-            if error_text is not None:
-                expression = computation.original_expression
-            else:
-                expression = computation.reconstruct(self.document_controller.build_variable_map())
+            expression = computation.original_expression
             label = computation.label
         self.__update_computation_label(label)
         self.__update_computation_text(expression)

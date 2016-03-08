@@ -724,7 +724,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             for buffered_data_source in data_item.data_sources:
                 computation = buffered_data_source.computation
                 if computation:
-                    computation.bind(self)
+                    computation.reparse(self, dict())
             data_item.connect_data_items(self.get_data_item_by_uuid)
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
@@ -812,7 +812,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         for data_source in data_item.data_sources:
             self.computation_changed(data_source, data_source.computation)
             if data_source.computation:
-                data_source.computation.bind(self)
+                data_source.computation.reparse(self, dict())
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have persistent_object_context cleared upon return. """
@@ -1129,20 +1129,24 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
             self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
 
-    def get_object_specifier(self, object):
+    def get_object_specifier(self, object, property_name: str=None):
         if isinstance(object, DataItem.DataItem):
-            return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+            if property_name:
+                return {"version": 1, "type": "data_item", "uuid": str(object.uuid), "property": property_name}
+            else:
+                return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
         elif isinstance(object, Region.Region):
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
         return None
 
-    def resolve_object_specifier(self, specifier: dict, property_name: str=None):
+    def resolve_object_specifier(self, specifier: dict):
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
             if specifier_type == "data_item":
                 object_uuid = uuid.UUID(specifier["uuid"])
                 data_item = self.get_data_item_by_uuid(object_uuid)
-                class BoundDataItem(object):
+                property_name = specifier.get("property")
+                class BoundDataItemAndMetadata(object):
                     def __init__(self, data_item):
                         self.__data_item = data_item
                         self.__buffered_data_source = data_item.maybe_data_source
@@ -1153,9 +1157,29 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     @property
                     def value(self):
                         return self.__buffered_data_source.data_and_calibration
+                    def close(self):
+                        self.__data_and_metadata_changed_event_listener.close()
+                        self.__data_and_metadata_changed_event_listener = None
+                class BoundDataItem(object):
+                    def __init__(self, data_item):
+                        self.__data_item = data_item
+                        self.__buffered_data_source = data_item.maybe_data_source
+                        self.changed_event = Event.Event()
+                        def data_and_metadata_changed():
+                            self.changed_event.fire()
+                        self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed)
                     @property
-                    def data_item(self) -> DataItem.DataItem:
+                    def data(self):
+                        return self.__data_item.maybe_data_source.data_and_calibration
+                    @property
+                    def display_data(self):
+                        return self.__data_item.maybe_data_source.displays[0].display_data_and_calibration
+                    @property
+                    def data_item(self):
                         return self.__data_item
+                    @property
+                    def value(self):
+                        return self
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None
@@ -1173,10 +1197,12 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                         self.__display_changed_event_listener.close()
                         self.__display_changed_event_listener = None
                 if data_item:
-                    if not property_name or property_name == "data":
-                        return BoundDataItem(data_item)
+                    if property_name == "data":
+                        return BoundDataItemAndMetadata(data_item)
                     elif property_name == "display_data":
                         return BoundDataItemDisplay(data_item)
+                    else:
+                        return BoundDataItem(data_item)
             elif specifier_type == "region":
                 object_uuid = uuid.UUID(specifier["uuid"])
                 for data_item in self.data_items:
@@ -1184,22 +1210,20 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                         for region in data_source.regions:
                             if region.uuid == object_uuid:
                                 class BoundRegion(object):
-                                    def __init__(self, object, property_name):
+                                    def __init__(self, object):
                                         self.__object = object
-                                        self.__property = property_name
                                         self.changed_event = Event.Event()
                                         def property_changed(property_name_being_changed, value):
-                                            if property_name_being_changed == property_name:
-                                                self.changed_event.fire()
+                                            self.changed_event.fire()
                                         self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
                                     def close(self):
                                         self.__property_changed_listener.close()
                                         self.__property_changed_listener = None
                                     @property
                                     def value(self):
-                                        return getattr(self.__object, self.__property)
+                                        return self.__object
                                 if region:
-                                    return BoundRegion(region, property_name)
+                                    return BoundRegion(region)
         return None
 
     def __data_item_deleted(self, data_item):

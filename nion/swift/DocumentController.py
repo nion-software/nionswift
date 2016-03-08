@@ -1142,6 +1142,8 @@ class DocumentController(Observable.Broadcaster):
         data_item = DataItem.DataItem()
         data_item.title = _("Computation on ") + data_item.title
         computation = Symbolic.Computation()
+        for variable_name, object_specifier in map.items():
+            computation.create_object(variable_name, object_specifier)
         computation.parse_expression(self.document_model, expression, map)
         for variable in computation.variables:
             specifier = variable.specifier
