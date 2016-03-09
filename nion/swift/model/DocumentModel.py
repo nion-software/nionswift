@@ -20,6 +20,7 @@ import scipy
 
 # local libraries
 from nion.data import Image
+from nion.data import DataAndMetadata
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -27,6 +28,7 @@ from nion.swift.model import DataItemsBinding
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Region
+from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import Event
@@ -724,7 +726,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             for buffered_data_source in data_item.data_sources:
                 computation = buffered_data_source.computation
                 if computation:
-                    computation.reparse(self, dict())
+                    try:
+                        computation.bind(self)
+                    except Exception as e:
+                        print(str(e))
             data_item.connect_data_items(self.get_data_item_by_uuid)
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
@@ -812,7 +817,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         for data_source in data_item.data_sources:
             self.computation_changed(data_source, data_source.computation)
             if data_source.computation:
-                data_source.computation.reparse(self, dict())
+                data_source.computation.bind(self)
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have persistent_object_context cleared upon return. """
@@ -1100,6 +1105,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def start_dispatcher(self):
         self.__thread_pool.start(16)
 
+    def create_computation(self, expression: str=None) -> Symbolic.Computation:
+        computation = Symbolic.Computation(expression)
+        computation.bind(self)
+        return computation
+
     def computation_changed(self, buffered_data_source, computation):
         existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
         if existing_computation_changed_listener:
@@ -1113,14 +1123,13 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                         try:
                             while computation.needs_update:
                                 with buffered_data_source.data_ref() as data_ref:
-                                    data_and_metadata = computation.evaluate()
+                                    data_and_metadata = computation.evaluate_data()
                                     if data_and_metadata:
                                         data_ref.data = data_and_metadata.data
                                         buffered_data_source.set_metadata(data_and_metadata.metadata)
                                         buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
                                         buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
                                 time.sleep(0.05)
-                            computation.error_text = None
                         except Exception as e:
                             computation.error_text = _("Unable to compute data")
                         finally:
@@ -1128,6 +1137,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 self.dispatch_task(compute)
             computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
             self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
+            computation_needs_update()
 
     def get_object_specifier(self, object, property_name: str=None):
         if isinstance(object, DataItem.DataItem):

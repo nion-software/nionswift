@@ -147,7 +147,7 @@ class TestDisplayClass(unittest.TestCase):
             d = numpy.random.randn(12, 8, 8)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            map = {"a": document_model.get_object_specifier(data_item)}
+            map = {"a": document_model.get_object_specifier(data_item, "data")}
             data_item2 = document_controller.processing_computation("a[0:8,:,:]", map)
             document_model.recompute_all()
             assert numpy.array_equal(data_item2.maybe_data_source.data, d[0:8,:,:])
@@ -156,7 +156,7 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier.display.slice_width = 4
             self.assertEqual(display_specifier.display.slice_center, 6)
             self.assertEqual(display_specifier.display.slice_width, 4)
-            display_specifier.buffered_data_source.computation.parse_expression(document_model, "a[0:4, :, :]", map)
+            display_specifier.buffered_data_source.computation.expression = "a[0:4, :, :]"
             document_model.recompute_all()
             self.assertEqual(display_specifier.display.slice_center, 3)
             self.assertEqual(display_specifier.display.slice_width, 2)

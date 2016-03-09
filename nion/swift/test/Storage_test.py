@@ -1584,21 +1584,17 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
-            map = {"a": document_model.get_object_specifier(data_item)}
-            computation.parse_expression(document_model, "-a", map)
+            computation = document_model.create_computation("-a")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             read_computation = document_model.data_items[1].maybe_data_source.computation
             self.assertIsNotNone(read_computation)
-            self.assertNotEqual(id(read_computation.node), id(computation.node))
-            self.assertEqual(read_computation.node, computation.node)
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.data += 1.5
             document_model.recompute_all()
@@ -1611,13 +1607,11 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
-            map = {"a": document_model.get_object_specifier(data_item)}
-            computation.parse_expression(document_model, "-a", map)
+            computation = document_model.create_computation("-a")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -1638,13 +1632,11 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
-            map = {"a": document_model.get_object_specifier(data_item)}
-            computation.parse_expression(document_model, "column(a)", map)
+            computation = document_model.create_computation("column(a)")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
@@ -1660,13 +1652,11 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
-            map = {"a": document_model.get_object_specifier(data_item)}
-            computation.parse_expression(document_model, "a[2:4, :, :] + a[5]", map)
+            computation = document_model.create_computation("a[2:4, :, :] + a[5]")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             data_shape = computed_data_item.maybe_data_source.data_shape
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -1684,10 +1674,9 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             x = computation.create_variable("x")  # value is intentionally None
-            map = {"a": document_model.get_object_specifier(data_item)}
-            computation.parse_expression(document_model, "a", map)
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
@@ -1696,8 +1685,8 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             read_computation = document_model.data_items[1].maybe_data_source.computation
-            self.assertEqual(read_computation.variables[0].name, "x")
-            self.assertEqual(read_computation.variables[0].value, 6)
+            self.assertEqual(read_computation.variables[1].name, "x")
+            self.assertEqual(read_computation.variables[1].value, 6)
 
     def test_computation_missing_variable_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
@@ -1706,11 +1695,10 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x + y")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_variable("x", value_type="integral", value=3)
             computation.create_variable("y", value_type="integral", value=4)
-            map = {"a": document_model.get_object_specifier(data_item)}
-            computation.parse_expression(document_model, "a + x + y", map)
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)

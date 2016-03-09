@@ -100,7 +100,7 @@ class ComputationModel(object):
         if buffered_data_source:
             computation = buffered_data_source.computation
             if not computation:
-                computation = Symbolic.Computation()
+                computation = self.document_controller.document_model.create_computation()
             computation.label = label
             buffered_data_source.computation = computation
 
@@ -114,8 +114,8 @@ class ComputationModel(object):
         if buffered_data_source:
             computation = buffered_data_source.computation
             if not computation:
-                computation = Symbolic.Computation()
-            computation.parse_expression(self.document_controller.document_model, computation_text, self.document_controller.build_variable_map())
+                computation = self.document_controller.document_model.create_computation()
+            computation.expression = computation_text
             buffered_data_source.computation = computation
 
     @property
@@ -143,17 +143,19 @@ class ComputationModel(object):
             buffered_data_source.set_computation(None)
 
     def __computation_changed_or_mutated(self) -> None:
-        label = None
-        expression = None
-        error_text = None
-        computation = self.__computation
-        if computation:
-            error_text = computation.error_text
-            expression = computation.original_expression
-            label = computation.label
-        self.__update_computation_label(label)
-        self.__update_computation_text(expression)
-        self.__update_error_text(error_text)
+        def computation_changed_or_mutated():
+            label = None
+            expression = None
+            error_text = None
+            computation = self.__computation
+            if computation:
+                error_text = computation.error_text
+                expression = computation.expression
+                label = computation.label
+            self.__update_computation_label(label)
+            self.__update_computation_text(expression)
+            self.__update_error_text(error_text)
+        self.document_controller.queue_task(computation_changed_or_mutated)
 
     def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_inserted_event.fire(index, variable)

@@ -1141,10 +1141,9 @@ class DocumentController(Observable.Broadcaster):
             map = self.build_variable_map()
         data_item = DataItem.DataItem()
         data_item.title = _("Computation on ") + data_item.title
-        computation = Symbolic.Computation()
+        computation = self.document_model.create_computation(expression)
         for variable_name, object_specifier in map.items():
             computation.create_object(variable_name, object_specifier)
-        computation.parse_expression(self.document_model, expression, map)
         for variable in computation.variables:
             specifier = variable.specifier
             if specifier:
@@ -1155,51 +1154,42 @@ class DocumentController(Observable.Broadcaster):
         data_item.append_data_source(buffered_data_source)
         buffered_data_source.set_computation(computation)
         self.document_model.append_data_item(data_item)
-        computation.needs_update_event.fire()  # ugh. bootstrap.
         self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
         return data_item
 
-    def processing_crop_new(self, map=None):
+    def processing_crop_new(self):
         display_specifier = self.selected_display_specifier
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
             crop_region = self.__get_crop_region(display_specifier)
-            if map is None:
-                map = self.build_variable_map()
-            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
-            map["crop_region"] = self.document_model.get_object_specifier(crop_region)
             data_item = DataItem.DataItem()
             data_item.title = _("New Crop on ") + data_item.title
-            computation = Symbolic.Computation()
-            computation.parse_expression(self.document_model, "crop(src.display_data, crop_region.bounds)", map)
+            computation = self.document_model.create_computation("crop(src.display_data, crop_region.bounds)")
+            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
+            computation.create_object("crop_region", self.document_model.get_object_specifier(crop_region))
             buffered_data_source = DataItem.BufferedDataSource()
             data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
             self.document_model.append_data_item(data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
             return data_item
         return None
 
-    def processing_pick_new(self, map=None):
+    def processing_pick_new(self):
         display_specifier = self.selected_display_specifier
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
             pick_region = Region.PointRegion()
             buffered_data_source.add_region(pick_region)
-            if map is None:
-                map = self.build_variable_map()
-            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
-            map["pick_region"] = self.document_model.get_object_specifier(pick_region)
             data_item = DataItem.DataItem()
             data_item.title = _("New Pick on ") + data_item.title
-            computation = Symbolic.Computation()
-            computation.parse_expression(self.document_model, "pick(src.data, pick_region.position)", map)
+            computation = self.document_model.create_computation("pick(src.data, pick_region.position)")
+            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
+            computation.create_object("pick_region", self.document_model.get_object_specifier(pick_region))
             buffered_data_source = DataItem.BufferedDataSource()
             data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
             self.document_model.append_data_item(data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
             return data_item
         return None
@@ -1208,18 +1198,14 @@ class DocumentController(Observable.Broadcaster):
         display_specifier = self.selected_display_specifier
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
-            if map is None:
-                map = self.build_variable_map()
-            map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
             data_item = DataItem.DataItem()
             data_item.title = _("New Slice on ") + data_item.title
-            computation = Symbolic.Computation()
-            computation.parse_expression(self.document_model, "slice_sum(src.data, 0, 1)", map)
+            computation = self.document_model.create_computation("slice_sum(src.data, 0, 1)")
+            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
             buffered_data_source = DataItem.BufferedDataSource()
             data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
             self.document_model.append_data_item(data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
             return data_item
         return None
@@ -1241,22 +1227,15 @@ class DocumentController(Observable.Broadcaster):
             line_region.start = 0.25, 0.25
             line_region.end = 0.75, 0.75
             buffered_data_source.add_region(line_region)
-            # if map is None:
-            #     map = self.build_variable_map()
-            # map["src"] = self.document_model.get_object_specifier(display_specifier.data_item)
-            # map["line_region"] = self.document_model.get_object_specifier(line_region)
             line_profile_data_item = DataItem.DataItem()
             line_profile_data_item.title = _("New Line Profile on ") + line_profile_data_item.title
-            computation = Symbolic.Computation()
-            # computation.parse_expression(self.document_model, "line_profile(src.display_data, line_region.vector, line_region.width)", map)
+            computation = self.document_model.create_computation("line_profile(src.display_data, line_region.vector, line_region.width)")
             computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
             computation.create_object("line_region", self.document_model.get_object_specifier(line_region))
-            computation.parse_expression(self.document_model, "line_profile(src.display_data, line_region.vector, line_region.width)", dict())
             buffered_data_source = DataItem.BufferedDataSource()
             line_profile_data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
             self.document_model.append_data_item(line_profile_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             line_profile_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
             # when the intervals on the line_profile_data_item change, update the displayed intervals on the line_region
             line_profile_data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_region))
@@ -1273,7 +1252,7 @@ class DocumentController(Observable.Broadcaster):
             self.display_filter = self.__last_display_filter
         self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
 
-    def prepare_data_item_script(self):
+    def assign_r_value_to_data_item(self, data_item):
         def find_var():
             while True:
                 r = random.randint(100,999)
@@ -1281,15 +1260,19 @@ class DocumentController(Observable.Broadcaster):
                 if r_var not in globals():
                     return r_var
             return None
-        lines = list()
-        data_item = self.selected_display_specifier.data_item
         weak_data_item = weakref.ref(data_item)
         data_item_var = self.__data_item_vars.setdefault(weak_data_item, find_var())
+        weak_data_item().set_r_value(data_item_var)  # this triggers the update of the title
+        return data_item_var
+
+    def prepare_data_item_script(self):
+        lines = list()
+        data_item = self.selected_display_specifier.data_item
+        data_item_var = self.assign_r_value_to_data_item(data_item)
         lines.append("%s = _document_model.get_data_item_by_key(uuid.UUID(\"%s\"))" % (data_item_var, data_item.uuid))
         logging.debug(lines)
         if self.console:
             self.console.insert_lines(lines)
-        weak_data_item().set_r_value(data_item_var)  # this triggers the update of the title
 
     def copy_uuid(self):
         display_specifier = self.selected_display_specifier

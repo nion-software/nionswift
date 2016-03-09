@@ -7,7 +7,6 @@ import copy
 import logging
 import random
 import unittest
-import uuid
 
 # third party libraries
 import numpy
@@ -15,6 +14,7 @@ import scipy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import Core
 from nion.data import Image
 from nion.swift import Application
 from nion.swift import DocumentController
@@ -41,9 +41,8 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, -d)
 
@@ -58,10 +57,9 @@ class TestSymbolicClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(d2)
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a+b")
             computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             computation.create_object("b", document_model.get_object_specifier(data_item2, "data"))
-            computation.parse_expression(document_model, "a+b", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, d1 + d2)
 
@@ -72,13 +70,11 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation1 = Symbolic.Computation()
+            computation1 = document_model.create_computation("a * 5")
             computation1.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation1.parse_expression(document_model, "a * 5", dict())
             data1 = computation1.evaluate().data
-            computation2 = Symbolic.Computation()
+            computation2 = document_model.create_computation("5 * a")
             computation2.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation2.parse_expression(document_model, "5 * a", dict())
             data2 = computation1.evaluate().data
             assert numpy.array_equal(data1, d * 5)
             assert numpy.array_equal(data2, d * 5)
@@ -90,9 +86,8 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a - amin(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a - amin(a)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, d - numpy.amin(d))
 
@@ -103,9 +98,8 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a[:,4,4]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a[:,4,4]", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[:,4,4])
 
@@ -116,9 +110,8 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a[2:2, :, :]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a[2:2, :, :]", dict())
             self.assertIsNone(computation.evaluate())
 
     def test_ability_to_take_slice_with_ellipses_produces_correct_data(self):
@@ -128,9 +121,8 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a[2, ...]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a[2, ...]", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[2, ...])
 
@@ -142,9 +134,8 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(10, 20, "m"), Calibration.Calibration(11, 21, "mm"), Calibration.Calibration(12, 22, "nm")])
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a[2, ...]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a[2, ...]", dict())
             data_and_metadata = computation.evaluate()
             self.assertEqual(len(data_and_metadata.data_shape), len(data_and_metadata.dimensional_calibrations))
             self.assertEqual("mm", data_and_metadata.dimensional_calibrations[0].units)
@@ -157,9 +148,8 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a[newaxis, ...]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a[newaxis, ...]", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[numpy.newaxis, ...])
 
@@ -169,9 +159,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(16, 4, 4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("slice_sum(a, 4, 6)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "slice_sum(a, 4, 6)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.sum(d[1:7, ...], 0))
 
@@ -181,19 +170,16 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("reshape(a, shape(2, 2))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "reshape(a, shape(2, 2))", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.reshape(d, (2, 2)))
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("reshape(a, shape(4, -1))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "reshape(a, shape(4, -1))", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.reshape(d, (4, -1)))
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("reshape(a, shape(-1, 4))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "reshape(a, shape(-1, 4))", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.reshape(d, (-1, 4)))
 
@@ -204,17 +190,13 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m")])
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("reshape(a, shape(4, -1))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            expression = "reshape(a, shape(4, -1))"
-            computation.parse_expression(document_model, expression, dict())
             data_and_metadata = computation.evaluate()
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
             self.assertEqual("", data_and_metadata.dimensional_calibrations[1].units)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("reshape(a, shape(-1, 4))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            expression = "reshape(a, shape(-1, 4))"
-            computation.parse_expression(document_model, expression, dict())
             data_and_metadata = computation.evaluate()
             self.assertEqual("", data_and_metadata.dimensional_calibrations[0].units)
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[1].units)
@@ -226,10 +208,8 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration()])
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("reshape(a, shape(4))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            expression = "reshape(a, shape(4))"
-            computation.parse_expression(document_model, expression, dict())
             data_and_metadata = computation.evaluate()
             self.assertEqual(1, len(data_and_metadata.dimensional_calibrations))
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
@@ -243,10 +223,9 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item2 = DataItem.DataItem(d2)
             document_model.append_data_item(data_item2)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("reshape(a, data_shape(b))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_object("b", document_model.get_object_specifier(data_item2, "data"))
-            computation.parse_expression(document_model, "reshape(a, data_shape(b))", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.reshape(d, (2, 2)))
 
@@ -256,9 +235,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(4, 4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("concatenate((a[0:2, 0:2], a[2:4, 2:4]))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "concatenate((a[0:2, 0:2], a[2:4, 2:4]))", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[2:4, 2:4])))
 
@@ -270,9 +248,8 @@ class TestSymbolicClass(unittest.TestCase):
             data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "s")])
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("concatenate((a[0:2, 0:2], a[2:4, 2:4]))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "concatenate((a[0:2, 0:2], a[2:4, 2:4]))", dict())
             data_and_metadata = computation.evaluate()
             self.assertEqual("nm", data_and_metadata.intensity_calibration.units)
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
@@ -284,9 +261,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("concatenate((reshape(a, shape(1, -1)), reshape(a, shape(1, -1))), 0)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "concatenate((reshape(a, shape(1, -1)), reshape(a, shape(1, -1))), 0)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.concatenate((numpy.reshape(d, (1, -1)), numpy.reshape(d, (1, -1))), 0))
 
@@ -296,9 +272,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(4, 4)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("concatenate((a[0:2, 0:2], a[1:3, 1:3], a[2:4, 2:4]), 1)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "concatenate((a[0:2, 0:2], a[1:3, 1:3], a[2:4, 2:4]), 1)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[1:3, 1:3], d[2:4, 2:4]), 1))
 
@@ -309,13 +284,11 @@ class TestSymbolicClass(unittest.TestCase):
             src_data[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a / average(a) * 5")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a / average(a) * 5", dict())
             data_node_dict = computation.write_to_dict()
-            computation2 = Symbolic.Computation()
+            computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
-            computation2.reparse(document_model, dict())
             data = computation.evaluate().data
             data2 = computation2.evaluate().data
             assert numpy.array_equal(data, -src_data / numpy.average(src_data) * 5)
@@ -329,9 +302,8 @@ class TestSymbolicClass(unittest.TestCase):
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a / average(a) * 5")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a / average(a) * 5", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, -d / numpy.average(d) * 5)
 
@@ -341,9 +313,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("fft(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "fft(a)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
@@ -353,9 +324,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("gaussian_blur(a, 4.0)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "gaussian_blur(a, 4.0)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
 
@@ -365,9 +335,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(30, 60)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("transpose_flip(a, flip_v=True)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "transpose_flip(a, flip_v=True)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, numpy.flipud(d))
 
@@ -381,10 +350,9 @@ class TestSymbolicClass(unittest.TestCase):
             region.size = 0.52, 0.42
             data_item.maybe_data_source.add_region(region)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("crop(a, regionA.bounds)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_object("regionA", document_model.get_object_specifier(region))
-            computation.parse_expression(document_model, "crop(a, regionA.bounds)", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[9:42, 19:45])
 
@@ -394,9 +362,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a", dict())
             data_and_metadata = computation.evaluate()
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
 
@@ -406,9 +373,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a", dict())
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
@@ -424,9 +390,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a", dict())
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
@@ -447,10 +412,9 @@ class TestSymbolicClass(unittest.TestCase):
             region.size = 0.52, 0.42
             data_item.maybe_data_source.add_region(region)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("crop(a, regionA.bounds)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_object("regionA", document_model.get_object_specifier(region))
-            computation.parse_expression(document_model, "crop(a, regionA.bounds)", dict())
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
@@ -466,8 +430,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
-            computation.parse_expression(document_model, "-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)), dict())
+            computation = document_model.create_computation("-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)))
             data_and_metadata = computation.evaluate()
             assert numpy.array_equal(data_and_metadata.data, -d)
 
@@ -482,9 +445,8 @@ class TestSymbolicClass(unittest.TestCase):
             region.size = 0.6, 0.4
             data_item.maybe_data_source.add_region(region)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid)))
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid)), dict())
             data_and_metadata = computation.evaluate()
             assert numpy.array_equal(data_and_metadata.data, d[20:80, 30:70])
 
@@ -499,9 +461,8 @@ class TestSymbolicClass(unittest.TestCase):
             data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a / average(a) * 5")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a / average(a) * 5", dict())
             data_and_metadata = computation.evaluate()
             self.assertEqual(data_and_metadata.metadata, data_item.maybe_data_source.metadata)
             self.assertEqual(data_and_metadata.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
@@ -525,9 +486,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("(a++)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "(a++)", dict())
             data_and_metadata = computation.evaluate()
             self.assertIsNone(data_and_metadata)
 
@@ -537,9 +497,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a+e")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a+e", dict())
             data_and_metadata = computation.evaluate()
             self.assertIsNone(data_and_metadata)
 
@@ -560,12 +519,11 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "-a", dict())
             data_and_metadata = computation.evaluate()
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
-            computation.parse_expression(document_model, "-2 * a", dict())
+            computation.expression = "-2 * a"
             data_and_metadata = computation.evaluate()
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data*2))
 
@@ -577,11 +535,10 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item)}
-            document_controller.processing_computation("-a.data", map)
+            computed_data_item = document_controller.processing_computation("-a.data", map)
             document_model.recompute_all()
-            computed_data_item = document_model.data_items[1]
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data))
-            computed_data_item.maybe_data_source.computation.parse_expression(document_model, "-a.data * 2", dict())
+            computed_data_item.maybe_data_source.computation.expression = "-a.data * 2"
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data * 2))
 
@@ -591,9 +548,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("sin(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "sin(a)", dict())
             data_and_metadata = computation.evaluate()
             self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
 
@@ -603,10 +559,9 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("sin(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "sin(a)", dict())
-            self.assertEqual(computation.original_expression, "sin(a)")
+            self.assertEqual(computation.expression, "sin(a)")
 
     def test_computation_stores_error_and_original_text(self):
         document_model = DocumentModel.DocumentModel()
@@ -614,13 +569,12 @@ class TestSymbolicClass(unittest.TestCase):
             data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("xyz(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "xyz(a)", dict())
             data_and_metadata = computation.evaluate()
             self.assertIsNone(data_and_metadata)
             self.assertTrue(computation.error_text is not None and len(computation.error_text) > 0)
-            self.assertEqual(computation.original_expression, "xyz(a)")
+            self.assertEqual(computation.expression, "xyz(a)")
 
     def test_computation_reloads_missing_scalar_function(self):
         document_model = DocumentModel.DocumentModel()
@@ -629,14 +583,12 @@ class TestSymbolicClass(unittest.TestCase):
             src_data[:] = random.randint(0, 100)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("average(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "average(a)", dict())
             data_node_dict = computation.write_to_dict()
-            data_node_dict['original_expression'] = 'missing(a)'
-            computation2 = Symbolic.Computation()
+            data_node_dict['original_expression'] = "missing(a)"
+            computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
-            computation2.reparse(document_model, dict())
             self.assertIsNone(computation2.evaluate())
 
     def test_computation_can_extract_item_from_scalar_tuple(self):
@@ -645,9 +597,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = ((numpy.random.randn(4, 2) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + data_shape(a)[1] + data_shape(a)[0]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + data_shape(a)[1] + data_shape(a)[0]", dict())
             data_and_metadata = computation.evaluate()
             self.assertTrue(numpy.array_equal(data_and_metadata.data, data + 6))
 
@@ -657,9 +608,8 @@ class TestSymbolicClass(unittest.TestCase):
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("row(a, -1, 1) + column(a, -1, 1) + radius(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "row(a, -1, 1) + column(a, -1, 1) + radius(a)", dict())
             data_and_metadata = computation.evaluate()
             icol, irow = numpy.meshgrid(numpy.linspace(-1, 1, 8), numpy.linspace(-1, 1, 10))
             self.assertTrue(numpy.array_equal(data_and_metadata.data, icol + irow + numpy.sqrt(pow(icol, 2) + pow(irow, 2))))
@@ -670,10 +620,9 @@ class TestSymbolicClass(unittest.TestCase):
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
-            computation.parse_expression(document_model, "-a", dict())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
             document_model.recompute_all()
@@ -681,7 +630,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(copied_data_item)
             self.assertIsNotNone(copied_data_item.maybe_data_source.computation)
             self.assertEqual(computed_data_item.maybe_data_source.computation.error_text, copied_data_item.maybe_data_source.computation.error_text)
-            self.assertEqual(computed_data_item.maybe_data_source.computation.original_expression, copied_data_item.maybe_data_source.computation.original_expression)
+            self.assertEqual(computed_data_item.maybe_data_source.computation.expression, copied_data_item.maybe_data_source.computation.expression)
 
     def test_changing_computation_source_data_updates_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -689,13 +638,11 @@ class TestSymbolicClass(unittest.TestCase):
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
-            computation.parse_expression(document_model, "-a", dict())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data))
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
@@ -711,23 +658,18 @@ class TestSymbolicClass(unittest.TestCase):
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
-            computation.parse_expression(document_model, "-a", dict())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
             copied_data_item = copy.deepcopy(computed_data_item)
             document_model.append_data_item(copied_data_item)
             with data_item.maybe_data_source.data_ref() as dr:
                 dr.data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.int32)
-            copied_data_item.maybe_data_source.computation.needs_update_event.fire()  # ugh. bootstrap.
-            print("NEEDS EVAL")
             document_model.recompute_all()
-            print(data, computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data)
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
             self.assertTrue(numpy.array_equal(copied_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
 
@@ -737,13 +679,11 @@ class TestSymbolicClass(unittest.TestCase):
             data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a.data")
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
-            computation.parse_expression(document_model, "a.data", dict())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data_item.maybe_data_source.data))
 
@@ -753,13 +693,11 @@ class TestSymbolicClass(unittest.TestCase):
             data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("resample_image(a, shape(5, 4))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
-            computation.parse_expression(document_model, "resample_image(a, shape(5, 4))", dict())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Image.scaled(data_item.maybe_data_source.data, (5, 4))))
 
@@ -772,14 +710,12 @@ class TestSymbolicClass(unittest.TestCase):
             data2 = numpy.zeros((5, 4), numpy.uint32)
             data_item2 = DataItem.DataItem(data2)
             document_model.append_data_item(data_item2)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("resample_image(a, data_shape(b))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_object("b", document_model.get_object_specifier(data_item2, "data"))
             computed_data_item = DataItem.DataItem(data.copy())
-            computation.parse_expression(document_model, "resample_image(a, data_shape(b))", dict())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Image.scaled(data_item.maybe_data_source.data, (5, 4))))
 
@@ -789,13 +725,11 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a.display_data")
             computation.create_object("a", document_model.get_object_specifier(data_item))
-            computation.parse_expression(document_model, "a.display_data", dict())
             data_node_dict = computation.write_to_dict()
-            computation2 = Symbolic.Computation()
+            computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
-            computation2.reparse(document_model, dict())
             data = computation.evaluate().data
             data2 = computation2.evaluate().data
             assert numpy.array_equal(data, src_data)
@@ -808,10 +742,9 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             data = computation.evaluate().data
             assert numpy.array_equal(data, d + 5)
 
@@ -822,11 +755,10 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("gaussian_blur(a, x - y)")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_variable("y", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "gaussian_blur(a, x - y)", dict())
             assert numpy.array_equal(computation.evaluate().data, src_data)
 
     def test_changing_variable_value_updates_computation(self):
@@ -836,19 +768,40 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             x = computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             computed_data_item = DataItem.DataItem(src_data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data + 5))
             x.value = 8
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data + 8))
+
+    def test_changing_region_property_updates_computation(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            src_data = numpy.random.randn(20, 20)
+            data_item = DataItem.DataItem(src_data)
+            line_region = Region.LineRegion()
+            line_region.start = 0.25, 0.25
+            line_region.end = 0.75, 0.75
+            data_item.maybe_data_source.add_region(line_region)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation("line_profile(src.display_data, line_region.vector, line_region.width)")
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_object("line_region", document_model.get_object_specifier(line_region))
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_calibration, line_region.vector, 1.0).data))
+            line_region.start = 0.25, 0.20
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_calibration, line_region.vector, 1.0).data))
 
     def test_changing_variable_name_has_no_effect_on_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -857,14 +810,12 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             x = computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             computed_data_item = DataItem.DataItem(src_data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data + 5))
             x.name = "xx"
@@ -877,14 +828,12 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             d = computation.write_to_dict()
-            computation2 = Symbolic.Computation()
+            computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
-            computation2.reparse(document_model, dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
             self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
 
@@ -904,12 +853,11 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             x = computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
-            computation.parse_expression(document_model, "x + a", dict())
+            computation.expression = "x + a"
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
 
     def test_computation_using_object_parses_and_evaluates(self):
@@ -918,10 +866,9 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
 
     def test_computation_using_object_updates_when_data_changes(self):
@@ -930,15 +877,13 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
             d = computation.write_to_dict()
-            read_computation = Symbolic.Computation()
+            read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
-            read_computation.reparse(document_model, dict())
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             with data_item.maybe_data_source.data_ref() as dr:
                 dr.data = src_data2
@@ -953,14 +898,12 @@ class TestSymbolicClass(unittest.TestCase):
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
             data_item.maybe_data_source.add_region(region)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("crop(a, r.bounds)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_object("r", document_model.get_object_specifier(region))
-            computation.parse_expression(document_model, "crop(a, r.bounds)", dict())
             computed_data_item = DataItem.DataItem(src_data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[3:9, 2:6]))
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
@@ -977,16 +920,13 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
-            a_specifier = document_model.get_object_specifier(data_item)
+            computation = document_model.create_computation("a + 4")
+            a_specifier = document_model.get_object_specifier(data_item, "data")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + 4", dict())
             d = computation.write_to_dict()
-            read_computation = Symbolic.Computation()
+            read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
-            read_computation.reparse(document_model, dict())
             self.assertEqual(read_computation.variables[0].name, "a")
-            print(read_computation.variables[0].specifier, a_specifier)
             self.assertEqual(read_computation.variables[0].specifier, a_specifier)
 
     def test_computation_with_object_reloads(self):
@@ -995,14 +935,12 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             d = computation.write_to_dict()
-            computation2 = Symbolic.Computation()
+            computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
-            computation2.reparse(document_model, dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
             self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
 
@@ -1012,13 +950,12 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             x = computation.create_variable("x", value_type="integral", value=5)
-            computation.parse_expression(document_model, "a + x", dict())
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
             x.name = "xx"
-            computation.parse_expression(document_model, "a + xx", dict())
+            computation.expression = "a + xx"
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
 
     def test_computation_with_object_evaluates_correctly_after_changing_the_specifier(self):
@@ -1030,13 +967,12 @@ class TestSymbolicClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(src_data2)
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            computation = Symbolic.Computation()
-            a = computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             expression = "a + 1"
-            computation.parse_expression(document_model, expression, dict())
+            computation = document_model.create_computation(expression)
+            a = computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data1 + 1))
-            a.specifier = document_model.get_object_specifier(data_item2)
-            computation.parse_expression(document_model, expression, dict())
+            a.specifier = document_model.get_object_specifier(data_item2, "data")
+            computation.expression = expression
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data2 + 1))
 
     def test_computation_fires_needs_update_event_when_specifier_changes(self):
@@ -1048,10 +984,9 @@ class TestSymbolicClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(src_data2)
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            computation = Symbolic.Computation()
-            a = computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             expression = "a + 1"
-            computation.parse_expression(document_model, expression, dict())
+            computation = document_model.create_computation(expression)
+            a = computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
@@ -1069,37 +1004,17 @@ class TestSymbolicClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(src_data2)
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
-            computation = Symbolic.Computation()
-            a = computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             expression = "a + 1"
-            computation.parse_expression(document_model, expression, dict())
+            computation = document_model.create_computation(expression)
+            a = computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             computed_data_item = DataItem.DataItem(src_data1.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data1 + 1))
-            a.specifier = document_model.get_object_specifier(data_item2)
+            a.specifier = document_model.get_object_specifier(data_item2, "data")
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data2 + 1))
-
-    def test_computation_with_raw_reference_node_reloads(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
-            data_item = DataItem.DataItem(src_data)
-            document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
-            computation.create_variable("x", value_type="integral", value=5)
-            a_specifier = document_model.get_object_specifier(data_item, "data")
-            computation.create_object("a", a_specifier)
-            computation.parse_expression(document_model, "a + x", dict())
-            self.assertIsNone(computation.evaluate())
-            d = computation.write_to_dict()
-            computation2 = Symbolic.Computation()
-            computation2.read_from_dict(d)
-            computation2.reparse(document_model, dict())
-            self.assertIsNone(computation2.evaluate())
 
     def test_computation_with_raw_reference_copies(self):
         document_model = DocumentModel.DocumentModel()
@@ -1109,10 +1024,9 @@ class TestSymbolicClass(unittest.TestCase):
             region = Region.RectRegion()
             data_item.maybe_data_source.add_region(region)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             a = computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "a + x", dict())
             computation.remove_variable(a)
             copy.deepcopy(computation)
 
@@ -1122,14 +1036,12 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation("line_profile(a, vector(normalized_point(0.25, 0.25), normalized_point(0.5, 0.5)), x)")
             x = computation.create_variable("x", value_type="integral", value=0)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "line_profile(a, vector(normalized_point(0.25, 0.25), normalized_point(0.5, 0.5)), x)", dict())
             computed_data_item = DataItem.DataItem(src_data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            computation.needs_update_event.fire()  # ugh. bootstrap.
             document_model.recompute_all()
             self.assertIsNotNone(computation.error_text)
             self.assertEqual(len(computed_data_item.maybe_data_source.data.shape), 2)  # original data
@@ -1161,14 +1073,12 @@ class TestSymbolicClass(unittest.TestCase):
                 ("gaussian_blur(a, +x)", None),
             ]
             for script, data in script_and_data:
-                computation = Symbolic.Computation()
+                computation = document_model.create_computation(script)
                 computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
                 computation.create_variable("x", value_type="integral", value=5)
-                computation.parse_expression(document_model, script, dict())
                 computed_data_item = DataItem.DataItem(src_data.copy())
                 computed_data_item.maybe_data_source.set_computation(computation)
                 document_model.append_data_item(computed_data_item)
-                computation.needs_update_event.fire()  # ugh. bootstrap.
                 document_model.recompute_all()
                 self.assertIsNotNone(computed_data_item.maybe_data_source.data)
                 if data is not None:
@@ -1180,21 +1090,21 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.float64)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "astype(src, int)", dict())
+            computation.expression = "astype(src, int)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.int_)
             self.assertTrue(numpy.array_equal(data, src_data.astype(int)))
-            computation.parse_expression(document_model, "astype(src, int16)", dict())
+            computation.expression = "astype(src, int16)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.int16)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int16)))
-            computation.parse_expression(document_model, "astype(src, int32)", dict())
+            computation.expression = "astype(src, int32)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.int32)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int32)))
-            computation.parse_expression(document_model, "astype(src, int64)", dict())
+            computation.expression = "astype(src, int64)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.int64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int64)))
@@ -1205,21 +1115,21 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.float64)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "astype(src, uint8)", dict())
+            computation.expression = "astype(src, uint8)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.uint8)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint8)))
-            computation.parse_expression(document_model, "astype(src, uint16)", dict())
+            computation.expression = "astype(src, uint16)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.uint16)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint16)))
-            computation.parse_expression(document_model, "astype(src, uint32)", dict())
+            computation.expression = "astype(src, uint32)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.uint32)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint32)))
-            computation.parse_expression(document_model, "astype(src, uint64)", dict())
+            computation.expression = "astype(src, uint64)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.uint64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint64)))
@@ -1230,13 +1140,13 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "astype(src, float32)", dict())
+            computation.expression = "astype(src, float32)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.float32)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.float32)))
-            computation.parse_expression(document_model, "astype(src, float64)", dict())
+            computation.expression = "astype(src, float64)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.float64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.float64)))
@@ -1247,13 +1157,13 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.abs(numpy.random.randn(10, 8)) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(src_data)
             document_model.append_data_item(data_item)
-            computation = Symbolic.Computation()
+            computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
-            computation.parse_expression(document_model, "astype(src, complex64)", dict())
+            computation.expression = "astype(src, complex64)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.complex64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex64)))
-            computation.parse_expression(document_model, "astype(src, complex128)", dict())
+            computation.expression = "astype(src, complex128)"
             data = computation.evaluate().data
             self.assertEqual(data.dtype, numpy.complex128)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex128)))

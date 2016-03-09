@@ -1428,15 +1428,24 @@ class ComputationInspectorSection(InspectorSection):
                     label_column.add_stretch()
                     row.add(label_column)
                     row.add_spacing(8)
-                    bound_data_item = document_model.resolve_object_specifier(variable.specifier)
+                    property_name_ref = [None]
+                    base_variable_specifier = copy.copy(variable.specifier)
+                    property_name_ref[0] = base_variable_specifier.pop("property", None)
+                    bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
                     data_item = bound_data_item.data_item if bound_data_item else None
 
                     def data_item_drop(data_item_uuid):
                         data_item = document_model.get_data_item_by_key(data_item_uuid)
-                        variable.specifier = document_model.get_object_specifier(data_item)
+                        variable_specifier = document_model.get_object_specifier(data_item)
+                        if property_name_ref[0]:
+                            variable_specifier["property"] = property_name_ref[0]
+                        variable.specifier = variable_specifier
 
                     def data_item_delete():
-                        variable.specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+                        variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+                        if property_name_ref[0]:
+                            variable_specifier["property"] = property_name_ref[0]
+                        variable.specifier = variable_specifier
 
                     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(data_item)
                     data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(self.ui,
@@ -1453,7 +1462,9 @@ class ComputationInspectorSection(InspectorSection):
 
                     def property_changed(key, value):
                         if key == "specifier":
-                            bound_data_item = document_model.resolve_object_specifier(variable.specifier)
+                            base_variable_specifier = copy.copy(variable.specifier)
+                            property_name_ref[0] = base_variable_specifier.pop("property", None)
+                            bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
                             data_item = bound_data_item.data_item if bound_data_item else None
                             data_item_thumbnail_source.set_data_item(data_item)
 

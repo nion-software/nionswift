@@ -8,13 +8,13 @@
 """
 
 # standard libraries
-import copy
 import functools
 import threading
 import uuid
+import weakref
 
 # third party libraries
-import numpy
+# None
 
 # local libraries
 from nion.data import Context
@@ -32,38 +32,18 @@ def region_by_uuid(context, region_uuid):
     return context.resolve_object_specifier(context.get_region_specifier(region_uuid)).value
 
 
-def parse_expression(expression_lines, variable_map, context) -> DataAndMetadata.DataAndMetadata:
-    code_lines = []
-    code_lines.append("import uuid")
-    g = Context.context().g
-    g["data_by_uuid"] = functools.partial(data_by_uuid, context)
-    g["region_by_uuid"] = functools.partial(region_by_uuid, context)
-    l = dict()
-    for variable_name, object_specifier in variable_map.items():
-        if object_specifier["type"] == "data_item":
-            g[variable_name] = context.resolve_object_specifier(object_specifier).value
-        elif object_specifier["type"] == "region":
-            g[variable_name] = context.resolve_object_specifier(object_specifier).value
-        elif object_specifier["type"] == "variable":
-            g[variable_name] = context.resolve_object_specifier(object_specifier).value
-        else:
-            pass # reference_node = ReferenceDataNode(object_specifier=object_specifier)
-    expression_lines = expression_lines[:-1] + ["result = {0}".format(expression_lines[-1]), ]
-    code_lines.extend(expression_lines)
-    code = "\n".join(code_lines)
-    try:
-        exec(code, g, l)
-    except Exception as e:
-        import traceback
-        traceback.print_stack()
-        print(e)
-        return None, str(e)
-    return l["result"], None
-
-
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
+    """Tracks a variable used in a computation.
+
+    A variable has user visible name, a label used in the script, a value type.
+
+    Scalar value types have a value, a default, and optional min and max values. The control type is used to
+    specify the preferred UI control (e.g. checkbox vs. input field).
+
+    Specifier value types have a specifier which can be resolved to a specific object.
+    """
     def __init__(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None):  # defaults are None for factory
-        super(ComputationVariable, self).__init__()
+        super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
         self.define_property("label", name, changed=self.__property_changed)
@@ -76,14 +56,17 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("control_type", control_type, changed=self.__property_changed)
         self.variable_type_changed_event = Event.Event()
 
+    def __repr__(self):
+        return "{} ({} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier)
+
     def read_from_dict(self, properties: dict) -> None:
         # ensure that value_type is read first
         value_type_property = self._get_persistent_property("value_type")
         value_type_property.read_from_dict(properties)
-        super(ComputationVariable, self).read_from_dict(properties)
+        super().read_from_dict(properties)
 
     def write_to_dict(self) -> dict:
-        return super(ComputationVariable, self).write_to_dict()
+        return super().write_to_dict()
 
     def __value_reader(self, persistent_property, properties):
         value_type = self.value_type
@@ -117,13 +100,22 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def variable_specifier(self) -> dict:
+        """Return the variable specifier for this variable.
+
+        The specifier can be used to lookup the value of this variable in a computation context.
+        """
         if self.value_type is not None:
-            return {"type": "variable", "version": 1, "uuid": str(self.uuid)}
+            return {"type": "variable", "version": 1, "uuid": str(self.uuid), "x-name": self.name, "x-value": self.value}
         else:
             return self.specifier
 
     @property
     def bound_variable(self):
+        """Return an object with a value property and a changed_event.
+
+        The value property returns the value of the variable. The changed_event is fired
+        whenever the value changes.
+        """
         class BoundVariable(object):
             def __init__(self, variable):
                 self.__variable = variable
@@ -204,7 +196,7 @@ def variable_factory(lookup_id):
 
 class ComputationContext(object):
     def __init__(self, computation, context):
-        self.__computation = computation
+        self.__computation = weakref.ref(computation)
         self.__context = context
 
     def get_data_item_specifier(self, data_item_uuid, property_name: str=None):
@@ -221,52 +213,18 @@ class ComputationContext(object):
         return None
 
     def resolve_object_specifier(self, object_specifier):
-        """Resolve the object specifier, returning a bound variable.
+        """Resolve the object specifier.
 
-        Ask the computation for the variable associated with the object specifier. If it doesn't exist, let the
-        enclosing context handle it. Otherwise, check to see if the variable directly includes a value (i.e. has no
-        specifier). If so, let the variable return the bound variable directly. Otherwise (again) let the enclosing
-        context resolve, but use the specifier in the variable.
-
-        Structuring this method this way allows the variable to provide a second level of indirection. The computation
-        can store variable specifiers only. The variable specifiers can hold values directly or specifiers to the
-        enclosing context. This isolates the computation further from the enclosing context.
+        First lookup the object specifier in the enclosing computation. If it's not found,
+        then lookup in the computation's context. Otherwise it should be a value type variable.
+        In that case, return the bound variable.
         """
-        variable = self.__computation.resolve_variable(object_specifier)
+        variable = self.__computation().resolve_variable(object_specifier)
         if not variable:
             return self.__context.resolve_object_specifier(object_specifier)
         elif variable.specifier is None:
             return variable.bound_variable
-        else:
-            # BoundVariable is used here to watch for changes to the variable in addition to watching for changes
-            # to the context of the variable. Fire changed_event for either type of change.
-            class BoundVariable:
-                def __init__(self, variable, context):
-                    self.__bound_object_changed_listener = None
-                    self.__variable = variable
-                    self.changed_event = Event.Event()
-                    def update_bound_object():
-                        if self.__bound_object_changed_listener:
-                            self.__bound_object_changed_listener.close()
-                            self.__bound_object_changed_listener = None
-                        self.__bound_object = context.resolve_object_specifier(self.__variable.specifier)
-                        if self.__bound_object:
-                            def bound_object_changed():
-                                self.changed_event.fire()
-                            self.__bound_object_changed_listener = self.__bound_object.changed_event.listen(bound_object_changed)
-                    def property_changed(key, value):
-                        if key == "specifier":
-                            update_bound_object()
-                            self.changed_event.fire()
-                    self.__variable_property_changed_listener = variable.property_changed_event.listen(property_changed)
-                    update_bound_object()
-                def close(self):
-                    self.__variable_property_changed_listener.close()
-                    self.__variable_property_changed_listener = None
-                    if self.__bound_object_changed_listener:
-                        self.__bound_object_changed_listener.close()
-                        self.__bound_object_changed_listener = None
-            return BoundVariable(variable, self.__context)
+        return None
 
 
 class Computation(Observable.Observable, Persistence.PersistentObject):
@@ -286,27 +244,34 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     items signal a change, the needs_update_event will be fired.
     """
 
-    def __init__(self):
-        super(Computation, self).__init__()
+    def __init__(self, expression: str=None):
+        super().__init__()
         self.define_type("computation")
-        self.define_property("original_expression")
-        self.define_property("error_text")
+        self.define_property("original_expression", expression)
+        self.define_property("error_text", changed=self.__error_changed)
+        self.define_property("evaluate_error")
         self.define_property("label", changed=self.__label_changed)
         self.define_relationship("variables", variable_factory)
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
+        self.__variable_property_changed_listener = dict()
         self.__evaluate_lock = threading.RLock()
         self.__evaluating = False
         self.__data_and_metadata = None
-        self.needs_update = False
+        self.needs_update = expression is not None
         self.needs_update_event = Event.Event()
         self.computation_mutated_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
         self._evaluation_count_for_test = 0
+        self.__needs_parse = True
 
     def read_from_dict(self, properties):
-        super(Computation, self).read_from_dict(properties)
+        super().read_from_dict(properties)
+
+    def __error_changed(self, name, value):
+        self.notify_set_property(name, value)
+        self.computation_mutated_event.fire()
 
     def __label_changed(self, name, value):
         self.notify_set_property(name, value)
@@ -315,12 +280,16 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def add_variable(self, variable: ComputationVariable) -> None:
         count = self.item_count("variables")
         self.append_item("variables", variable)
+        self.__bind_variable(variable)
+        self.__parse_expression(self.expression)
         self.variable_inserted_event.fire(count, variable)
         self.computation_mutated_event.fire()
 
     def remove_variable(self, variable: ComputationVariable) -> None:
+        self.__unbind_variable(variable)
         index = self.item_index("variables", variable)
         self.remove_item("variables", variable)
+        self.__parse_expression(self.expression)
         self.variable_removed_event.fire(index, variable)
         self.computation_mutated_event.fire()
 
@@ -343,28 +312,59 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     return variable
         return None
 
-    def parse_expression(self, context, expression, variable_map):
-        """Parse the expression."""
-        self.unbind()
-        old_error_text = self.error_text
-        self.original_expression = expression
-        computation_context = ComputationContext(self, context)
-        computation_variable_map = copy.copy(variable_map)
-        for variable in self.variables:
-            computation_variable_map[variable.name] = variable.variable_specifier
-        self.__data_and_metadata, self.error_text = parse_expression(expression.split("\n"), computation_variable_map, computation_context)
-        if self.__data_and_metadata:
-            self.bind(context)
-        if self.__data_and_metadata or old_error_text != self.error_text:
+    @property
+    def expression(self) -> str:
+        return self.original_expression
+
+    @expression.setter
+    def expression(self, value: str) -> None:
+        if value != self.original_expression:
+            self.__parse_expression(value)
+            self.original_expression = value
             self.needs_update = True
             self.needs_update_event.fire()
             self.computation_mutated_event.fire()
 
-    def reparse(self, context, variable_map):
-        self.parse_expression(context, self.original_expression, variable_map)
+    def __parse_expression(self, expression):
+        if expression:
+            computation_variable_map = dict()
+            for variable in self.variables:
+                variable_specifier = variable.variable_specifier
+                if variable_specifier:
+                    computation_variable_map[variable.name] = variable_specifier
+            expression_lines = expression.split("\n")
+            computation_context = self.__computation_context
+
+            code_lines = []
+            code_lines.append("import uuid")
+            g = Context.context().g
+            g["data_by_uuid"] = functools.partial(data_by_uuid, computation_context)
+            g["region_by_uuid"] = functools.partial(region_by_uuid, computation_context)
+            l = dict()
+            for variable_name, object_specifier in computation_variable_map.items():
+                if object_specifier["type"] == "data_item":
+                    g[variable_name] = computation_context.resolve_object_specifier(object_specifier).value
+                elif object_specifier["type"] == "region":
+                    g[variable_name] = computation_context.resolve_object_specifier(object_specifier).value
+                elif object_specifier["type"] == "variable":
+                    g[variable_name] = computation_context.resolve_object_specifier(object_specifier).value
+            expression_lines = expression_lines[:-1] + ["result = {0}".format(expression_lines[-1]), ]
+            code_lines.extend(expression_lines)
+            code = "\n".join(code_lines)
+            try:
+                exec(code, g, l)
+                data_and_metadata, error_text = l["result"], None
+            except Exception as e:
+                # import traceback
+                # traceback.print_exc()
+                # traceback.format_exception(*sys.exc_info())
+                data_and_metadata, error_text = None, "Execution Error"  # use this instead of giving user too much information from stack trace
+
+            self.__data_and_metadata = data_and_metadata
+            self.error_text = error_text
+            self.__needs_parse = False
 
     def begin_evaluate(self) -> bool:
-        print("BEGIN {}".format(self))
         """Begin an evaluation transaction. Returns true if ok to proceed."""
         with self.__evaluate_lock:
             evaluating = self.__evaluating
@@ -372,43 +372,77 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             return not evaluating
 
     def end_evaluate(self) -> None:
-        print("END {}".format(self))
         """End an evaluation transaction. Not required if begin_evaluation returns False."""
         self.__evaluating = False
 
     def evaluate(self) -> DataAndMetadata.DataAndMetadata:
-        print("EVAL {}".format(self))
         """Evaluate the computation and return data and metadata."""
         self._evaluation_count_for_test += 1
         self.needs_update = False
+        if self.__needs_parse:
+            self.__parse_expression(self.expression)
         return self.__data_and_metadata
 
+    def evaluate_data(self) -> DataAndMetadata.DataAndMetadata:
+        data_and_metadata = self.evaluate()
+        try:
+            data = data_and_metadata.data
+            self.evaluate_error = None
+            return DataAndMetadata.DataAndMetadata(lambda: data,
+                                                   data_and_metadata.data_shape_and_dtype,
+                                                   data_and_metadata.intensity_calibration,
+                                                   data_and_metadata.dimensional_calibrations,
+                                                   data_and_metadata.metadata,
+                                                   data_and_metadata.timestamp)
+        except Exception as e:
+            self.evaluate_error = str(e)
+
+    def __bind_variable(self, variable: ComputationVariable) -> None:
+        variable_specifier = variable.variable_specifier
+        if not variable_specifier:
+            return
+
+        bound_item = self.__computation_context.resolve_object_specifier(variable_specifier)
+
+        self.__bound_items[variable.uuid] = bound_item
+
+        def needs_update():
+            self.__needs_parse = True
+            self.needs_update = True
+            self.needs_update_event.fire()
+
+        self.__variable_property_changed_listener[variable.uuid] = variable.property_changed_event.listen(lambda k, v: needs_update())
+        if bound_item:
+            self.__bound_item_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
+
+    def __unbind_variable(self, variable: ComputationVariable) -> None:
+        if variable.uuid in self.__bound_items:
+            self.__bound_items[variable.uuid].close()
+            del self.__bound_items[variable.uuid]
+        if variable.uuid in self.__bound_item_listeners:
+            self.__bound_item_listeners[variable.uuid].close()
+            del self.__bound_item_listeners[variable.uuid]
+        if variable.uuid in self.__variable_property_changed_listener:
+            self.__variable_property_changed_listener[variable.uuid].close()
+            del self.__variable_property_changed_listener[variable.uuid]
+
     def bind(self, context) -> None:
-        print("BIND {}".format(self))
-        """Ask the data node for all bound items, then watch each for changes."""
+        """Bind a context to this computation.
+
+        The context allows the computation to convert object specifiers to actual objects.
+        """
 
         # make a computation context based on the enclosing context.
-        computation_context = ComputationContext(self, context)
-
-        # self.parse_expression(context, self.original_expression, dict())
+        self.__computation_context = ComputationContext(self, context)
 
         # normally I would think re-bind should not be valid; but for testing, the expression
         # is often evaluated and bound. it also needs to be bound a new data item is added to a document
         # model. so special case to see if it already exists. this may prove troublesome down the road.
         if len(self.__bound_items) == 0:  # check if already bound
-            if self.__data_and_metadata:  # ensure not error condition
-
-                def needs_update():
-                    self.needs_update = True
-                    self.needs_update_event.fire()
-
-                for bound_item_uuid, bound_item in self.__bound_items.items():
-                    self.__bound_item_listeners[bound_item_uuid] = bound_item.changed_event.listen(needs_update)
+            for variable in self.variables:
+                self.__bind_variable(variable)
 
     def unbind(self):
         """Unlisten and close each bound item."""
-        for bound_item, bound_item_listener in zip(self.__bound_items.values(), self.__bound_item_listeners.values()):
-            bound_item.close()
-            bound_item_listener.close()
-        self.__bound_items = dict()
-        self.__bound_item_listeners = dict()
+        for variable in self.variables:
+            self.__unbind_variable(variable)

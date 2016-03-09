@@ -392,6 +392,18 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertAlmostEqual(buffered_data_source.data[h/8, 3*w/8], 1.0)
         document_controller.close()
 
+    def test_creating_with_variable_produces_valid_computation(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = ((numpy.random.randn(2, 2) + 1) * 10).astype(numpy.int32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            data_item_r = document_controller.assign_r_value_to_data_item(data_item)
+            computed_data_item = document_controller.processing_computation("{0}.data * 2".format(data_item_r))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data*2))
+
     def test_deleting_processed_data_item_and_then_recomputing_works(self):
         # processed data item should be removed from recomputing queue
         document_model = DocumentModel.DocumentModel()
