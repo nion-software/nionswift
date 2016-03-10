@@ -1014,7 +1014,7 @@ class HardwareSource(object):
         self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
     def set_frame_parameters_for_profile_by_index(self, profile_index, frame_parameters):
-        self.__hardware_source.set_frame_parameters(profile_index, frame_parameters)
+        self.__hardware_source.set_frame_parameters(profile_index, self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
     def start_playing(self, frame_parameters=None, channels_enabled=None):
         if frame_parameters:
@@ -1035,7 +1035,7 @@ class HardwareSource(object):
 
     def start_recording(self, frame_parameters=None, channels_enabled=None):
         if frame_parameters is not None:
-            self.__hardware_source.set_record_frame_parameters(frame_parameters)
+            self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
             self.__hardware_source.set_record_channels_enabled(channels_enabled)
         self.__hardware_source.start_recording()
