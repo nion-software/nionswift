@@ -225,7 +225,7 @@ class ComputationPanelSection:
             name_text_edit = ui.create_line_edit_widget()
             name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
 
-            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("region", _("Region"))]
+            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("data", _("Data")), ("display_data", _("Display Data")), ("region", _("Region"))]
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
             remove_button = ui.create_push_button_widget(_("X"))
@@ -355,25 +355,7 @@ class ComputationPanelSection:
             column.add(uuid_row)
             column.add(display_row)
 
-            class UuidToStringConverter(object):
-                def convert(self, value):
-                    return str(value) if value else None
-                def convert_back(self, value):
-                    if re.fullmatch("[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}",
-                                    value.strip(), re.IGNORECASE) is not None:
-                        return uuid.UUID(value.strip())
-                    return None
-
-            class SpecifierToStringConverter(object):
-                def __init__(self, specifier_type):
-                    self.__specifier_type = specifier_type
-                def convert(self, value):
-                    return UuidToStringConverter().convert(value.get("uuid")) if value else None
-                def convert_back(self, value):
-                    uuid_ = UuidToStringConverter().convert_back(value)
-                    return {"type": self.__specifier_type, "version": 1, "uuid": str(uuid_)}
-
-            uuid_text_edit.bind_text(Binding.PropertyBinding(variable, "specifier", converter=SpecifierToStringConverter(specifier_type)))
+            uuid_text_edit.bind_text(Binding.PropertyBinding(variable, "specifier_uuid_str"))
 
             return column
 
@@ -414,7 +396,7 @@ class ComputationPanelSection:
                 stack.add(make_number_row(ui, variable, Converter.IntegerToStringConverter(), change_type, on_remove))
             elif variable_type == "real":
                 stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
-            elif variable_type == "data_item":
+            elif variable_type in ("data_item", "data", "display_data"):
                 stack.add(make_data_item_row(ui, variable, change_type, on_remove))
             elif variable_type == "region":
                 stack.add(make_region_row(ui, variable, change_type, on_remove))

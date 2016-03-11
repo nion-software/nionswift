@@ -20,7 +20,6 @@ import scipy
 
 # local libraries
 from nion.data import Image
-from nion.data import DataAndMetadata
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -31,6 +30,7 @@ from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
+from nion.ui import Converter
 from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import Persistence
@@ -639,13 +639,6 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         return persistent_storage._persistent_storage_handler.reference
 
 
-class UuidToStringConverter(object):
-    def convert(self, value):
-        return str(value)
-    def convert_back(self, value):
-        return uuid.UUID(value)
-
-
 class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted,
                     Persistence.PersistentObject):
 
@@ -668,7 +661,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
-        self.define_property("workspace_uuid", converter=UuidToStringConverter())
+        self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.__buffered_data_source_set = set()
         self.__buffered_data_source_set_changed_event = Event.Event()
         self.session_id = None
@@ -1153,8 +1146,9 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
             if specifier_type == "data_item":
-                object_uuid = uuid.UUID(specifier["uuid"])
-                data_item = self.get_data_item_by_uuid(object_uuid)
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
                 property_name = specifier.get("property")
                 class BoundDataItemAndMetadata(object):
                     def __init__(self, data_item):
@@ -1214,7 +1208,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     else:
                         return BoundDataItem(data_item)
             elif specifier_type == "region":
-                object_uuid = uuid.UUID(specifier["uuid"])
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 for data_item in self.data_items:
                     for data_source in data_item.data_sources:
                         for region in data_source.regions:

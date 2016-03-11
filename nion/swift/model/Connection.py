@@ -2,12 +2,8 @@
     Contains classes related to connections between library objects.
 """
 
-# futures
-from __future__ import absolute_import
-
 # standard libraries
-import functools
-import uuid
+# None
 
 # third party libraries
 # None
@@ -15,6 +11,7 @@ import uuid
 # local libraries
 from nion.swift.model import Region
 from nion.ui import Binding
+from nion.ui import Converter
 from nion.ui import Observable
 from nion.ui import Persistence
 
@@ -35,21 +32,14 @@ class Connection(Observable.Observable, Observable.Broadcaster, Persistence.Pers
         self.notify_set_property(name, value)
 
 
-class UuidToStringConverter(object):
-    def convert(self, value):
-        return str(value)
-    def convert_back(self, value):
-        return uuid.UUID(value)
-
-
 class PropertyConnection(Connection):
     """ Binds the properties of two objects together. """
 
     def __init__(self, source=None, source_property=None, target=None, target_property=None):
         super().__init__("property-connection")
-        self.define_property("source_uuid", converter=UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("source_property")
-        self.define_property("target_uuid", converter=UuidToStringConverter())
+        self.define_property("target_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("target_property")
         # these are only set in persistent object context changed
         self.__source = source
@@ -138,8 +128,8 @@ class IntervalListConnection(Connection):
 
     def __init__(self, buffered_data_source=None, line_profile=None):
         super().__init__("interval-list-connection")
-        self.define_property("source_uuid", converter=UuidToStringConverter())
-        self.define_property("target_uuid", converter=UuidToStringConverter())
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("target_uuid", converter=Converter.UuidToStringConverter())
         # these are only set in persistent object context changed
         self.__source = buffered_data_source
         self.__target = line_profile

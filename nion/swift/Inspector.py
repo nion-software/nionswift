@@ -1486,7 +1486,7 @@ class ComputationInspectorSection(InspectorSection):
                         return make_slider(variable, Converter.FloatToStringConverter())
                     elif variable.variable_type == "real":
                         return make_field(variable, Converter.FloatToStringConverter())
-                    elif variable.variable_type == "data_item":
+                    elif variable.variable_type in ("data_item", "data", "display_data"):
                         return make_image_chooser(variable)
                     elif variable.variable_type == "region":
                         return WidgetWrapper(self.ui.create_row_widget())

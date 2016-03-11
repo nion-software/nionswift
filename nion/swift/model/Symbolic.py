@@ -10,7 +10,6 @@
 # standard libraries
 import functools
 import threading
-import uuid
 import weakref
 
 # third party libraries
@@ -19,6 +18,7 @@ import weakref
 # local libraries
 from nion.data import Context
 from nion.data import DataAndMetadata
+from nion.ui import Converter
 from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import Persistence
@@ -54,6 +54,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("specifier", specifier, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
+        self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
 
     def __repr__(self):
@@ -136,6 +137,9 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.notify_set_property(name, value)
         if name in ["name", "label"]:
             self.notify_set_property("display_label", self.display_label)
+        if name in ("specifier"):
+            self.notify_set_property("specifier_uuid_str", self.specifier_uuid_str)
+        self.changed_event.fire()
 
     def control_type_default(self, value_type: str) -> None:
         mapping = {"boolean": "checkbox", "integral": "slider", "real": "field", "complex": "field", "string": "field"}
@@ -146,8 +150,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if self.value_type is not None:
             return self.value_type
         elif self.specifier is not None:
-            return self.specifier.get("type")
+            specifier_type = self.specifier.get("type")
+            specifier_property = self.specifier.get("property")
+            return specifier_property or specifier_type
         return None
+
+    data_types = ("data_item", "data", "display_data")
 
     @variable_type.setter
     def variable_type(self, value_type: str) -> None:
@@ -168,14 +176,49 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                     self.value_default = None
                 self.value_min = None
                 self.value_max = None
-            elif value_type in ("data_item", "region"):
+            elif value_type in ComputationVariable.data_types:
                 self.value_type = None
                 self.control_type = None
                 self.value_default = None
                 self.value_min = None
                 self.value_max = None
-                self.specifier = {"type": value_type, "version": 1}
+                specifier = self.specifier or {"version": 1}
+                if not specifier.get("type") in ComputationVariable.data_types:
+                    del specifier["uuid"]
+                specifier["type"] = "data_item"
+                if value_type in ("data", "display_data"):
+                    specifier["property"] = value_type
+                else:
+                    del specifier["property"]
+                self.specifier = specifier
+            elif value_type in ("region"):
+                self.value_type = None
+                self.control_type = None
+                self.value_default = None
+                self.value_min = None
+                self.value_max = None
+                specifier = self.specifier or {"version": 1}
+                specifier["type"] = value_type
+                del specifier["uuid"]
+                del specifier["property"]
+                self.specifier = specifier
             self.variable_type_changed_event.fire()
+
+    @property
+    def specifier_uuid_str(self):
+        return self.specifier.get("uuid") if self.specifier else None
+
+    @specifier_uuid_str.setter
+    def specifier_uuid_str(self, value):
+        converter = Converter.UuidToStringConverter()
+        value = converter.convert(converter.convert_back(value))
+        if self.specifier_uuid_str != value and self.specifier:
+            specifier = self.specifier
+            if value:
+                specifier["uuid"] = value
+            else:
+                del specifier["uuid"]
+            self.specifier = specifier
 
     @property
     def display_label(self):
@@ -252,6 +295,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("evaluate_error")
         self.define_property("label", changed=self.__label_changed)
         self.define_relationship("variables", variable_factory)
+        self.__variable_changed_event_listeners = dict()
         self.__bound_items = dict()
         self.__bound_item_listeners = dict()
         self.__variable_property_changed_listener = dict()
@@ -305,7 +349,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def resolve_variable(self, object_specifier: dict) -> ComputationVariable:
         uuid_str = object_specifier.get("uuid")
-        uuid_ = uuid.UUID(uuid_str) if uuid_str else None
+        uuid_ = Converter.UuidToStringConverter().convert_back(uuid_str) if uuid_str else None
         if uuid_:
             for variable in self.variables:
                 if variable.uuid == uuid_:
@@ -342,12 +386,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             g["region_by_uuid"] = functools.partial(region_by_uuid, computation_context)
             l = dict()
             for variable_name, object_specifier in computation_variable_map.items():
-                if object_specifier["type"] == "data_item":
-                    g[variable_name] = computation_context.resolve_object_specifier(object_specifier).value
-                elif object_specifier["type"] == "region":
-                    g[variable_name] = computation_context.resolve_object_specifier(object_specifier).value
-                elif object_specifier["type"] == "variable":
-                    g[variable_name] = computation_context.resolve_object_specifier(object_specifier).value
+                resolved_object = computation_context.resolve_object_specifier(object_specifier)
+                if resolved_object is not None:
+                    g[variable_name] = resolved_object.value
             expression_lines = expression_lines[:-1] + ["result = {0}".format(expression_lines[-1]), ]
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
@@ -398,6 +439,17 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.evaluate_error = str(e)
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
+        def needs_update():
+            self.__needs_parse = True
+            self.needs_update = True
+            self.needs_update_event.fire()
+
+        def needs_update2():
+            self.evaluate()
+            needs_update()
+
+        self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update2)
+
         variable_specifier = variable.variable_specifier
         if not variable_specifier:
             return
@@ -406,16 +458,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__bound_items[variable.uuid] = bound_item
 
-        def needs_update():
-            self.__needs_parse = True
-            self.needs_update = True
-            self.needs_update_event.fire()
-
         self.__variable_property_changed_listener[variable.uuid] = variable.property_changed_event.listen(lambda k, v: needs_update())
         if bound_item:
             self.__bound_item_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
+        self.__variable_changed_event_listeners[variable.uuid].close()
+        del self.__variable_changed_event_listeners[variable.uuid]
         if variable.uuid in self.__bound_items:
             self.__bound_items[variable.uuid].close()
             del self.__bound_items[variable.uuid]

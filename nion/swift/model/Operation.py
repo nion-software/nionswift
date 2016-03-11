@@ -22,6 +22,7 @@ from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import Binding
+from nion.ui import Converter
 from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import Persistence
@@ -32,20 +33,13 @@ _ = gettext.gettext
 RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "region_property"])
 
 
-class _UuidToStringConverter(object):
-    def convert(self, value):
-        return str(value)
-    def convert_back(self, value):
-        return uuid.UUID(value)
-
-
 class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
 
     def __init__(self, buffered_data_source=None):
         super(DataItemDataSource, self).__init__()
         self.define_type("data-item-data-source")
         buffered_data_source_uuid = buffered_data_source.uuid if buffered_data_source else None
-        self.define_property("buffered_data_source_uuid", buffered_data_source_uuid, converter=_UuidToStringConverter())
+        self.define_property("buffered_data_source_uuid", buffered_data_source_uuid, converter=Converter.UuidToStringConverter())
         self.__subscription = None
         self.__buffered_data_source = None
         self.__buffered_data_source_set_changed_listener = None
