@@ -404,6 +404,25 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data*2))
 
+    def test_extra_variables_in_computation_get_purged(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = ((numpy.random.randn(2, 2) + 1) * 10).astype(numpy.int32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem(numpy.copy(data))
+            document_model.append_data_item(data_item2)
+            data_item3 = DataItem.DataItem(numpy.copy(data))
+            document_model.append_data_item(data_item3)
+            data_item_r = document_controller.assign_r_value_to_data_item(data_item)
+            data_item_r2 = document_controller.assign_r_value_to_data_item(data_item2)
+            document_controller.assign_r_value_to_data_item(data_item3)
+            computed_data_item = document_controller.processing_computation("{0}.data * 2 + {1}.data".format(data_item_r, data_item_r2))
+            self.assertEqual(len(computed_data_item.maybe_data_source.computation.variables), 2)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data*2 + data))
+
     def test_deleting_processed_data_item_and_then_recomputing_works(self):
         # processed data item should be removed from recomputing queue
         document_model = DocumentModel.DocumentModel()

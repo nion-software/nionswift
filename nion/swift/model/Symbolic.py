@@ -8,6 +8,7 @@
 """
 
 # standard libraries
+import ast
 import functools
 import threading
 import weakref
@@ -369,6 +370,22 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.needs_update_event.fire()
             self.computation_mutated_event.fire()
 
+    @classmethod
+    def parse_names(cls, expression):
+        """Return the list of identifiers used in the expression."""
+        names = set()
+        try:
+            ast_node = ast.parse(expression, "ast")
+
+            class Visitor(ast.NodeVisitor):
+                def visit_Name(self, node):
+                    names.add(node.id)
+
+            Visitor().visit(ast_node)
+        except Exception:
+            pass
+        return names
+
     def __parse_expression(self, expression):
         if expression:
             computation_variable_map = dict()
@@ -378,6 +395,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     computation_variable_map[variable.name] = variable_specifier
             expression_lines = expression.split("\n")
             computation_context = self.__computation_context
+
+            Computation.parse_names(expression)
 
             code_lines = []
             code_lines.append("import uuid")
