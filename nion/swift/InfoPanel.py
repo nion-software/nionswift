@@ -49,8 +49,8 @@ def get_value_and_position_text(data_and_calibration, display_calibrated_values:
                 value_text = get_calibrated_value_text(data_and_calibration.get_data_value(full_pos), intensity_calibration)
         else:
             if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
-                position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
-                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
+                position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
                 value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
     if len(pos) == 1:
         # 1d plot

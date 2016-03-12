@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import copy
@@ -30,91 +27,6 @@ from nion.swift.model import Region
 from nion.ui import Binding
 from nion.ui import Observable
 from nion.ui import Test
-
-
-class TestCalibrationClass(unittest.TestCase):
-
-    def test_conversion(self):
-        calibration = Calibration.Calibration(3.0, 2.0, "x")
-        self.assertEqual(calibration.convert_to_calibrated_value_str(5.0), u"13 x")
-
-    def test_dependent_calibration(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
-        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
-        self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
-        data_item_copy = DataItem.DataItem()
-        invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(data_item._create_test_data_source())
-        data_item_copy.set_operation(invert_operation)
-        display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
-        data_item_copy.recompute_data()
-        dimensional_calibrations = display_specifier2.buffered_data_source.dimensional_calibrations
-        self.assertEqual(len(dimensional_calibrations), 2)
-        self.assertEqual(int(dimensional_calibrations[0].offset), 3)
-        self.assertEqual(int(dimensional_calibrations[0].scale), 2)
-        self.assertEqual(dimensional_calibrations[0].units, "x")
-        self.assertEqual(int(dimensional_calibrations[1].offset), 3)
-        self.assertEqual(int(dimensional_calibrations[1].scale), 2)
-        self.assertEqual(dimensional_calibrations[1].units, "x")
-        fft_operation = Operation.OperationItem("fft-operation")
-        fft_operation.add_data_source(data_item._create_test_data_source())
-        data_item_copy.set_operation(fft_operation)
-        data_item_copy.recompute_data()
-        dimensional_calibrations = display_specifier2.buffered_data_source.dimensional_calibrations
-        self.assertEqual(int(dimensional_calibrations[0].offset), 0)
-        self.assertEqual(dimensional_calibrations[0].units, "1/x")
-        self.assertEqual(int(dimensional_calibrations[1].offset), 0)
-        self.assertEqual(dimensional_calibrations[1].units, "1/x")
-
-    def test_double_dependent_calibration(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item2 = DataItem.DataItem()
-        operation2 = Operation.OperationItem("resample-operation")
-        operation2.add_data_source(data_item._create_test_data_source())
-        data_item2.set_operation(operation2)
-        data_item3 = DataItem.DataItem()
-        operation3 = Operation.OperationItem("resample-operation")
-        operation3.add_data_source(data_item2._create_test_data_source())
-        data_item3.set_operation(operation3)
-        display_specifier3 = DataItem.DisplaySpecifier.from_data_item(data_item3)
-        display_specifier3.buffered_data_source.dimensional_calibrations
-
-    def test_spatial_calibration_on_rgb(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.assertTrue(Image.is_shape_and_dtype_2d(*display_specifier.buffered_data_source.data_shape_and_dtype))
-        self.assertTrue(Image.is_shape_and_dtype_rgba(*display_specifier.buffered_data_source.data_shape_and_dtype))
-        self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
-
-    def test_calibration_should_work_for_complex_data(self):
-        calibration = Calibration.Calibration(1.0, 2.0, "c")
-        value_array = numpy.zeros((1, ), dtype=numpy.complex128)
-        value_array[0] = 3 + 4j
-        self.assertEqual(calibration.convert_to_calibrated_value_str(value_array[0]), u"7+8j c")
-        self.assertEqual(calibration.convert_to_calibrated_size_str(value_array[0]), u"6+8j c")
-
-    def test_calibration_should_work_for_rgb_data(self):
-        calibration = Calibration.Calibration(1.0, 2.0, "c")
-        value = numpy.zeros((4, ), dtype=numpy.uint8)
-        self.assertEqual(calibration.convert_to_calibrated_value_str(value), "0, 0, 0, 0")
-        self.assertEqual(calibration.convert_to_calibrated_size_str(value), "0, 0, 0, 0")
-
-    def test_calibration_conversion_to_string_can_handle_numpy_types(self):
-        calibration = Calibration.Calibration(1.0, 2.0, "c")
-        self.assertEqual(calibration.convert_to_calibrated_value_str(numpy.uint32(14)), "29 c")
-
-    def test_calibration_equality(self):
-        calibration1 = Calibration.Calibration(1.0, 2.0, "c")
-        calibration2 = Calibration.Calibration(1.0, 2.0, "c")
-        self.assertEqual(calibration1, calibration2)
-        calibration1 = Calibration.Calibration(1.0, 2.1, "c")
-        calibration2 = Calibration.Calibration(1.0, 2.0, "c")
-        self.assertNotEqual(calibration1, calibration2)
-        self.assertNotEqual(calibration1, None)
-        self.assertTrue(calibration1 != None)
-        self.assertFalse(calibration1 == None)
 
 
 class TestDataItemClass(unittest.TestCase):
@@ -1638,7 +1550,6 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertEqual(document_model.data_items[0].transaction_count, 0)
                 self.assertEqual(document_model.data_items[1].transaction_count, 0)
 
-
     def test_increment_data_ref_counts_cascades_to_data_item_refs(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -1656,6 +1567,56 @@ class TestDataItemClass(unittest.TestCase):
             master_data_item.decrement_data_ref_counts()
             self.assertFalse(document_model.data_items[0].maybe_data_source.is_data_loaded)
             self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_loaded)
+
+    def test_dependent_calibration(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
+        self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
+        data_item_copy = DataItem.DataItem()
+        invert_operation = Operation.OperationItem("invert-operation")
+        invert_operation.add_data_source(data_item._create_test_data_source())
+        data_item_copy.set_operation(invert_operation)
+        display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
+        data_item_copy.recompute_data()
+        dimensional_calibrations = display_specifier2.buffered_data_source.dimensional_calibrations
+        self.assertEqual(len(dimensional_calibrations), 2)
+        self.assertEqual(int(dimensional_calibrations[0].offset), 3)
+        self.assertEqual(int(dimensional_calibrations[0].scale), 2)
+        self.assertEqual(dimensional_calibrations[0].units, "x")
+        self.assertEqual(int(dimensional_calibrations[1].offset), 3)
+        self.assertEqual(int(dimensional_calibrations[1].scale), 2)
+        self.assertEqual(dimensional_calibrations[1].units, "x")
+        fft_operation = Operation.OperationItem("fft-operation")
+        fft_operation.add_data_source(data_item._create_test_data_source())
+        data_item_copy.set_operation(fft_operation)
+        data_item_copy.recompute_data()
+        dimensional_calibrations = display_specifier2.buffered_data_source.dimensional_calibrations
+        self.assertEqual(int(dimensional_calibrations[0].offset), 0)
+        self.assertEqual(dimensional_calibrations[0].units, "1/x")
+        self.assertEqual(int(dimensional_calibrations[1].offset), 0)
+        self.assertEqual(dimensional_calibrations[1].units, "1/x")
+
+    def test_double_dependent_calibration(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+        data_item2 = DataItem.DataItem()
+        operation2 = Operation.OperationItem("resample-operation")
+        operation2.add_data_source(data_item._create_test_data_source())
+        data_item2.set_operation(operation2)
+        data_item3 = DataItem.DataItem()
+        operation3 = Operation.OperationItem("resample-operation")
+        operation3.add_data_source(data_item2._create_test_data_source())
+        data_item3.set_operation(operation3)
+        display_specifier3 = DataItem.DisplaySpecifier.from_data_item(data_item3)
+        display_specifier3.buffered_data_source.dimensional_calibrations
+
+    def test_spatial_calibration_on_rgb(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        self.assertTrue(Image.is_shape_and_dtype_2d(*display_specifier.buffered_data_source.data_shape_and_dtype))
+        self.assertTrue(Image.is_shape_and_dtype_rgba(*display_specifier.buffered_data_source.data_shape_and_dtype))
+        self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
