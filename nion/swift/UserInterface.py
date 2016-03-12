@@ -1174,7 +1174,6 @@ class QtLineEditWidget(QtWidget):
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_text_edited = None
-        self.__formatter = None
         self.proxy.LineEdit_connect(self.widget, self)
         self.__binding = None
         self.__clear_button_enabled = False
@@ -1184,7 +1183,6 @@ class QtLineEditWidget(QtWidget):
             self.__binding.close()
             self.__binding = None
         self.clear_task("update_text")
-        self.__formatter = None
         self.on_editing_finished = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
@@ -1216,20 +1214,10 @@ class QtLineEditWidget(QtWidget):
         self.proxy.LineEdit_setEditable(self.widget, editable)
     editable = property(__get_editable, __set_editable)
 
-    def __get_formatter(self):
-        return self.__formatter
-    def __set_formatter(self, formatter):
-        self.__formatter = formatter
-        if self.__formatter:
-            self.__formatter.format(self.text)
-    formatter = property(__get_formatter, __set_formatter)
-
     def select_all(self):
         self.proxy.LineEdit_selectAll(self.widget)
 
     def editing_finished(self, text):
-        if self.__formatter:
-            self.__formatter.format(text)
         if self.on_editing_finished:
             self.on_editing_finished(text)
 
