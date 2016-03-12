@@ -144,6 +144,38 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=-math.sqrt(2.0)/10, units="mm"))
         self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "-18.10 mm")
 
+    def test_graphic_inspector_display_calibrated_length_units(self):
+        data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        line_region = Region.LineRegion()
+        line_region.start = (0, 0)
+        line_region.end = (1, 1)
+        display_specifier.buffered_data_source.add_region(line_region)
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+        self.assertEqual(graphic_widget.children[2].children[0].children[1].text, "223.607 mm")  # sqrt(100*100 + 200*200)
+
+    def test_graphic_inspector_sets_calibrated_length_units(self):
+        data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        line_region = Region.LineRegion()
+        line_region.start = (0, 0)
+        line_region.end = (0.5, 0.5)
+        display_specifier.buffered_data_source.add_region(line_region)
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
+        length_str = "{0:g}".format(math.sqrt(100 * 100 + 200 * 200))
+        graphic_widget.children[2].children[0].children[1].text = length_str
+        graphic_widget.children[2].children[0].children[1].on_editing_finished(length_str)
+        self.assertAlmostEqual(line_region.end[0], 1.0, 3)
+        self.assertAlmostEqual(line_region.end[1], 1.0, 3)
+
     def test_float_to_string_converter_strips_units(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
