@@ -1,5 +1,6 @@
 # standard libraries
 import gettext
+import math
 
 # third party libraries
 # None
@@ -49,8 +50,20 @@ def get_value_and_position_text(data_and_calibration, display_calibrated_values:
                 value_text = get_calibrated_value_text(data_and_calibration.get_data_value(full_pos), intensity_calibration)
         else:
             if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
-                position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
-                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
+                is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
+                is_polar = is_polar and abs(dimensional_calibrations[0].scale * data_shape[0] - dimensional_calibrations[1].scale * data_shape[1]) < 1e-12
+                is_polar = is_polar and abs(dimensional_calibrations[0].offset / (dimensional_calibrations[0].scale * data_shape[0]) + 0.5) < 1e-12
+                is_polar = is_polar and abs(dimensional_calibrations[1].offset / (dimensional_calibrations[1].scale * data_shape[1]) + 0.5) < 1e-12
+                if is_polar:
+                    x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1])
+                    y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0])
+                    r = math.sqrt(x * x + y * y)
+                    angle = -math.atan2(y, x)
+                    r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True)
+                    position_text = u"{0}, {1:.4f}° ({2})".format(r_str, math.degrees(angle), _("polar"))
+                else:
+                    position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
+                        dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
                 value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
     if len(pos) == 1:
         # 1d plot
