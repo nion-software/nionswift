@@ -1542,6 +1542,15 @@ class DataItemInspector(object):
 
         content_widget = self.ui.create_column_widget()
         content_widget.add_spacing(4)
+        if data_item:
+            title_row = self.ui.create_row_widget()
+            title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
+            title_label_widget.bind_text(Binding.PropertyBinding(data_item, "title"))
+            title_row.add_spacing(20)
+            title_row.add(title_label_widget)
+            title_row.add_stretch()
+            content_widget.add(title_row)
+            content_widget.add_spacing(4)
 
         self.__focus_default = None
         self.__inspector_sections = list()
