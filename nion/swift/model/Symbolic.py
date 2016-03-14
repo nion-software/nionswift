@@ -55,6 +55,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("specifier", specifier, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
+        self.define_property("cascade_delete", changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
 
@@ -122,6 +123,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             def __init__(self, variable):
                 self.__variable = variable
                 self.changed_event = Event.Event()
+                self.deleted_event = Event.Event()
                 def property_changed(key, value):
                     if key == "value":
                         self.changed_event.fire()
@@ -298,13 +300,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("variables", variable_factory)
         self.__variable_changed_event_listeners = dict()
         self.__bound_items = dict()
-        self.__bound_item_listeners = dict()
+        self.__bound_item_changed_event_listeners = dict()
+        self.__bound_item_deleted_event_listeners = dict()
         self.__variable_property_changed_listener = dict()
         self.__evaluate_lock = threading.RLock()
         self.__evaluating = False
         self.__data_and_metadata = None
         self.needs_update = expression is not None
         self.needs_update_event = Event.Event()
+        self.cascade_delete_event = Event.Event()
         self.computation_mutated_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
@@ -343,9 +347,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_object(self, name: str, object_specifier: dict) -> ComputationVariable:
+    def create_object(self, name: str, object_specifier: dict, cascade_delete: bool=False) -> ComputationVariable:
         variable = ComputationVariable(name, specifier=object_specifier)
         self.add_variable(variable)
+        variable.cascade_delete = cascade_delete
         return variable
 
     def resolve_variable(self, object_specifier: dict) -> ComputationVariable:
@@ -467,6 +472,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.evaluate()
             needs_update()
 
+        def deleted():
+            if variable.cascade_delete:
+                self.cascade_delete_event.fire()
+
         self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update2)
 
         variable_specifier = variable.variable_specifier
@@ -479,7 +488,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__variable_property_changed_listener[variable.uuid] = variable.property_changed_event.listen(lambda k, v: needs_update())
         if bound_item:
-            self.__bound_item_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
+            self.__bound_item_changed_event_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
+            self.__bound_item_deleted_event_listeners[variable.uuid] = bound_item.deleted_event.listen(deleted)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
@@ -487,9 +497,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if variable.uuid in self.__bound_items:
             self.__bound_items[variable.uuid].close()
             del self.__bound_items[variable.uuid]
-        if variable.uuid in self.__bound_item_listeners:
-            self.__bound_item_listeners[variable.uuid].close()
-            del self.__bound_item_listeners[variable.uuid]
+        if variable.uuid in self.__bound_item_changed_event_listeners:
+            self.__bound_item_changed_event_listeners[variable.uuid].close()
+            del self.__bound_item_changed_event_listeners[variable.uuid]
+        if variable.uuid in self.__bound_item_deleted_event_listeners:
+            self.__bound_item_deleted_event_listeners[variable.uuid].close()
+            del self.__bound_item_deleted_event_listeners[variable.uuid]
         if variable.uuid in self.__variable_property_changed_listener:
             self.__variable_property_changed_listener[variable.uuid].close()
             del self.__variable_property_changed_listener[variable.uuid]

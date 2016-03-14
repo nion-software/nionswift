@@ -440,6 +440,51 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.recompute_all()
         document_controller.close()
 
+    def test_delete_source_region_of_computation_deletes_target_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            target_data_item = document_controller.get_line_profile_new(source_data_item)
+            display = DataItem.DisplaySpecifier.from_data_item(source_data_item).display
+            self.assertIn(target_data_item, document_model.data_items)
+            display.remove_drawn_graphic(display.drawn_graphics[0])
+            self.assertNotIn(target_data_item, document_model.data_items)
+
+    def test_delete_source_data_item_of_computation_deletes_target_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            target_data_item = document_controller.get_line_profile_new(source_data_item)
+            self.assertIn(target_data_item, document_model.data_items)
+            document_model.remove_data_item(source_data_item)
+            self.assertNotIn(target_data_item, document_model.data_items)
+
+    def test_delete_target_data_item_of_computation_deletes_source_region(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            target_data_item = document_controller.get_line_profile_new(source_data_item)
+            display = DataItem.DisplaySpecifier.from_data_item(source_data_item).display
+            self.assertIn(target_data_item, document_model.data_items)
+            self.assertEqual(len(display.drawn_graphics), 1)
+            document_model.remove_data_item(target_data_item)
+            self.assertEqual(len(display.drawn_graphics), 0)
+            self.assertNotIn(target_data_item, document_model.data_items)
+
+    def test_crop_new_works_with_no_rectangle_graphic(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            self.assertIsNone(document_controller.get_crop_new(source_data_item, None))
+
     def test_processing_duplicate_does_copy(self):
         document_model = DocumentModel.DocumentModel()
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))

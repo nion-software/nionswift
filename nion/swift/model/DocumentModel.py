@@ -649,6 +649,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
         super(DocumentModel, self).__init__()
+
+        self.data_item_deleted_event = Event.Event()  # will be called after the item is deleted
+        self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
+
         self.__thread_pool = ThreadPool.ThreadPool()
         self.persistent_object_context = PersistentDataItemContext(persistent_storage_systems, ignore_older_files, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
@@ -657,6 +661,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__data_items = list()
         self.__data_item_item_inserted_listeners = dict()
         self.__data_item_item_removed_listeners = dict()
+        self.__data_item_request_remove_region = dict()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -670,8 +675,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__read()
         self.__library_storage.set_property(self, "uuid", str(self.uuid))
         self.__library_storage.set_property(self, "version", 0)
-        self.data_item_deleted_event = Event.Event()  # will be called after the item is deleted
-        self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
 
         # this section is concerned with channel updates
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
@@ -707,6 +710,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_item.storage_cache = self.storage_cache
             self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
             self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
+            self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
             data_item.add_listener(self)
             data_item.set_data_item_manager(self)
             self.__buffered_data_source_set.update(set(data_item.data_sources))
@@ -801,6 +805,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_item.add_listener(self)
         self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
         self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
+        self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         data_item.set_data_item_manager(self)
         # fire buffered_data_source_set_changed_event
@@ -848,6 +853,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         del self.__data_item_item_inserted_listeners[data_item.uuid]
         self.__data_item_item_removed_listeners[data_item.uuid].close()
         del self.__data_item_item_removed_listeners[data_item.uuid]
+        self.__data_item_request_remove_region[data_item.uuid].close()
+        del self.__data_item_request_remove_region[data_item.uuid]
         # update data item count
         self.notify_listeners("data_item_removed", self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
@@ -871,6 +878,17 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             data_source = value
             self.__buffered_data_source_set.difference_update(set([data_source]))
             self.buffered_data_source_set_changed_event.fire(set(), set([data_source]))
+
+    def __remove_region_specifier(self, region_specifier) -> None:
+        bound_region = self.resolve_object_specifier(region_specifier)
+        if bound_region:
+            region = bound_region.value
+            for data_item in self.data_items:
+                for data_source in data_item.data_sources:
+                    if region in data_source.regions:
+                        if not region._about_to_be_removed:  # HACK! to handle document closing. Argh.
+                            data_source.remove_region(region)
+                            break
 
     # TODO: evaluate if buffered_data_source_set is needed
     @property
@@ -1143,6 +1161,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         return None
 
     def resolve_object_specifier(self, specifier: dict):
+        document_model = self
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
             if specifier_type == "data_item":
@@ -1155,23 +1174,35 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                         self.__data_item = data_item
                         self.__buffered_data_source = data_item.maybe_data_source
                         self.changed_event = Event.Event()
+                        self.deleted_event = Event.Event()
                         def data_and_metadata_changed():
                             self.changed_event.fire()
+                        def data_item_will_be_removed(data_item):
+                            if data_item == self.__data_item:
+                                self.deleted_event.fire()
                         self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed)
+                        self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                     @property
                     def value(self):
                         return self.__buffered_data_source.data_and_calibration
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None
+                        self.__data_item_will_be_removed_event_listener.close()
+                        self.__data_item_will_be_removed_event_listener = None
                 class BoundDataItem(object):
                     def __init__(self, data_item):
                         self.__data_item = data_item
                         self.__buffered_data_source = data_item.maybe_data_source
                         self.changed_event = Event.Event()
+                        self.deleted_event = Event.Event()
                         def data_and_metadata_changed():
                             self.changed_event.fire()
+                        def data_item_will_be_removed(data_item):
+                            if data_item == self.__data_item:
+                                self.deleted_event.fire()
                         self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed)
+                        self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                     @property
                     def data(self):
                         return self.__data_item.maybe_data_source.data_and_calibration
@@ -1187,19 +1218,29 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None
+                        self.__data_item_will_be_removed_event_listener.close()
+                        self.__data_item_will_be_removed_event_listener = None
                 class BoundDataItemDisplay(object):
                     def __init__(self, data_item):
+                        self.__data_item = data_item
                         self.__buffered_data_source = data_item.maybe_data_source
                         self.changed_event = Event.Event()
+                        self.deleted_event = Event.Event()
                         def display_changed():
                             self.changed_event.fire()
+                        def data_item_will_be_removed(data_item):
+                            if data_item == self.__data_item:
+                                self.deleted_event.fire()
                         self.__display_changed_event_listener = self.__buffered_data_source.displays[0].display_changed_event.listen(display_changed)
+                        self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                     @property
                     def value(self):
                         return self.__buffered_data_source.displays[0].display_data_and_calibration
                     def close(self):
                         self.__display_changed_event_listener.close()
                         self.__display_changed_event_listener = None
+                        self.__data_item_will_be_removed_event_listener.close()
+                        self.__data_item_will_be_removed_event_listener = None
                 if data_item:
                     if property_name == "data":
                         return BoundDataItemAndMetadata(data_item)
@@ -1218,12 +1259,18 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                                     def __init__(self, object):
                                         self.__object = object
                                         self.changed_event = Event.Event()
+                                        self.deleted_event = Event.Event()
+                                        def remove_region():
+                                            self.deleted_event.fire()
+                                        self.__remove_region_because_graphic_removed_listener = self.__object.remove_region_because_graphic_removed_event.listen(remove_region)
                                         def property_changed(property_name_being_changed, value):
                                             self.changed_event.fire()
                                         self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
                                     def close(self):
                                         self.__property_changed_listener.close()
                                         self.__property_changed_listener = None
+                                        self.__remove_region_because_graphic_removed_listener.close()
+                                        self.__remove_region_because_graphic_removed_listener = None
                                     @property
                                     def value(self):
                                         return self.__object

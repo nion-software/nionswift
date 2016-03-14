@@ -1161,38 +1161,20 @@ class DocumentController(Observable.Broadcaster):
 
     def processing_crop_new(self):
         display_specifier = self.selected_display_specifier
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
-            crop_region = self.__get_crop_region(display_specifier)
-            data_item = DataItem.DataItem()
-            data_item.title = _("New Crop on ") + data_item.title
-            computation = self.document_model.create_computation("crop(src.display_data, crop_region.bounds)")
-            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
-            computation.create_object("crop_region", self.document_model.get_object_specifier(crop_region))
-            buffered_data_source = DataItem.BufferedDataSource()
-            data_item.append_data_source(buffered_data_source)
-            buffered_data_source.set_computation(computation)
-            self.document_model.append_data_item(data_item)
-            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+        crop_region = self.__get_crop_region(display_specifier)
+        data_item = self.get_crop_new(display_specifier.data_item, crop_region)
+        if data_item:
+            crop_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.display_data_item(crop_display_specifier)
             return data_item
         return None
 
     def processing_pick_new(self):
         display_specifier = self.selected_display_specifier
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
-            pick_region = Region.PointRegion()
-            buffered_data_source.add_region(pick_region)
-            data_item = DataItem.DataItem()
-            data_item.title = _("New Pick on ") + data_item.title
-            computation = self.document_model.create_computation("pick(src.data, pick_region.position)")
-            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
-            computation.create_object("pick_region", self.document_model.get_object_specifier(pick_region))
-            buffered_data_source = DataItem.BufferedDataSource()
-            data_item.append_data_source(buffered_data_source)
-            buffered_data_source.set_computation(computation)
-            self.document_model.append_data_item(data_item)
-            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+        data_item = self.get_pick_new(display_specifier.data_item)
+        if data_item:
+            pick_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.display_data_item(pick_display_specifier)
             return data_item
         return None
 
@@ -1221,6 +1203,47 @@ class DocumentController(Observable.Broadcaster):
             return data_item
         return None
 
+    def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2 and crop_region:
+            crop_data_item = DataItem.DataItem()
+            crop_data_item.title = _("New Crop on ") + data_item.title
+            computation = self.document_model.create_computation("crop(src.display_data, crop_region.bounds)")
+            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
+            computation.create_object("crop_region", self.document_model.get_object_specifier(crop_region), cascade_delete=True)
+            buffered_data_source = DataItem.BufferedDataSource()
+            crop_data_item.append_data_source(buffered_data_source)
+            buffered_data_source.set_computation(computation)
+            self.document_model.append_data_item(crop_data_item)
+            region_display_specifier = DataItem.DisplaySpecifier.from_data_item(crop_data_item)
+            # when the intervals on the line_profile_data_item change, update the displayed intervals on the line_region
+            crop_data_item.add_connection(Connection.IntervalListConnection(region_display_specifier.buffered_data_source, crop_region))
+            return crop_data_item
+        return None
+
+    def get_pick_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
+            pick_region = Region.PointRegion()
+            pick_region.label = _("Pick")
+            buffered_data_source.add_region(pick_region)
+            pick_data_item = DataItem.DataItem()
+            pick_data_item.title = _("New Pick on ") + data_item.title
+            computation = self.document_model.create_computation("pick(src.data, pick_region.position)")
+            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
+            computation.create_object("pick_region", self.document_model.get_object_specifier(pick_region), cascade_delete=True)
+            buffered_data_source = DataItem.BufferedDataSource()
+            pick_data_item.append_data_source(buffered_data_source)
+            buffered_data_source.set_computation(computation)
+            self.document_model.append_data_item(pick_data_item)
+            region_display_specifier = DataItem.DisplaySpecifier.from_data_item(pick_data_item)
+            # when the intervals on the line_profile_data_item change, update the displayed intervals on the line_region
+            pick_data_item.add_connection(Connection.IntervalListConnection(region_display_specifier.buffered_data_source, pick_region))
+            return pick_data_item
+        return None
+
     def get_line_profile_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         buffered_data_source = display_specifier.buffered_data_source
@@ -1232,8 +1255,8 @@ class DocumentController(Observable.Broadcaster):
             line_profile_data_item = DataItem.DataItem()
             line_profile_data_item.title = _("New Line Profile on ") + line_profile_data_item.title
             computation = self.document_model.create_computation("line_profile(src.display_data, line_region.vector, line_region.width)")
-            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
-            computation.create_object("line_region", self.document_model.get_object_specifier(line_region))
+            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
+            computation.create_object("line_region", self.document_model.get_object_specifier(line_region), cascade_delete=True)
             buffered_data_source = DataItem.BufferedDataSource()
             line_profile_data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)

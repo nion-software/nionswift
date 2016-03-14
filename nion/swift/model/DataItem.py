@@ -203,10 +203,12 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         self.__publisher = Observable.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
         self.__computation_mutated_event_listener = None  # incoming to know when the computation changes internally
+        self.__computation_cascade_delete_event_listener = None
         self.computation_changed_or_mutated_event = Event.Event()  # outgoing message
         self.data_and_metadata_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
         self.request_remove_data_item_because_operation_removed_event = Event.Event()
+        self.request_remove_region_because_data_item_removed_event = Event.Event()
         if data is not None:
             self.__set_data(data)
         if create_display:
@@ -246,6 +248,12 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
             display.about_to_be_removed()
         if self.data_source:
             self.data_source.about_to_be_removed()
+        if self.computation:
+            for variable in self.computation.variables:
+                if variable.cascade_delete:
+                    variable_specifier = variable.variable_specifier
+                    if variable_specifier and variable_specifier.get("type") == "region":
+                        self.request_remove_region_because_data_item_removed_event.fire(variable_specifier)
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -381,13 +389,18 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
         if old_computation:
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
+            self.__computation_cascade_delete_event_listener.close()
+            self.__computation_cascade_delete_event_listener= None
         if self.__data_item_manager:
             self.__data_item_manager.computation_changed(self, new_computation)
         if new_computation:
             def computation_mutated():
                 self.computation_changed_or_mutated_event.fire()
                 self.__metadata_changed()
+            def computation_cascade_delete():
+                self.request_remove_data_item_because_operation_removed_event.fire()
             self.__computation_mutated_event_listener = new_computation.computation_mutated_event.listen(computation_mutated)
+            self.__computation_cascade_delete_event_listener = new_computation.cascade_delete_event.listen(computation_cascade_delete)
         self.computation_changed_or_mutated_event.fire()
         self.__metadata_changed()
 
@@ -906,6 +919,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.__get_data_item_by_uuid = None
         self.__data_items = list()
         self.__request_remove_listeners = list()
+        self.__request_remove_region_listeners = list()
         self.__subscriptions = list()
         self.__live_count = 0  # specially handled property
         self.__live_count_lock = threading.RLock()
@@ -913,6 +927,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
+        self.request_remove_region_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
@@ -1326,6 +1341,9 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             self.notify_listeners("request_remove_data_item", self)
         request_remove_listener = data_source.request_remove_data_item_because_operation_removed_event.listen(notify_request_remove_data_item)
         self.__request_remove_listeners.insert(before_index, request_remove_listener)
+        def request_remove_region(region_specifier):
+            self.request_remove_region_event.fire(region_specifier)
+        self.__request_remove_region_listeners.insert(before_index, data_source.request_remove_region_because_data_item_removed_event.listen(request_remove_region))
         # being in transaction state means that data sources have their data loaded.
         # so load data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
@@ -1352,9 +1370,10 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         subscription.close()
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
-        request_remove_listener = self.__request_remove_listeners[index]
-        request_remove_listener.close()
-        self.__request_remove_listeners.remove(request_remove_listener)
+        self.__request_remove_listeners[index].close()
+        del self.__request_remove_listeners[index]
+        self.__request_remove_region_listeners[index].close()
+        del self.__request_remove_region_listeners[index]
         # being in transaction state means that data sources have their data loaded.
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.__transaction_count > 0:
