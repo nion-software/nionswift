@@ -142,8 +142,8 @@ class ComputationModel(object):
         if buffered_data_source:
             buffered_data_source.set_computation(None)
 
-    def __computation_changed_or_mutated(self) -> None:
-        def computation_changed_or_mutated():
+    def __update_computation_display(self) -> None:
+        def update_computation_display():
             label = None
             expression = None
             error_text = None
@@ -155,11 +155,11 @@ class ComputationModel(object):
             self.__update_computation_label(label)
             self.__update_computation_text(expression)
             self.__update_error_text(error_text)
-        self.document_controller.queue_task(computation_changed_or_mutated)
+        self.document_controller.queue_task(update_computation_display)
 
     def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_inserted_event.fire(index, variable)
-        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(lambda k, v: self.__computation_changed_or_mutated())
+        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(lambda k, v: self.__update_computation_display())
 
     def __variable_removed(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_removed_event.fire(index, variable)
@@ -186,10 +186,10 @@ class ComputationModel(object):
             computation = self.__computation
             if computation:
                 buffered_data_source = self.__display_specifier.buffered_data_source
-                self.__computation_changed_or_mutated_event_listener = buffered_data_source.computation_changed_or_mutated_event.listen(self.__computation_changed_or_mutated)
+                self.__computation_changed_or_mutated_event_listener = buffered_data_source.computation_changed_or_mutated_event.listen(lambda ds, c: self.__update_computation_display())
                 self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(self.__variable_inserted)
                 self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(self.__variable_removed)
-            self.__computation_changed_or_mutated()
+            self.__update_computation_display()
             if computation:
                 for index, variable in enumerate(computation.variables):
                     self.__variable_inserted(index, variable)

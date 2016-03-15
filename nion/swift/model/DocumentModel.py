@@ -665,11 +665,13 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__dependent_data_items_lock = threading.RLock()
         self.__dependent_data_items = dict()
         self.__source_data_items = dict()
+        self.__computation_dependency_data_items = dict()
         self.__data_items = list()
         self.__data_item_item_inserted_listeners = dict()
         self.__data_item_item_removed_listeners = dict()
         self.__data_item_request_remove_region = dict()
         self.__data_item_handle_dependency_action_listeners = dict()
+        self.__computation_changed_or_mutated_listeners = dict()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -720,6 +722,9 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
             self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
             self.__data_item_handle_dependency_action_listeners[data_item.uuid] = data_item.handle_dependency_action.listen(self.__handle_dependency_action)
+            self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
+            if data_item.maybe_data_source:
+                self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
             data_item.add_listener(self)
             data_item.set_data_item_manager(self)
             self.__buffered_data_source_set.update(set(data_item.data_sources))
@@ -816,6 +821,9 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
         self.__data_item_handle_dependency_action_listeners[data_item.uuid] = data_item.handle_dependency_action.listen(self.__handle_dependency_action)
+        self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
+        if data_item.maybe_data_source:
+            self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         data_item.set_data_item_manager(self)
         # fire buffered_data_source_set_changed_event
@@ -868,6 +876,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         del self.__data_item_request_remove_region[data_item.uuid]
         self.__data_item_handle_dependency_action_listeners[data_item.uuid].close()
         del self.__data_item_handle_dependency_action_listeners[data_item.uuid]
+        self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
+        del self.__computation_changed_or_mutated_listeners[data_item.uuid]
         # update data item count
         self.notify_listeners("data_item_removed", self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
@@ -906,23 +916,53 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def __handle_dependency_action(self, data_item):
         for action, target_data_item in data_item._get_pending_dependent_data_items():
             if action == 'add':
-                with self.__dependent_data_items_lock:
-                    self.__dependent_data_items.setdefault(weakref.ref(data_item), list()).append(target_data_item)
-                    self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).append(data_item)
-                # propagate transaction and live states to dependents
-                if data_item.in_transaction_state:
-                    self.begin_data_item_transaction(target_data_item)
-                if data_item.is_live:
-                    self.begin_data_item_live(target_data_item)
+                self.__add_dependency(data_item, target_data_item)
             elif action == 'remove':
-                with self.__dependent_data_items_lock:
-                    self.__dependent_data_items.setdefault(weakref.ref(data_item), list()).remove(target_data_item)
-                    self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).remove(data_item)
-                # propagate transaction and live states to dependents
-                if data_item.in_transaction_state:
-                    self.end_data_item_transaction(target_data_item)
-                if data_item.is_live:
-                    self.end_data_item_live(target_data_item)
+                self.__remove_dependency(data_item, target_data_item)
+
+    def __remove_dependency(self, source_data_item, target_data_item):
+        with self.__dependent_data_items_lock:
+            self.__dependent_data_items.setdefault(weakref.ref(source_data_item), list()).remove(target_data_item)
+            self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).remove(source_data_item)
+        # propagate transaction and live states to dependents
+        if source_data_item.in_transaction_state:
+            self.end_data_item_transaction(target_data_item)
+        if source_data_item.is_live:
+            self.end_data_item_live(target_data_item)
+
+    def __add_dependency(self, source_data_item, target_data_item):
+        with self.__dependent_data_items_lock:
+            self.__dependent_data_items.setdefault(weakref.ref(source_data_item), list()).append(target_data_item)
+            self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).append(source_data_item)
+        # propagate transaction and live states to dependents
+        if source_data_item.in_transaction_state:
+            self.begin_data_item_transaction(target_data_item)
+        if source_data_item.is_live:
+            self.begin_data_item_live(target_data_item)
+
+    def __handle_computation_changed_or_mutated(self, data_item, data_source, computation):
+        with self.__dependent_data_items_lock:
+            source_data_item_set = self.__computation_dependency_data_items.setdefault(weakref.ref(data_item), set())
+            for source_data_item in source_data_item_set:
+                self.__remove_dependency(source_data_item, data_item)
+            source_data_item_set.clear()
+            if computation:
+                for variable in computation.variables:
+                    specifier = variable.specifier
+                    if specifier:
+                        object = self.resolve_object_specifier(variable.specifier)
+                        if hasattr(object, "data_item"):
+                            source_data_item = object.data_item
+                            if not source_data_item in source_data_item_set:
+                                source_data_item_set.add(source_data_item)
+                                self.__add_dependency(source_data_item, data_item)
+
+    # def __remove_all_dependencies_for_data_item(self, data_item):
+    #     # the data item is being removed. get rid of everything.
+    #     with self.__dependent_data_items_lock:
+    #         self.__computation_dependency_data_items.pop(weakref.ref(data_item), None)
+    #         dependent_data_items = self.get_dependent_data_items(data_item)
+    #         source_data_items = self.get_source_data_items(data_item)
 
     # TODO: evaluate if buffered_data_source_set is needed
     @property
@@ -1290,6 +1330,9 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     @property
                     def value(self):
                         return self.__buffered_data_source.data_and_calibration
+                    @property
+                    def data_item(self):
+                        return self.__data_item
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None

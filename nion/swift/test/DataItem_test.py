@@ -96,6 +96,79 @@ class TestDataItemClass(unittest.TestCase):
         self.assertNotEqual(data_item.operation, data_item_copy.operation)
         self.assertNotEqual(display_specifier.display.graphics[0], display_specifier2.display.graphics[0])
 
+    def test_data_item_with_existing_computation_initializes_dependencies(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # setup by adding data item and a dependent data item
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2a = DataItem.DataItem()
+            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            data_item2a.append_data_source(DataItem.BufferedDataSource())
+            data_item2a.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(data_item2)  # add this first
+            document_model.append_data_item(data_item2a)  # add this second
+            # verify
+            self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
+
+    def test_removing_data_item_with_computation_deinitializes_dependencies(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # setup by adding data item and a dependent data item
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2a = DataItem.DataItem()
+            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            data_item2a.append_data_source(DataItem.BufferedDataSource())
+            data_item2a.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(data_item2)  # add this first
+            document_model.append_data_item(data_item2a)  # add this second
+            # verify
+            self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
+            self.assertEqual(document_model.get_dependent_data_items(data_item2)[0], data_item2a)
+            # remove target
+            document_model.remove_data_item(data_item2a)
+            # verify
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item2)), 0)
+
+    def test_removing_source_for_data_item_with_computation_deinitializes_dependencies(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # setup by adding data item and a dependent data item
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2a = DataItem.DataItem()
+            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            data_item2a.append_data_source(DataItem.BufferedDataSource())
+            data_item2a.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(data_item2)  # add this first
+            document_model.append_data_item(data_item2a)  # add this second
+            # verify
+            self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
+            # remove source
+            document_model.remove_data_item(data_item2)
+            # verify
+            self.assertEqual(len(document_model.get_source_data_items(data_item2a)), 0)
+
+    def test_copy_data_item_properly_copies_computation(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # setup by adding data item and a dependent data item
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item2a = DataItem.DataItem()
+            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            data_item2a.append_data_source(DataItem.BufferedDataSource())
+            data_item2a.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(data_item2)  # add this first
+            document_model.append_data_item(data_item2a)  # add this second
+            # copy the dependent item
+            data_item2a_copy = copy.deepcopy(data_item2a)
+            document_model.append_data_item(data_item2a_copy)
+            # verify data source
+            self.assertEqual(document_model.get_source_data_items(data_item2a_copy)[0], data_item2)
+            self.assertIn(data_item2a_copy, document_model.get_dependent_data_items(data_item2))
+
     def test_copy_data_item_properly_copies_data_source_and_connects_it(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
