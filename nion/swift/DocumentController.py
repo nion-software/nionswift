@@ -1183,7 +1183,8 @@ class DocumentController(Observable.Broadcaster):
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
             data_item = DataItem.DataItem()
-            data_item.title = _("New Slice on ") + data_item.title
+            data_item.title = _("New Slice on ") + display_specifier.data_item.title
+            data_item.category = display_specifier.data_item.category
             computation = self.document_model.create_computation("slice_sum(src.data, 0, 1)")
             computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
             buffered_data_source = DataItem.BufferedDataSource()
@@ -1209,6 +1210,7 @@ class DocumentController(Observable.Broadcaster):
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2 and crop_region:
             crop_data_item = DataItem.DataItem()
             crop_data_item.title = _("New Crop on ") + data_item.title
+            crop_data_item.category = data_item.category
             computation = self.document_model.create_computation("crop(src.display_data, crop_region.bounds)")
             computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
             computation.create_object("crop_region", self.document_model.get_object_specifier(crop_region), cascade_delete=True)
@@ -1231,6 +1233,7 @@ class DocumentController(Observable.Broadcaster):
             buffered_data_source.add_region(pick_region)
             pick_data_item = DataItem.DataItem()
             pick_data_item.title = _("New Pick on ") + data_item.title
+            pick_data_item.category = data_item.category
             computation = self.document_model.create_computation("pick(src.data, pick_region.position)")
             computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
             computation.create_object("pick_region", self.document_model.get_object_specifier(pick_region), cascade_delete=True)
@@ -1254,6 +1257,7 @@ class DocumentController(Observable.Broadcaster):
             buffered_data_source.add_region(line_region)
             line_profile_data_item = DataItem.DataItem()
             line_profile_data_item.title = _("New Line Profile on ") + line_profile_data_item.title
+            line_profile_data_item.category = data_item.category
             computation = self.document_model.create_computation("line_profile(src.display_data, line_region.vector, line_region.width)")
             computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
             computation.create_object("line_region", self.document_model.get_object_specifier(line_region), cascade_delete=True)
