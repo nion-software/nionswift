@@ -604,7 +604,6 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
     def write_data_item(self, data_item):
         """ Write data item to persistent storage. """
-        properties = data_item.write_to_dict()
         persistent_storage = self._get_persistent_storage_for_object(data_item)
         if not persistent_storage:
             persistent_storage_handler = None
@@ -612,6 +611,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 persistent_storage_handler = persistent_storage_system.make_persistent_storage_handler(data_item)
                 if persistent_storage_handler:
                     break
+            properties = data_item.write_to_dict()
             persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
             self._set_persistent_storage_for_object(data_item, persistent_storage)
         data_item.persistent_object_context_changed()
