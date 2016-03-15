@@ -89,7 +89,6 @@ class CalibrationList(object):
 
     Data sources should provide a list of child data sources of important types.
 
-    * ordered_data_item_data_sources
     * ordered_operation_data_sources
 """
 
@@ -432,13 +431,6 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
             self.__pending_data = data_and_calibration
             if self.__data_item_manager and not self.__is_recomputing:
                 self.__data_item_manager.dispatch_task(self.recompute_data, "data")
-
-    @property
-    def ordered_data_item_data_sources(self):
-        if self.data_source:
-            return self.data_source.ordered_data_item_data_sources
-        else:
-            return list()
 
     @property
     def ordered_operation_data_sources(self):
@@ -1347,13 +1339,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         data_sources = list()
         for data_source in self.data_sources:
             data_sources.extend(data_source.ordered_operation_data_sources)
-        return data_sources
-
-    @property
-    def ordered_data_item_data_sources(self):
-        data_sources = list()
-        for data_source in self.data_sources:
-            data_sources.extend(data_source.ordered_data_item_data_sources)
         return data_sources
 
     def set_data_item_manager(self, data_item_manager):

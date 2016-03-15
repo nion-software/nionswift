@@ -1460,17 +1460,10 @@ class DocumentController(Observable.Broadcaster):
                             # TODO: avoid calling periodic by reworking thread support in data panel
                             self.periodic()  # keep the display items in data panel consistent.
 
-            def show_source():
-                self.select_data_item_in_data_panel(data_item.ordered_data_item_data_sources[0])
-
             def show_in_new_window():
                 self.new_window_with_data_item("data", data_item=data_item)
 
             menu.add_menu_item(_("Open in New Window"), show_in_new_window)
-
-            if len(data_item.ordered_data_item_data_sources) == 1:
-                # TODO: show_source should handle multiple data sources
-                menu.add_menu_item(_("Go to Source"), show_source)
 
             def show():
                 self.select_data_item_in_data_panel(data_item)
@@ -1489,6 +1482,17 @@ class DocumentController(Observable.Broadcaster):
             # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
             menu.add_menu_item(_("Export..."),
                                lambda: self.queue_task(export_files))  # queued to avoid pop-up menu issue
+
+            source_data_items = self.document_model.get_source_data_items(data_item)
+            if len(source_data_items) > 0:
+                menu.add_separator()
+                for source_data_item in source_data_items:
+                    def show_source_data_item(data_item):
+                        self.select_data_item_in_data_panel(data_item)
+
+                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Source "), source_data_item.title),
+                                       functools.partial(show_source_data_item, source_data_item))
+
             dependent_data_items = self.document_model.get_dependent_data_items(data_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
@@ -1496,7 +1500,7 @@ class DocumentController(Observable.Broadcaster):
                     def show_dependent_data_item(data_item):
                         self.select_data_item_in_data_panel(data_item)
 
-                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to "), dependent_data_item.title),
+                    menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), dependent_data_item.title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
 

@@ -664,6 +664,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__live_data_items = dict()
         self.__dependent_data_items_lock = threading.RLock()
         self.__dependent_data_items = dict()
+        self.__source_data_items = dict()
         self.__data_items = list()
         self.__data_item_item_inserted_listeners = dict()
         self.__data_item_item_removed_listeners = dict()
@@ -838,8 +839,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # remove data items that are entirely dependent on data item being removed
         # entirely dependent means that the data item has a single data item source
         # and it matches the data_item being removed.
-        for other_data_item in copy.copy(self.data_items):
-            if other_data_item.ordered_data_item_data_sources == [data_item]:  # ordered data sources exactly equal to data item?
+        for other_data_item in self.get_dependent_data_items(data_item):
+            if self.get_source_data_items(other_data_item) == [data_item]:  # ordered data sources exactly equal to data item?
                 self.remove_data_item(other_data_item)
         # fire buffered_data_source_set_changed_event
         self.__buffered_data_source_set.difference_update(set(data_item.data_sources))
@@ -906,7 +907,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         for action, target_data_item in data_item._get_pending_dependent_data_items():
             if action == 'add':
                 with self.__dependent_data_items_lock:
-                    self.__dependent_data_items.setdefault(data_item.uuid, list()).append(target_data_item)
+                    self.__dependent_data_items.setdefault(weakref.ref(data_item), list()).append(target_data_item)
+                    self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).append(data_item)
                 # propagate transaction and live states to dependents
                 if data_item.in_transaction_state:
                     self.begin_data_item_transaction(target_data_item)
@@ -914,7 +916,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     self.begin_data_item_live(target_data_item)
             elif action == 'remove':
                 with self.__dependent_data_items_lock:
-                    self.__dependent_data_items.setdefault(data_item.uuid, list()).remove(target_data_item)
+                    self.__dependent_data_items.setdefault(weakref.ref(data_item), list()).remove(target_data_item)
+                    self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).remove(data_item)
                 # propagate transaction and live states to dependents
                 if data_item.in_transaction_state:
                     self.end_data_item_transaction(target_data_item)
@@ -936,10 +939,14 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     # transactions, live state, and dependencies
 
+    def get_source_data_items(self, data_item):
+        with self.__dependent_data_items_lock:
+            return copy.copy(self.__source_data_items.get(weakref.ref(data_item), list()))
+
     def get_dependent_data_items(self, data_item):
         """Return the list of data items containing data that directly depends on data in this item."""
         with self.__dependent_data_items_lock:
-            return copy.copy(self.__dependent_data_items.get(data_item.uuid, list()))
+            return copy.copy(self.__dependent_data_items.get(weakref.ref(data_item), list()))
 
     def data_item_transaction(self, data_item):
         """ Return a context manager to put the data item under a 'transaction'. """

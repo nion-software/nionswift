@@ -74,10 +74,6 @@ class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Persiste
     def ordered_operation_data_sources(self):
         return []
 
-    @property
-    def ordered_data_item_data_sources(self):
-        return [self.source_data_item]
-
     def set_dependent_data_item(self, new_dependent_data_item):
         """Set the dependent data item. The dependent data item depends on this data source."""
         old_dependent_data_item = self.__get_dependent_data_item()
@@ -501,13 +497,6 @@ class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.P
         data_sources.append(self)
         for data_source in self.data_sources:
             data_sources.extend(data_source.ordered_operation_data_sources)
-        return data_sources
-
-    @property
-    def ordered_data_item_data_sources(self):
-        data_sources = list()
-        for data_source in self.data_sources:
-            data_sources.extend(data_source.ordered_data_item_data_sources)
         return data_sources
 
     def set_data_item_manager(self, data_item_manager):
