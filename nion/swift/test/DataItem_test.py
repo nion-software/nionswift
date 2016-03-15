@@ -946,10 +946,10 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             # begin the transaction
             with document_model.data_item_transaction(data_item):
-                self.assertTrue(data_item.transaction_count > 0)
-                self.assertTrue(data_item2.transaction_count > 0)
-            self.assertEqual(data_item.transaction_count, 0)
-            self.assertEqual(data_item2.transaction_count, 0)
+                self.assertTrue(data_item.in_transaction_state)
+                self.assertTrue(data_item2.in_transaction_state)
+            self.assertFalse(data_item.in_transaction_state)
+            self.assertFalse(data_item2.in_transaction_state)
 
     def test_data_item_added_to_data_item_under_transaction_becomes_transacted_too(self):
         document_model = DocumentModel.DocumentModel()
@@ -966,10 +966,10 @@ class TestDataItemClass(unittest.TestCase):
                 data_item2.set_operation(invert_operation)
                 document_model.append_data_item(data_item2)
                 # check to make sure it is under transaction
-                self.assertTrue(data_item.transaction_count > 0)
-                self.assertTrue(data_item2.transaction_count > 0)
-            self.assertEqual(data_item.transaction_count, 0)
-            self.assertEqual(data_item2.transaction_count, 0)
+                self.assertTrue(data_item.in_transaction_state)
+                self.assertTrue(data_item2.in_transaction_state)
+            self.assertFalse(data_item.in_transaction_state)
+            self.assertFalse(data_item2.in_transaction_state)
 
     def test_data_item_added_to_data_item_under_transaction_configures_dependency(self):
         document_model = DocumentModel.DocumentModel()
@@ -1542,13 +1542,13 @@ class TestDataItemClass(unittest.TestCase):
             master_data_item.append_data_item(document_model.data_items[0])
             master_data_item.append_data_item(document_model.data_items[1])
             document_model.append_data_item(master_data_item)
-            self.assertEqual(master_data_item.transaction_count, 0)
-            self.assertEqual(document_model.data_items[0].transaction_count, 0)
-            self.assertEqual(document_model.data_items[1].transaction_count, 0)
+            self.assertFalse(master_data_item.in_transaction_state)
+            self.assertFalse(document_model.data_items[0].in_transaction_state)
+            self.assertFalse(document_model.data_items[1].in_transaction_state)
             with document_model.data_item_transaction(master_data_item):
-                self.assertTrue(master_data_item.transaction_count > 0)
-                self.assertEqual(document_model.data_items[0].transaction_count, 0)
-                self.assertEqual(document_model.data_items[1].transaction_count, 0)
+                self.assertTrue(master_data_item.in_transaction_state)
+                self.assertFalse(document_model.data_items[0].in_transaction_state)
+                self.assertFalse(document_model.data_items[1].in_transaction_state)
 
     def test_increment_data_ref_counts_cascades_to_data_item_refs(self):
         document_model = DocumentModel.DocumentModel()

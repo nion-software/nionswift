@@ -658,10 +658,17 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.persistent_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
+        self.__transactions_lock = threading.RLock()
+        self.__transactions = dict()
+        self.__live_data_items_lock = threading.RLock()
+        self.__live_data_items = dict()
+        self.__dependent_data_items_lock = threading.RLock()
+        self.__dependent_data_items = dict()
         self.__data_items = list()
         self.__data_item_item_inserted_listeners = dict()
         self.__data_item_item_removed_listeners = dict()
         self.__data_item_request_remove_region = dict()
+        self.__data_item_handle_dependency_action_listeners = dict()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -711,6 +718,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
             self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
             self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
+            self.__data_item_handle_dependency_action_listeners[data_item.uuid] = data_item.handle_dependency_action.listen(self.__handle_dependency_action)
             data_item.add_listener(self)
             data_item.set_data_item_manager(self)
             self.__buffered_data_source_set.update(set(data_item.data_sources))
@@ -806,6 +814,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
         self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
+        self.__data_item_handle_dependency_action_listeners[data_item.uuid] = data_item.handle_dependency_action.listen(self.__handle_dependency_action)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         data_item.set_data_item_manager(self)
         # fire buffered_data_source_set_changed_event
@@ -816,6 +825,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.computation_changed(data_source, data_source.computation)
             if data_source.computation:
                 data_source.computation.bind(self)
+        self.__handle_dependency_action(data_item)
 
     def remove_data_item(self, data_item):
         """ Remove data item from document model. Data item will have persistent_object_context cleared upon return. """
@@ -855,6 +865,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         del self.__data_item_item_removed_listeners[data_item.uuid]
         self.__data_item_request_remove_region[data_item.uuid].close()
         del self.__data_item_request_remove_region[data_item.uuid]
+        self.__data_item_handle_dependency_action_listeners[data_item.uuid].close()
+        del self.__data_item_handle_dependency_action_listeners[data_item.uuid]
         # update data item count
         self.notify_listeners("data_item_removed", self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
@@ -890,6 +902,25 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                             data_source.remove_region(region)
                             break
 
+    def __handle_dependency_action(self, data_item):
+        for action, target_data_item in data_item._get_pending_dependent_data_items():
+            if action == 'add':
+                with self.__dependent_data_items_lock:
+                    self.__dependent_data_items.setdefault(data_item.uuid, list()).append(target_data_item)
+                # propagate transaction and live states to dependents
+                if data_item.in_transaction_state:
+                    self.begin_data_item_transaction(target_data_item)
+                if data_item.is_live:
+                    self.begin_data_item_live(target_data_item)
+            elif action == 'remove':
+                with self.__dependent_data_items_lock:
+                    self.__dependent_data_items.setdefault(data_item.uuid, list()).remove(target_data_item)
+                # propagate transaction and live states to dependents
+                if data_item.in_transaction_state:
+                    self.end_data_item_transaction(target_data_item)
+                if data_item.is_live:
+                    self.end_data_item_live(target_data_item)
+
     # TODO: evaluate if buffered_data_source_set is needed
     @property
     def buffered_data_source_set(self):
@@ -905,8 +936,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     # transactions, live state, and dependencies
 
-    def get_dependent_data_items(self, parent_data_item):
-        return parent_data_item.dependent_data_items
+    def get_dependent_data_items(self, data_item):
+        """Return the list of data items containing data that directly depends on data in this item."""
+        with self.__dependent_data_items_lock:
+            return copy.copy(self.__dependent_data_items.get(data_item.uuid, list()))
 
     def data_item_transaction(self, data_item):
         """ Return a context manager to put the data item under a 'transaction'. """
@@ -922,10 +955,50 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         return TransactionContextManager(self, data_item)
 
     def begin_data_item_transaction(self, data_item):
-        data_item._begin_transaction()
+        """Begin transaction state.
+
+        A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
+        All changes to the object are delayed until the transaction state exits.
+
+        Has the side effects of entering the write delay state, cache delay state (via is_cached_delayed),
+        loading data of data sources, and entering transaction state for dependent data items.
+
+        This method is thread safe.
+        """
+        with self.__transactions_lock:
+            old_transaction_count = self.__transactions.get(data_item.uuid, 0)
+            self.__transactions[data_item.uuid] = old_transaction_count + 1
+        # if the old transaction count was 0, it means we're entering the transaction state.
+        if old_transaction_count == 0:
+            data_item._enter_transaction_state()
+            # finally, tell dependent data items to enter their transaction states also
+            # so that they also don't write change to disk immediately.
+            for dependent_data_item in self.get_dependent_data_items(data_item):
+                self.begin_data_item_transaction(dependent_data_item)
 
     def end_data_item_transaction(self, data_item):
-        data_item._end_transaction()
+        """End transaction state.
+
+        Has the side effects of exiting the write delay state, cache delay state (via is_cached_delayed),
+        unloading data of data sources, and exiting transaction state for dependent data items.
+
+        As a consequence of exiting write delay state, data and metadata may be written to disk.
+
+        As a consequence of existing cache delay state, cache may be written to disk.
+
+        This method is thread safe.
+        """
+        # maintain the transaction count under a mutex
+        with self.__transactions_lock:
+            transaction_count = self.__transactions.get(data_item.uuid, 0) - 1
+            assert transaction_count >= 0
+            self.__transactions[data_item.uuid] = transaction_count
+        # if the new transaction count is 0, it means we're exiting the transaction state.
+        if transaction_count == 0:
+            # first, tell our dependent data items to exit their transaction states.
+            for dependent_data_item in self.get_dependent_data_items(data_item):
+                self.end_data_item_transaction(dependent_data_item)
+            data_item._exit_transaction_state()
 
     def data_item_live(self, data_item):
         """ Return a context manager to put the data item in a 'live state'. """
@@ -941,10 +1014,35 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         return LiveContextManager(self, data_item)
 
     def begin_data_item_live(self, data_item):
-        data_item._begin_live()
+        """Begins a live transaction for the data item.
+
+        The live state is propagated to dependent data items.
+
+        This method is thread safe. See slow_test_dependent_data_item_removed_while_live_data_item_becomes_unlive.
+        """
+        with self.__live_data_items_lock:
+            old_live_count = self.__live_data_items.get(data_item.uuid, 0)
+            self.__live_data_items[data_item.uuid] = old_live_count + 1
+        if old_live_count == 0:
+            data_item._enter_live_state()
+            for dependent_data_item in self.get_dependent_data_items(data_item):
+                self.begin_data_item_live(dependent_data_item)
 
     def end_data_item_live(self, data_item):
-        data_item._end_live()
+        """Ends a live transaction for the data item.
+
+        The live-ness property is propagated to dependent data items, similar to the transactions.
+
+        This method is thread safe.
+        """
+        with self.__live_data_items_lock:
+            live_count = self.__live_data_items.get(data_item.uuid, 0) - 1
+            assert live_count >= 0
+            self.__live_data_items[data_item.uuid] = live_count
+        if live_count == 0:
+            data_item._exit_live_state()
+            for dependent_data_item in self.get_dependent_data_items(data_item):
+                self.end_data_item_live(dependent_data_item)
 
     # data groups
 

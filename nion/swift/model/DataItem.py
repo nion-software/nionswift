@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import copy
 import datetime
@@ -900,8 +897,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
         self.writer_version = DataItem.writer_version  # writes this version
-        self.__transaction_count = 0
-        self.__transaction_count_mutex = threading.RLock()
+        self.__in_transaction_state = False
+        self.__is_live = False
         self.__pending_write = True
         self.persistent_object_context = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
@@ -921,20 +918,19 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.__request_remove_listeners = list()
         self.__request_remove_region_listeners = list()
         self.__subscriptions = list()
-        self.__live_count = 0  # specially handled property
-        self.__live_count_lock = threading.RLock()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
         self.request_remove_region_event = Event.Event()
+        self.handle_dependency_action = Event.Event()
+        self.__dependent_data_item_actions_lock = threading.RLock()
+        self.__dependent_data_item_actions = list()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
-        self.__dependent_data_item_refs = list()
-        self.__dependent_data_item_refs_lock = threading.RLock()
         self.__suspendable_storage_cache = None
         self.r_var = None
         if data is not None:
@@ -1052,9 +1048,8 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         return self.__suspendable_storage_cache
 
     @property
-    def transaction_count(self):
-        """ Return the transaction count for this data item. """
-        return self.__transaction_count
+    def in_transaction_state(self) -> bool:
+        return self.__in_transaction_state
 
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
@@ -1072,76 +1067,35 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
                 self.persistent_object_context.write_data_item(self)
             self.__pending_write = False
 
-    def _begin_transaction(self):
-        """Begin transaction state.
+    def _enter_transaction_state(self):
+        self.__in_transaction_state = True
+        # first enter the write delay state.
+        self.__enter_write_delay_state()
+        # suspend disk caching
+        if self.__suspendable_storage_cache:
+            self.__suspendable_storage_cache.suspend_cache()
+        # tell each data source to load its data.
+        # this prevents paging in and out.
+        for data_source in self.data_sources:
+            data_source.increment_data_ref_count()
 
-        A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
-        All changes to the object are delayed until the transaction state exits.
-
-        Has the side effects of entering the write delay state, cache delay state (via is_cached_delayed),
-        loading data of data sources, and entering transaction state for dependent data items.
-
-        This method is thread safe.
-        """
-        #logging.debug("begin transaction %s %s", self.uuid, self.__transaction_count)
-        # maintain the transaction count under a mutex
-        with self.__transaction_count_mutex:
-            old_transaction_count = self.__transaction_count
-            self.__transaction_count += 1
-        # if the old transaction count was 0, it means we're entering the transaction state.
-        if old_transaction_count == 0:
-            # first enter the write delay state.
-            self.__enter_write_delay_state()
-            # suspend disk caching
-            if self.__suspendable_storage_cache:
-                self.__suspendable_storage_cache.suspend_cache()
-            # now tell each data source to load its data.
-            # this prevents paging in and out.
-            for data_source in self.data_sources:
-                data_source.increment_data_ref_count()
-            # finally, tell dependent data items to enter their transaction states also
-            # so that they also don't write change to disk immediately.
-            for data_item in self.dependent_data_items:
-                data_item._begin_transaction()
-
-    def _end_transaction(self):
-        """End transaction state.
-
-        Has the side effects of exiting the write delay state, cache delay state (via is_cached_delayed),
-        unloading data of data sources, and exiting transaction state for dependent data items.
-
-        As a consequence of exiting write delay state, data and metadata may be written to disk.
-
-        As a consequence of existing cache delay state, cache may be written to disk.
-
-        This method is thread safe.
-        """
-        # maintain the transaction count under a mutex
-        with self.__transaction_count_mutex:
-            self.__transaction_count -= 1
-            assert self.__transaction_count >= 0
-            transaction_count = self.__transaction_count
-        # if the new transaction count is 0, it means we're exiting the transaction state.
-        if transaction_count == 0:
-            # first, tell our dependent data items to exit their transaction states.
-            for data_item in self.dependent_data_items:
-                data_item._end_transaction()
-            # being in the transaction state has the side effect of delaying the cache too.
-            # spill whatever was into the local cache into the persistent cache.
-            if self.__suspendable_storage_cache:
-                self.__suspendable_storage_cache.spill_cache()
-            # exit the write delay state.
-            self.__exit_write_delay_state()
-            # finally, tell each data source to unload its data.
-            for data_source in self.data_sources:
-                data_source.decrement_data_ref_count()
-        #logging.debug("end transaction %s %s", self.uuid, self.__transaction_count)
+    def _exit_transaction_state(self):
+        self.__in_transaction_state = False
+        # being in the transaction state has the side effect of delaying the cache too.
+        # spill whatever was into the local cache into the persistent cache.
+        if self.__suspendable_storage_cache:
+            self.__suspendable_storage_cache.spill_cache()
+        # exit the write delay state.
+        self.__exit_write_delay_state()
+        # finally, tell each data source to unload its data.
+        for data_source in self.data_sources:
+            data_source.decrement_data_ref_count()
 
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.
         # this can occur during acquisition. any other cases?
         super(DataItem, self).persistent_object_context_changed()
-        if self.__transaction_count > 0:
+        if self.__in_transaction_state:
             self.__enter_write_delay_state()
 
     def _test_get_file_path(self):
@@ -1172,43 +1126,15 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
     @property
     def is_live(self):
         """ Return whether this data item represents a live acquisition data item. """
-        return self.__live_count > 0
+        return self.__is_live
 
-    @property
-    def live_count(self):
-        """ Return the live count for this data item. """
-        return self.__live_count
+    def _enter_live_state(self):
+        self.__is_live = True
+        self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
 
-    def _begin_live(self):
-        """Begins a live transaction with this item.
-
-        The live state is propagated to dependent data items.
-
-        This method is thread safe. See slow_test_dependent_data_item_removed_while_live_data_item_becomes_unlive.
-        """
-        with self.__live_count_lock:
-            old_live_count = self.__live_count
-            self.__live_count += 1
-        if old_live_count == 0:
-            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
-            for data_item in self.dependent_data_items:
-                data_item._begin_live()
-
-    def _end_live(self):
-        """
-        Ends a live transaction with this item. The live-ness property is propagated to
-        dependent data items, similar to the transactions.
-
-        This method is thread safe.
-        """
-        with self.__live_count_lock:
-            self.__live_count -= 1
-            assert self.__live_count >= 0
-            live_count = self.__live_count
-        if live_count == 0:
-            self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
-            for data_item in self.dependent_data_items:
-                data_item._end_live()
+    def _exit_live_state(self):
+        self.__is_live = False
+        self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -1346,7 +1272,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.__request_remove_region_listeners.insert(before_index, data_source.request_remove_region_because_data_item_removed_event.listen(request_remove_region))
         # being in transaction state means that data sources have their data loaded.
         # so load data here to keep the books straight when the transaction state is exited.
-        if self.__transaction_count > 0:
+        if self.__in_transaction_state:
             data_source.increment_data_ref_count()
         def next_value(data_and_calibration):
             if not self._is_reading:
@@ -1376,7 +1302,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         del self.__request_remove_region_listeners[index]
         # being in transaction state means that data sources have their data loaded.
         # so unload data here to keep the books straight when the transaction state is exited.
-        if self.__transaction_count > 0:
+        if self.__in_transaction_state:
             data_source.decrement_data_ref_count()
         # the document model watches for new data sources via observing.
         # send this message to make data_sources observable.
@@ -1437,41 +1363,23 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             for data_source in self.data_sources:
                 data_source.set_data_item_manager(self.__data_item_manager)
 
-    # track dependent data items. useful for propagating transaction support.
-    def add_dependent_data_item(self, data_item):
-        # add the data item from our list of dependents
-        with self.__dependent_data_item_refs_lock:
-            self.__dependent_data_item_refs.append(weakref.ref(data_item))
-        # when transaction or live count is changed, it will propagate those changes
-        # to dependent items. since we're inserting a new dependent, we need
-        # to compensate for those changes here.
-        if self.__transaction_count > 0:
-            data_item._begin_transaction()
-        if self.__live_count > 0:
-            data_item._begin_live()
+    def _get_pending_dependent_data_items(self):
+        with self.__dependent_data_item_actions_lock:
+            dependent_data_item_actions = copy.copy(self.__dependent_data_item_actions)
+            self.__dependent_data_item_actions.clear()
+        return dependent_data_item_actions
 
     # track dependent data items. useful for propagating transaction support.
-    def remove_dependent_data_item(self, data_item):
-        # remove the data item from our list of dependents
-        with self.__dependent_data_item_refs_lock:
-            self.__dependent_data_item_refs.remove(weakref.ref(data_item))
-        # when transaction or live count is changed, it will propagate those changes
-        # to dependent items. since we're removing the dependent completely, we need
-        # to compensate for those changes here.
-        # TODO: is this open to a race condition?
-        # if acquisition is running, live count is being changed regularly on a thread.
-        # if that change occurs after end_live has been called below, but before it's
-        # actually changed within the end_live method, a race condition has occurred.
-        if self.__transaction_count > 0:
-            data_item._end_transaction()
-        if self.__live_count > 0:
-            data_item._end_live()
+    def add_dependent_data_item(self, data_item: "DataItem") -> None:
+        with self.__dependent_data_item_actions_lock:
+            self.__dependent_data_item_actions.append(('add', data_item))
+        self.handle_dependency_action.fire(self)
 
-    @property
-    def dependent_data_items(self):
-        """Return the list of data items containing data that directly depends on data in this item."""
-        with self.__dependent_data_item_refs_lock:
-            return [data_item_ref() for data_item_ref in self.__dependent_data_item_refs]
+    # track dependent data items. useful for propagating transaction support.
+    def remove_dependent_data_item(self, data_item: "DataItem") -> None:
+        with self.__dependent_data_item_actions_lock:
+            self.__dependent_data_item_actions.append(('remove', data_item))
+        self.handle_dependency_action.fire(self)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):
