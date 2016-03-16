@@ -1248,7 +1248,7 @@ class OperationsInspectorSection(InspectorSection):
                 label_widget = self.ui.create_label_widget(name)
                 slider_widget = self.ui.create_slider_widget()
                 slider_widget.maximum = 100
-                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property, converter=Converter.FloatTo100Converter()))
+                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property, converter=Converter.FloatToScaledIntegerConverter(100)))
                 line_edit_widget = self.ui.create_line_edit_widget()
                 line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=Converter.FloatToPercentStringConverter()))
                 row_widget.add(label_widget)
@@ -1387,10 +1387,11 @@ class ComputationInspectorSection(InspectorSection):
                     row = self.ui.create_row_widget()
                     label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
                     label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+                    f_converter = Converter.FloatToScaledIntegerConverter(1000, variable.value_min, variable.value_max)
                     slider_widget = self.ui.create_slider_widget()
-                    slider_widget.minimum = variable.value_min
-                    slider_widget.maximum = variable.value_max
-                    slider_widget.bind_value(Binding.PropertyBinding(variable, "value"))
+                    slider_widget.minimum = 0
+                    slider_widget.maximum = 1000
+                    slider_widget.bind_value(Binding.PropertyBinding(variable, "value", converter=f_converter))
                     line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
                     line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
                     row.add(label_widget)
