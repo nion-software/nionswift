@@ -1382,7 +1382,28 @@ class ComputationInspectorSection(InspectorSection):
                     column.add_spacing(4)
                     return WidgetWrapper(column)
 
-                def make_slider(variable, converter):
+                def make_slider_int(variable, converter):
+                    column = self.ui.create_column_widget()
+                    row = self.ui.create_row_widget()
+                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
+                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+                    slider_widget = self.ui.create_slider_widget()
+                    slider_widget.minimum = variable.value_min
+                    slider_widget.maximum = variable.value_max
+                    slider_widget.bind_value(Binding.PropertyBinding(variable, "value"))
+                    line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
+                    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+                    row.add(label_widget)
+                    row.add_spacing(8)
+                    row.add(slider_widget)
+                    row.add_spacing(8)
+                    row.add(line_edit_widget)
+                    row.add_spacing(8)
+                    column.add(row)
+                    column.add_spacing(4)
+                    return WidgetWrapper(column)
+
+                def make_slider_float(variable, converter):
                     column = self.ui.create_column_widget()
                     row = self.ui.create_row_widget()
                     label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
@@ -1480,11 +1501,11 @@ class ComputationInspectorSection(InspectorSection):
                     if variable.variable_type == "boolean":
                         return make_checkbox(variable)
                     elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
-                        return make_slider(variable, Converter.IntegerToStringConverter())
+                        return make_slider_int(variable, Converter.IntegerToStringConverter())
                     elif variable.variable_type == "integral":
                         return make_field(variable, Converter.IntegerToStringConverter())
                     elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
-                        return make_slider(variable, Converter.FloatToStringConverter())
+                        return make_slider_float(variable, Converter.FloatToStringConverter())
                     elif variable.variable_type == "real":
                         return make_field(variable, Converter.FloatToStringConverter())
                     elif variable.variable_type in ("data_item", "data", "display_data"):
