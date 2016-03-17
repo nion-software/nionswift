@@ -628,20 +628,9 @@ class InvertOperation(Operation):
     def __init__(self):
         super(InvertOperation, self).__init__(_("Invert"), "invert-operation")
 
-    def get_processed_data(self, data_sources, values):
-        assert(len(data_sources) == 1)
-        data = data_sources[0].data
-        if not Image.is_data_valid(data):
-            return None
-        if Image.is_data_rgba(data) or Image.is_data_rgb(data):
-            if Image.is_data_rgba(data):
-                inverted = 255 - data[:]
-                inverted[...,3] = data[...,3]
-                return inverted
-            else:
-                return 255 - data[:]
-        else:
-            return -data[:]
+    def get_processed_data_and_calibration(self, data_and_calibrations, values):
+        data_and_metadata = Core.function_invert(*data_and_calibrations)
+        return data_and_metadata if data_and_metadata else None
 
 
 class SobelOperation(Operation):

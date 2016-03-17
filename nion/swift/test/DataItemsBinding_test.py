@@ -306,10 +306,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
             document_model.recompute_all()
             binding.data_item_inserted(None, data_item, 0, False)
             self.assertEqual(len(binding.data_items), 5)
-            # new data item should be in either position 0, 1 depending on uuid
-            self.assertTrue(binding.data_items.index(document_model.data_items[4]) in [0, 1])
-            self.assertTrue(binding.data_items.index(document_model.data_items[0]) in [0, 1])
-            self.assertEqual(list(document_model.data_items[1:4]), binding.data_items[2:])  # rest of list matches
+            # new data item should be last
+            self.assertEqual(binding.data_items.index(document_model.data_items[4]), 4)
+            self.assertEqual(binding.data_items.index(document_model.data_items[0]), 0)
+            self.assertEqual(list(document_model.data_items[2:5]), binding.data_items[2:])  # rest of list matches
 
 
 if __name__ == '__main__':

@@ -910,10 +910,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item1._create_test_data_source())
-            invert_operation.add_data_source(data_item2._create_test_data_source())
-            data_item.set_operation(invert_operation)
+            operation = Operation.OperationItem("cross-correlate-operation")
+            operation.add_data_source(data_item1._create_test_data_source())
+            operation.add_data_source(data_item2._create_test_data_source())
+            data_item.set_operation(operation)
             document_model.append_data_item(data_item)
 
     def test_data_item_allows_remove_second_of_two_data_sources(self):
@@ -925,12 +925,12 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item1._create_test_data_source())
-            invert_operation.add_data_source(data_item2._create_test_data_source())
-            data_item.set_operation(invert_operation)
+            operation = Operation.OperationItem("cross-correlate-operation")
+            operation.add_data_source(data_item1._create_test_data_source())
+            operation.add_data_source(data_item2._create_test_data_source())
+            data_item.set_operation(operation)
             document_model.append_data_item(data_item)
-            invert_operation.remove_data_source(invert_operation.data_sources[1])
+            operation.remove_data_source(operation.data_sources[1])
 
     def test_region_graphic_gets_added_to_existing_display(self):
         document_model = DocumentModel.DocumentModel()
@@ -1588,7 +1588,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             document_model.recompute_all()
             self.assertIsNotNone(src_data_item.maybe_data_source.data_modified)
-            self.assertEqual(src_data_item.maybe_data_source.data_modified, data_item.maybe_data_source.source_data_modified)
+            self.assertGreaterEqual(data_item.maybe_data_source.source_data_modified, src_data_item.maybe_data_source.data_modified)
 
     def test_processed_data_item_has_source_data_modified_equal_to_sources_created_when_sources_data_modified_is_none(self):
         document_model = DocumentModel.DocumentModel()
@@ -1603,7 +1603,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item.set_operation(operation)
             document_model.append_data_item(data_item)
             document_model.recompute_all()
-            self.assertEqual(src_data_item.maybe_data_source.created, data_item.maybe_data_source.source_data_modified)
+            self.assertGreaterEqual(data_item.maybe_data_source.source_data_modified, src_data_item.maybe_data_source.created)
 
     def test_transaction_does_not_cascade_to_data_item_refs(self):
         # no reason to cascade since there is no high cost data to be loaded for aggregate data items
