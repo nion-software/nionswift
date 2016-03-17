@@ -874,34 +874,40 @@ class QtComboBoxWidget(QtWidget):
         self.on_current_item_changed = None
         super(QtComboBoxWidget, self).close()
 
-    def __get_current_text(self):
+    @property
+    def current_text(self):
         return self.proxy.ComboBox_getCurrentText(self.widget)
-    def __set_current_text(self, text):
-        self.proxy.ComboBox_setCurrentText(self.widget, Unicode.u(text))
-    current_text = property(__get_current_text, __set_current_text)
 
-    def __get_current_item(self):
+    @current_text.setter
+    def current_text(self, value):
+        self.proxy.ComboBox_setCurrentText(self.widget, Unicode.u(value))
+
+    @property
+    def current_item(self):
         current_text = self.current_text
         for item in self.items:
             if current_text == Unicode.u(self.item_getter(item) if self.item_getter else item):
                 return item
         return None
-    def __set_current_item(self, item):
-        item_string = Unicode.u(self.item_getter(item) if self.item_getter else item)
+
+    @current_item.setter
+    def current_item(self, value):
+        item_string = Unicode.u(self.item_getter(value) if self.item_getter and value is not None else value)
         if self.widget:  # may be called as task, so verify it hasn't closed yet
             self.proxy.ComboBox_setCurrentText(self.widget, item_string)
-    current_item = property(__get_current_item, __set_current_item)
 
-    def __get_items(self):
+    @property
+    def items(self):
         return self.__items
-    def __set_items(self, items):
+
+    @items.setter
+    def items(self, items):
         self.proxy.ComboBox_removeAllItems(self.widget)
         self.__items = list()
         for item in items:
             item_string = Unicode.u(self.item_getter(item) if self.item_getter else item)
             self.proxy.ComboBox_addItem(self.widget, item_string)
             self.__items.append(item)
-    items = property(__get_items, __set_items)
 
     # this message comes from Qt implementation
     def currentTextChanged(self, text):
