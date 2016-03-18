@@ -103,6 +103,17 @@ class TestSymbolicClass(unittest.TestCase):
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[:,4,4])
 
+    def test_ability_to_take_slice_on_1d_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(8)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation("a[2:6]")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d[2:6])
+
     def test_slice_with_empty_dimension_produces_error(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -152,6 +163,18 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             data = computation.evaluate().data
             assert numpy.array_equal(data, d[numpy.newaxis, ...])
+
+    def test_ability_to_take_1d_slice_with_newaxis(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((8,), dtype=numpy.uint32)
+            d[:] = random.randint(1, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation("a[..., newaxis]")
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
+            data = computation.evaluate().data
+            assert numpy.array_equal(data, d[..., numpy.newaxis])
 
     def test_slice_sum_sums_correct_slices(self):
         document_model = DocumentModel.DocumentModel()
