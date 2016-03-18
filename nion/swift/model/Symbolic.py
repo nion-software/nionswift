@@ -43,11 +43,11 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     Specifier value types have a specifier which can be resolved to a specific object.
     """
-    def __init__(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None):  # defaults are None for factory
+    def __init__(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None):  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
-        self.define_property("label", name, changed=self.__property_changed)
+        self.define_property("label", label if label else name, changed=self.__property_changed)
         self.define_property("value_type", value_type, changed=self.__property_changed)
         self.define_property("value", value, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("value_default", value_default, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
@@ -342,13 +342,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.variable_removed_event.fire(index, variable)
         self.computation_mutated_event.fire()
 
-    def create_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> ComputationVariable:
-        variable = ComputationVariable(name, value_type, value, value_default, value_min, value_max, control_type, specifier)
+    def create_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> ComputationVariable:
+        variable = ComputationVariable(name, value_type, value, value_default, value_min, value_max, control_type, specifier, label)
         self.add_variable(variable)
         return variable
 
-    def create_object(self, name: str, object_specifier: dict, cascade_delete: bool=False) -> ComputationVariable:
-        variable = ComputationVariable(name, specifier=object_specifier)
+    def create_object(self, name: str, object_specifier: dict, cascade_delete: bool=False, label: str=None) -> ComputationVariable:
+        variable = ComputationVariable(name, specifier=object_specifier, label=label)
         self.add_variable(variable)
         variable.cascade_delete = cascade_delete
         return variable
