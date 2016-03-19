@@ -1,7 +1,5 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
+import collections
 import copy
 import functools
 import gettext
@@ -13,6 +11,9 @@ import time
 import traceback
 import uuid
 import weakref
+
+# typing
+from typing import List
 
 # third party libraries
 # None
@@ -319,12 +320,6 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Line Profile"), lambda: self.processing_line_profile())
         self.processing_menu.add_menu_item(_("Histogram"), lambda: self.processing_histogram())
         self.processing_menu.add_menu_item(_("Convert to Scalar"), lambda: self.processing_convert_to_scalar())
-        self.processing_menu.add_separator()
-
-        self.processing_menu.add_menu_item(_("Crop (Experimental)"), lambda: self.processing_crop_new())
-        self.processing_menu.add_menu_item(_("Pick (Experimental)"), lambda: self.processing_pick_new())
-        self.processing_menu.add_menu_item(_("Slice (Experimental)"), lambda: self.processing_slice_new())
-        self.processing_menu.add_menu_item(_("Line Profile (Experimental)"), lambda: self.processing_line_profile_new())
         self.processing_menu.add_separator()
 
         self.__dynamic_live_actions = []
@@ -1159,119 +1154,233 @@ class DocumentController(Observable.Broadcaster):
         self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
         return data_item
 
-    def processing_crop_new(self):
+    def processing_cross_correlate_new(self):
+        selected_data_items = self.__data_browser_controller.selected_data_items
+        if len(selected_data_items) == 2:
+            display_specifier1 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
+            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[1])
+            crop_region1 = self.__get_crop_region(display_specifier1)
+            crop_region2 = self.__get_crop_region(display_specifier2)
+            data_item = self.get_cross_correlate_new(display_specifier1.data_item, crop_region1, display_specifier2.data_item, crop_region2)
+            if data_item:
+                new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                self.display_data_item(new_display_specifier)
+                return data_item
+        return None
+
+    def __processing_new(self, fn):
         display_specifier = self.selected_display_specifier
         crop_region = self.__get_crop_region(display_specifier)
-        data_item = self.get_crop_new(display_specifier.data_item, crop_region)
+        data_item = fn(display_specifier.data_item, crop_region)
         if data_item:
-            crop_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.display_data_item(crop_display_specifier)
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.display_data_item(new_display_specifier)
             return data_item
         return None
 
-    def processing_pick_new(self):
-        display_specifier = self.selected_display_specifier
-        data_item = self.get_pick_new(display_specifier.data_item)
-        if data_item:
-            pick_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.display_data_item(pick_display_specifier)
-            return data_item
-        return None
+    Requirement = collections.namedtuple("Requirement", ["type", "mn", "mx"])
 
-    def processing_slice_new(self, map=None):
-        display_specifier = self.selected_display_specifier
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
-            data_item = DataItem.DataItem()
-            data_item.title = _("New Slice on ") + display_specifier.data_item.title
-            data_item.category = display_specifier.data_item.category
-            computation = self.document_model.create_computation("slice_sum(src.data, 0, 1)")
-            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item))
+    @staticmethod
+    def make_requirement(type, mn=None, mx=None):
+        return DocumentController.Requirement(type, mn, mx)
+
+    Source = collections.namedtuple("Source", ["data_item", "crop_region", "name", "label", "use_display_data", "requirements", "regions"])
+
+    @staticmethod
+    def make_source(data_item, crop_region=None, name=None, label=None, use_display_data=True, requirements=None, regions=None):
+        return DocumentController.Source(data_item, crop_region, name, label, use_display_data, requirements, regions)
+
+    Parameter = collections.namedtuple("Parameter", ["name", "label", "type", "value", "value_default", "value_min", "value_max", "control_type"])
+
+    @staticmethod
+    def make_parameter(name, label, type, value, value_default=None, value_min=None, value_max=None, control_type=None):
+        return DocumentController.Parameter(name, label, type, value, value_default, value_min, value_max, control_type)
+
+    Region_ = collections.namedtuple("Region", ["name", "type", "label", "region"])
+
+    @staticmethod
+    def make_region(name, type, label=None, region=None):
+        return DocumentController.Region_(name, type, label, region)
+
+    Connection = collections.namedtuple("Connection", ["type", "src", "src_prop", "dst", "dst_prop"])
+
+    @staticmethod
+    def make_connection(type, src=None, src_prop=None, dst=None, dst_prop=None):
+        return DocumentController.Connection(type, src, src_prop, dst, dst_prop)
+
+    def __get_processing_new(self, fn_template: str, sources: List, params: List, label: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
+        data_items = [source.data_item for source in sources]
+        display_specifiers = [DataItem.DisplaySpecifier.from_data_item(data_item) for data_item in data_items]
+        buffered_data_sources = [display_specifier.buffered_data_source for display_specifier in display_specifiers]
+        for source, buffered_data_source in zip(sources, buffered_data_sources):
+            for requirement in source.requirements or list():
+                if requirement.type == "dimensionality":
+                    dimensionality = len(buffered_data_source.dimensional_shape)
+                    if requirement.mn is not None and dimensionality < requirement.mn:
+                        return None
+                    if requirement.mx is not None and dimensionality > requirement.mx:
+                        return None
+                if requirement.type == "has_crop":
+                    if not source.crop_region:
+                        return None
+        if len(buffered_data_sources) > 0 and all(buffered_data_sources):
+            new_data_item = DataItem.DataItem()
+            prefix = prefix if prefix else "{} of ".format(label)
+            new_data_item.title = prefix + data_items[0].title
+            new_data_item.category = data_items[0].category
+            src_names = list()
+            src_texts = list()
+            crop_names = list()
+            regions = list()
+            region_map = dict()
+            for i, (source, buffered_data_source) in enumerate(zip(sources, buffered_data_sources)):
+                suffix = i if len(sources) > 1 else ""
+                src_name = source.name if source.name else "src{}".format(suffix)
+                src_text = "{}.{}".format(src_name, "display_data" if source.use_display_data else "data")
+                crop_name = "crop_region{}".format(suffix) if source.crop_region else ""
+                src_text = src_text if not source.crop_region else "crop({}, {}.bounds)".format(src_text, crop_name)
+                src_names.append(src_name)
+                src_texts.append(src_text)
+                crop_names.append(crop_name)
+                for region in source.regions or list():
+                    if region.type == "point":
+                        point_region = Region.PointRegion()
+                        point_region.label = region.label
+                        buffered_data_source.add_region(point_region)
+                        regions.append((region.name, point_region, region.label))
+                        region_map[region.name] = point_region
+                    elif region.type == "line":
+                        line_region = Region.LineRegion()
+                        line_region.start = 0.25, 0.25
+                        line_region.end = 0.75, 0.75
+                        buffered_data_source.add_region(line_region)
+                        regions.append((region.name, line_region, region.label))
+                        region_map[region.name] = line_region
+            expression = fn_template.format(**dict(zip(src_names, src_texts)))
+            computation = self.document_model.create_computation(expression)
+            for src_name, display_specifier, source in zip(src_names, display_specifiers, sources):
+                computation.create_object(src_name, self.document_model.get_object_specifier(display_specifier.data_item), label=source.label, cascade_delete=True)
+            for crop_name, source in zip(crop_names, sources):
+                if crop_name:
+                    computation.create_object(crop_name, self.document_model.get_object_specifier(source.crop_region), label=_("Crop Region"), cascade_delete=True)
+            for region_name, region, region_label in regions:
+                computation.create_object(region_name, self.document_model.get_object_specifier(region), label=region_label, cascade_delete=True)
+            for param in params:
+                computation.create_variable(param.name, param.type, param.value, value_default=param.value_default, value_min=param.value_min, value_max=param.value_max,
+                                            control_type=param.control_type, label=param.label)
+            computation.label = label
             buffered_data_source = DataItem.BufferedDataSource()
-            data_item.append_data_source(buffered_data_source)
+            new_data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
-            self.document_model.append_data_item(data_item)
-            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
-            return data_item
+            self.document_model.append_data_item(new_data_item)
+            new_regions = dict()
+            for region in out_regions or list():
+                if region.type == "interval":
+                    interval_region = Region.IntervalRegion()
+                    buffered_data_source.add_region(interval_region)
+                    new_regions[region.name] = interval_region
+            for connection in connections or list():
+                if connection.type == "property":
+                    if connection.src == "display":
+                        # TODO: how to refer to the buffered_data_sources?
+                        new_data_item.add_connection(Connection.PropertyConnection(buffered_data_sources[0].displays[0], connection.src_prop, new_regions[connection.dst], connection.dst_prop))
+                elif connection.type == "interval_list":
+                    new_data_item.add_connection(Connection.IntervalListConnection(buffered_data_source, region_map[connection.dst]))
+            return new_data_item
         return None
 
-    def processing_line_profile_new(self, map=None):
-        display_specifier = self.selected_display_specifier
-        data_item = self.get_line_profile_new(display_specifier.data_item)
-        if data_item:
-            line_profile_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.display_data_item(line_profile_display_specifier)
-            return data_item
-        return None
+    def get_fft_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        return self.__get_processing_new("fft({src})", [src], [], _("FFT"))
+
+    def get_ifft_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, None, "src", _("Source"), use_display_data=False)
+        return self.__get_processing_new("ifft({src})", [src], [], _("Inverse FFT"))
+
+    def get_auto_correlate_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        return self.__get_processing_new("autocorrelate({src})", [src], [], _("Auto Correlate"))
+
+    def get_cross_correlate_new(self, data_item1: DataItem.DataItem, crop_region1: Region.RectRegion, data_item2: DataItem.DataItem, crop_region2: Region.RectRegion) -> DataItem.DataItem:
+        src1 = DocumentController.make_source(data_item1, crop_region1, "src1", _("Source1"))
+        src2 = DocumentController.make_source(data_item2, crop_region2, "src2", _("Source2"))
+        return self.__get_processing_new("crosscorrelate({src1}, {src2})", [src1, src2], [], _("Cross Correlate"))
+
+    def get_sobel_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        return self.__get_processing_new("sobel({src})", [src], [], _("Sobel"))
+
+    def get_laplace_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        return self.__get_processing_new("laplace({src})", [src], [], _("Laplace"))
+
+    def get_gaussian_blur_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        param = DocumentController.make_parameter("sigma", _("Sigma"), "real", 3, value_default=3, value_min=0, value_max=100, control_type="slider")
+        return self.__get_processing_new("gaussian_blur({src}, sigma)", [src], [param], _("Gaussian Blur"))
+
+    def get_median_filter_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        param = DocumentController.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
+        return self.__get_processing_new("median_filter({src}, filter_size)", [src], [param], _("Median Filter"))
+
+    def get_uniform_filter_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        param = DocumentController.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
+        return self.__get_processing_new("uniform_filter({src}, filter_size)", [src], [param], _("Uniform Filter"))
+
+    def get_transpose_flip_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        param1 = DocumentController.make_parameter("do_transpose", _("Transpose"), "boolean", False, value_default=False)
+        param2 = DocumentController.make_parameter("do_flip_v", _("Flip Vertical"), "boolean", False, value_default=False)
+        param3 = DocumentController.make_parameter("do_flip_h", _("Flip Horizontal"), "boolean", False, value_default=False)
+        return self.__get_processing_new("transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", [src], [param1, param2, param3], _("Transpose/Flip"))
+
+    def get_resample_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        param1 = DocumentController.make_parameter("width", _("Width"), "integral", 256, value_default=256, value_min=1)
+        param2 = DocumentController.make_parameter("height", _("Height"), "integral", 256, value_default=256, value_min=1)
+        return self.__get_processing_new("resample_image({src}, shape(height, width))", [src], [param1, param2], _("Resample"))
+
+    def get_histogram_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        param = DocumentController.make_parameter("bins", _("Bins"), "integral", 256, value_default=256, value_min=2)
+        return self.__get_processing_new("histogram({src}, bins)", [src], [param], _("Histogram"))
+
+    def get_invert_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        return self.__get_processing_new("invert({src})", [src], [], _("Invert"))
+
+    def get_convert_to_scalar_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"))
+        return self.__get_processing_new("{src}", [src], [], _("Scalar"))
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2 and crop_region:
-            crop_data_item = DataItem.DataItem()
-            crop_data_item.title = _("New Crop on ") + data_item.title
-            crop_data_item.category = data_item.category
-            computation = self.document_model.create_computation("crop(src.display_data, crop_region.bounds)")
-            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
-            computation.create_object("crop_region", self.document_model.get_object_specifier(crop_region), cascade_delete=True)
-            buffered_data_source = DataItem.BufferedDataSource()
-            crop_data_item.append_data_source(buffered_data_source)
-            buffered_data_source.set_computation(computation)
-            self.document_model.append_data_item(crop_data_item)
-            region_display_specifier = DataItem.DisplaySpecifier.from_data_item(crop_data_item)
-            # when the intervals on the line_profile_data_item change, update the displayed intervals on the line_region
-            crop_data_item.add_connection(Connection.IntervalListConnection(region_display_specifier.buffered_data_source, crop_region))
-            return crop_data_item
-        return None
+        requirement1 = DocumentController.make_requirement("dimensionality", mn=2, mx=2)
+        requirement2 = DocumentController.make_requirement("has_crop")
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"), requirements=[requirement1, requirement2])
+        return self.__get_processing_new("{src}", [src], [], _("Crop"))
 
-    def get_pick_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
-            pick_region = Region.PointRegion()
-            pick_region.label = _("Pick")
-            buffered_data_source.add_region(pick_region)
-            pick_data_item = DataItem.DataItem()
-            pick_data_item.title = _("New Pick on ") + data_item.title
-            pick_data_item.category = data_item.category
-            computation = self.document_model.create_computation("pick(src.data, pick_region.position)")
-            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
-            computation.create_object("pick_region", self.document_model.get_object_specifier(pick_region), cascade_delete=True)
-            buffered_data_source = DataItem.BufferedDataSource()
-            pick_data_item.append_data_source(buffered_data_source)
-            buffered_data_source.set_computation(computation)
-            self.document_model.append_data_item(pick_data_item)
-            region_display_specifier = DataItem.DisplaySpecifier.from_data_item(pick_data_item)
-            # when the intervals on the line_profile_data_item change, update the displayed intervals on the line_region
-            pick_data_item.add_connection(Connection.IntervalListConnection(region_display_specifier.buffered_data_source, pick_region))
-            return pick_data_item
-        return None
+    def get_slice_sum_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        requirement = DocumentController.make_requirement("dimensionality", mn=3, mx=3)
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
+        param1 = DocumentController.make_parameter("center", _("Center"), "integral", 0, value_default=0, value_min=0)
+        param2 = DocumentController.make_parameter("width", _("Width"), "integral", 1, value_default=1, value_min=1)
+        return self.__get_processing_new("slice_sum({src}, center, width)", [src], [param1, param2], _("Slice"))
 
-    def get_line_profile_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source:
-            line_region = Region.LineRegion()
-            line_region.start = 0.25, 0.25
-            line_region.end = 0.75, 0.75
-            buffered_data_source.add_region(line_region)
-            line_profile_data_item = DataItem.DataItem()
-            line_profile_data_item.title = _("New Line Profile on ") + line_profile_data_item.title
-            line_profile_data_item.category = data_item.category
-            computation = self.document_model.create_computation("line_profile(src.display_data, line_region.vector, line_region.width)")
-            computation.create_object("src", self.document_model.get_object_specifier(display_specifier.data_item), cascade_delete=True)
-            computation.create_object("line_region", self.document_model.get_object_specifier(line_region), cascade_delete=True)
-            buffered_data_source = DataItem.BufferedDataSource()
-            line_profile_data_item.append_data_source(buffered_data_source)
-            buffered_data_source.set_computation(computation)
-            self.document_model.append_data_item(line_profile_data_item)
-            line_profile_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
-            # when the intervals on the line_profile_data_item change, update the displayed intervals on the line_region
-            line_profile_data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_region))
-            # when line_profile_data_item gets deleted, the line_region gets deleted
-            # when the line_region gets deleted, the line_profile_data_item gets deleted
-            return line_profile_data_item
-        return None
+    def get_pick_new(self, data_item: DataItem.DataItem, pick_region: Region.PointRegion=None) -> DataItem.DataItem:
+        requirement = DocumentController.make_requirement("dimensionality", mn=3, mx=3)
+        in_region = DocumentController.make_region("pick_region", "point", _("Pick Point"), pick_region)
+        out_region = DocumentController.make_region("interval_region", "interval")
+        connection = DocumentController.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
+        src = DocumentController.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
+        return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Slice"), out_regions=[out_region], connections=[connection])
+
+    def get_line_profile_new(self, data_item: DataItem.DataItem, line_region: Region.LineRegion=None) -> DataItem.DataItem:
+        in_region = DocumentController.make_region("line_region", "line", _("Line Profile"), line_region)
+        connection = DocumentController.make_connection("interval_list", src="data_source", dst="line_region")
+        src = DocumentController.make_source(data_item, None, "src", _("Source"), regions=[in_region])
+        return self.__get_processing_new("line_profile({src}, line_region.vector, line_region.width)", [src], [], _("Line Profile"), connections=[connection])
 
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:
