@@ -758,7 +758,7 @@ class Projection2dOperation(Operation):
         super(Projection2dOperation, self).__init__(_("Projection"), "projection-operation")
 
     def get_processed_data_and_calibration(self, data_and_calibrations, values):
-        data_and_metadata = Core.function_project(data_and_calibrations[0])
+        data_and_metadata = Core.function_sum(data_and_calibrations[0], 0)
         return data_and_metadata if data_and_metadata else None
 
 

@@ -1085,7 +1085,7 @@ class TestSymbolicClass(unittest.TestCase):
                 ("line_profile(a, vector(normalized_point(0.1, 0.1), normalized_point(0.8, 0.7)), 10)", None),
                 ("transpose_flip(a, False, True, False)", None),
                 ("crop(a, rectangle_from_origin_size(normalized_point(0, 0), normalized_size(0.5, 0.625)))", src_data[0:5, 0:5]),
-                ("project(a)", numpy.sum(src_data, 0)),
+                ("sum(a, 0)", numpy.sum(src_data, 0)),
                 ("resample_image(a, shape(32, 32))", Image.scaled(src_data, (32, 32))),
                 ("resample_image(a, data_shape(a))", src_data),
                 ("resample_image(a, data_shape(crop(a, rectangle_from_origin_size(normalized_point(0, 0), normalized_size(0.5, 0.625)))))", Image.scaled(src_data, (5, 5))),

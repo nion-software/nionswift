@@ -1796,7 +1796,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def get_projection_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
-        return self.__get_processing_new("project({src})", [src], [], _("Slice"))
+        return self.__get_processing_new("sum({src}, 0)", [src], [], _("Sum"))
 
     def get_slice_sum_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)

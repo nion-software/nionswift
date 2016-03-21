@@ -27,7 +27,6 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Operation
 from nion.swift.model import Region
-from nion.swift.model import Symbolic
 from nion.ui import Test
 
 
