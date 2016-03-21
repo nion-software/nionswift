@@ -807,7 +807,12 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.insert_data_item(len(self.data_items), data_item)
 
     def insert_data_item(self, before_index, data_item):
-        """ Insert a new data item into document model. Data item will have persistent_object_context set upon return. """
+        """Insert a new data item into document model.
+
+        Data item will have persistent_object_context set upon return.
+
+        This method is NOT threadsafe.
+        """
         assert data_item is not None
         assert data_item not in self.__data_items
         assert before_index <= len(self.__data_items) and before_index >= 0
@@ -816,7 +821,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_item.storage_cache = self.storage_cache
         data_item.persistent_object_context = self.persistent_object_context
         self.persistent_object_context.write_data_item(data_item)
-        #data_item.write()
         # be a listener. why?
         data_item.add_listener(self)
         self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
@@ -839,7 +843,12 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__handle_dependency_action(data_item)
 
     def remove_data_item(self, data_item):
-        """ Remove data item from document model. Data item will have persistent_object_context cleared upon return. """
+        """Remove data item from document model.
+
+        Data item will have persistent_object_context cleared upon return.
+
+        This method is NOT threadsafe.
+        """
         # remove data item from any selections
         self.data_item_will_be_removed_event.fire(data_item)
         # remove the data item from any groups
