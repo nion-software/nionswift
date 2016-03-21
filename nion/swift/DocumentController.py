@@ -1107,10 +1107,6 @@ class DocumentController(Observable.Broadcaster):
             return display_specifier
         return DataItem.DisplaySpecifier()
 
-    def processing_convert_to_scalar(self):
-        display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "convert-to-scalar-operation", suffix=_(" Gray"))
-
     def get_data_item_snapshot(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
         assert isinstance(data_item, DataItem.DataItem)
         data_item_copy = data_item.snapshot()
@@ -1220,9 +1216,6 @@ class DocumentController(Observable.Broadcaster):
                         return None
                     if requirement.mx is not None and dimensionality > requirement.mx:
                         return None
-                if requirement.type == "has_crop":
-                    if not source.crop_region:
-                        return None
         if len(buffered_data_sources) > 0 and all(buffered_data_sources):
             new_data_item = DataItem.DataItem()
             prefix = prefix if prefix else "{} of ".format(label)
@@ -1262,6 +1255,17 @@ class DocumentController(Observable.Broadcaster):
                             buffered_data_source.add_region(line_region)
                         regions.append((region.name, line_region, region.label))
                         region_map[region.name] = line_region
+                    elif region.type == "rectangle":
+                        if region.region:
+                            rect_region = region.region
+                        else:
+                            rect_region = Region.RectRegion()
+                            rect_region.center = 0.5, 0.5
+                            rect_region.size = 0.5, 0.5
+                            rect_region.label = region.label
+                            buffered_data_source.add_region(rect_region)
+                        regions.append((region.name, rect_region, region.label))
+                        region_map[region.name] = rect_region
             expression = fn_template.format(**dict(zip(src_names, src_texts)))
             computation = self.document_model.create_computation(expression)
             for src_name, display_specifier, source in zip(src_names, display_specifiers, sources):
@@ -1362,10 +1366,15 @@ class DocumentController(Observable.Broadcaster):
         return self.__get_processing_new("{src}", [src], [], _("Scalar"))
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
-        requirement1 = DocumentController.make_requirement("dimensionality", mn=2, mx=2)
-        requirement2 = DocumentController.make_requirement("has_crop")
-        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"), requirements=[requirement1, requirement2])
-        return self.__get_processing_new("{src}", [src], [], _("Crop"))
+        requirement = DocumentController.make_requirement("dimensionality", mn=2, mx=2)
+        in_region = DocumentController.make_region("crop_region", "rectangle", _("Crop Region"), crop_region)
+        src = DocumentController.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
+        return self.__get_processing_new("crop({src}, crop_region.bounds)", [src], [], _("Crop"))
+
+    def get_projection_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
+        requirement = DocumentController.make_requirement("dimensionality", mn=2, mx=2)
+        src = DocumentController.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
+        return self.__get_processing_new("project({src})", [src], [], _("Slice"))
 
     def get_slice_sum_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion) -> DataItem.DataItem:
         requirement = DocumentController.make_requirement("dimensionality", mn=3, mx=3)
