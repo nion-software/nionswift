@@ -719,16 +719,14 @@ class DataItemDataSourceDisplay(object):
         pos = tuple(pos)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
-        if display:
+        buffered_data_source = display_specifier.buffered_data_source
+        if display and buffered_data_source:
             display.graphic_selection.clear()
-            operation = Operation.OperationItem("line-profile-operation")
-            operation.set_property("start", pos)  # requires a tuple
-            operation.set_property("end", pos)  # requires a tuple
-            line_profile_region = operation.establish_associated_region("line", display_specifier.buffered_data_source)  # after setting operation properties
-            line_profile_display_specifier = self.__delegate.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
-            line_profile_display_specifier.data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_profile_region))
+            line_profile_region = Region.LineRegion()
             line_profile_region.start = pos
             line_profile_region.end = pos
+            buffered_data_source.add_region(line_profile_region)
+            self.__delegate.display_line_profile(self.__data_item, line_profile_region)
             return line_profile_region.graphic
         return None
 
@@ -967,8 +965,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
                     display_panel_content.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
-                def add_processing_operation(self, buffered_data_source_specifier, operation, prefix):
-                    return display_panel_content.document_controller.add_processing_operation(buffered_data_source_specifier, operation, prefix)
+                def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Region.LineRegion):
+                    display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                    operation = Operation.OperationItem("line-profile-operation")
+                    operation.set_property("vector", (line_profile_region.start, line_profile_region.end))  # requires a tuple
+                    operation.establish_associated_region("line", display_specifier.buffered_data_source, line_profile_region)  # after setting operation properties
+                    line_profile_display_specifier = display_panel_content.document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, _("Line Profile of "))
+                    line_profile_display_specifier.data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_profile_region))
 
             self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self.__data_item, Delegate(), display_type, self.ui.get_font_metrics)
             self.content_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
