@@ -1106,16 +1106,17 @@ class TestStorageClass(unittest.TestCase):
         display_specifier.buffered_data_source.add_region(crop_region)
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
-        operation = Operation.OperationItem("invert-operation")
-        document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)
+        new_data_item = document_model.get_invert_new(data_item, crop_region)
         document_controller.close()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-            self.assertEqual(read_display_specifier.buffered_data_source.regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
+            computation_bounds = document_model.resolve_object_specifier(document_model.data_items[1].maybe_data_source.computation.variables[1].specifier).value.bounds
+            self.assertEqual(read_display_specifier.buffered_data_source.regions[0].bounds, computation_bounds)
             read_display_specifier.buffered_data_source.regions[0].bounds = ((0.3, 0.4), (0.5, 0.6))
-            self.assertEqual(read_display_specifier.buffered_data_source.regions[0].bounds, document_model.data_items[1].operation.data_sources[0].get_property("bounds"))
+            computation_bounds = document_model.resolve_object_specifier(document_model.data_items[1].maybe_data_source.computation.variables[1].specifier).value.bounds
+            self.assertEqual(read_display_specifier.buffered_data_source.regions[0].bounds, computation_bounds)
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()

@@ -298,13 +298,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
-        buffered_data_source_specifier = document_controller.selected_display_specifier.buffered_data_source_specifier
-        inverted_data_item = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
-        inverted_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(inverted_data_item)
-        inverted_data_item.recompute_data()
-        self.assertEqual(inverted_display_specifier.buffered_data_source.data_shape, (h/2, w/2))
-        self.assertEqual(inverted_display_specifier.buffered_data_source.data_dtype, display_specifier.buffered_data_source.data_dtype)
-        self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[h/4, w/4], -1.0)
+        new_data_item = document_model.get_invert_new(data_item, crop_region)
+        document_model.recompute_all()
+        self.assertEqual(new_data_item.maybe_data_source.data_shape, (h/2, w/2))
+        self.assertEqual(new_data_item.maybe_data_source.data_dtype, data_item.maybe_data_source.data_dtype)
+        self.assertAlmostEqual(new_data_item.maybe_data_source.data[h/4, w/4], -1.0)
         document_controller.close()
 
     def test_processing_on_crop_region_connects_region_to_operation(self):
@@ -315,13 +313,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
-        operation = Operation.OperationItem("invert-operation")
-        document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region)
-        self.assertEqual(crop_region.bounds, operation.data_sources[0].get_property("bounds"))
+        new_data_item = document_model.get_invert_new(data_item, crop_region)
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[1].specifier).value.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertEqual(crop_region.bounds, operation.data_sources[0].get_property("bounds"))
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[1].specifier).value.bounds)
         document_controller.close()
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
@@ -332,15 +327,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
         document_model.append_data_item(data_item)
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
-        operation = Operation.OperationItem("invert-operation")
-        cropped_data_item = document_controller.add_processing_operation(DataItem.BufferedDataSourceSpecifier.from_data_item(data_item), operation, crop_region=crop_region).data_item
+        cropped_data_item = document_model.get_invert_new(data_item, crop_region)
         cropped_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(cropped_data_item)
         document_model.recompute_all()
-        self.assertFalse(cropped_display_specifier.buffered_data_source.is_data_stale)
+        self.assertFalse(cropped_data_item.maybe_data_source.computation.needs_update)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertTrue(cropped_display_specifier.buffered_data_source.is_data_stale)
+        self.assertTrue(cropped_data_item.maybe_data_source.computation.needs_update)
         document_controller.close()
 
     class SumOperation(Operation.Operation):
@@ -356,41 +348,6 @@ class TestDocumentControllerClass(unittest.TestCase):
                 else:
                     result += data_source.data
             return result
-
-    def test_processing_on_dual_crop_region_constructs_composite_operation(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        h, w = 16, 16
-        data1 = numpy.zeros((h, w), numpy.float32)
-        data1[0:h/2, 0:w/2] = 1
-        data_item1 = DataItem.DataItem(data1)
-        crop_region1 = Region.RectRegion()
-        crop_region1.bounds = ((0.0, 0.0), (0.5, 0.5))
-        DataItem.DisplaySpecifier.from_data_item(data_item1).buffered_data_source.add_region(crop_region1)
-        document_model.append_data_item(data_item1)
-        data2 = numpy.zeros((h, w), numpy.float32)
-        data2[0:h/2, 0:w/2] = 2
-        data_item2 = DataItem.DataItem(data2)
-        crop_region2 = Region.RectRegion()
-        crop_region2.bounds = ((0.25, 0.25), (0.5, 0.5))
-        DataItem.DisplaySpecifier.from_data_item(data_item2).buffered_data_source.add_region(crop_region2)
-        document_model.append_data_item(data_item2)
-        sum_operation = TestDocumentControllerClass.SumOperation()
-        Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
-        sum_operation_item = Operation.OperationItem("sum-operation")
-        buffered_data_source_specifier1 = DataItem.BufferedDataSourceSpecifier.from_data_item(data_item1)
-        buffered_data_source_specifier2 = DataItem.BufferedDataSourceSpecifier.from_data_item(data_item2)
-        result_data_item = document_controller.add_binary_processing_operation(sum_operation_item, buffered_data_source_specifier1, buffered_data_source_specifier2, crop_region1=crop_region1, crop_region2=crop_region2)
-        result_data_item.recompute_data()
-        result_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(result_data_item)
-        buffered_data_source = result_display_specifier.buffered_data_source
-        self.assertEqual(buffered_data_source.data_shape, (h/2, w/2))
-        self.assertEqual(buffered_data_source.data_dtype, numpy.float32)
-        self.assertAlmostEqual(buffered_data_source.data[h/8, w/8], 3.0)
-        self.assertAlmostEqual(buffered_data_source.data[3*h/8, w/8], 1.0)
-        self.assertAlmostEqual(buffered_data_source.data[3*h/8, 3*w/8], 1.0)
-        self.assertAlmostEqual(buffered_data_source.data[h/8, 3*w/8], 1.0)
-        document_controller.close()
 
     def test_creating_with_variable_produces_valid_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -434,8 +391,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
-        buffered_data_source_specifier = document_controller.selected_display_specifier.buffered_data_source_specifier
-        data_item_result = document_controller.add_processing_operation_by_id(buffered_data_source_specifier, "invert-operation", crop_region=crop_region).data_item
+        data_item_result = document_model.get_invert_new(data_item, crop_region)
         document_model.remove_data_item(data_item_result)
         document_model.recompute_all()
         document_controller.close()

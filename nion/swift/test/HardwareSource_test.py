@@ -708,8 +708,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_restarting_view_in_same_session_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         self.__acquire_one(document_controller, hardware_source)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-        document_controller.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "invert-operation")
+        new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
         document_controller.periodic()
         document_model.recompute_all()
         modified = document_model.data_items[1].modified
@@ -730,8 +729,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_restarting_view_after_reload_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         self.__acquire_one(document_controller, hardware_source)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-        document_controller.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "invert-operation")
+        new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
         document_controller.periodic()
         document_model.recompute_all()
         document_model.start_new_session()

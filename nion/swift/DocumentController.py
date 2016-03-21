@@ -23,7 +23,6 @@ from nion.swift import FilterPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
 from nion.swift import Workspace
-from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
@@ -840,16 +839,6 @@ class DocumentController(Observable.Broadcaster):
                 return True
         return False
 
-    def add_processing_operation_by_id(self, buffered_data_source_specifier, operation_id, prefix=None, suffix=None, crop_region=None):
-        operation = Operation.OperationItem(operation_id)
-        assert operation is not None
-        return self.add_processing_operation(buffered_data_source_specifier, operation, prefix, suffix, crop_region)
-
-    def add_binary_processing_operation_by_id(self, operation_id, display_specifier1, display_specifier2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
-        operation = Operation.OperationItem(operation_id)
-        assert operation is not None
-        return self.add_binary_processing_operation(operation, display_specifier1, display_specifier2, prefix, suffix, crop_region1, crop_region2)
-
     def add_data_element(self, data_element, source_data_item=None):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         if data_item:
@@ -900,38 +889,6 @@ class DocumentController(Observable.Broadcaster):
             return new_display_specifier
         return DataItem.DisplaySpecifier()
 
-    def add_binary_processing_operation(self, operation, buffered_data_source_specifier1, buffered_data_source_specifier2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
-        if buffered_data_source_specifier1.buffered_data_source and buffered_data_source_specifier2.buffered_data_source:
-            new_data_item = DataItem.DataItem()
-            new_data_item.title = (prefix if prefix else "") + buffered_data_source_specifier1.data_item.title + (suffix if suffix else "")
-            new_data_item.set_operation(operation)
-            if buffered_data_source_specifier1.data_item.category == "temporary":
-                new_data_item.category = "temporary"
-            if buffered_data_source_specifier2.data_item.category == "temporary":
-                new_data_item.category = "temporary"
-            data_source1 = Operation.DataItemDataSource(buffered_data_source_specifier1.buffered_data_source)
-            if crop_region1:
-                crop_operation = Operation.OperationItem("crop-operation")
-                assert crop_region1 in buffered_data_source_specifier1.buffered_data_source.regions
-                crop_operation.set_property("bounds", crop_region1.bounds)
-                crop_operation.establish_associated_region("crop", buffered_data_source_specifier1.buffered_data_source, crop_region1)
-                crop_operation.add_data_source(data_source1)
-                data_source1 = crop_operation
-            data_source2 = Operation.DataItemDataSource(buffered_data_source_specifier2.buffered_data_source)
-            if crop_region2:
-                crop_operation = Operation.OperationItem("crop-operation")
-                assert crop_region2 in buffered_data_source_specifier2.buffered_data_source.regions
-                crop_operation.set_property("bounds", crop_region2.bounds)
-                crop_operation.establish_associated_region("crop", buffered_data_source_specifier2.buffered_data_source, crop_region2)
-                crop_operation.add_data_source(data_source2)
-                data_source2 = crop_operation
-            operation.add_data_source(data_source1)
-            operation.add_data_source(data_source2)
-            self.document_model.append_data_item(new_data_item)
-            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(new_data_item), source_data_item=buffered_data_source_specifier1.data_item)
-            return new_data_item
-        return None
-
     def __get_crop_region(self, display_specifier):
         crop_region = None
         buffered_data_source = display_specifier.buffered_data_source
@@ -945,132 +902,31 @@ class DocumentController(Observable.Broadcaster):
         return crop_region
 
     def processing_fft(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "fft-operation", prefix=_("FFT of "), crop_region=crop_region)
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_fft_new))
 
     def processing_ifft(self):
-        display_specifier = self.selected_display_specifier
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "inverse-fft-operation", prefix=_("Inverse FFT of "))
-
-    def processing_auto_correlate(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "auto-correlate-operation", prefix=_("Auto Correlate of "), crop_region=crop_region)
-
-    def processing_cross_correlate(self):
-        selected_data_items = self.__data_browser_controller.selected_data_items
-        if len(selected_data_items) == 2:
-            display_specifier1 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
-            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[1])
-            crop_region1 = self.__get_crop_region(display_specifier1)
-            crop_region2 = self.__get_crop_region(display_specifier2)
-            return self.add_binary_processing_operation_by_id("cross-correlate-operation", display_specifier1.buffered_data_source_specifier, display_specifier2.buffered_data_source_specifier, prefix=_("Cross Correlate of "), crop_region1=crop_region1, crop_region2=crop_region2)
-        return DataItem.DisplaySpecifier()
-
-    def processing_sobel(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "sobel-operation", prefix=_("Sobel Filter of "), crop_region=crop_region)
-
-    def processing_laplace(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "laplace-operation", prefix=_("Laplace Filter of "), crop_region=crop_region)
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_ifft_new))
 
     def processing_gaussian_blur(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "gaussian-blur-operation", prefix=_("Gaussian Blur of "), crop_region=crop_region)
-
-    def processing_median_filter(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "median-filter-operation", prefix=_("Median Filter of "), crop_region=crop_region)
-
-    def processing_uniform_filter(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "uniform-filter-operation", prefix=_("Uniform Filter of "), crop_region=crop_region)
-
-    def processing_transpose_flip(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "transpose-flip-operation", prefix=_("Transpose/Flip of "), crop_region=crop_region)
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_gaussian_blur_new))
 
     def processing_resample(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "resample-operation", prefix=_("Resample of "), crop_region=crop_region)
-
-    def processing_histogram(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "histogram-operation", prefix=_("Histogram of "), crop_region=crop_region)
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_resample_new))
 
     def processing_crop(self):
-        display_specifier = self.selected_display_specifier
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
-            crop_region = self.__get_crop_region(display_specifier)
-            bounds = crop_region.bounds if crop_region else ((0.25,0.25), (0.5,0.5))
-            operation = Operation.OperationItem("crop-operation")
-            operation.set_property("bounds", bounds)
-            operation.establish_associated_region("crop", buffered_data_source, crop_region)  # after setting operation properties
-            return self.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=_("Crop of "))
-        return DataItem.DisplaySpecifier()
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_crop_new))
 
     def processing_slice(self):
-        buffered_data_source_specifier = self.selected_display_specifier.buffered_data_source_specifier
-        buffered_data_source = buffered_data_source_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
-            operation = Operation.OperationItem("slice-operation")
-            operation.set_property("slice", 0)
-            return self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Slice of "))
-        return DataItem.DisplaySpecifier()
-
-    def processing_pick(self):
-        display_specifier = self.selected_display_specifier
-        buffered_data_source_specifier = display_specifier.buffered_data_source_specifier
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 3:
-            operation = Operation.OperationItem("pick-operation")
-            region = operation.establish_associated_region("pick", buffered_data_source)  # after setting operation properties
-            region.label = "Pick"
-            pick_display_specifier = self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Pick of "))
-            pick_interval = Region.IntervalRegion()
-            pick_display_specifier.buffered_data_source.add_region(pick_interval)
-            pick_display_specifier.data_item.add_connection(Connection.PropertyConnection(display_specifier.display, "slice_interval", pick_interval, "interval"))
-            return pick_display_specifier
-        return DataItem.DisplaySpecifier()
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_slice_sum_new))
 
     def processing_projection(self):
-        display_specifier = self.selected_display_specifier
-        buffered_data_source_specifier = display_specifier.buffered_data_source_specifier
-        buffered_data_source = buffered_data_source_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
-            operation = Operation.OperationItem("projection-operation")
-            crop_region = self.__get_crop_region(display_specifier)
-            return self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Projection of "), crop_region=crop_region)
-        return DataItem.DisplaySpecifier()
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_projection_new))
 
     def processing_line_profile(self):
-        buffered_data_source_specifier = self.selected_display_specifier.buffered_data_source_specifier
-        buffered_data_source = buffered_data_source_specifier.buffered_data_source
-        if buffered_data_source:
-            operation = Operation.OperationItem("line-profile-operation")
-            operation.set_property("start", (0.25,0.25))
-            operation.set_property("end", (0.75,0.75))
-            line_profile_region = operation.establish_associated_region("line", buffered_data_source)  # after setting operation properties
-            line_profile_display_specifier = self.add_processing_operation(buffered_data_source_specifier, operation, prefix=_("Line Profile of "))
-            line_profile_display_specifier.data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_profile_region))
-            return line_profile_display_specifier
-        return DataItem.DisplaySpecifier()
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_line_profile_new))
 
     def processing_invert(self):
-        display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        return self.add_processing_operation_by_id(display_specifier.buffered_data_source_specifier, "invert-operation", suffix=_(" Inverted"), crop_region=crop_region)
+        return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_invert_new))
 
     def processing_duplicate(self):
         data_item = self.selected_display_specifier.data_item
