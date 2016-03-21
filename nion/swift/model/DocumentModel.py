@@ -1284,7 +1284,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                                     data_and_metadata = computation.evaluate_data()
                                     if data_and_metadata:
                                         data_ref.data = data_and_metadata.data
-                                        buffered_data_source.set_metadata(data_and_metadata.metadata)
+                                        buffered_data_source.update_metadata(data_and_metadata.metadata)
                                         buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
                                         buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
                                 time.sleep(0.05)

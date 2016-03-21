@@ -520,6 +520,11 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
     def set_metadata(self, metadata):
         self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
 
+    def update_metadata(self, additional_metadata):
+        metadata = self.metadata
+        metadata.update(additional_metadata)
+        self.set_metadata(metadata)
+
     def storage_cache_changed(self, storage_cache):
         # override from Cacheable
         for display in self.displays:
