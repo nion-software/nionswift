@@ -788,7 +788,7 @@ class TestOperationClass(unittest.TestCase):
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(cropped_data_item.operation.data_sources[0].source_data_item, data_item)
+        self.assertEqual(document_model.get_source_data_items(cropped_data_item)[0], data_item)
         self.assertTrue(cropped_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
@@ -818,7 +818,7 @@ class TestOperationClass(unittest.TestCase):
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(projection_data_item.operation.data_sources[0].data_sources[0].source_data_item, data_item)
+        self.assertEqual(document_model.get_source_data_items(projection_data_item)[0], data_item)
         self.assertTrue(projection_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()

@@ -240,7 +240,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(line_profile_data_item.operation.data_sources[0].source_data_item, data_item)
+        self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
         self.assertTrue(data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
@@ -263,7 +263,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
-        self.assertEqual(line_profile_data_item.operation.data_sources[0].source_data_item, data_item)
+        self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
         document_controller.remove_graphic()
@@ -483,7 +483,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
-            self.assertIsNone(document_controller.get_crop_new(source_data_item, None))
+            self.assertIsNotNone(document_controller.get_crop_new(source_data_item, None))
 
     def test_processing_duplicate_does_copy(self):
         document_model = DocumentModel.DocumentModel()
