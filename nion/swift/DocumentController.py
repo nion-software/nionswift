@@ -1244,16 +1244,22 @@ class DocumentController(Observable.Broadcaster):
                 crop_names.append(crop_name)
                 for region in source.regions or list():
                     if region.type == "point":
-                        point_region = Region.PointRegion()
-                        point_region.label = region.label
-                        buffered_data_source.add_region(point_region)
+                        if region.region:
+                            point_region = region.region
+                        else:
+                            point_region = Region.PointRegion()
+                            point_region.label = region.label
+                            buffered_data_source.add_region(point_region)
                         regions.append((region.name, point_region, region.label))
                         region_map[region.name] = point_region
                     elif region.type == "line":
-                        line_region = Region.LineRegion()
-                        line_region.start = 0.25, 0.25
-                        line_region.end = 0.75, 0.75
-                        buffered_data_source.add_region(line_region)
+                        if region.region:
+                            line_region = region.region
+                        else:
+                            line_region = Region.LineRegion()
+                            line_region.start = 0.25, 0.25
+                            line_region.end = 0.75, 0.75
+                            buffered_data_source.add_region(line_region)
                         regions.append((region.name, line_region, region.label))
                         region_map[region.name] = line_region
             expression = fn_template.format(**dict(zip(src_names, src_texts)))
@@ -1368,7 +1374,7 @@ class DocumentController(Observable.Broadcaster):
         param2 = DocumentController.make_parameter("width", _("Width"), "integral", 1, value_default=1, value_min=1)
         return self.__get_processing_new("slice_sum({src}, center, width)", [src], [param1, param2], _("Slice"))
 
-    def get_pick_new(self, data_item: DataItem.DataItem, pick_region: Region.PointRegion=None) -> DataItem.DataItem:
+    def get_pick_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion, pick_region: Region.PointRegion=None) -> DataItem.DataItem:
         requirement = DocumentController.make_requirement("dimensionality", mn=3, mx=3)
         in_region = DocumentController.make_region("pick_region", "point", _("Pick Point"), pick_region)
         out_region = DocumentController.make_region("interval_region", "interval")
@@ -1376,7 +1382,7 @@ class DocumentController(Observable.Broadcaster):
         src = DocumentController.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Slice"), out_regions=[out_region], connections=[connection])
 
-    def get_line_profile_new(self, data_item: DataItem.DataItem, line_region: Region.LineRegion=None) -> DataItem.DataItem:
+    def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion, line_region: Region.LineRegion=None) -> DataItem.DataItem:
         in_region = DocumentController.make_region("line_region", "line", _("Line Profile"), line_region)
         connection = DocumentController.make_connection("interval_list", src="data_source", dst="line_region")
         src = DocumentController.make_source(data_item, None, "src", _("Source"), regions=[in_region])
