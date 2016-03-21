@@ -966,12 +966,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     display_panel_content.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
                 def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Region.LineRegion):
-                    display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                    operation = Operation.OperationItem("line-profile-operation")
-                    operation.set_property("vector", (line_profile_region.start, line_profile_region.end))  # requires a tuple
-                    operation.establish_associated_region("line", display_specifier.buffered_data_source, line_profile_region)  # after setting operation properties
-                    line_profile_display_specifier = display_panel_content.document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, _("Line Profile of "))
-                    line_profile_display_specifier.data_item.add_connection(Connection.IntervalListConnection(line_profile_display_specifier.buffered_data_source, line_profile_region))
+                    document_controller = display_panel_content.document_controller
+                    document_model = document_controller.document_model
+                    line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
+                    new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
+                    document_controller.display_data_item(new_display_specifier)
 
             self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self.__data_item, Delegate(), display_type, self.ui.get_font_metrics)
             self.content_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
