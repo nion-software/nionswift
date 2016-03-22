@@ -2,9 +2,6 @@
     Contains classes that help bind a list of data items to another object.
 """
 
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import copy
 import logging
@@ -16,6 +13,7 @@ import threading
 
 # local libraries
 from nion.ui import Binding
+from nion.ui import Event
 
 
 class AbstractDataItemsBinding(Binding.Binding):

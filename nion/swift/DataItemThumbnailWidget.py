@@ -10,6 +10,7 @@ from nion.data import Image
 from nion.swift import Widgets
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
+from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 
@@ -97,7 +98,49 @@ class FilteredDataItemThumbnailSource(AbstractDataItemThumbnailSource):
             self.__data_item_content_changed_event_listener = None
         self.__filtered_data_items_binding.close()
         self.__filtered_data_items_binding = None
-        self.on_rgba_bitmap_data_changed = None
+        super().close()
+
+    @property
+    def data_item(self):
+        return self.__data_item
+
+
+class DataItemReferenceThumbnailSource(AbstractDataItemThumbnailSource):
+
+    def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference, dispatch_task):
+        super().__init__()
+        self.__data_item = None
+        self.__data_item_content_changed_event_listener = None
+
+        def data_item_changed():
+            if self.__data_item_content_changed_event_listener:
+                self.__data_item_content_changed_event_listener.close()
+                self.__data_item_content_changed_event_listener = None
+            data_item = data_item_reference.data_item
+            if data_item:
+                self.__data_item = data_item
+                def data_item_content_changed(changes):
+                    data_item = self.__data_item
+                    display = data_item.primary_display_specifier.display if data_item else None
+                    display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
+                    self._update_thumbnail(data_item)
+                self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
+            else:
+                self.__data_item = None
+                self._update_thumbnail(self.__data_item)
+
+        self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
+
+        data_item_changed()
+        self._update_thumbnail(self.__data_item)
+
+    def close(self):
+        if self.__data_item_content_changed_event_listener:
+            self.__data_item_content_changed_event_listener.close()
+            self.__data_item_content_changed_event_listener = None
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
+        super().close()
 
     @property
     def data_item(self):

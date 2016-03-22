@@ -674,11 +674,13 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__data_item_request_remove_region = dict()
         self.__data_item_handle_dependency_action_listeners = dict()
         self.__computation_changed_or_mutated_listeners = dict()
+        self.__data_item_references = dict()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
-        self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
+        self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
+        self.define_property("data_item_references", dict(), hidden=True)
         self.__buffered_data_source_set = set()
         self.__buffered_data_source_set_changed_event = Event.Event()
         self.session_id = None
@@ -687,17 +689,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__read()
         self.__library_storage.set_property(self, "uuid", str(self.uuid))
         self.__library_storage.set_property(self, "version", 0)
-
-        # this section is concerned with channel updates
-        self.__filtered_data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__filtered_data_items_binding.container = self
-        self.__filtered_data_items_binding.filter = lambda data_item: data_item.category == "temporary"
-        self.__filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
-        self.__filtered_data_items_binding.sort_reverse = True
-
-        # channel activations keep track of which channels have been activated in the UI for a particular acquisition run.
-        self.__channel_data_items = dict()  # maps channel to data item
-        self.__channel_data_items_mutex = threading.RLock()
 
         self.__channels_data_updated_event_listeners = dict()
         self.__last_channel_to_data_item_dicts = dict()
@@ -744,6 +735,12 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                     except Exception as e:
                         print(str(e))
             data_item.connect_data_items(self.get_data_item_by_uuid)
+        # # initialize data item references
+        data_item_references_dict = self._get_persistent_property_value("data_item_references")
+        for key, data_item_uuid in data_item_references_dict.items():
+            data_item = self.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
+            if data_item:
+                self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
             data_group.connect_data_items(self.get_data_item_by_uuid)
@@ -757,9 +754,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         for hardware_source_id in self.__channels_data_updated_event_listeners:
             self.__channels_data_updated_event_listeners[hardware_source_id].close()
         self.__channels_data_updated_event_listeners = None
-        self.__filtered_data_items_binding.close()
-        self.__filtered_data_items_binding = None
-        self.__channel_data_items = None
         HardwareSource.HardwareSourceManager().abort_all_and_close()
 
         self.__thread_pool.close()
@@ -780,7 +774,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    def __property_changed(self, name, value):
+    def __session_metadata_changed(self, name, value):
         self.notify_set_property("session_metadata", self.session_metadata)
 
     def set_session_field(self, field_id: str, value: str) -> None:
@@ -831,6 +825,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         if data_item.maybe_data_source:
             self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
+        for data_item_reference in self.__data_item_references.values():
+            data_item_reference.data_item_inserted(data_item)
         data_item.set_data_item_manager(self)
         # fire buffered_data_source_set_changed_event
         self.__buffered_data_source_set.update(set(data_item.data_sources))
@@ -890,9 +886,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
         del self.__computation_changed_or_mutated_listeners[data_item.uuid]
         # update data item count
+        for data_item_reference in self.__data_item_references.values():
+            data_item_reference.data_item_removed(data_item)
         self.notify_listeners("data_item_removed", self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
-        self.__data_item_deleted(data_item)
         self.data_item_deleted_event.fire(data_item)
 
     def __item_inserted(self, key, value, before_index):
@@ -1172,33 +1169,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     # TODO: what about thread safety for these classes?
 
-    class DataItemAccessor(object):
-        def __init__(self, document_model):
-            self.__document_model_weakref = weakref.ref(document_model)
-        def __get_document_model(self):
-            return self.__document_model_weakref()
-        document_model = property(__get_document_model)
-        # access by bracket notation
-        def __len__(self):
-            return self.document_model.get_data_item_count()
-        def __getitem__(self, key):
-            data_item = self.document_model.get_data_item_by_key(key)
-            if data_item is None:
-                raise KeyError
-            return data_item
-        def __delitem__(self, key):
-            data_item = self.document_model.get_data_item_by_key(key)
-            if data_item:
-                self.document_model.remove_data_item(data_item)
-        def __iter__(self):
-            return iter(self.document_model.get_flat_data_item_generator())
-        def uuid_keys(self):
-            return [data_item.uuid for data_item in self.document_model.data_items_by_key]
-        def title_keys(self):
-            return [data_item.title for data_item in self.document_model.data_items_by_key]
-        def keys(self):
-            return self.uuid_keys()
-
     # Return a generator over all data items
     def get_flat_data_item_generator(self):
         for data_item in self.data_items:
@@ -1248,7 +1218,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         return list(self.get_flat_data_item_generator()).index(data_item)
 
     # access data items by uuid
-    def get_data_item_by_uuid(self, uuid):
+    def get_data_item_by_uuid(self, uuid: uuid.UUID) -> DataItem.DataItem:
         for data_item in self.get_flat_data_item_generator():
             if data_item.uuid == uuid:
                 return data_item
@@ -1437,28 +1407,57 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                                     return BoundRegion(region)
         return None
 
-    def __data_item_deleted(self, data_item):
-        with self.__channel_data_items_mutex:
-            for channel_key in self.__channel_data_items.keys():
-                if self.__channel_data_items[channel_key] == data_item:
-                    del self.__channel_data_items[channel_key]
-                    break
+    class DataItemReference:
+        def __init__(self, document_model: "DocumentModel", key: str, data_item: DataItem.DataItem=None):
+            self.__document_model = document_model
+            self.__key = key
+            self.__data_item = data_item
+            self.mutex = threading.RLock()
+            self.data_item_changed_event = Event.Event()
+
+        def close(self):
+            pass
+
+        # this method gets called directly from the document model
+        def data_item_inserted(self, data_item):
+            pass
+
+        # this method gets called directly from the document model
+        def data_item_removed(self, data_item):
+            with self.mutex:
+                if data_item == self.__data_item:
+                    self.__data_item = None
+
+        @property
+        def data_item(self):
+            with self.mutex:
+                return self.__data_item
+
+        @data_item.setter
+        def data_item(self, value):
+            with self.mutex:
+                if self.__data_item != value:
+                    self.__data_item = value
+                    self.data_item_changed_event.fire()
+                    self.__document_model._update_data_item_reference(self.__key, self.__data_item)
+
+    def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
+        data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
+        if data_item:
+            data_item_references_dict[key] = str(data_item.uuid)
+        else:
+            del data_item_references_dict[key]
+        self._set_persistent_property_value("data_item_references", data_item_references_dict)
+
+    def make_data_item_reference_key(self, *components) -> str:
+        return "_".join([str(component) for component in list(components) if component is not None])
+
+    def get_data_item_reference(self, key) -> "DocumentModel.DataItemReference":
+        return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key))
 
     def setup_channel(self, hardware_source_id, channel_id, view_id, data_item):
-        with self.__channel_data_items_mutex:
-            metadata = data_item.data_sources[0].metadata
-            hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-            hardware_source_metadata["hardware_source_id"] = hardware_source_id
-            if channel_id:
-                hardware_source_metadata["channel_id"] = channel_id
-            if view_id:
-                hardware_source_metadata["view_id"] = view_id
-            data_item.data_sources[0].set_metadata(metadata)
-            if channel_id is not None:
-                channel_key = hardware_source_id + "_" + str(channel_id) + "_" + view_id
-            else:
-                channel_key = hardware_source_id + "_" + view_id
-            self.__channel_data_items[channel_key] = data_item
+        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id, view_id))
+        data_item_reference.data_item = data_item
 
     def __channels_data_updated(self, hardware_source, append_data_item_fn, view_id, is_recording, channels_data):
         # sync to data items
@@ -1534,24 +1533,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id].close()
         del self.__channels_data_updated_event_listeners[hardware_source.hardware_source_id]
 
-    # used for testing
-    def _clear_channel_data_items(self):
-        self.__channel_data_items = dict()
-
-    def __matches_data_item(self, data_item, hardware_source_id, channel_id, view_id):
-        buffered_data_source = data_item.maybe_data_source
-        if buffered_data_source and buffered_data_source.computation is None:
-            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-            existing_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
-            existing_channel_id = hardware_source_metadata.get("channel_id")
-            existing_view_id = hardware_source_metadata.get("view_id")
-            if existing_hardware_source_id == hardware_source_id and existing_channel_id == channel_id and existing_view_id == view_id:
-                return True
-        return False
-
     def __sync_channels_to_data_items(self, channels, hardware_source_id, view_id, display_name, is_recording, append_data_item_fn):
-        # TODO: self.__channel_data_items never gets cleared
-
         # data items are matched based on hardware_source_id, channel_id, and view_id.
         # view_id is an extra parameter that can be incremented to trigger new data items. it may be None.
 
@@ -1567,41 +1549,26 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             channel_index = channel.index
             channel_id = channel.channel_id
             channel_name = channel.name
+            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id, view_id))
+            with data_item_reference.mutex:
+                data_item = data_item_reference.data_item
 
-            if channel_id is not None:
-                channel_key = hardware_source_id + "_" + str(channel_id) + "_" + view_id
-            else:
-                channel_key = hardware_source_id + "_" + view_id
+                # if we still don't have a data item, create it.
+                if not data_item:
+                    data_item = DataItem.DataItem()
+                    data_item.title = "%s (%s)" % (display_name, channel_name) if channel_name else display_name
+                    data_item.category = "temporary"
+                    buffered_data_source = DataItem.BufferedDataSource()
+                    data_item.append_data_source(buffered_data_source)
+                    data_item_reference.data_item = data_item
+                    append_data_item_fn(data_item, is_recording)
 
-            with self.__channel_data_items_mutex:
-                data_item = self.__channel_data_items.get(channel_key)
-
-            if not data_item:
-                for data_item_i in self.__filtered_data_items_binding.data_items:
-                    if self.__matches_data_item(data_item_i, hardware_source_id, channel_id, view_id):
-                        data_item = data_item_i
-                        break
-
-            if data_item and not self.__matches_data_item(data_item, hardware_source_id, channel_id, view_id):
-                data_item = None
-
-            # if we still don't have a data item, create it.
-            if not data_item:
-                data_item = DataItem.DataItem()
-                data_item.title = "%s (%s)" % (display_name, channel_name) if channel_name else display_name
-                data_item.category = "temporary"
-                buffered_data_source = DataItem.BufferedDataSource()
-                data_item.append_data_source(buffered_data_source)
-                append_data_item_fn(data_item, is_recording)
-
-            # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
-            if data_item.session_id != session_id:
-                data_item.session_id = session_id
-            session_metadata = document_model.session_metadata
-            if data_item.session_metadata != session_metadata:
-                data_item.session_metadata = session_metadata
-            with self.__channel_data_items_mutex:
-                self.__channel_data_items[channel_key] = data_item
+                # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
+                if data_item.session_id != session_id:
+                    data_item.session_id = session_id
+                session_metadata = document_model.session_metadata
+                if data_item.session_metadata != session_metadata:
+                    data_item.session_metadata = session_metadata
                 data_items[channel_index] = data_item
 
         return data_items

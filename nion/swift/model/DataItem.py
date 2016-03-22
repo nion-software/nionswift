@@ -1018,7 +1018,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
     def insert_data_item(self, before_index, data_item):
         assert data_item not in self.__data_items
         self.__data_items.insert(before_index, data_item)
-        # self.data_item_reference_inserted_event.fire(data_item, before_index)
         data_item_uuids = self.data_item_uuids
         data_item_uuids.insert(before_index, data_item.uuid)
         self.data_item_uuids = data_item_uuids
@@ -1027,7 +1026,6 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
     def remove_data_item(self, data_item):
         # index = self.__data_items.index(data_item)
         self.__data_items.remove(data_item)
-        # self.data_item_reference_removed_event.fire(data_item, index)
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
         self.data_item_uuids = data_item_uuids
