@@ -516,7 +516,10 @@ class ComputationPanel(Panel.Panel):
         text_edit.on_return_pressed = update_pressed
         new_button.on_clicked = new_pressed
         update_button.on_clicked = update_pressed
-        label_edit_widget.on_editing_finished = lambda text: setattr(self.__computation_model, "computation_label", text)
+        def editing_finished(text):
+            if self.__computation_model:
+                self.__computation_model.computation_label = text
+        label_edit_widget.on_editing_finished = editing_finished
 
         def computation_label_changed(text):
             label_edit_widget.text = text
