@@ -303,7 +303,8 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             return None
 
     def get_processed_data(self, processor_id):
-        return self.get_processor(processor_id).get_cached_data()
+        processor = self.get_processor(processor_id)
+        return processor.get_cached_data() if processor else None
 
     @property
     def drawn_graphics(self):
