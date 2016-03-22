@@ -46,16 +46,16 @@ _ = gettext.gettext
 # Also keeps track of aliases between hardware sources and logical names.
 class HardwareSourceManager(metaclass=Utility.Singleton):
     def __init__(self):
-        super(HardwareSourceManager, self).__init__()
-        self.hardware_sources = []
-        self.instruments = []
+        super().__init__()
+        self.hardware_sources = list()
+        self.instruments = list()
         # we create a list of callbacks for when a hardware
         # source is added or removed
         self.hardware_source_added_event = Event.Event()
         self.hardware_source_removed_event = Event.Event()
-        self.aliases_updated = []
+        self.aliases_updated = list()
         # aliases are shared between hardware sources and instruments
-        self.__aliases = {}
+        self.__aliases = dict()
 
     def close(self):
         self._close_hardware_sources()
@@ -409,7 +409,7 @@ class HardwareSource:
     """
 
     def __init__(self, hardware_source_id, display_name):
-        super(HardwareSource, self).__init__()
+        super().__init__()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
         self.channel_count = 1
