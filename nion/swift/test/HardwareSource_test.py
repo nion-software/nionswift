@@ -177,6 +177,9 @@ def _test_simple_hardware_start_and_abort_works_as_expected(testcase, hardware_s
         testcase.assertTrue(time.time() - start_time < 3.0)
 
 def _test_record_only_acquires_one_item(testcase, hardware_source, document_controller):
+    # the definition is that the 'view' image is always acquired; there should only
+    # be a single new 'record' image though. the 'record' image should not have a
+    # category of 'temporary'; the 'view' image should.
     hardware_source.start_recording()
     testcase.assertFalse(hardware_source.is_playing)
     testcase.assertTrue(hardware_source.is_recording)
@@ -186,7 +189,9 @@ def _test_record_only_acquires_one_item(testcase, hardware_source, document_cont
         testcase.assertTrue(time.time() - start_time < 3.0)
     testcase.assertFalse(hardware_source.is_playing)
     document_controller.periodic()
-    testcase.assertEqual(len(document_controller.document_model.data_items), 1)
+    testcase.assertEqual(len(document_controller.document_model.data_items), 2)
+    testcase.assertEqual(document_controller.document_model.data_items[0].category, "temporary")
+    testcase.assertNotEqual(document_controller.document_model.data_items[1].category, "temporary")
 
 def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -581,7 +586,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertEqual(len(document_model.data_items), 0)
         data_item = DataItem.DataItem(numpy.ones(256) + 1)
         document_model.append_data_item(data_item)
-        document_model.setup_channel(hardware_source_id, None, None, data_item)
+        document_model.setup_channel(hardware_source_id, None, data_item)
         # at this point the data item contains 2.0. the acquisition will produce a 1.0.
         # the 2.0 will get copied to data_item 1 and the 1.0 will be replaced into data_item 0.
         new_data_item = copy.deepcopy(document_model.data_items[0])
@@ -596,12 +601,11 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         hardware_source_id = hardware_source.hardware_source_id
         channel_id = "aaa"
-        view_id = "bbb"
         self.assertEqual(len(document_model.data_items), 0)
         data_item = DataItem.DataItem(numpy.ones(256) + 1)
         document_model.append_data_item(data_item)
-        document_model.setup_channel(hardware_source_id, channel_id, view_id, data_item)
-        data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key(hardware_source_id, channel_id, view_id))
+        document_model.setup_channel(hardware_source_id, channel_id, data_item)
+        data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key(hardware_source_id, channel_id))
         self.assertEqual(data_item, data_item_reference.data_item)
         document_controller.close()
 
@@ -609,7 +613,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         data_item = DataItem.DataItem(numpy.zeros((256, 256)) + 16)
         document_model.append_data_item(data_item)
-        document_model.setup_channel(hardware_source.hardware_source_id, "a", None, data_item)
+        document_model.setup_channel(hardware_source.hardware_source_id, "a", data_item)
         hardware_source.exposure = 0.02
         hardware_source.start_playing()
         time.sleep(0.01)

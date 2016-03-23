@@ -1455,8 +1455,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def get_data_item_reference(self, key) -> "DocumentModel.DataItemReference":
         return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key))
 
-    def setup_channel(self, hardware_source_id, channel_id, view_id, data_item):
-        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id, view_id))
+    def setup_channel(self, hardware_source_id, channel_id, data_item):
+        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id))
         data_item_reference.data_item = data_item
 
     def __channels_data_updated(self, hardware_source, append_data_item_fn, view_id, is_recording, channels_data):
@@ -1502,6 +1502,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             if channel_data.sub_area:
                 data_item_state["sub_area"] = channel_data.sub_area
             data_item_states.append(data_item_state)
+            if is_recording and channel_data.state == "complete":
+                append_data_item_fn(copy.deepcopy(data_item), is_recording)
 
         last_channel_to_data_item_dict = self.__last_channel_to_data_item_dicts.setdefault(hardware_source.hardware_source_id + str(is_recording), dict())
 
@@ -1549,7 +1551,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             channel_index = channel.index
             channel_id = channel.channel_id
             channel_name = channel.name
-            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id, view_id))
+            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id))
             with data_item_reference.mutex:
                 data_item = data_item_reference.data_item
 
