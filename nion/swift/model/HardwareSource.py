@@ -921,12 +921,3 @@ def matches_hardware_source(hardware_source_id, channel_id, data_item):
         data_item_channel_id = hardware_source_metadata.get("channel_id")
         return data_item.category == "temporary" and hardware_source_id == data_item_hardware_source_id and channel_id == data_item_channel_id
     return False
-
-
-def make_hardware_source_filter(document_model, hardware_source_id: str, channel_id: str=None, source_binding: DataItemsBinding.AbstractDataItemsBinding=None) -> DataItemsBinding.DataItemsInContainerBinding:
-    filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(source_binding) if source_binding else DataItemsBinding.DataItemsInContainerBinding()
-    filtered_data_items_binding.container = document_model
-    filtered_data_items_binding.sort_key = DataItem.sort_by_date_key
-    filtered_data_items_binding.sort_reverse = True
-    filtered_data_items_binding.filter = functools.partial(matches_hardware_source, hardware_source_id, channel_id)
-    return filtered_data_items_binding

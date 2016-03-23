@@ -59,52 +59,6 @@ class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
         self._update_thumbnail(data_item)
 
 
-class FilteredDataItemThumbnailSource(AbstractDataItemThumbnailSource):
-
-    def __init__(self, ui, filtered_data_items_binding: DataItemsBinding.DataItemsInContainerBinding, dispatch_task):
-        super().__init__()
-        self.__data_item = None
-        self.__data_item_content_changed_event_listener = None
-        self.__filtered_data_items_binding = filtered_data_items_binding
-
-        def update_display_data_item():
-            if self.__data_item_content_changed_event_listener:
-                self.__data_item_content_changed_event_listener.close()
-                self.__data_item_content_changed_event_listener = None
-            data_items = self.__filtered_data_items_binding.data_items
-            if len(data_items) > 0:
-                data_item = data_items[0]
-                if data_item:
-                    self.__data_item = data_item
-                    def data_item_content_changed(changes):
-                        data_item = self.__data_item
-                        display = data_item.primary_display_specifier.display if data_item else None
-                        display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
-                        self._update_thumbnail(data_item)
-                    self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
-            else:
-                self.__data_item = None
-                self._update_thumbnail(self.__data_item)
-
-        self.__filtered_data_items_binding.inserters[id(self)] = lambda data_item, before_index: update_display_data_item()
-        self.__filtered_data_items_binding.removers[id(self)] = lambda data_item, index: update_display_data_item()
-
-        update_display_data_item()
-        self._update_thumbnail(self.__data_item)
-
-    def close(self):
-        if self.__data_item_content_changed_event_listener:
-            self.__data_item_content_changed_event_listener.close()
-            self.__data_item_content_changed_event_listener = None
-        self.__filtered_data_items_binding.close()
-        self.__filtered_data_items_binding = None
-        super().close()
-
-    @property
-    def data_item(self):
-        return self.__data_item
-
-
 class DataItemReferenceThumbnailSource(AbstractDataItemThumbnailSource):
 
     def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference, dispatch_task):
