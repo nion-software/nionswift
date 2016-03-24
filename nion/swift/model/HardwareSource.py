@@ -16,7 +16,6 @@ import configparser
 import contextlib
 import copy
 import datetime
-import functools
 import gettext
 import logging
 import os
@@ -30,13 +29,16 @@ from typing import Dict
 
 # local imports
 from nion.data import Calibration
+from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
-from nion.swift.model import DataItem
-from nion.swift.model import DataItemsBinding
+from nion.swift.model import Connection
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Region
 from nion.swift.model import Utility
 from nion.ui import Event
+from nion.ui import Observable
+from nion.ui import Persistence
 from nion.ui import Unicode
 
 _ = gettext.gettext
@@ -175,9 +177,7 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
             f()
 
 
-Channel = collections.namedtuple("Channel", ["channel_id", "index", "name", "data_element"])
-
-ChannelData = collections.namedtuple("Channel", ["channel_id", "index", "name", "data_and_calibration", "state", "sub_area"])
+ChannelData = collections.namedtuple("ChannelData", ["channel_id", "index", "name", "data_and_calibration", "state", "sub_area", "processors"])
 
 
 class AcquisitionTask:
@@ -419,6 +419,7 @@ class HardwareSource:
         self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
         self.channels_data_updated_event = Event.Event()
+        self.__channel_processors = dict()  # maps channel_index to processing info
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
         self.__tasks = dict()  # type: Dict[str, AcquisitionTask]
@@ -577,7 +578,7 @@ class HardwareSource:
             sub_area = data_element.get("sub_area")
             channels_data.append(ChannelData(channel_id=channel_id, index=channel_index, name=channel_name,
                                         data_and_calibration=data_and_calibration, state=channel_state,
-                                        sub_area=sub_area))
+                                        sub_area=sub_area, processors=self.__channel_processors.get(channel_index, list())))
         self.channels_data_updated_event.fire(view_id, not is_continuous, channels_data)
         if is_complete:
             self.data_elements_available_event.fire(data_elements)
@@ -723,6 +724,9 @@ class HardwareSource:
 
         yield get_data_element
 
+    def add_channel_processor(self, channel_index, processor):
+        self.__channel_processors.setdefault(channel_index, list()).append(processor)
+
     def get_property(self, name):
         return getattr(self, name)
 
@@ -740,6 +744,88 @@ class HardwareSource:
 
         return HardwareSourceFacade()
 
+
+class SumProcessor(Observable.Observable, Persistence.PersistentObject):
+    def __init__(self, bounds, processor_id=None, label=None):
+        super().__init__()
+        self.__bounds = bounds
+        self.__processor_id = processor_id or "summed"
+        self.__label = label or _("Summed")
+        self.__connection = None
+        self.__crop_listener = None
+        self.__remove_listener = None
+        self.__src_data_item = None
+        self.__dst_data_item = None
+
+    @property
+    def label(self):
+        return self.__label
+
+    @property
+    def processor_id(self):
+        return self.__processor_id
+
+    @property
+    def bounds(self):
+        return self.__bounds
+
+    @bounds.setter
+    def bounds(self, value):
+        if self.__bounds != value:
+            self.__bounds = value
+            self.notify_set_property("bounds", value)
+            src_data_item = self.__src_data_item if self.__src_data_item is not None and not self.__src_data_item.is_live else None
+            dst_data_item = self.__dst_data_item if self.__dst_data_item is not None and not self.__dst_data_item.is_live else None
+            if src_data_item and dst_data_item:
+                src_data_source = src_data_item.maybe_data_source
+                dst_data_source = dst_data_item.maybe_data_source
+                if src_data_source and dst_data_source:
+                    pass
+                    # import threading
+                    # print("RESULT {} ? {}".format(threading.current_thread(), threading.main_thread()))
+
+    def process(self, data_and_metadata: Core.DataAndMetadata) -> Core.DataAndMetadata:
+        return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
+
+    def connect(self, src_data_item, dst_data_item):
+        data_source = src_data_item.maybe_data_source
+        crop_region = None
+        for region in data_source.regions:
+            if region.region_id == self.__processor_id:
+                crop_region = region
+                break
+        def close_all():
+            if self.__connection:
+                self.__connection.close()
+                self.__connection = None
+            if self.__crop_listener:
+                self.__crop_listener.close()
+                self.__crop_listener = None
+            if self.__remove_listener:
+                self.__remove_listener.close()
+                self.__remove_listener = None
+            self.__src_data_item = None
+            self.__dst_data_item = None
+        if not crop_region:
+            close_all()
+            crop_region = Region.RectRegion()
+            crop_region.bounds = self.bounds
+            crop_region.is_bounds_constrained = True
+            crop_region.region_id = self.__processor_id
+            crop_region.label = _("Crop")
+            data_source.add_region(crop_region)
+        if not self.__crop_listener:
+            def property_changed(k, v):
+                if k == "bounds":
+                    self.bounds = v
+            def region_removed(k, v, i):
+                if v == crop_region:
+                    close_all()
+            self.__crop_listener = crop_region.property_changed_event.listen(property_changed)
+            self.__remove_listener = data_source.item_removed_event.listen(region_removed)
+            self.__connection = Connection.PropertyConnection(self, "bounds", crop_region, "bounds")
+            self.__src_data_item = src_data_item
+            self.__dst_data_item = dst_data_item
 
 def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=None):
     hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
