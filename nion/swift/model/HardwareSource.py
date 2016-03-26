@@ -177,7 +177,7 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
             f()
 
 
-ChannelData = collections.namedtuple("ChannelData", ["channel_id", "index", "name", "data_and_calibration", "state", "sub_area", "processors"])
+# ChannelData = collections.namedtuple("ChannelData", ["channel_id", "index", "name", "data_and_calibration", "state", "sub_area", "processors"])
 
 
 class AcquisitionTask:
@@ -208,7 +208,7 @@ class AcquisitionTask:
         _stop_acquisition: final call to indicate acquisition has stopped; subclasses should synchronize stop here
     """
 
-    def __init__(self, hardware_source, hardware_source_id, continuous: bool):
+    def __init__(self, hardware_source, continuous: bool):
         self.__hardware_source = hardware_source
         self.__started = False
         self.__finished = False
@@ -222,6 +222,8 @@ class AcquisitionTask:
         self.__view_id = str(uuid.uuid4()) if not continuous else None
         self._test_acquire_exception = None
         self._test_acquire_hook = None
+        self.start_event = Event.Event()
+        self.stop_event = Event.Event()
         self.finished_event = Event.Event()
         self.data_elements_changed_event = Event.Event()
 
@@ -372,6 +374,7 @@ class AcquisitionTask:
 
     def _start_acquisition(self) -> bool:
         self.__data_elements = None
+        self.start_event.fire()
         return self.__hardware_source.start_acquisition() if self.__hardware_source else True
 
     def _abort_acquisition(self) -> None:
@@ -394,12 +397,100 @@ class AcquisitionTask:
 
     def _stop_acquisition(self) -> None:
         self.__data_elements = None
+        self.stop_event.fire()
         if self.__hardware_source:
             self.__hardware_source.stop_acquisition()
 
     def _acquire_data_elements(self):
         assert self.__hardware_source
         return self.__hardware_source.acquire_data_elements()
+
+
+class ChannelBuffer:
+    def __init__(self, hardware_source: "HardwareSource", index: int, channel_id: str=None, name: str=None, src_channel_index: str=None, processor=None):
+        self.__hardware_source = hardware_source
+        self.__index = index
+        self.__channel_id = channel_id
+        self.__name = name
+        self.__src_channel_index = src_channel_index
+        self.__processor = processor
+        self.__is_started = False
+        self.__state = None
+        self.__sub_area = None
+        self.__data_and_metadata = None
+        self.is_dirty = False
+        self.channel_buffer_updated_event = Event.Event()
+        self.channel_buffer_start_event = Event.Event()
+        self.channel_buffer_stop_event = Event.Event()
+
+    @property
+    def index(self):
+        return self.__index
+
+    @property
+    def channel_id(self):
+        return self.__channel_id
+
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def state(self):
+        return self.__state
+
+    @property
+    def sub_area(self):
+        return self.__sub_area
+
+    @property
+    def src_channel_index(self):
+        return self.__src_channel_index
+
+    @property
+    def processor(self):
+        return self.__processor
+
+    @property
+    def data_and_metadata(self):
+        return self.__data_and_metadata
+
+    @property
+    def is_started(self):
+        return self.__is_started
+
+    def update(self, data_and_metadata: DataAndMetadata.DataAndMetadata, state: str, sub_area, view_id, is_recording) -> None:
+        self.__state = state
+        self.__sub_area = sub_area
+        self.__data_and_metadata = data_and_metadata
+
+        hardware_source_id = self.__hardware_source.hardware_source_id
+        channel_index = self.index
+        channel_id = self.channel_id
+        channel_name = self.name
+        hardware_source_metadata = dict()
+        hardware_source_metadata["hardware_source_id"] = hardware_source_id
+        hardware_source_metadata["channel_index"] = channel_index
+        if channel_id is not None:
+            hardware_source_metadata["channel_id"] = channel_id
+        if channel_name is not None:
+            hardware_source_metadata["channel_name"] = channel_name
+        if view_id:
+            hardware_source_metadata["view_id"] = view_id
+        data_and_metadata.metadata.setdefault("hardware_source", dict()).update(hardware_source_metadata)
+
+        self.channel_buffer_updated_event.fire(data_and_metadata, is_recording)
+        self.is_dirty = True
+
+    def start(self):
+        if not self.__is_started:
+            self.__is_started = True
+            self.channel_buffer_start_event.fire()
+
+    def stop(self):
+        if self.__is_started:
+            self.channel_buffer_stop_event.fire()
+            self.__is_started = False
 
 
 class HardwareSource:
@@ -412,20 +503,19 @@ class HardwareSource:
         super().__init__()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
-        self.channel_count = 1
+        self.__channel_buffers = list()
         self.features = dict()
+        self.channel_buffer_states_updated = Event.Event()
         self.data_elements_available_event = Event.Event()
         self.abort_event = Event.Event()
         self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
-        self.channels_data_updated_event = Event.Event()
-        self.__channel_processors = dict()  # maps channel_index to processing info
         self.__acquire_thread_break = False
         self.__acquire_thread_trigger = threading.Event()
         self.__tasks = dict()  # type: Dict[str, AcquisitionTask]
         self.__data_elements_changed_event_listeners = dict()
-        self.__view_data_elements_changed_event_listener = None
-        self.__record_data_elements_changed_event_listener = None
+        self.__start_event_listeners = dict()
+        self.__stop_event_listeners = dict()
         self.__acquire_thread = threading.Thread(target=self.__acquire_thread_loop)
         self.__acquire_thread.daemon = True
         self.__acquire_thread.start()
@@ -483,6 +573,10 @@ class HardwareSource:
                         del self.__tasks[task_id]
                         self.__data_elements_changed_event_listeners[task_id].close()
                         del self.__data_elements_changed_event_listeners[task_id]
+                        self.__start_event_listeners[task_id].close()
+                        del self.__start_event_listeners[task_id]
+                        self.__stop_event_listeners[task_id].close()
+                        del self.__stop_event_listeners[task_id]
                         self.acquisition_state_changed_event.fire(False)
                     self.__acquire_thread_trigger.set()
             if acquire_thread_break:
@@ -541,47 +635,50 @@ class HardwareSource:
 
     # create the view task
     def __create_acquisition_view_task(self):
-        return AcquisitionTask(self, self.hardware_source_id, True)
+        return AcquisitionTask(self, True)
 
     # create the view task
     def __create_acquisition_record_task(self):
-        return AcquisitionTask(self, self.hardware_source_id, False)
-
-    # call this to set the view task
-    # thread safe
-    def __set_active_view_task(self, view_task):
-        self.__view_data_elements_changed_event_listener = view_task.data_elements_changed_event.listen(self.__data_elements_changed)
-        self.__tasks['view'] = view_task
-        self.__acquire_thread_trigger.set()
-        self.acquisition_state_changed_event.fire(True)
-
-    # call this to set the record task
-    # thread safe
-    def __set_active_record_task(self, record_task):
-        self.__record_data_elements_changed_event_listener = record_task.data_elements_changed_event.listen(self.__data_elements_changed)
-        self.__tasks['record'] = record_task
-        self.__acquire_thread_trigger.set()
-        self.acquisition_state_changed_event.fire(True)
+        return AcquisitionTask(self, False)
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
     def __data_elements_changed(self, data_elements, is_continuous, view_id, is_complete, is_stopping):
-        channels_data = list()
-        for channel_index, data_element in enumerate(data_elements):
+        channel_buffers = list()
+        for data_element in data_elements:
             assert data_element is not None
             channel_id = data_element.get("channel_id")
-            channel_name = data_element.get("channel_name")
+            # find channel_index for channel_id
+            channel_index = next((channel_buffer.index for channel_buffer in self.__channel_buffers if channel_buffer.channel_id == channel_id), 0)
             data_and_calibration = convert_data_element_to_data_and_metadata(data_element)
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete" and is_stopping:
                 channel_state = "marked"
             sub_area = data_element.get("sub_area")
-            channels_data.append(ChannelData(channel_id=channel_id, index=channel_index, name=channel_name,
-                                        data_and_calibration=data_and_calibration, state=channel_state,
-                                        sub_area=sub_area, processors=self.__channel_processors.get(channel_index, list())))
-        self.channels_data_updated_event.fire(view_id, not is_continuous, channels_data)
+            channel_buffer = self.__channel_buffers[channel_index]
+            channel_buffer.update(data_and_calibration, channel_state, sub_area, view_id, not is_continuous)
+            channel_buffers.append(channel_buffer)
+        for channel_buffer in self.__channel_buffers:
+            src_channel_index = channel_buffer.src_channel_index
+            if src_channel_index is not None:
+                src_channel_buffer = self.__channel_buffers[src_channel_index]
+                if src_channel_buffer.is_dirty and src_channel_buffer.state == "complete":
+                    channel_buffer.update(channel_buffer.processor.process(src_channel_buffer.data_and_metadata), "complete", None, view_id, not is_continuous)
+                channel_buffers.append(channel_buffer)
+        for channel_buffer in self.__channel_buffers:
+            channel_buffer.is_dirty = False
+
+        self.channel_buffer_states_updated.fire(channel_buffers)
         if is_complete:
             self.data_elements_available_event.fire(data_elements)
+
+    def __start(self):
+        for channel_buffer in self.__channel_buffers:
+            channel_buffer.start()
+
+    def __stop(self):
+        for channel_buffer in self.__channel_buffers:
+            channel_buffer.stop()
 
     # return whether task is running
     def is_task_running(self, task_id: str) -> bool:
@@ -594,6 +691,8 @@ class HardwareSource:
         assert not task_id in self.__tasks
         assert task_id in ('idle', 'view', 'record')
         self.__data_elements_changed_event_listeners[task_id] = task.data_elements_changed_event.listen(self.__data_elements_changed)
+        self.__start_event_listeners[task_id] = task.start_event.listen(self.__start)
+        self.__stop_event_listeners[task_id] = task.stop_event.listen(self.__stop)
         self.__tasks[task_id] = task
         self.__acquire_thread_trigger.set()
         self.acquisition_state_changed_event.fire(True)
@@ -724,8 +823,19 @@ class HardwareSource:
 
         yield get_data_element
 
+    @property
+    def channel_count(self):
+        return len(self.__channel_buffers)
+
+    @property
+    def channel_buffers(self):
+        return self.__channel_buffers
+
+    def add_channel_buffer(self, channel_id: str=None, name: str=None):
+        self.__channel_buffers.append(ChannelBuffer(self, len(self.__channel_buffers), channel_id, name))
+
     def add_channel_processor(self, channel_index, processor):
-        self.__channel_processors.setdefault(channel_index, list()).append(processor)
+        self.__channel_buffers.append(ChannelBuffer(self, len(self.__channel_buffers), processor.processor_id, None, channel_index, processor))
 
     def get_property(self, name):
         return getattr(self, name)
@@ -751,11 +861,9 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         self.__bounds = bounds
         self.__processor_id = processor_id or "summed"
         self.__label = label or _("Summed")
-        self.__connection = None
+        self.__crop_region = None
         self.__crop_listener = None
         self.__remove_listener = None
-        self.__src_data_item = None
-        self.__dst_data_item = None
 
     @property
     def label(self):
@@ -774,15 +882,8 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         if self.__bounds != value:
             self.__bounds = value
             self.notify_set_property("bounds", value)
-            src_data_item = self.__src_data_item if self.__src_data_item is not None and not self.__src_data_item.is_live else None
-            dst_data_item = self.__dst_data_item if self.__dst_data_item is not None and not self.__dst_data_item.is_live else None
-            if src_data_item and dst_data_item:
-                src_data_source = src_data_item.maybe_data_source
-                dst_data_source = dst_data_item.maybe_data_source
-                if src_data_source and dst_data_source:
-                    pass
-                    # import threading
-                    # print("RESULT {} ? {}".format(threading.current_thread(), threading.main_thread()))
+            if self.__crop_region:
+                self.__crop_region.bounds = value
 
     def process(self, data_and_metadata: Core.DataAndMetadata) -> Core.DataAndMetadata:
         return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
@@ -795,17 +896,13 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                 crop_region = region
                 break
         def close_all():
-            if self.__connection:
-                self.__connection.close()
-                self.__connection = None
+            self.__crop_region = None
             if self.__crop_listener:
                 self.__crop_listener.close()
                 self.__crop_listener = None
             if self.__remove_listener:
                 self.__remove_listener.close()
                 self.__remove_listener = None
-            self.__src_data_item = None
-            self.__dst_data_item = None
         if not crop_region:
             close_all()
             crop_region = Region.RectRegion()
@@ -823,9 +920,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                     close_all()
             self.__crop_listener = crop_region.property_changed_event.listen(property_changed)
             self.__remove_listener = data_source.item_removed_event.listen(region_removed)
-            self.__connection = Connection.PropertyConnection(self, "bounds", crop_region, "bounds")
-            self.__src_data_item = src_data_item
-            self.__dst_data_item = dst_data_item
+            self.__crop_region = crop_region
 
 def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=None):
     hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)

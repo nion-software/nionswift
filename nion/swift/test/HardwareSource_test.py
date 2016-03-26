@@ -21,6 +21,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.05):
         super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
+        self.add_channel_buffer()
         self.sleep = sleep
         self.image = numpy.zeros(256)
 
@@ -54,7 +55,8 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.scanning = False
         self.suspended = False
         self.suspend_event = threading.Event()
-        self.channel_count = 2
+        self.add_channel_buffer("a", "A")
+        self.add_channel_buffer("b", "B")
         self.channel_ids = ["a", "b"]
         self.channel_names = ["A", "B"]
         self.channel_enabled = [True, False]
@@ -795,6 +797,44 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.__acquire_one(document_controller, hardware_source)
         self.assertEqual(count_ref[0], 1)
         document_controller.close()
+
+    def test_two_acquisitions_succeed(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            self.__acquire_one(document_controller, hardware_source)
+
+    def test_two_scan_acquisitions_succeed(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            self.__acquire_one(document_controller, hardware_source)
+
+    def test_deleting_data_item_during_acquisition_recovers_correctly(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        with contextlib.closing(document_controller):
+            hardware_source.start_playing()
+            start_time = time.time()
+            while not hardware_source.is_playing:
+                time.sleep(0.01)
+                self.assertTrue(time.time() - start_time < 3.0)
+            start_time = time.time()
+            while len(document_model.data_items) == 0:
+                time.sleep(0.01)
+                document_controller.periodic()
+                self.assertTrue(time.time() - start_time < 3.0)
+            document_model.remove_data_item(document_model.data_items[0])
+            start_time = time.time()
+            while len(document_model.data_items) == 0:
+                time.sleep(0.01)
+                document_controller.periodic()
+                self.assertTrue(time.time() - start_time < 3.0)
+            hardware_source.abort_playing()
+            start_time = time.time()
+            while hardware_source.is_playing:
+                time.sleep(0.01)
+                self.assertTrue(time.time() - start_time < 3.0)
+            document_controller.periodic()
 
 
 if __name__ == '__main__':

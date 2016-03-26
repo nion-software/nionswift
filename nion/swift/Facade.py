@@ -1900,6 +1900,7 @@ class API_1(object):
 
             def __init__(self):
                 super(FacadeHardwareSource, self).__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
+                self.add_channel_buffer()
 
             def start_acquisition(self) -> bool:
                 hardware_source_delegate.start_acquisition()
