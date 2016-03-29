@@ -1155,7 +1155,6 @@ class DocumentController(Observable.Broadcaster):
             crop_region2 = self.__get_crop_region(display_specifier2)
             data_item = self.document_model.get_cross_correlate_new(display_specifier1.data_item, display_specifier2.data_item, crop_region1, crop_region2)
             if data_item:
-                self.document_model.append_data_item(data_item)
                 new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 self.display_data_item(new_display_specifier)
                 return data_item
@@ -1166,7 +1165,6 @@ class DocumentController(Observable.Broadcaster):
         crop_region = self.__get_crop_region(display_specifier)
         data_item = fn(display_specifier.data_item, crop_region)
         if data_item:
-            self.document_model.append_data_item(data_item)
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.display_data_item(new_display_specifier)
             return data_item

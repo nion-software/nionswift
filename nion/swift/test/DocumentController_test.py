@@ -447,7 +447,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            document_model.append_data_item(target_data_item)
             display = DataItem.DisplaySpecifier.from_data_item(source_data_item).display
             self.assertIn(target_data_item, document_model.data_items)
             display.remove_drawn_graphic(display.drawn_graphics[0])
@@ -460,7 +459,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            document_model.append_data_item(target_data_item)
             self.assertIn(target_data_item, document_model.data_items)
             document_model.remove_data_item(source_data_item)
             self.assertNotIn(target_data_item, document_model.data_items)
@@ -472,7 +470,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             target_data_item = document_model.get_line_profile_new(source_data_item, None)
-            document_model.append_data_item(target_data_item)
             display = DataItem.DisplaySpecifier.from_data_item(source_data_item).display
             self.assertIn(target_data_item, document_model.data_items)
             self.assertEqual(len(display.drawn_graphics), 1)
@@ -488,7 +485,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(source_data_item)
             data_item = document_model.get_crop_new(source_data_item, None)
             self.assertIsNotNone(data_item)
-            document_model.append_data_item(data_item)
 
     def test_processing_duplicate_does_copy(self):
         document_model = DocumentModel.DocumentModel()

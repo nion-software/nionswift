@@ -64,7 +64,6 @@ class TestDataGroupClass(unittest.TestCase):
             # add a child data item and make sure top level and data_group see it
             # also check data item.
             data_item1a = document_model.get_resample_new(data_item1)
-            document_model.append_data_item(data_item1a)
             data_group.append_data_item(data_item1a)
             self.assertEqual(len(document_model.data_items), 2)
             self.assertEqual(len(data_group.counted_data_items), 2)
@@ -73,7 +72,6 @@ class TestDataGroupClass(unittest.TestCase):
             # add a child data item to the child and make sure top level and data_group match.
             # also check data items.
             data_item1a1 = document_model.get_resample_new(data_item1a)
-            document_model.append_data_item(data_item1a1)
             display_specifier1a1 = DataItem.DisplaySpecifier.from_data_item(data_item1a1)
             data_group.append_data_item(data_item1a1)
             self.assertEqual(len(document_model.data_items), 3)
@@ -85,7 +83,6 @@ class TestDataGroupClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
             data_item2a = document_model.get_resample_new(data_item2)
-            document_model.append_data_item(data_item2a)
             data_group.append_data_item(data_item2)
             data_group.append_data_item(data_item2a)
             self.assertEqual(len(document_model.data_items), 5)
@@ -107,9 +104,8 @@ class TestDataGroupClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item2a = document_model.get_resample_new(data_item2)
             document_model.append_data_item(data_item2)  # add this first
-            document_model.append_data_item(data_item2a)  # add this second
+            data_item2a = document_model.get_resample_new(data_item2)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
 
@@ -119,9 +115,8 @@ class TestDataGroupClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item2a = document_model.get_resample_new(data_item2)
             document_model.append_data_item(data_item2)
-            document_model.append_data_item(data_item2a)
+            document_model.get_resample_new(data_item2)
             # verify assumptions
             self.assertEqual(len(document_model.data_items), 2)
             # remove root

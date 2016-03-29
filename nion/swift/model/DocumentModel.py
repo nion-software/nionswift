@@ -1684,6 +1684,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             buffered_data_source = DataItem.BufferedDataSource()
             new_data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
+            self.append_data_item(new_data_item)
             new_regions = dict()
             for region in out_regions or list():
                 if region.type == "interval":
