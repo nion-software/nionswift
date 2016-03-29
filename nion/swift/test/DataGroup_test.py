@@ -15,7 +15,6 @@ from nion.swift import DocumentController
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Operation
 from nion.ui import Test
 
 
@@ -64,10 +63,7 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
             # add a child data item and make sure top level and data_group see it
             # also check data item.
-            data_item1a = DataItem.DataItem()
-            operation1a = Operation.OperationItem("resample-operation")
-            operation1a.add_data_source(data_item1._create_test_data_source())
-            data_item1a.set_operation(operation1a)
+            data_item1a = document_model.get_resample_new(data_item1)
             document_model.append_data_item(data_item1a)
             data_group.append_data_item(data_item1a)
             self.assertEqual(len(document_model.data_items), 2)
@@ -76,14 +72,10 @@ class TestDataGroupClass(unittest.TestCase):
             self.assertIn(data_item1a, list(data_group.counted_data_items.keys()))
             # add a child data item to the child and make sure top level and data_group match.
             # also check data items.
-            data_item1a1 = DataItem.DataItem()
-            operation1a1 = Operation.OperationItem("resample-operation")
-            operation1a1.add_data_source(data_item1a._create_test_data_source())
-            data_item1a1.set_operation(operation1a1)
+            data_item1a1 = document_model.get_resample_new(data_item1a)
             document_model.append_data_item(data_item1a1)
             display_specifier1a1 = DataItem.DisplaySpecifier.from_data_item(data_item1a1)
             data_group.append_data_item(data_item1a1)
-            display_specifier1a1.buffered_data_source.dimensional_calibrations
             self.assertEqual(len(document_model.data_items), 3)
             self.assertEqual(len(data_group.counted_data_items), 3)
             self.assertIn(data_item1, list(data_group.counted_data_items.keys()))
@@ -92,10 +84,7 @@ class TestDataGroupClass(unittest.TestCase):
             # now add a data item that already has children
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
-            data_item2a = DataItem.DataItem()
-            operation2a = Operation.OperationItem("resample-operation")
-            operation2a.add_data_source(data_item2._create_test_data_source())
-            data_item2a.set_operation(operation2a)
+            data_item2a = document_model.get_resample_new(data_item2)
             document_model.append_data_item(data_item2a)
             data_group.append_data_item(data_item2)
             data_group.append_data_item(data_item2a)
@@ -118,14 +107,11 @@ class TestDataGroupClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item2a = DataItem.DataItem()
-            operation2a = Operation.OperationItem("resample-operation")
-            operation2a.add_data_source(data_item2._create_test_data_source())
-            data_item2a.set_operation(operation2a)
+            data_item2a = document_model.get_resample_new(data_item2)
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
             # verify
-            self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
+            self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
 
     def test_removing_data_item_with_dependent_data_item_removes_them_both(self):
         document_model = DocumentModel.DocumentModel()
@@ -133,10 +119,7 @@ class TestDataGroupClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item2a = DataItem.DataItem()
-            operation2a = Operation.OperationItem("resample-operation")
-            operation2a.add_data_source(data_item2._create_test_data_source())
-            data_item2a.set_operation(operation2a)
+            data_item2a = document_model.get_resample_new(data_item2)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item2a)
             # verify assumptions
