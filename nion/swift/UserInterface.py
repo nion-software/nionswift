@@ -13,6 +13,7 @@ import numbers
 import os
 import pickle
 import threading
+import time
 import weakref
 
 # third party libraries
@@ -2202,6 +2203,7 @@ class QtUserInterface(object):
     def __init__(self, proxy):
         self.proxy = proxy
         self.persistence_root = "0"
+        self.proxy.Core_syncLatencyTimer(time.perf_counter())
 
     def close(self):
         self.proxy.Application_close()
