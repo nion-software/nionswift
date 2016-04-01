@@ -1,10 +1,5 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import gettext
-import logging
 import threading
 
 # third party libraries
@@ -32,7 +27,7 @@ class AdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
     """
 
     def __init__(self):
-        super(AdornmentsCanvasItem, self).__init__()
+        super().__init__()
         self.display_limits = (0,1)
 
     def _repaint(self, drawing_context):
@@ -90,7 +85,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     """
 
     def __init__(self):
-        super(SimpleLineGraphCanvasItem, self).__init__()
+        super().__init__()
         self.__data = None
         self.__background_color = None
         self.__retained_rebin_1d = dict()
@@ -160,7 +155,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     """A canvas item to draw and control a histogram."""
 
     def __init__(self):
-        super(HistogramCanvasItem, self).__init__()
+        super().__init__()
 
         # tell the canvas item that we want mouse events.
         self.wants_mouse_events = True
@@ -173,15 +168,14 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(self.__simple_line_graph_canvas_item)
         self.add_canvas_item(self.__adornments_canvas_item)
 
-        # the display holds the current display to which this histogram is listening.
-        self.__display = None
-
         # used for mouse tracking.
         self.__pressed = False
 
+        self.on_set_display_limits = None
+
     def close(self):
-        self._set_display(None)
-        super(HistogramCanvasItem, self).close()
+        self._set_histogram_data(None)
+        super().close()
 
     @property
     def background_color(self):
@@ -193,26 +187,12 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         """Set the background color, in the CSS color format."""
         self.__simple_line_graph_canvas_item.background_color = background_color
 
-    def _get_display(self):
-        """Return the display. Used for testing."""
-        return self.__display
-
-    def _set_display(self, display):
-        """Set the display that this histogram is displaying.
-
-        The display parameter can be None.
-        """
-
-        # un-listen to the existing display. then listen to the new display.
-        self.__display = display
-
+    def _set_histogram_data(self, histogram_data):
         # if the user is currently dragging the display limits, we don't want to update
         # from changing data at the same time. but we _do_ want to draw the updated data.
         if not self.__pressed:
             self.__adornments_canvas_item.display_limits = (0, 1)
 
-        # grab the cached data and display it
-        histogram_data = self.__display.get_processed_data("histogram") if self.__display else None
         self.histogram_data = histogram_data
 
         # make sure the adornments get updated
@@ -231,15 +211,15 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__adornments_canvas_item.update()
 
     def mouse_double_clicked(self, x, y, modifiers):
-        if super(HistogramCanvasItem, self).mouse_double_clicked(x, y, modifiers):
+        if super().mouse_double_clicked(x, y, modifiers):
             return True
         self.__set_display_limits((0, 1))
-        if self.__display:
-            self.__display.display_limits = None
+        if callable(self.on_set_display_limits):
+            self.on_set_display_limits(None)
         return True
 
     def mouse_pressed(self, x, y, modifiers):
-        if super(HistogramCanvasItem, self).mouse_pressed(x, y, modifiers):
+        if super().mouse_pressed(x, y, modifiers):
             return True
         self.__pressed = True
         self.start = float(x)/self.canvas_size[1]
@@ -247,19 +227,17 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def mouse_released(self, x, y, modifiers):
-        if super(HistogramCanvasItem, self).mouse_released(x, y, modifiers):
+        if super().mouse_released(x, y, modifiers):
             return True
         self.__pressed = False
         display_limit_range = self.__adornments_canvas_item.display_limits[1] - self.__adornments_canvas_item.display_limits[0]
-        if self.__display and (display_limit_range > 0) and (display_limit_range < 1):
-            data_min, data_max = self.__display.display_range
-            lower_display_limit = data_min + self.__adornments_canvas_item.display_limits[0] * (data_max - data_min)
-            upper_display_limit = data_min + self.__adornments_canvas_item.display_limits[1] * (data_max - data_min)
-            self.__display.display_limits = (lower_display_limit, upper_display_limit)
+        if 0 < display_limit_range < 1:
+            if callable(self.on_set_display_limits):
+                self.on_set_display_limits(self.__adornments_canvas_item.display_limits)
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
-        if super(HistogramCanvasItem, self).mouse_position_changed(x, y, modifiers):
+        if super().mouse_position_changed(x, y, modifiers):
             return True
         canvas_width = self.canvas_size[1]
         if self.__pressed:
@@ -272,13 +250,14 @@ class HistogramPanel(Panel.Panel):
     """ A panel to present a histogram of the selected data item. """
 
     def __init__(self, document_controller, panel_id, properties):
-        super(HistogramPanel, self).__init__(document_controller, panel_id, _("Histogram"))
+        super().__init__(document_controller, panel_id, _("Histogram"))
 
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
         # create a canvas widget for this panel and put a histogram canvas item in it.
         self.__histogram_canvas_item = HistogramCanvasItem()
+
         histogram_widget = self.ui.create_canvas_widget(properties={"min-height": 80, "max-height": 80})
         histogram_widget.canvas_item.add_canvas_item(self.__histogram_canvas_item)
 
@@ -324,6 +303,18 @@ class HistogramPanel(Panel.Panel):
         # manually send the first initial data item changed message to set things up.
         self.__data_item_changed(self.__selected_data_item_binding.data_item)
 
+        def set_display_limits(display_limits):
+            if self.__display:
+                if display_limits is not None:
+                    data_min, data_max = self.__display.display_range
+                    lower_display_limit = data_min + display_limits[0] * (data_max - data_min)
+                    upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
+                    self.__display.display_limits = (lower_display_limit, upper_display_limit)
+                else:
+                    self.__display.display_limits = None
+
+        self.__histogram_canvas_item.on_set_display_limits = set_display_limits
+
     def close(self):
         # disconnect data item binding
         self.__data_item_changed(None)
@@ -333,7 +324,7 @@ class HistogramPanel(Panel.Panel):
         self.__selected_data_item_binding = None
         self.__set_display(None, None)
         self.clear_task("statistics")
-        super(HistogramPanel, self).close()
+        super().close()
 
     @property
     def _histogram_canvas_item(self):
@@ -403,7 +394,8 @@ class HistogramPanel(Panel.Panel):
     def __data_item_changed(self, data_item):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         self.__set_display(display_specifier.data_item, display_specifier.display)
-        self.__histogram_canvas_item._set_display(display_specifier.display)
+        histogram_data = display_specifier.display.get_processed_data("histogram") if display_specifier.display else None
+        self.__histogram_canvas_item._set_histogram_data(histogram_data)
         if display_specifier.display:
             statistics_data = display_specifier.display.get_processed_data("statistics")
             document_model = self.document_controller.document_model

@@ -54,7 +54,6 @@ class TestHistogramPanelClass(unittest.TestCase):
     def test_drag_to_set_limits(self):
         self.assertEqual(self.display_specifier.display.display_range, (200, 650))
         self.assertIsNone(self.display_specifier.display.display_limits)
-        self.assertEqual(self.histogram_canvas_item._get_display(), self.display_specifier.display)
         # drag
         self.histogram_canvas_item.mouse_pressed(60, 58, 0)
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
