@@ -8,7 +8,7 @@ import copy
 import math
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.data import Calibration
@@ -144,6 +144,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__data_info = None
 
+        self.__last_data_info = None
+        self.__last_data_info_data = None
         self.__data_and_calibration = None
         self.__y_min = None
         self.__y_max = None
@@ -252,24 +254,32 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 dimensional_calibration = data_and_calibration.dimensional_calibrations[-1] if display_calibrated_values else None
                 intensity_calibration = data_and_calibration.intensity_calibration if display_calibrated_values else None
 
+                # this can be done here -- it is always in a thread (paint)
+                scalar_data = data_and_calibration.data
+                # make sure complex becomes scalar
+                scalar_data = Image.scalar_from_array(scalar_data)
+                assert scalar_data is not None
+                # make sure RGB becomes scalar
+                scalar_data = Image.convert_to_grayscale(scalar_data)
+                assert scalar_data is not None
+
                 def get_data():
-                    data = data_and_calibration.data
-                    # make sure complex becomes scalar
-                    data = Image.scalar_from_array(data)
-                    assert data is not None
-                    # make sure RGB becomes scalar
-                    data = Image.convert_to_grayscale(data)
-                    assert data is not None
-                    return data
+                    return scalar_data
 
-                data_info = LineGraphCanvasItem.LineGraphDataInfo(get_data, y_min, y_max, left_channel, right_channel,
-                                                                  dimensional_calibration, intensity_calibration, y_style)
+                if not numpy.array_equal(self.__last_data_info_data, scalar_data) or self.__last_data_info != (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style):
+                    data_info = LineGraphCanvasItem.LineGraphDataInfo(get_data, y_min, y_max, left_channel, right_channel,
+                                                                      dimensional_calibration, intensity_calibration, y_style)
+                    self.__update_data_info(data_info)
+                    self.__last_data_info = (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style)
+                    self.__last_data_info_data = scalar_data
             else:
-                data_info = LineGraphCanvasItem.LineGraphDataInfo()
-
-            self.__update_data_info(data_info)
+                self.__update_data_info(LineGraphCanvasItem.LineGraphDataInfo())
+                self.__last_data_info = None
+                self.__last_data_info_data = None
         else:
             self.__update_data_info(LineGraphCanvasItem.LineGraphDataInfo())
+            self.__last_data_info = None
+            self.__last_data_info_data = None
 
     def _repaint(self, drawing_context):
         super(LinePlotCanvasItem, self)._repaint(drawing_context)
