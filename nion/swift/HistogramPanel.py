@@ -1,17 +1,22 @@
 # standard libraries
 import gettext
 import threading
+import time
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import Panel
+from nion.swift import Widgets
 from nion.swift.model import DataItem
 from nion.ui import Binding
 from nion.ui import CanvasItem
+from nion.ui import Event
 from nion.ui import Model
+from nion.ui import ThreadPool
 
 _ = gettext.gettext
 
@@ -246,6 +251,75 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
 
+class HistogramWidget(Widgets.CompositeWidgetBase):
+
+    def __init__(self, ui, display_dyn, histogram_data):
+        super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 80}))
+
+        self.__histogram_data_and_metadata = None
+        self.__histogram_data_and_metadata_lock = threading.RLock()
+        self.__histogram_data_and_metadata_dirty = False
+
+        self.__thread = ThreadPool.ThreadDispatcher(self.__update_thread, minimum_interval=0.5)
+        self.__thread.start()
+
+        self.__histogram_data = histogram_data
+
+        def set_display_limits(display_limits):
+            display = display_dyn.display
+            if display:
+                if display_limits is not None:
+                    data_min, data_max = display.display_range
+                    lower_display_limit = data_min + display_limits[0] * (data_max - data_min)
+                    upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
+                    display.display_limits = (lower_display_limit, upper_display_limit)
+                else:
+                    display.display_limits = None
+
+        # create a canvas widget for this panel and put a histogram canvas item in it.
+        self.__histogram_canvas_item = HistogramCanvasItem()
+        self.__histogram_canvas_item.on_set_display_limits = set_display_limits
+
+        histogram_widget = ui.create_canvas_widget()
+        histogram_widget.canvas_item.add_canvas_item(self.__histogram_canvas_item)
+
+        def histogram_data_changed(histogram_data_and_metadata):
+            with self.__histogram_data_and_metadata_lock:
+                self.__histogram_data_and_metadata = histogram_data_and_metadata
+                self.__histogram_data_and_metadata_dirty = True
+                self.__thread.trigger()
+
+        self.__histogram_data_changed_listener = self.__histogram_data.histogram_data_changed_event.listen(histogram_data_changed)
+
+        self.content_widget.add(histogram_widget)
+
+    def close(self):
+        self.__histogram_data_changed_listener.close()
+        self.__histogram_data_changed_listener = None
+        self.__histogram_data = None
+        self.__thread.close()
+        self.__thread = None
+        self.__histogram_canvas_item = None
+        super().close()
+
+    def _recompute(self):
+        with self.__histogram_data_and_metadata_lock:
+            histogram_data_and_metadata = self.__histogram_data_and_metadata
+            histogram_data_and_metadata_dirty = self.__histogram_data_and_metadata_dirty
+            self.__histogram_data_and_metadata = None
+            self.__histogram_data_and_metadata_dirty = False
+        if histogram_data_and_metadata_dirty:
+            self.__histogram_canvas_item._set_histogram_data(histogram_data_and_metadata.data if histogram_data_and_metadata else None)
+
+    def __update_thread(self):
+        time.sleep(0.05)  # delay in case multiple requests arriving
+        self._recompute()
+
+    @property
+    def _histogram_canvas_item(self):
+        return self.__histogram_canvas_item
+
+
 class HistogramPanel(Panel.Panel):
     """ A panel to present a histogram of the selected data item. """
 
@@ -255,11 +329,11 @@ class HistogramPanel(Panel.Panel):
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
-        # create a canvas widget for this panel and put a histogram canvas item in it.
-        self.__histogram_canvas_item = HistogramCanvasItem()
-
-        histogram_widget = self.ui.create_canvas_widget(properties={"min-height": 80, "max-height": 80})
-        histogram_widget.canvas_item.add_canvas_item(self.__histogram_canvas_item)
+        target_display = DynamicTargetDisplay(document_controller)
+        display_data = DynamicDisplayData(target_display)
+        display_range = DynamicDisplayRange(target_display)
+        histogram_data = DynamicHistogramData(display_data, display_range)
+        self.__histogram_widget = HistogramWidget(self.ui, target_display, histogram_data)
 
         # create a statistics section
         stats_column1 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
@@ -277,7 +351,7 @@ class HistogramPanel(Panel.Panel):
 
         # create the main column with the histogram and the statistics section
         column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3})
-        column.add(histogram_widget)
+        column.add(self.__histogram_widget)
         column.add_spacing(6)
         column.add(stats_section)
         column.add_spacing(6)
@@ -294,7 +368,6 @@ class HistogramPanel(Panel.Panel):
         self.widget = column
 
         # the display holds the current display to which this histogram is listening.
-        self.__data_item = None
         self.__display = None
         self.__display_lock = threading.RLock()
 
@@ -303,18 +376,6 @@ class HistogramPanel(Panel.Panel):
         # manually send the first initial data item changed message to set things up.
         self.__data_item_changed(self.__selected_data_item_binding.data_item)
 
-        def set_display_limits(display_limits):
-            if self.__display:
-                if display_limits is not None:
-                    data_min, data_max = self.__display.display_range
-                    lower_display_limit = data_min + display_limits[0] * (data_max - data_min)
-                    upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
-                    self.__display.display_limits = (lower_display_limit, upper_display_limit)
-                else:
-                    self.__display.display_limits = None
-
-        self.__histogram_canvas_item.on_set_display_limits = set_display_limits
-
     def close(self):
         # disconnect data item binding
         self.__data_item_changed(None)
@@ -322,13 +383,17 @@ class HistogramPanel(Panel.Panel):
         self.__data_item_changed_event_listener = None
         self.__selected_data_item_binding.close()
         self.__selected_data_item_binding = None
-        self.__set_display(None, None)
+        self.__set_display(None)
         self.clear_task("statistics")
         super().close()
 
     @property
+    def _histogram_widget(self):
+        return self.__histogram_widget
+
+    @property
     def _histogram_canvas_item(self):
-        return self.__histogram_canvas_item
+        return self.__histogram_widget._histogram_canvas_item
 
     # thread safe
     def __update_statistics(self, statistics_data):
@@ -345,7 +410,7 @@ class HistogramPanel(Panel.Panel):
         self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)//2:])
 
     # thread safe
-    def __set_display(self, data_item, display):
+    def __set_display(self, display):
         # typically could be updated from an acquisition thread and a
         # focus changed thread (why?).
         with self.__display_lock:
@@ -354,7 +419,6 @@ class HistogramPanel(Panel.Panel):
                 self.__display_processor_needs_recompute_event_listener = None
                 self.__display_processor_data_updated_event_listener.close()
                 self.__display_processor_data_updated_event_listener = None
-            self.__data_item = data_item
             self.__display = display
             if self.__display:
 
@@ -370,9 +434,6 @@ class HistogramPanel(Panel.Panel):
                 def display_processor_data_updated(processor):
                     with self.__display_lock:
                         display = self.__display
-                    if processor == display.get_processor("histogram"):
-                        histogram_data = display.get_processed_data("histogram")
-                        self.__histogram_canvas_item.histogram_data = histogram_data
                     if processor == display.get_processor("statistics"):
                         statistics_data = display.get_processed_data("statistics")
                         self.__update_statistics(statistics_data)
@@ -393,14 +454,261 @@ class HistogramPanel(Panel.Panel):
     # thread safe
     def __data_item_changed(self, data_item):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.__set_display(display_specifier.data_item, display_specifier.display)
-        histogram_data = display_specifier.display.get_processed_data("histogram") if display_specifier.display else None
-        self.__histogram_canvas_item._set_histogram_data(histogram_data)
+        self.__set_display(display_specifier.display)
         if display_specifier.display:
             statistics_data = display_specifier.display.get_processed_data("statistics")
             document_model = self.document_controller.document_model
             display_specifier.display.get_processor("statistics").recompute_if_necessary(document_model.dispatch_task, None)
-            display_specifier.display.get_processor("histogram").recompute_if_necessary(document_model.dispatch_task, None)
         else:
             statistics_data = dict()
         self.__update_statistics(statistics_data)
+
+
+class DynamicTargetDisplay:
+
+    def __init__(self, document_controller):
+        # outgoing messages
+        self.display_changed_event = Event.Event()
+        # cached values
+        self.__display = None
+        # listen for selected data item changes
+        self.__selected_data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
+        # manually send the first data item changed message to set things up.
+        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        # disconnect data item binding
+        self.__selected_data_item_changed(None)
+        self.__selected_data_item_changed_event_listener.close()
+        self.__selected_data_item_changed_event_listener = None
+
+    @property
+    def display(self):
+        return self.__display
+
+    def __selected_data_item_changed(self, data_item):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        if display != self.__display:
+            self.display_changed_event.fire(display)
+            self.__display = display
+
+
+class DynamicDisplayData:
+    # TODO: add a display_data_changed to Display class and use it here
+
+    def __init__(self, dynamic_display):
+        # outgoing messages
+        self.display_data_and_metadata_changed_event = Event.Event()
+        # references
+        self.__dynamic_display = dynamic_display
+        # initialize
+        self.__display_mutated_event_listener = None
+        self.__display_data_and_metadata = None
+        # listen for display changes
+        self.__display_changed_event_listener = dynamic_display.display_changed_event.listen(self.__display_changed)
+        self.__display_changed(dynamic_display.display)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        self.__display_changed(None)
+        self.__display_changed_event_listener.close()
+        self.__display_changed_event_listener = None
+        self.__dynamic_display = None
+
+    @property
+    def display_data_and_metadata(self):
+        return self.__display_data_and_metadata
+
+    def __display_changed(self, display):
+        def display_mutated():
+            self.__display_data_and_metadata = display.display_data_and_calibration
+            self.display_data_and_metadata_changed_event.fire(display.display_data_and_calibration)
+        if self.__display_mutated_event_listener:
+            self.__display_mutated_event_listener.close()
+            self.__display_mutated_event_listener = None
+        if display:
+            self.__display_mutated_event_listener = display.display_changed_event.listen(display_mutated)
+            display_mutated()
+        else:
+            self.__display_data_and_metadata = None
+            self.display_data_and_metadata_changed_event.fire(None)
+
+
+class DynamicDisplayRange:
+    # TODO: add a display_data_changed to Display class and use it here
+
+    def __init__(self, dynamic_display):
+        # outgoing messages
+        self.display_range_changed_event = Event.Event()
+        # references
+        self.__dynamic_display = dynamic_display
+        # initialize
+        self.__display_mutated_event_listener = None
+        self.__display_range = None
+        # listen for display changes
+        self.__display_changed_event_listener = dynamic_display.display_changed_event.listen(self.__display_changed)
+        self.__display_changed(dynamic_display.display)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        self.__display_changed(None)
+        self.__display_changed_event_listener.close()
+        self.__display_changed_event_listener = None
+        self.__dynamic_display = None
+
+    @property
+    def display_range(self):
+        return self.__display_range
+
+    def __display_changed(self, display):
+        def display_mutated():
+            display_range = display.display_range
+            if display_range != self.__display_range:
+                self.__display_range = display_range
+                self.display_range_changed_event.fire(display_range)
+        if self.__display_mutated_event_listener:
+            self.__display_mutated_event_listener.close()
+            self.__display_mutated_event_listener = None
+        if display:
+            self.__display_mutated_event_listener = display.display_changed_event.listen(display_mutated)
+            display_mutated()
+        else:
+            self.display_range_changed_event.fire(None)
+
+
+class DynamicHistogramData:
+
+    def __init__(self, dynamic_display_data, dynamic_display_range):
+        # outgoing messages
+        self.histogram_data_changed_event = Event.Event()
+        # references
+        self.__dynamic_display_data = dynamic_display_data
+        self.__dynamic_display_range = dynamic_display_range
+        # initialize values
+        self.bins = 320
+        self.subsample = None  # hard coded subsample size
+        self.subsample_fraction = None  # fraction of total pixels
+        self.subsample_min = 1024  # minimum subsample size
+        self.__display_data_and_metadata = None
+        self.__display_range = None
+        self.__histogram_data = None
+        # listen for display changes
+        self.__display_data_and_metadata_changed_event_listener = dynamic_display_data.display_data_and_metadata_changed_event.listen(self.__display_data_and_metadata_changed)
+        self.__display_range_changed_event_listener = dynamic_display_range.display_range_changed_event.listen(self.__display_range_changed_event)
+        self.__recalculate_histogram_data(dynamic_display_data.display_data_and_metadata, dynamic_display_range.display_range)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        self.__recalculate_histogram_data(None, None)
+        self.__display_data_and_metadata_changed_event_listener.close()
+        self.__display_range_changed_event_listener = None
+        self.__dynamic_display_data = None
+        self.__dynamic_display_range = None
+
+    def __recalculate_histogram_data(self, display_data_and_metadata, display_range):
+        if display_data_and_metadata != self.__display_data_and_metadata or display_range != self.__display_range:
+            self.__display_data_and_metadata = display_data_and_metadata
+            self.__display_range = display_range
+            if self.__display_data_and_metadata is not None:
+                def get_calculated_data(data_and_metadata):
+                    data = data_and_metadata.data
+                    subsample = self.subsample
+                    total_pixels = numpy.product(data.shape)
+                    if not subsample and self.subsample_fraction:
+                        subsample = min(max(total_pixels * self.subsample_fraction, self.subsample_min), total_pixels)
+                    if subsample:
+                        factor = total_pixels / subsample
+                        data_sample = numpy.random.choice(data.reshape(numpy.product(data.shape)), subsample)
+                    else:
+                        factor = 1.0
+                        data_sample = numpy.copy(data)
+                    if display_range is None or data_sample is None:
+                        return None
+                    histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=self.bins)[0]
+                    histogram_max = numpy.max(histogram_data)  # assumes that histogram_data is int
+                    if histogram_max > 0:
+                        histogram_data = histogram_data / float(histogram_max)
+                    return histogram_data
+
+                self.__histogram_data = DataAndMetadata.DataAndMetadata(lambda: get_calculated_data(display_data_and_metadata), ((self.bins,), numpy.float64))
+                self.histogram_data_changed_event.fire(self.__histogram_data)
+            else:
+                if self.__histogram_data is not None:
+                    self.__histogram_data = None
+                    self.histogram_data_changed_event.fire(self.__histogram_data)
+
+    def __display_data_and_metadata_changed(self, display_data_and_metadata):
+        self.__recalculate_histogram_data(display_data_and_metadata, self.__display_range)
+
+    def __display_range_changed_event(self, display_range):
+        self.__recalculate_histogram_data(self.__display_data_and_metadata, display_range)
+
+# TODO: threading, reentrancy?
+# TODO: long calculations
+# TODO: value caching
+# TODO: how to persist these snippets? each one is a program with an identifier, inputs. startup establishes them.
+
+# # histogram widget
+# target_display = current_target_display(document_controller)
+# display_data = extract_display_data(target_display)
+# display_limits = extract_display_limits(target_display)
+# histogram_data = calculate_histogram_data(display_data, display_limits)
+# histogram_widget = make_histogram_widget(histogram_data)
+# histogram_widget.on_set_display_limits = set_display_limits(target_display)
+
+# # statistics widget
+# target_display = current_target_display(document_controller)
+# display_data = extract_display_data(target_display)
+# statistics_dict = calculate_statistics(display_data)
+# statistics_widget = make_statistics_widget(statistics_dict)
+
+# # statistics of region widget
+# target_display = current_target_display(document_controller)
+# target_region = current_target_region(document_controller)
+# display_data = extract_display_data_in_region(target_display, target_region)
+# statistics_dict = calculate_statistics(display_data)
+# statistics_widget = make_statistics_widget(statistics_dict)
+
+# # picker tool, data
+# data_item = data_item_by_uuid(document_controller, uuid)
+# region = region_by_uuid(document_controller, uuid)
+# data = extract_data(data_item)
+# mask = mask_from_region(data, region)
+# set_data(computed_data_item, masked_sum_to_1d(data, mask))
+
+# # picker tool, display slice to interval
+# data_item = data_item_by_uuid(document_controller, uuid)
+# display_slice_interval_region = extract_region_by_name(computed_data_item, 'display_slice')
+# interval = extract_interval_from_region(display_slice_interval_region)
+# display = extract_display(data_item)
+# set_display_slice_interval(display, interval)
+
+# # picker tool, interval to display slice
+# data_item = data_item_by_uuid(document_controller, uuid)
+# display_slice_interval_region = extract_region_by_name(computed_data_item, 'display_slice')
+# display = extract_display(data_item)
+# display_slice = extract_display_slice(display)
+# set_region_interval(display_slice_interval_region, display_slice)
+
+# # line profile tool, intervals
+# line_profile_region = region_by_uuid(document_controller, uuid)
+# line_plot_interval_list = extract_interval_list(line_plot_data_item)
+# set_interval_descriptors(line_profile_region, line_plot_interval_list)
+
+# # face finder
+# data_item = data_item_by_uuid(document_controller, uuid)
+# display = extract_display(data_item)
+# display_data = extract_display_data(display)
+# face_rectangles = find_faces(display_data)
+# clear_regions_by_keyword(data_item, 'face')
+# add_regions_from_rectangles(data_item, face_rectangles, 'face')

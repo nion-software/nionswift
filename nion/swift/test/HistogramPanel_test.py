@@ -71,13 +71,13 @@ class TestHistogramPanelClass(unittest.TestCase):
     def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
         # verify assumptions
         self.assertIsNone(self.histogram_canvas_item.histogram_data)
-        self.display.get_processor("histogram").recompute_data(None)
+        self.histogram_panel._histogram_widget._recompute()
         histogram_data1 = self.histogram_canvas_item.histogram_data
         self.assertIsNotNone(histogram_data1)
         # now change the data and verify that histogram gets recomputed via document model
         with self.display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
-        self.document_model.recompute_all()
+        self.histogram_panel._histogram_widget._recompute()
         histogram_data2 = self.histogram_canvas_item.histogram_data
         self.assertFalse(numpy.array_equal(histogram_data1, histogram_data2))
 
