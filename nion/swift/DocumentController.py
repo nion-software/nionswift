@@ -1257,7 +1257,7 @@ class DocumentController(Observable.Broadcaster):
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
 
-class SelectedDataItemBinding(Observable.Broadcaster):
+class SelectedDataItemBinding:
     """A binding to the selected data item in the document controller.
 
     The selected data item may be in an image panel, in the data panel, or in another user interface element. The
@@ -1268,7 +1268,6 @@ class SelectedDataItemBinding(Observable.Broadcaster):
     display mutates internally.
     """
     def __init__(self, document_controller):
-        super(SelectedDataItemBinding, self).__init__()
         self.document_controller = document_controller
         self.__data_item = None
         self.__display_changed_event_listener = None
