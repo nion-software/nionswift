@@ -255,7 +255,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, display_dyn, histogram_data):
+    def __init__(self, ui, display_stream, histogram_data_and_metadata_stream):
         super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 80}))
 
         self.__histogram_data_and_metadata = None
@@ -265,10 +265,10 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__thread = ThreadPool.ThreadDispatcher(self.__update_thread, minimum_interval=0.5)
         self.__thread.start()
 
-        self.__histogram_data = histogram_data
+        self.__histogram_data_and_metadata_stream = histogram_data_and_metadata_stream
 
         def set_display_limits(display_limits):
-            display = display_dyn.display
+            display = display_stream.value
             if display:
                 if display_limits is not None:
                     data_min, data_max = display.display_range
@@ -291,14 +291,15 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                 self.__histogram_data_and_metadata_dirty = True
                 self.__thread.trigger()
 
-        self.__histogram_data_changed_listener = self.__histogram_data.histogram_data_changed_event.listen(histogram_data_changed)
+        self.__histogram_data_and_metadata_stream_listener = self.__histogram_data_and_metadata_stream.value_stream.listen(histogram_data_changed)
+        histogram_data_changed(self.__histogram_data_and_metadata_stream.value)
 
         self.content_widget.add(histogram_widget)
 
     def close(self):
-        self.__histogram_data_changed_listener.close()
-        self.__histogram_data_changed_listener = None
-        self.__histogram_data = None
+        self.__histogram_data_and_metadata_stream_listener.close()
+        self.__histogram_data_and_metadata_stream_listener = None
+        self.__histogram_data_and_metadata_stream = None
         self.__thread.close()
         self.__thread = None
         self.__histogram_canvas_item = None
@@ -324,10 +325,10 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
 class StatisticsWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, statistics):
+    def __init__(self, ui, statistics_stream):
         super().__init__(ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3}))
 
-        self.__dynamic_statistics = statistics
+        self.__statistics_stream = statistics_stream
 
         self.__statistics = None
         self.__statistics_lock = threading.RLock()
@@ -350,29 +351,30 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
         stats_section.add_spacing(13)
 
         # create property models for the
-        self.__stats1_property = Model.PropertyModel()
-        self.__stats2_property = Model.PropertyModel()
+        self._stats1_property = Model.PropertyModel(str())
+        self._stats2_property = Model.PropertyModel(str())
 
-        stats_column1_label.bind_text(Binding.PropertyBinding(self.__stats1_property, "value"))
-        stats_column2_label.bind_text(Binding.PropertyBinding(self.__stats2_property, "value"))
+        stats_column1_label.bind_text(Binding.PropertyBinding(self._stats1_property, "value"))
+        stats_column2_label.bind_text(Binding.PropertyBinding(self._stats2_property, "value"))
 
-        def statistics_changed(statistics_x):
+        def statistics_changed(statistics):
             with self.__statistics_lock:
-                self.__statistics = statistics_x
+                self.__statistics = statistics
                 self.__statistics_dirty = True
                 self.__thread.trigger()
 
-        self.__statistics_changed_listener = statistics.statistics_changed_event.listen(statistics_changed)
+        self.__statistics_stream_listener = statistics_stream.value_stream.listen(statistics_changed)
+        statistics_changed(self.__statistics_stream.value)
 
         self.content_widget.add(stats_section)
 
     def close(self):
-        self.__statistics_changed_listener.close()
-        self.__statistics_changed_listener = None
+        self.__statistics_stream_listener.close()
+        self.__statistics_stream_listener = None
         self.__statistics = None
         self.__thread.close()
         self.__thread = None
-        self.__dynamic_statistics = None
+        self.__statistics_stream = None
         super().close()
 
     def _recompute(self):
@@ -382,9 +384,7 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
             self.__statistics = None
             self.__statistics_dirty = False
         if statistics_dirty:
-            statistics_data = dict()
-            if statistics:
-                statistics_data = { "mean": statistics.mean, "std": statistics.std, "min": statistics.data_min, "max": statistics.data_max, "rms": statistics.rms, "sum": statistics.sum }
+            statistics_data = statistics.value if statistics else dict()
             statistic_strings = list()
             for key in sorted(statistics_data.keys()):
                 value = statistics_data[key]
@@ -393,8 +393,8 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
                 else:
                     statistic_str = "{0} {1}".format(key, _("N/A"))
                 statistic_strings.append(statistic_str)
-            self.__stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings)+1)//2])
-            self.__stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)//2:])
+            self._stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings) + 1) // 2])
+            self._stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings) + 1) // 2:])
 
     def __update_thread(self):
         time.sleep(0.05)  # delay in case multiple requests arriving
@@ -410,43 +410,35 @@ class HistogramPanel(Panel.Panel):
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
-        target_display = DynamicTargetDisplay(document_controller)
-        display_data = DynamicDisplayData(target_display)
-        display_range = DynamicDisplayRange(target_display)
-        histogram_data = DynamicHistogramData(display_data, display_range)
-        self.__histogram_widget = HistogramWidget(self.ui, target_display, histogram_data)
+        display_stream = TargetDisplayStream(document_controller)
+        display_data_and_calibration_stream = DisplayPropertyStream(display_stream, 'display_data_and_calibration')
+        display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
+        histogram_data_and_metadata_stream = HistogramDataAndMetadataStream(display_data_and_calibration_stream, display_range_stream)
+        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream)
 
-        data_range = DynamicDataRange(target_display)
-        statistics = DynamicStatisticsData(display_data, data_range)
-        stats_section = StatisticsWidget(self.ui, statistics)
+        display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
+        statistics_stream = StatisticsStream(display_data_and_calibration_stream, display_data_range_stream)
+        self._statistics_widget = StatisticsWidget(self.ui, statistics_stream)
 
         # create the main column with the histogram and the statistics section
         column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3 + 12})
-        column.add(self.__histogram_widget)
+        column.add(self._histogram_widget)
         column.add_spacing(6)
-        column.add(stats_section)
+        column.add(self._statistics_widget)
         column.add_spacing(6)
         column.add_stretch()
 
         # this is necessary to make the panel happy
         self.widget = column
 
-    @property
-    def _histogram_widget(self):
-        return self.__histogram_widget
 
-    @property
-    def _histogram_canvas_item(self):
-        return self.__histogram_widget._histogram_canvas_item
-
-
-class DynamicTargetDisplay:
+class TargetDisplayStream:
 
     def __init__(self, document_controller):
         # outgoing messages
-        self.display_changed_event = Event.Event()
+        self.value_stream = Event.Event()
         # cached values
-        self.__display = None
+        self.__value = None
         # listen for selected data item changes
         self.__selected_data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
         # manually send the first data item changed message to set things up.
@@ -462,49 +454,52 @@ class DynamicTargetDisplay:
         self.__selected_data_item_changed_event_listener = None
 
     @property
-    def display(self):
-        return self.__display
+    def value(self):
+        return self.__value
 
     def __selected_data_item_changed(self, data_item):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        if display != self.__display:
-            self.display_changed_event.fire(display)
-            self.__display = display
+        if display != self.__value:
+            self.value_stream.fire(display)
+            self.__value = display
 
 
-class DynamicDisplayData:
+class DisplayPropertyStream:
     # TODO: add a display_data_changed to Display class and use it here
 
-    def __init__(self, dynamic_display):
+    def __init__(self, display_stream, property_name):
         # outgoing messages
-        self.display_data_and_metadata_changed_event = Event.Event()
+        self.value_stream = Event.Event()
         # references
-        self.__dynamic_display = dynamic_display
+        self.__display_stream = display_stream
         # initialize
+        self.__property_name = property_name
         self.__display_mutated_event_listener = None
-        self.__display_data_and_metadata = None
+        self.__value = None
         # listen for display changes
-        self.__display_changed_event_listener = dynamic_display.display_changed_event.listen(self.__display_changed)
-        self.__display_changed(dynamic_display.display)
+        self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
+        self.__display_changed(display_stream.value)
 
     def __del__(self):
         self.close()
 
     def close(self):
         self.__display_changed(None)
-        self.__display_changed_event_listener.close()
-        self.__display_changed_event_listener = None
-        self.__dynamic_display = None
+        self.__display_stream_listener.close()
+        self.__display_stream_listener = None
+        self.__display_stream = None
 
     @property
-    def display_data_and_metadata(self):
-        return self.__display_data_and_metadata
+    def value(self):
+        return self.__value
 
     def __display_changed(self, display):
         def display_mutated():
-            self.__display_data_and_metadata = display.display_data_and_calibration
-            self.display_data_and_metadata_changed_event.fire(display.display_data_and_calibration)
+            new_value = getattr(display, self.__property_name)
+            if new_value != self.__value:
+                self.__value = new_value
+                self.value_stream.fire(self.__value)
         if self.__display_mutated_event_listener:
             self.__display_mutated_event_listener.close()
             self.__display_mutated_event_listener = None
@@ -512,62 +507,18 @@ class DynamicDisplayData:
             self.__display_mutated_event_listener = display.display_changed_event.listen(display_mutated)
             display_mutated()
         else:
-            self.__display_data_and_metadata = None
-            self.display_data_and_metadata_changed_event.fire(None)
+            self.__value = None
+            self.value_stream.fire(None)
 
 
-class DynamicDisplayRange:
-    # TODO: add a display_data_changed to Display class and use it here
+class HistogramDataAndMetadataStream:
 
-    def __init__(self, dynamic_display):
+    def __init__(self, display_data_and_metadata_stream, display_range_stream):
         # outgoing messages
-        self.display_range_changed_event = Event.Event()
+        self.value_stream = Event.Event()
         # references
-        self.__dynamic_display = dynamic_display
-        # initialize
-        self.__display_mutated_event_listener = None
-        self.__display_range = None
-        # listen for display changes
-        self.__display_changed_event_listener = dynamic_display.display_changed_event.listen(self.__display_changed)
-        self.__display_changed(dynamic_display.display)
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        self.__display_changed(None)
-        self.__display_changed_event_listener.close()
-        self.__display_changed_event_listener = None
-        self.__dynamic_display = None
-
-    @property
-    def display_range(self):
-        return self.__display_range
-
-    def __display_changed(self, display):
-        def display_mutated():
-            display_range = display.display_range
-            if display_range != self.__display_range:
-                self.__display_range = display_range
-                self.display_range_changed_event.fire(display_range)
-        if self.__display_mutated_event_listener:
-            self.__display_mutated_event_listener.close()
-            self.__display_mutated_event_listener = None
-        if display:
-            self.__display_mutated_event_listener = display.display_changed_event.listen(display_mutated)
-            display_mutated()
-        else:
-            self.display_range_changed_event.fire(None)
-
-
-class DynamicHistogramData:
-
-    def __init__(self, dynamic_display_data, dynamic_display_range):
-        # outgoing messages
-        self.histogram_data_changed_event = Event.Event()
-        # references
-        self.__dynamic_display_data = dynamic_display_data
-        self.__dynamic_display_range = dynamic_display_range
+        self.__display_data_and_metadata_stream = display_data_and_metadata_stream
+        self.__display_range_stream = display_range_stream
         # initialize values
         self.bins = 320
         self.subsample = None  # hard coded subsample size
@@ -575,21 +526,25 @@ class DynamicHistogramData:
         self.subsample_min = 1024  # minimum subsample size
         self.__display_data_and_metadata = None
         self.__display_range = None
-        self.__histogram_data = None
+        self.__value = None
         # listen for display changes
-        self.__display_data_and_metadata_changed_event_listener = dynamic_display_data.display_data_and_metadata_changed_event.listen(self.__display_data_and_metadata_changed)
-        self.__display_range_changed_event_listener = dynamic_display_range.display_range_changed_event.listen(self.__display_range_changed_event)
-        self.__recalculate_histogram_data(dynamic_display_data.display_data_and_metadata, dynamic_display_range.display_range)
+        self.__display_data_and_metadata_stream_listener = display_data_and_metadata_stream.value_stream.listen(self.__display_data_and_metadata_changed)
+        self.__display_range_stream_listener = display_range_stream.value_stream.listen(self.__display_range_changed_event)
+        self.__recalculate_histogram_data(display_data_and_metadata_stream.value, display_range_stream.value)
 
     def __del__(self):
         self.close()
 
     def close(self):
         self.__recalculate_histogram_data(None, None)
-        self.__display_data_and_metadata_changed_event_listener.close()
-        self.__display_range_changed_event_listener = None
-        self.__dynamic_display_data = None
-        self.__dynamic_display_range = None
+        self.__display_data_and_metadata_stream_listener.close()
+        self.__display_range_stream_listener = None
+        self.__display_data_and_metadata_stream = None
+        self.__display_range_stream = None
+
+    @property
+    def value(self):
+        return self.__value
 
     def __recalculate_histogram_data(self, display_data_and_metadata, display_range):
         if display_data_and_metadata != self.__display_data_and_metadata or display_range != self.__display_range:
@@ -616,12 +571,12 @@ class DynamicHistogramData:
                         histogram_data = histogram_data / float(histogram_max)
                     return histogram_data
 
-                self.__histogram_data = DataAndMetadata.DataAndMetadata(lambda: get_calculated_data(display_data_and_metadata), ((self.bins,), numpy.float64))
-                self.histogram_data_changed_event.fire(self.__histogram_data)
+                self.__value = DataAndMetadata.DataAndMetadata(lambda: get_calculated_data(display_data_and_metadata), ((self.bins,), numpy.float64))
+                self.value_stream.fire(self.__value)
             else:
-                if self.__histogram_data is not None:
-                    self.__histogram_data = None
-                    self.histogram_data_changed_event.fire(self.__histogram_data)
+                if self.__value is not None:
+                    self.__value = None
+                    self.value_stream.fire(self.__value)
 
     def __display_data_and_metadata_changed(self, display_data_and_metadata):
         self.__recalculate_histogram_data(display_data_and_metadata, self.__display_range)
@@ -630,145 +585,69 @@ class DynamicHistogramData:
         self.__recalculate_histogram_data(self.__display_data_and_metadata, display_range)
 
 
-class DynamicDataRange:
-    # TODO: add a display_data_changed to Display class and use it here
-
-    def __init__(self, dynamic_display):
-        # outgoing messages
-        self.data_range_changed_event = Event.Event()
-        # references
-        self.__dynamic_display = dynamic_display
-        # initialize
-        self.__display_mutated_event_listener = None
-        self.__data_range = None
-        # listen for display changes
-        self.__display_changed_event_listener = dynamic_display.display_changed_event.listen(self.__display_changed)
-        self.__display_changed(dynamic_display.display)
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        self.__display_changed(None)
-        self.__display_changed_event_listener.close()
-        self.__display_changed_event_listener = None
-        self.__dynamic_display = None
-
-    @property
-    def data_range(self):
-        return self.__data_range
-
-    def __display_changed(self, display):
-        def display_mutated():
-            data_range = display.data_range
-            if data_range != self.__data_range:
-                self.__data_range = data_range
-                self.data_range_changed_event.fire(data_range)
-        if self.__display_mutated_event_listener:
-            self.__display_mutated_event_listener.close()
-            self.__display_mutated_event_listener = None
-        if display:
-            self.__display_mutated_event_listener = display.display_changed_event.listen(display_mutated)
-            display_mutated()
-        else:
-            self.data_range_changed_event.fire(None)
-
-
 class StatisticsData:
     def __init__(self, data_fn, data_range_fn):
         self.__data_fn = data_fn
         self.__data_range_fn = data_range_fn
         self.__is_calculated = False
-        self.__mean = None
-        self.__std = None
-        self.__rms = None
-        self.__sum = None
-        self.__data_min = None
-        self.__data_max = None
+        self.__value = dict()
 
     def __recalculate(self):
         if not self.__is_calculated:
             data = self.__data_fn()
             if data is not None:
-                self.__mean = numpy.mean(data)
-                self.__std = numpy.std(data)
-                self.__rms = numpy.sqrt(numpy.mean(numpy.absolute(data) ** 2))
-                self.__sum = self.__mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
+                mean = numpy.mean(data)
+                std = numpy.std(data)
+                rms = numpy.sqrt(numpy.mean(numpy.absolute(data) ** 2))
+                sum = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
                 data_range = self.__data_range_fn()
-                self.__data_min, self.__data_max = data_range if data_range is not None else (None, None)
+                data_min, data_max = data_range if data_range is not None else (None, None)
+                self.__value = { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum }
             else:
-                self.__mean = None
-                self.__std = None
-                self.__rms = None
-                self.__sum = None
-                self.__data_min = None
-                self.__data_max = None
+                self.__value = dict()
             self.__is_calculated = True
 
     @property
-    def mean(self):
+    def value(self):
         self.__recalculate()
-        return self.__mean
-
-    @property
-    def std(self):
-        self.__recalculate()
-        return self.__std
-
-    @property
-    def rms(self):
-        self.__recalculate()
-        return self.__rms
-
-    @property
-    def sum(self):
-        self.__recalculate()
-        return self.__sum
-
-    @property
-    def data_min(self):
-        self.__recalculate()
-        return self.__data_min
-
-    @property
-    def data_max(self):
-        self.__recalculate()
-        return self.__data_max
+        return self.__value
 
 
-class DynamicStatisticsData:
+class StatisticsStream:
 
-    def __init__(self, dynamic_display_data, dynamic_display_data_range):
+    def __init__(self, display_data_and_metadata_stream, display_data_range_stream):
         # outgoing messages
-        self.statistics_changed_event = Event.Event()
+        self.value_stream = Event.Event()
         # references
-        self.__dynamic_display_data = dynamic_display_data
-        self.__dynamic_display_data_range = dynamic_display_data_range
+        self.__display_data_and_metadata_stream = display_data_and_metadata_stream
+        self.__display_data_range_stream = display_data_range_stream
         # initialize values
         self.__display_data_and_metadata = None
         self.__display_data_range = None
-        self.__statistics_data = None
+        self.__value = None
         # listen for display changes
-        self.__display_data_and_metadata_changed_event_listener = dynamic_display_data.display_data_and_metadata_changed_event.listen(self.__display_data_and_metadata_changed)
-        self.__display_data_range_changed_event_listener = dynamic_display_data_range.data_range_changed_event.listen(self.__display_data_range_changed)
-        self.__display_data_and_metadata_changed(dynamic_display_data.display_data_and_metadata)
-        self.__display_data_range_changed(dynamic_display_data_range.data_range)
+        self.__display_data_and_metadata_stream_listener = display_data_and_metadata_stream.value_stream.listen(self.__display_data_and_metadata_changed)
+        self.__display_data_range_stream_listener = display_data_range_stream.value_stream.listen(self.__display_data_range_changed)
+        self.__display_data_and_metadata_changed(display_data_and_metadata_stream.value)
+        self.__display_data_range_changed(display_data_range_stream.value)
 
     def __del__(self):
         self.close()
 
     def close(self):
         self.__display_data_and_metadata_changed(None)
-        self.__display_data_and_metadata_changed_event_listener.close()
-        self.__dynamic_display_data = None
+        self.__display_data_and_metadata_stream_listener.close()
+        self.__display_data_and_metadata_stream = None
+        self.__display_data_range_stream_listener.close()
+        self.__display_data_range_stream_listener = None
 
     def __statistics_changed(self):
         def get_data():
             return self.__display_data_and_metadata.data if self.__display_data_and_metadata else None
         def get_data_range():
             return self.__display_data_range
-        self.__statistics_data = StatisticsData(get_data, get_data_range) if self.__display_data_and_metadata else None
-        self.statistics_changed_event.fire(self.__statistics_data)
+        self.__value = StatisticsData(get_data, get_data_range) if self.__display_data_and_metadata else None
+        self.value_stream.fire(self.__value)
 
     def __display_data_and_metadata_changed(self, display_data_and_metadata):
         self.__display_data_and_metadata = display_data_and_metadata
@@ -779,8 +658,8 @@ class DynamicStatisticsData:
         self.__statistics_changed()
 
     @property
-    def statistics_data(self):
-        return self.__statistics_data
+    def value(self):
+        return self.__value
 
 
 # TODO: threading, reentrancy?

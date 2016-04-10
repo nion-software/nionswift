@@ -42,7 +42,7 @@ class TestHistogramPanelClass(unittest.TestCase):
             def _child_updated(self, child):
                 pass
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None)
-        self.histogram_canvas_item = self.histogram_panel._histogram_canvas_item
+        self.histogram_canvas_item = self.histogram_panel._histogram_widget._histogram_canvas_item
         self.display = self.display_specifier.display
         self.document_controller.display_data_item(self.display_specifier)
         self.histogram_canvas_item.update_layout((0, 0), (80, 300))
@@ -83,19 +83,19 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def test_changing_source_data_marks_statistics_as_dirty_then_recomputes_via_model(self):
         # verify assumptions
-        self.assertEqual(self.histogram_panel.stats1_property.value, str())
-        self.assertEqual(self.histogram_panel.stats2_property.value, str())
+        self.assertEqual(self.histogram_panel._statistics_widget._stats1_property.value, str())
+        self.assertEqual(self.histogram_panel._statistics_widget._stats2_property.value, str())
         self.display_specifier.display.get_processor("statistics").recompute_data(None)
-        stats1_text = self.histogram_panel.stats1_property.value
-        stats2_text = self.histogram_panel.stats2_property.value
+        stats1_text = self.histogram_panel._statistics_widget._stats1_property.value
+        stats2_text = self.histogram_panel._statistics_widget._stats2_property.value
         self.assertIsNotNone(stats1_text)
         self.assertIsNotNone(stats2_text)
         # now change the data and verify that statistics gets recomputed via document model
         with self.display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
-        self.document_model.recompute_all()
-        self.assertNotEqual(stats1_text, self.histogram_panel.stats1_property.value)
-        self.assertNotEqual(stats2_text, self.histogram_panel.stats2_property.value)
+        self.histogram_panel._statistics_widget._recompute()
+        self.assertNotEqual(stats1_text, self.histogram_panel._statistics_widget._stats1_property.value)
+        self.assertNotEqual(stats2_text, self.histogram_panel._statistics_widget._stats2_property.value)
 
 if __name__ == '__main__':
     unittest.main()
