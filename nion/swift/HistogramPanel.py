@@ -1,5 +1,7 @@
 # standard libraries
+import functools
 import gettext
+import operator
 import threading
 import time
 
@@ -320,6 +322,85 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         return self.__histogram_canvas_item
 
 
+class StatisticsWidget(Widgets.CompositeWidgetBase):
+
+    def __init__(self, ui, statistics):
+        super().__init__(ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3}))
+
+        self.__dynamic_statistics = statistics
+
+        self.__statistics = None
+        self.__statistics_lock = threading.RLock()
+        self.__statistics_dirty = False
+
+        self.__thread = ThreadPool.ThreadDispatcher(self.__update_thread, minimum_interval=0.5)
+        self.__thread.start()
+
+        stats_column1 = ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
+        stats_column2 = ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
+        stats_column1_label = ui.create_label_widget()
+        stats_column2_label = ui.create_label_widget()
+        stats_column1.add(stats_column1_label)
+        stats_column2.add(stats_column2_label)
+        stats_section = ui.create_row_widget()
+        stats_section.add_spacing(13)
+        stats_section.add(stats_column1)
+        stats_section.add_stretch()
+        stats_section.add(stats_column2)
+        stats_section.add_spacing(13)
+
+        # create property models for the
+        self.__stats1_property = Model.PropertyModel()
+        self.__stats2_property = Model.PropertyModel()
+
+        stats_column1_label.bind_text(Binding.PropertyBinding(self.__stats1_property, "value"))
+        stats_column2_label.bind_text(Binding.PropertyBinding(self.__stats2_property, "value"))
+
+        def statistics_changed(statistics_x):
+            with self.__statistics_lock:
+                self.__statistics = statistics_x
+                self.__statistics_dirty = True
+                self.__thread.trigger()
+
+        self.__statistics_changed_listener = statistics.statistics_changed_event.listen(statistics_changed)
+
+        self.content_widget.add(stats_section)
+
+    def close(self):
+        self.__statistics_changed_listener.close()
+        self.__statistics_changed_listener = None
+        self.__statistics = None
+        self.__thread.close()
+        self.__thread = None
+        self.__dynamic_statistics = None
+        super().close()
+
+    def _recompute(self):
+        with self.__statistics_lock:
+            statistics = self.__statistics
+            statistics_dirty = self.__statistics_dirty
+            self.__statistics = None
+            self.__statistics_dirty = False
+        if statistics_dirty:
+            statistics_data = dict()
+            if statistics:
+                statistics_data = { "mean": statistics.mean, "std": statistics.std, "min": statistics.data_min, "max": statistics.data_max, "rms": statistics.rms, "sum": statistics.sum }
+            statistic_strings = list()
+            for key in sorted(statistics_data.keys()):
+                value = statistics_data[key]
+                if value is not None:
+                    statistic_str = "{0} {1:n}".format(key, statistics_data[key])
+                else:
+                    statistic_str = "{0} {1}".format(key, _("N/A"))
+                statistic_strings.append(statistic_str)
+            self.__stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings)+1)//2])
+            self.__stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)//2:])
+
+    def __update_thread(self):
+        time.sleep(0.05)  # delay in case multiple requests arriving
+        self._recompute()
+
+
 class HistogramPanel(Panel.Panel):
     """ A panel to present a histogram of the selected data item. """
 
@@ -335,57 +416,20 @@ class HistogramPanel(Panel.Panel):
         histogram_data = DynamicHistogramData(display_data, display_range)
         self.__histogram_widget = HistogramWidget(self.ui, target_display, histogram_data)
 
-        # create a statistics section
-        stats_column1 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
-        stats_column2 = self.ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
-        stats_column1_label = self.ui.create_label_widget()
-        stats_column2_label = self.ui.create_label_widget()
-        stats_column1.add(stats_column1_label)
-        stats_column2.add(stats_column2_label)
-        stats_section = self.ui.create_row_widget()
-        stats_section.add_spacing(13)
-        stats_section.add(stats_column1)
-        stats_section.add_stretch()
-        stats_section.add(stats_column2)
-        stats_section.add_spacing(13)
+        data_range = DynamicDataRange(target_display)
+        statistics = DynamicStatisticsData(display_data, data_range)
+        stats_section = StatisticsWidget(self.ui, statistics)
 
         # create the main column with the histogram and the statistics section
-        column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3})
+        column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3 + 12})
         column.add(self.__histogram_widget)
         column.add_spacing(6)
         column.add(stats_section)
         column.add_spacing(6)
         column.add_stretch()
 
-        # create property models for the
-        self.stats1_property = Model.PropertyModel()
-        self.stats2_property = Model.PropertyModel()
-
-        stats_column1_label.bind_text(Binding.PropertyBinding(self.stats1_property, "value"))
-        stats_column2_label.bind_text(Binding.PropertyBinding(self.stats2_property, "value"))
-
         # this is necessary to make the panel happy
         self.widget = column
-
-        # the display holds the current display to which this histogram is listening.
-        self.__display = None
-        self.__display_lock = threading.RLock()
-
-        # listen for selected display binding changes
-        self.__data_item_changed_event_listener = self.__selected_data_item_binding.data_item_changed_event.listen(self.__data_item_changed)
-        # manually send the first initial data item changed message to set things up.
-        self.__data_item_changed(self.__selected_data_item_binding.data_item)
-
-    def close(self):
-        # disconnect data item binding
-        self.__data_item_changed(None)
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
-        self.__selected_data_item_binding.close()
-        self.__selected_data_item_binding = None
-        self.__set_display(None)
-        self.clear_task("statistics")
-        super().close()
 
     @property
     def _histogram_widget(self):
@@ -394,74 +438,6 @@ class HistogramPanel(Panel.Panel):
     @property
     def _histogram_canvas_item(self):
         return self.__histogram_widget._histogram_canvas_item
-
-    # thread safe
-    def __update_statistics(self, statistics_data):
-        """Update the widgets with new statistics data."""
-        statistic_strings = list()
-        for key in sorted(statistics_data.keys()):
-            value = statistics_data[key]
-            if value is not None:
-                statistic_str = "{0} {1:n}".format(key, statistics_data[key])
-            else:
-                statistic_str = "{0} {1}".format(key, _("N/A"))
-            statistic_strings.append(statistic_str)
-        self.stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings)+1)//2])
-        self.stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings)+1)//2:])
-
-    # thread safe
-    def __set_display(self, display):
-        # typically could be updated from an acquisition thread and a
-        # focus changed thread (why?).
-        with self.__display_lock:
-            if self.__display:
-                self.__display_processor_needs_recompute_event_listener.close()
-                self.__display_processor_needs_recompute_event_listener = None
-                self.__display_processor_data_updated_event_listener.close()
-                self.__display_processor_data_updated_event_listener = None
-            self.__display = display
-            if self.__display:
-
-                def display_processor_needs_recompute(processor):
-                    document_model = self.document_controller.document_model
-                    with self.__display_lock:
-                        display = self.__display
-                    if processor == display.get_processor("histogram"):
-                        processor.recompute_if_necessary(document_model.dispatch_task, None)
-                    if processor == display.get_processor("statistics"):
-                        processor.recompute_if_necessary(document_model.dispatch_task, None)
-
-                def display_processor_data_updated(processor):
-                    with self.__display_lock:
-                        display = self.__display
-                    if processor == display.get_processor("statistics"):
-                        statistics_data = display.get_processed_data("statistics")
-                        self.__update_statistics(statistics_data)
-
-                self.__display_processor_needs_recompute_event_listener = display.display_processor_needs_recompute_event.listen(display_processor_needs_recompute)
-                self.__display_processor_data_updated_event_listener = display.display_processor_data_updated_event.listen(display_processor_data_updated)
-
-                self.__display.add_listener(self)
-
-    # this message is received from the data item binding.
-    # when a new display is set, this panel becomes a listener
-    # of the display. it will receive messages from the processors
-    # when data needs to be recomputed and when data gets updated.
-    # in response to a needs recompute message, this object will
-    # queue the processor to compute its data on the document model.
-    # in response to a data changed message, this object will update
-    # the data and trigger a repaint.
-    # thread safe
-    def __data_item_changed(self, data_item):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.__set_display(display_specifier.display)
-        if display_specifier.display:
-            statistics_data = display_specifier.display.get_processed_data("statistics")
-            document_model = self.document_controller.document_model
-            display_specifier.display.get_processor("statistics").recompute_if_necessary(document_model.dispatch_task, None)
-        else:
-            statistics_data = dict()
-        self.__update_statistics(statistics_data)
 
 
 class DynamicTargetDisplay:
@@ -652,6 +628,160 @@ class DynamicHistogramData:
 
     def __display_range_changed_event(self, display_range):
         self.__recalculate_histogram_data(self.__display_data_and_metadata, display_range)
+
+
+class DynamicDataRange:
+    # TODO: add a display_data_changed to Display class and use it here
+
+    def __init__(self, dynamic_display):
+        # outgoing messages
+        self.data_range_changed_event = Event.Event()
+        # references
+        self.__dynamic_display = dynamic_display
+        # initialize
+        self.__display_mutated_event_listener = None
+        self.__data_range = None
+        # listen for display changes
+        self.__display_changed_event_listener = dynamic_display.display_changed_event.listen(self.__display_changed)
+        self.__display_changed(dynamic_display.display)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        self.__display_changed(None)
+        self.__display_changed_event_listener.close()
+        self.__display_changed_event_listener = None
+        self.__dynamic_display = None
+
+    @property
+    def data_range(self):
+        return self.__data_range
+
+    def __display_changed(self, display):
+        def display_mutated():
+            data_range = display.data_range
+            if data_range != self.__data_range:
+                self.__data_range = data_range
+                self.data_range_changed_event.fire(data_range)
+        if self.__display_mutated_event_listener:
+            self.__display_mutated_event_listener.close()
+            self.__display_mutated_event_listener = None
+        if display:
+            self.__display_mutated_event_listener = display.display_changed_event.listen(display_mutated)
+            display_mutated()
+        else:
+            self.data_range_changed_event.fire(None)
+
+
+class StatisticsData:
+    def __init__(self, data_fn, data_range_fn):
+        self.__data_fn = data_fn
+        self.__data_range_fn = data_range_fn
+        self.__is_calculated = False
+        self.__mean = None
+        self.__std = None
+        self.__rms = None
+        self.__sum = None
+        self.__data_min = None
+        self.__data_max = None
+
+    def __recalculate(self):
+        if not self.__is_calculated:
+            data = self.__data_fn()
+            if data is not None:
+                self.__mean = numpy.mean(data)
+                self.__std = numpy.std(data)
+                self.__rms = numpy.sqrt(numpy.mean(numpy.absolute(data) ** 2))
+                self.__sum = self.__mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
+                data_range = self.__data_range_fn()
+                self.__data_min, self.__data_max = data_range if data_range is not None else (None, None)
+            else:
+                self.__mean = None
+                self.__std = None
+                self.__rms = None
+                self.__sum = None
+                self.__data_min = None
+                self.__data_max = None
+            self.__is_calculated = True
+
+    @property
+    def mean(self):
+        self.__recalculate()
+        return self.__mean
+
+    @property
+    def std(self):
+        self.__recalculate()
+        return self.__std
+
+    @property
+    def rms(self):
+        self.__recalculate()
+        return self.__rms
+
+    @property
+    def sum(self):
+        self.__recalculate()
+        return self.__sum
+
+    @property
+    def data_min(self):
+        self.__recalculate()
+        return self.__data_min
+
+    @property
+    def data_max(self):
+        self.__recalculate()
+        return self.__data_max
+
+
+class DynamicStatisticsData:
+
+    def __init__(self, dynamic_display_data, dynamic_display_data_range):
+        # outgoing messages
+        self.statistics_changed_event = Event.Event()
+        # references
+        self.__dynamic_display_data = dynamic_display_data
+        self.__dynamic_display_data_range = dynamic_display_data_range
+        # initialize values
+        self.__display_data_and_metadata = None
+        self.__display_data_range = None
+        self.__statistics_data = None
+        # listen for display changes
+        self.__display_data_and_metadata_changed_event_listener = dynamic_display_data.display_data_and_metadata_changed_event.listen(self.__display_data_and_metadata_changed)
+        self.__display_data_range_changed_event_listener = dynamic_display_data_range.data_range_changed_event.listen(self.__display_data_range_changed)
+        self.__display_data_and_metadata_changed(dynamic_display_data.display_data_and_metadata)
+        self.__display_data_range_changed(dynamic_display_data_range.data_range)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        self.__display_data_and_metadata_changed(None)
+        self.__display_data_and_metadata_changed_event_listener.close()
+        self.__dynamic_display_data = None
+
+    def __statistics_changed(self):
+        def get_data():
+            return self.__display_data_and_metadata.data if self.__display_data_and_metadata else None
+        def get_data_range():
+            return self.__display_data_range
+        self.__statistics_data = StatisticsData(get_data, get_data_range) if self.__display_data_and_metadata else None
+        self.statistics_changed_event.fire(self.__statistics_data)
+
+    def __display_data_and_metadata_changed(self, display_data_and_metadata):
+        self.__display_data_and_metadata = display_data_and_metadata
+        self.__statistics_changed()
+
+    def __display_data_range_changed(self, display_data_range):
+        self.__display_data_range = display_data_range
+        self.__statistics_changed()
+
+    @property
+    def statistics_data(self):
+        return self.__statistics_data
+
 
 # TODO: threading, reentrancy?
 # TODO: long calculations
