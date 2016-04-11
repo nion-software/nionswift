@@ -7,10 +7,12 @@ import operator
 import numpy
 
 # local libraries
+from nion.data import Core
 from nion.data import Image
 from nion.swift import Panel
 from nion.swift import Widgets
 from nion.swift.model import DataItem
+from nion.swift.model import Region
 from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Event
@@ -365,6 +367,22 @@ class HistogramPanel(Panel.Panel):
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
+        def calculate_region_data(data_and_metadata, region):
+            if region is not None and data_and_metadata is not None:
+                if data_and_metadata.is_data_1d and isinstance(region, Region.IntervalRegion):
+                    interval = region.interval
+                    if 0 <= interval[0] < 1 and 0 < interval[1] <= 1:
+                        start, end = int(interval[0] * data_and_metadata.data_shape[0]), int(interval[1] * data_and_metadata.data_shape[0])
+                        if end - start >= 1:
+                            cropped_data_and_metadata = Core.function_crop_interval(data_and_metadata, interval)
+                            if cropped_data_and_metadata:
+                                return cropped_data_and_metadata
+                elif data_and_metadata.is_data_2d and isinstance(region, Region.RectRegion):
+                    cropped_data_and_metadata = Core.function_crop(data_and_metadata, region.bounds)
+                    if cropped_data_and_metadata:
+                        return cropped_data_and_metadata
+            return data_and_metadata
+
         def calculate_histogram_data(data_and_metadata, display_range):
             bins = 320
             subsample = 0  # hard coded subsample size
@@ -394,8 +412,10 @@ class HistogramPanel(Panel.Panel):
             return Stream.FutureValue(calculate_histogram_data, data_and_metadata, display_range)
 
         display_stream = TargetDisplayStream(document_controller)
+        region_stream = TargetRegionStream(display_stream)
         display_data_and_calibration_stream = DisplayPropertyStream(display_stream, 'display_data_and_calibration')
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
+        display_data_and_calibration_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, region_stream), calculate_region_data)
         histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_range_stream), calculate_future_histogram_data)
         if debounce:
             histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05)
@@ -469,6 +489,55 @@ class TargetDisplayStream:
         if display != self.__value:
             self.value_stream.fire(display)
             self.__value = display
+
+
+class TargetRegionStream:
+
+    def __init__(self, display_stream):
+        # outgoing messages
+        self.value_stream = Event.Event()
+        # references
+        self.__display_stream = display_stream
+        # initialize
+        self.__display_graphic_selection_changed_event_listener = None
+        self.__value = None
+        # listen for display changes
+        self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
+        self.__display_changed(display_stream.value)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        self.__display_changed(None)
+        self.__display_stream_listener.close()
+        self.__display_stream_listener = None
+        self.__display_stream = None
+
+    @property
+    def value(self):
+        return self.__value
+
+    def __display_changed(self, display):
+        def display_graphic_selection_changed(graphic_selection):
+            current_index = graphic_selection.current_index
+            if current_index is not None:
+                new_value = display.drawn_graphics[current_index].region
+                if new_value != self.__value:
+                    self.__value = new_value
+                    self.value_stream.fire(self.__value)
+            elif self.__value is not None:
+                self.__value = None
+                self.value_stream.fire(None)
+        if self.__display_graphic_selection_changed_event_listener:
+            self.__display_graphic_selection_changed_event_listener.close()
+            self.__display_graphic_selection_changed_event_listener = None
+        if display:
+            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+            display_graphic_selection_changed(display.graphic_selection)
+        elif self.__value is not None:
+            self.__value = None
+            self.value_stream.fire(None)
 
 
 class DisplayPropertyStream:
