@@ -1,10 +1,7 @@
 # standard libraries
-import concurrent.futures
 import functools
 import gettext
 import operator
-import threading
-import time
 
 # third party libraries
 import numpy
@@ -18,6 +15,7 @@ from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Event
 from nion.ui import Model
+from nion.ui import Stream
 
 _ = gettext.gettext
 
@@ -393,16 +391,16 @@ class HistogramPanel(Panel.Panel):
             return None
 
         def calculate_future_histogram_data(data_and_metadata, display_range):
-            return FutureValue(calculate_histogram_data, data_and_metadata, display_range)
+            return Stream.FutureValue(calculate_histogram_data, data_and_metadata, display_range)
 
         display_stream = TargetDisplayStream(document_controller)
         display_data_and_calibration_stream = DisplayPropertyStream(display_stream, 'display_data_and_calibration')
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
-        histogram_data_and_metadata_stream = CombineLatestStream((display_data_and_calibration_stream, display_range_stream), calculate_future_histogram_data)
+        histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_range_stream), calculate_future_histogram_data)
         if debounce:
-            histogram_data_and_metadata_stream = DebounceStream(histogram_data_and_metadata_stream, 0.05)
+            histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05)
         if sample:
-            histogram_data_and_metadata_stream = SampleStream(histogram_data_and_metadata_stream, 0.5)
+            histogram_data_and_metadata_stream = Stream.SampleStream(histogram_data_and_metadata_stream, 0.5)
         self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream)
 
         def calculate_statistics(display_data_and_metadata, display_data_range):
@@ -418,14 +416,14 @@ class HistogramPanel(Panel.Panel):
             return dict()
 
         def calculate_future_statistics(display_data_and_metadata, display_data_range):
-            return FutureValue(calculate_statistics, display_data_and_metadata, display_data_range)
+            return Stream.FutureValue(calculate_statistics, display_data_and_metadata, display_data_range)
 
         display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
-        statistics_future_stream = CombineLatestStream((display_data_and_calibration_stream, display_data_range_stream), calculate_future_statistics)
+        statistics_future_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_data_range_stream), calculate_future_statistics)
         if debounce:
-            statistics_future_stream = DebounceStream(statistics_future_stream, 0.05)
+            statistics_future_stream = Stream.DebounceStream(statistics_future_stream, 0.05)
         if sample:
-            statistics_future_stream = SampleStream(statistics_future_stream, 0.5)
+            statistics_future_stream = Stream.SampleStream(statistics_future_stream, 0.5)
         self._statistics_widget = StatisticsWidget(self.ui, statistics_future_stream)
 
         # create the main column with the histogram and the statistics section
@@ -517,230 +515,3 @@ class DisplayPropertyStream:
         else:
             self.__value = None
             self.value_stream.fire(None)
-
-
-class FutureValue:
-    def __init__(self, evaluation_fn, *args):
-        self.__evaluation_fn = functools.partial(evaluation_fn, *args)
-        self.__is_evaluated = False
-        self.__value = dict()
-        self.__executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-
-    def close(self):
-        self.__executor.shutdown()
-        self.__executor = None
-        self.__evaluation_fn = None
-
-    def __evaluate(self):
-        if not self.__is_evaluated:
-            self.__value = self.__evaluation_fn()
-            self.__is_evaluated = True
-
-    @property
-    def value(self):
-        self.__evaluate()
-        return self.__value
-
-    def evaluate(self, done_fn):
-        def call_done(future):
-            done_fn(self.value)
-        future = self.__executor.submit(self.__evaluate)
-        future.add_done_callback(call_done)
-
-
-class CombineLatestStream:
-
-    def __init__(self, stream_list, value_fn):
-        # outgoing messages
-        self.value_stream = Event.Event()
-        # references
-        self.__stream_list = stream_list
-        self.__value_fn = value_fn
-        # initialize values
-        self.__values = [None] * len(stream_list)
-        self.__value = None
-        # listen for display changes
-        self.__listeners = dict()  # index
-        for index, stream in enumerate(self.__stream_list):
-            self.__listeners[index] = stream.value_stream.listen(functools.partial(self.__handle_stream_value, index))
-            self.__values[index] = stream.value
-        self.__values_changed()
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        self.value_stream.fire(self.value)
-        for index, stream in enumerate(self.__stream_list):
-            self.__listeners[index].close()
-            self.__values[index] = None
-        self.__stream_list = None
-        self.__values = None
-        self.__value = None
-
-    def __handle_stream_value(self, index, value):
-        self.__values[index] = value
-        self.__values_changed()
-
-    def __values_changed(self):
-        self.__value = self.__value_fn(*self.__values)
-        self.value_stream.fire(self.__value)
-
-    @property
-    def value(self):
-        return self.__value
-
-
-class DebounceStream:
-
-    def __init__(self, input_stream, period):
-        self.value_stream = Event.Event()
-        self.__input_stream = input_stream
-        self.__period = period
-        self.__last_time = 0
-        self.__value = None
-        self.__executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        self.__listener = input_stream.value_stream.listen(self.__value_changed)
-        self.__value_changed(input_stream.value)
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        self.__listener.close()
-        self.__listener = None
-        self.__input_stream = None
-        self.__executor.shutdown()
-        self.__executor = None
-
-    def __value_changed(self, value):
-        self.__value = value
-        current_time = time.time()
-        if current_time - self.__last_time > self.__period:
-            def do_sleep():
-                time.sleep(self.__period)
-            def call_done(future):
-                self.value_stream.fire(self.__value)
-            self.__last_time = current_time
-            future = self.__executor.submit(do_sleep)
-            future.add_done_callback(call_done)
-
-    @property
-    def value(self):
-        return self.__value
-
-
-class SampleStream:
-
-    def __init__(self, input_stream, period):
-        self.value_stream = Event.Event()
-        self.__input_stream = input_stream
-        self.__period = period
-        self.__last_time = 0
-        self.__pending_value = None
-        self.__value = None
-        self.__executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        self.__executor_lock = threading.RLock()
-        self.__listener = input_stream.value_stream.listen(self.__value_changed)
-        self.__value = input_stream.value
-        self.__value_dirty = True
-        self.__value_dirty_lock = threading.RLock()
-        self.__queue_executor()
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        self.__listener.close()
-        self.__listener = None
-        self.__input_stream = None
-        with self.__executor_lock:  # deadlock?
-            self.__executor.shutdown()
-            self.__executor = None
-
-    def __do_sleep(self):
-        time.sleep(self.__period)
-
-    def __call_done(self, future):
-        with self.__value_dirty_lock:
-            value_dirty = self.__value_dirty
-            self.__value_dirty = False
-        if value_dirty:
-            self.__value = self.__pending_value
-            self.value_stream.fire(self.__pending_value)
-        self.__queue_executor()
-
-    def __queue_executor(self):
-        with self.__executor_lock:
-            future = self.__executor.submit(self.__do_sleep)
-            future.add_done_callback(self.__call_done)
-
-    def __value_changed(self, value):
-        with self.__value_dirty_lock:
-            self.__value_dirty = True
-        self.__pending_value = value
-
-    @property
-    def value(self):
-        return self.__value
-
-
-# TODO: threading, reentrancy?
-# TODO: long calculations
-# TODO: value caching
-# TODO: how to persist these snippets? each one is a program with an identifier, inputs. startup establishes them.
-
-# # histogram widget
-# target_display = current_target_display(document_controller)
-# display_data = extract_display_data(target_display)
-# display_limits = extract_display_limits(target_display)
-# histogram_data = calculate_histogram_data(display_data, display_limits)
-# histogram_widget = make_histogram_widget(histogram_data)
-# histogram_widget.on_set_display_limits = set_display_limits(target_display)
-
-# # statistics widget
-# target_display = current_target_display(document_controller)
-# display_data = extract_display_data(target_display)
-# statistics_dict = calculate_statistics(display_data)
-# statistics_widget = make_statistics_widget(statistics_dict)
-
-# # statistics of region widget
-# target_display = current_target_display(document_controller)
-# target_region = current_target_region(document_controller)
-# display_data = extract_display_data_in_region(target_display, target_region)
-# statistics_dict = calculate_statistics(display_data)
-# statistics_widget = make_statistics_widget(statistics_dict)
-
-# # picker tool, data
-# data_item = data_item_by_uuid(document_controller, uuid)
-# region = region_by_uuid(document_controller, uuid)
-# data = extract_data(data_item)
-# mask = mask_from_region(data, region)
-# set_data(computed_data_item, masked_sum_to_1d(data, mask))
-
-# # picker tool, display slice to interval
-# data_item = data_item_by_uuid(document_controller, uuid)
-# display_slice_interval_region = extract_region_by_name(computed_data_item, 'display_slice')
-# interval = extract_interval_from_region(display_slice_interval_region)
-# display = extract_display(data_item)
-# set_display_slice_interval(display, interval)
-
-# # picker tool, interval to display slice
-# data_item = data_item_by_uuid(document_controller, uuid)
-# display_slice_interval_region = extract_region_by_name(computed_data_item, 'display_slice')
-# display = extract_display(data_item)
-# display_slice = extract_display_slice(display)
-# set_region_interval(display_slice_interval_region, display_slice)
-
-# # line profile tool, intervals
-# line_profile_region = region_by_uuid(document_controller, uuid)
-# line_plot_interval_list = extract_interval_list(line_plot_data_item)
-# set_interval_descriptors(line_profile_region, line_plot_interval_list)
-
-# # face finder
-# data_item = data_item_by_uuid(document_controller, uuid)
-# display = extract_display(data_item)
-# display_data = extract_display_data(display)
-# face_rectangles = find_faces(display_data)
-# clear_regions_by_keyword(data_item, 'face')
-# add_regions_from_rectangles(data_item, face_rectangles, 'face')
