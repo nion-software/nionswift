@@ -1594,11 +1594,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def make_parameter(name, label, type, value, value_default=None, value_min=None, value_max=None, control_type=None):
         return DocumentModel.Parameter(name, label, type, value, value_default, value_min, value_max, control_type)
 
-    Region_ = collections.namedtuple("Region", ["name", "type", "label", "region"])
+    Region_ = collections.namedtuple("Region", ["name", "type", "region", "params"])
 
     @staticmethod
-    def make_region(name, type, label=None, region=None):
-        return DocumentModel.Region_(name, type, label, region)
+    def make_region(name, type, region=None, params=None):
+        return DocumentModel.Region_(name, type, region, params)
 
     Connection = collections.namedtuple("Connection", ["type", "src", "src_prop", "dst", "dst_prop"])
 
@@ -1638,14 +1638,16 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                 src_texts.append(src_text)
                 crop_names.append(crop_name)
                 for region in source.regions or list():
+                    region_params = region.params or dict()
                     if region.type == "point":
                         if region.region:
                             point_region = region.region
                         else:
                             point_region = Region.PointRegion()
-                            point_region.label = region.label
+                            for k, v in region_params.items():
+                                setattr(point_region, k, v)
                             buffered_data_source.add_region(point_region)
-                        regions.append((region.name, point_region, region.label))
+                        regions.append((region.name, point_region, region_params.get("label")))
                         region_map[region.name] = point_region
                     elif region.type == "line":
                         if region.region:
@@ -1654,8 +1656,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                             line_region = Region.LineRegion()
                             line_region.start = 0.25, 0.25
                             line_region.end = 0.75, 0.75
+                            for k, v in region_params.items():
+                                setattr(line_region, k, v)
                             buffered_data_source.add_region(line_region)
-                        regions.append((region.name, line_region, region.label))
+                        regions.append((region.name, line_region, region_params.get("label")))
                         region_map[region.name] = line_region
                     elif region.type == "rectangle":
                         if region.region:
@@ -1664,9 +1668,10 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                             rect_region = Region.RectRegion()
                             rect_region.center = 0.5, 0.5
                             rect_region.size = 0.5, 0.5
-                            rect_region.label = region.label
+                            for k, v in region_params.items():
+                                setattr(rect_region, k, v)
                             buffered_data_source.add_region(rect_region)
-                        regions.append((region.name, rect_region, region.label))
+                        regions.append((region.name, rect_region, region_params.get("label")))
                         region_map[region.name] = rect_region
             expression = fn_template.format(**dict(zip(src_names, src_texts)))
             computation = self.create_computation(expression)
@@ -1769,7 +1774,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
-        in_region = DocumentModel.make_region("crop_region", "rectangle", _("Crop Region"), crop_region)
+        in_region = DocumentModel.make_region("crop_region", "rectangle", crop_region, {"label": _("Crop Region")})
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("crop({src}, crop_region.bounds)", [src], [], _("Crop"))
 
@@ -1787,14 +1792,14 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
     def get_pick_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, pick_region: Region.PointRegion=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
-        in_region = DocumentModel.make_region("pick_region", "point", _("Pick Point"), pick_region)
+        in_region = DocumentModel.make_region("pick_region", "point", pick_region, {"label": _("Pick Point")})
         out_region = DocumentModel.make_region("interval_region", "interval")
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Slice"), out_regions=[out_region], connections=[connection])
 
     def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, line_region: Region.LineRegion=None) -> DataItem.DataItem:
-        in_region = DocumentModel.make_region("line_region", "line", _("Line Profile"), line_region)
+        in_region = DocumentModel.make_region("line_region", "line", line_region, {"label": _("Line Profile")})
         connection = DocumentModel.make_connection("interval_list", src="data_source", dst="line_region")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region])
         return self.__get_processing_new("line_profile({src}, line_region.vector, line_region.width)", [src], [], _("Line Profile"), connections=[connection])
