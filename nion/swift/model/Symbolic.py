@@ -420,9 +420,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 exec(code, g, l)
                 data_and_metadata, error_text = l["result"], None
             except Exception as e:
-                # import sys, traceback
-                # traceback.print_exc()
-                # traceback.format_exception(*sys.exc_info())
+                import sys, traceback
+                traceback.print_exc()
+                traceback.format_exception(*sys.exc_info())
                 data_and_metadata, error_text = None, "Execution Error"  # use this instead of giving user too much information from stack trace
 
             self.__data_and_metadata = data_and_metadata
