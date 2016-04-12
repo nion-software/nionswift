@@ -1673,6 +1673,16 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
                             buffered_data_source.add_region(rect_region)
                         regions.append((region.name, rect_region, region_params.get("label")))
                         region_map[region.name] = rect_region
+                    elif region.type == "interval":
+                        if region.region:
+                            interval_region = region.region
+                        else:
+                            interval_region = Region.IntervalRegion()
+                            for k, v in region_params.items():
+                                setattr(interval_region, k, v)
+                            buffered_data_source.add_region(interval_region)
+                        regions.append((region.name, interval_region, region_params.get("label")))
+                        region_map[region.name] = interval_region
             expression = fn_template.format(**dict(zip(src_names, src_texts)))
             computation = self.create_computation(expression)
             for src_name, display_specifier, source in zip(src_names, display_specifiers, sources):
