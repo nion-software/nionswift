@@ -1606,6 +1606,9 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def make_connection(type, src=None, src_prop=None, dst=None, dst_prop=None):
         return DocumentModel.Connection(type, src, src_prop, dst, dst_prop)
 
+    def make_data_item_with_computation(self, fn_template: str, sources: List, params: List, label: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
+        return self.__get_processing_new(fn_template, sources, params, label, prefix, out_regions, connections)
+
     def __get_processing_new(self, fn_template: str, sources: List, params: List, label: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
         data_items = [source.data_item for source in sources]
         display_specifiers = [DataItem.DisplaySpecifier.from_data_item(data_item) for data_item in data_items]
