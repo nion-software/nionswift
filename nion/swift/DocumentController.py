@@ -26,6 +26,7 @@ from nion.swift import Workspace
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
+from nion.swift.model import DocumentModel
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Operation
 from nion.swift.model import Region
@@ -242,7 +243,8 @@ class DocumentController(Observable.Broadcaster):
         self.file_menu.add_separator()
         self.new_action = self.file_menu.add_sub_menu(_("Switch Library"), self.library_menu)
         self.file_menu.add_separator()
-        self.import_action = self.file_menu.add_menu_item(_("Import..."), lambda: self.import_file())
+        self.import_folder_action = self.file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
+        self.import_action = self.file_menu.add_menu_item(_("Import Data..."), self.import_file)
         def export_files():
             selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
             if len(selected_data_items) > 1:
@@ -681,6 +683,46 @@ class DocumentController(Observable.Broadcaster):
         # hack to work around Application <-> DocumentController interdependency.
         self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_item)
 
+    def __import_folder(self):
+        import json
+        from nion.swift.model import Cache
+        documents_dir = self.ui.get_document_location()
+        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
+        library_filename = "Nion Swift Workspace.nslib"
+        cache_filename = "Nion Swift Cache.nscache"
+        library_path = os.path.join(workspace_dir, library_filename)
+        cache_path = os.path.join(workspace_dir, cache_filename)
+        data_path = os.path.join(workspace_dir, "Nion Swift Data")
+        if not os.path.exists(library_path):
+            with open(library_path, "w") as fp:
+                json.dump({}, fp)
+            storage_cache = Cache.DbStorageCache(cache_path)
+            file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([data_path])
+            library_storage = DocumentModel.FilePersistentStorage(library_path)
+            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache,
+                                                         ignore_older_files=True)
+
+            def import_complete(data_items):
+                document_model.close()
+                self.app.switch_library(workspace_dir)
+
+            absolute_file_paths = set()
+            for root, dirs, files in os.walk(workspace_dir):
+                absolute_file_paths.update([os.path.join(root, data_file) for data_file in files])
+
+            readable_file_paths = list()
+            readers = ImportExportManager.ImportExportManager().get_readers()
+            for file_path in absolute_file_paths:
+                root, extension = os.path.splitext(file_path)
+                for reader in readers:
+                    if extension[1:] in reader.extensions:
+                        readable_file_paths.append(file_path)
+                        break  # skip other readers
+
+            self.receive_files(document_model, readable_file_paths, completion_fn=lambda data_items: self.queue_task(functools.partial(import_complete, data_items)))
+        else:
+            self.app.switch_library(workspace_dir)
+
     def import_file(self):
         # present a loadfile dialog to the user
         readers = ImportExportManager.ImportExportManager().get_readers()
@@ -702,7 +744,7 @@ class DocumentController(Observable.Broadcaster):
                 if result_display_panel:
                     result_display_panel.set_displayed_data_item(data_items[-1])
                     result_display_panel.request_focus()
-        self.receive_files(paths, completion_fn=import_complete)
+        self.receive_files(self.document_model, paths, completion_fn=import_complete)
 
     def export_file(self, data_item):
         # present a loadfile dialog to the user
@@ -1088,7 +1130,7 @@ class DocumentController(Observable.Broadcaster):
     # position in the document model (the end) and at the group at the position
     # specified by the index. if the data group is not specified, the item is added
     # at the index within the document model.
-    def receive_files(self, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None):
+    def receive_files(self, document_model, file_paths, data_group=None, index=-1, threaded=True, completion_fn=None):
 
         # this function will be called on a thread to receive files in the background.
         def receive_files_on_thread(file_paths, data_group, index, completion_fn):
@@ -1159,7 +1201,7 @@ class DocumentController(Observable.Broadcaster):
 
                             # notice that a lambda function is used to snapshot the first three arguments, but the
                             # index_ref argument is shared with all calls so that the items get inserted in order.
-                            self.queue_task(functools.partial(insert_data_item, self.document_model, data_group, data_items, index_ref))
+                            self.queue_task(functools.partial(insert_data_item, document_model, data_group, data_items, index_ref))
 
                             # wait for the save event to occur, then release the data ref.
                             for data_item in data_items:

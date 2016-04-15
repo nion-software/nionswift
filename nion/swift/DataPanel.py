@@ -1288,8 +1288,10 @@ class DataPanel(Panel.Panel):
                 self.__data_browser_controller.set_data_browser_selection(data_item=received_data_items[0])
             if len(received_data_items) > 0:
                 self.queue_task(select_library_all)
-        index = len(self.document_controller.document_model.data_items)
-        self.document_controller.receive_files(file_paths, None, index, threaded, receive_files_complete)
+
+        document_model = self.document_controller.document_model
+        index = len(document_model.data_items)
+        self.document_controller.receive_files(document_model, file_paths, None, index, threaded, receive_files_complete)
         return True
 
     # receive files dropped into the data group.
@@ -1303,5 +1305,7 @@ class DataPanel(Panel.Panel):
                     self.queue_task(select_data_group_and_data_item)
                 else:
                     select_data_group_and_data_item()
-        self.document_controller.receive_files(file_paths, data_group, index, threaded, receive_files_complete)
+
+        document_model = self.document_controller.document_model
+        self.document_controller.receive_files(document_model, file_paths, data_group, index, threaded, receive_files_complete)
         return True

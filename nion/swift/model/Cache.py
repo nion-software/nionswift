@@ -14,7 +14,7 @@ import time
 # None
 
 # local libraries
-from nion.ui import Observable
+# None
 
 
 class TracingCache(object):

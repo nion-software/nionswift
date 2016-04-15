@@ -471,9 +471,10 @@ class Workspace(object):
         return "ignore"
 
     def handle_drop(self, display_panel, mime_data, region, x, y):
+        document_model = self.document_model
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = self.document_model.get_data_item_by_key(data_item_uuid)
+            data_item = document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 if region == "right" or region == "left" or region == "top" or region == "bottom":
                     self.insert_display_panel(display_panel, region, data_item)
@@ -486,8 +487,8 @@ class Workspace(object):
                     self.__replace_displayed_data_item(display_panel, received_data_items[0])
                 if len(received_data_items) > 0:
                     self.document_controller.queue_task(update_displayed_data_item)
-            index = len(self.document_model.data_items)
-            self.document_controller.receive_files(mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
+            index = len(document_model.data_items)
+            self.document_controller.receive_files(document_model, mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
         if mime_data.has_format("text/display_panel_type"):
             display_panel_type = mime_data.data_as_string("text/display_panel_type")
