@@ -1809,7 +1809,15 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         out_region = DocumentModel.make_region("interval_region", "interval")
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Slice"), out_regions=[out_region], connections=[connection])
+        return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Pick"), out_regions=[out_region], connections=[connection])
+
+    def get_pick_region_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, pick_region: Region.Region=None) -> DataItem.DataItem:
+        requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
+        in_region = DocumentModel.make_region("region", "rectangle", pick_region, {"label": _("Pick Region")})
+        connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
+        out_region = DocumentModel.make_region("interval_region", "interval")
+        src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
+        return self.__get_processing_new("sum({src} * region_mask({src}, region)[newaxis, ...], tuple(range(1, len(data_shape({src})))))", [src], [], _("Pick Sum"), out_regions=[out_region], connections=[connection])
 
     def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, line_region: Region.LineRegion=None) -> DataItem.DataItem:
         in_region = DocumentModel.make_region("line_region", "line", line_region, {"label": _("Line Profile")})

@@ -310,6 +310,7 @@ class DocumentController(Observable.Broadcaster):
         self.processing_menu.add_menu_item(_("Crop"), lambda: self.__processing_new(self.document_model.get_crop_new))
         self.processing_menu.add_menu_item(_("Slice Sum"), lambda: self.__processing_new(self.document_model.get_slice_sum_new))
         self.processing_menu.add_menu_item(_("Pick"), lambda: self.__processing_new(self.document_model.get_pick_new))
+        self.processing_menu.add_menu_item(_("Pick Region"), lambda: self.__processing_new(self.document_model.get_pick_region_new))
         self.processing_menu.add_menu_item(_("Projection"), lambda: self.processing_projection())
         self.processing_menu.add_menu_item(_("Invert"), lambda: self.__processing_new(self.document_model.get_invert_new))
         self.processing_menu.add_separator()

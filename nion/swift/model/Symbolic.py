@@ -33,6 +33,20 @@ def region_by_uuid(context, region_uuid):
     return context.resolve_object_specifier(context.get_region_specifier(region_uuid)).value
 
 
+def region_mask(data_and_metadata, region):
+    import numpy
+    from nion.swift.model import Region
+    data_shape = data_and_metadata.data_shape[-2:]
+    mask = numpy.zeros(data_shape)
+    if isinstance(region, Region.RectRegion):
+        bounds = region.bounds
+        bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])),
+            (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
+        mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0],
+            bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]] = 1
+    return DataAndMetadata.DataAndMetadata.from_data(mask)
+
+
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     """Tracks a variable used in a computation.
 
@@ -408,6 +422,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             g = Context.context().g
             g["data_by_uuid"] = functools.partial(data_by_uuid, computation_context)
             g["region_by_uuid"] = functools.partial(region_by_uuid, computation_context)
+            g["region_mask"] = region_mask
             l = dict()
             for variable_name, object_specifier in computation_variable_map.items():
                 resolved_object = computation_context.resolve_object_specifier(object_specifier)
