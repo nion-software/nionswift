@@ -417,13 +417,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
             try:
-                exec(code, g, l)
+                compiled = compile(code, "expr", "exec")
+                exec(compiled, g, l)
                 data_and_metadata, error_text = l["result"], None
             except Exception as e:
-                import sys, traceback
-                traceback.print_exc()
-                traceback.format_exception(*sys.exc_info())
-                data_and_metadata, error_text = None, "Execution Error"  # use this instead of giving user too much information from stack trace
+                # import sys, traceback
+                # traceback.print_exc()
+                # traceback.format_exception(*sys.exc_info())
+                data_and_metadata, error_text = None, str(e)  # use this instead of giving user too much information from stack trace
 
             self.__data_and_metadata = data_and_metadata
             self.error_text = error_text
