@@ -1,7 +1,3 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import collections
 import contextlib
@@ -9,19 +5,15 @@ import datetime
 import functools
 import logging
 import sys
+import threading
 import time
+import traceback
 
 # third party libraries
 import numpy
 
 # local libraries
 from nion.ui import Unicode
-
-
-if sys.version < '3':
-    integer_types = (int, long,)
-else:
-    integer_types = (int,)
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -137,7 +129,7 @@ def clean_item(i):
         return i
     elif Unicode.is_unicode_type(itype):
         return i
-    elif itype in integer_types:
+    elif itype == int:
         return i
     elif itype == bool:
         return i
@@ -166,7 +158,7 @@ def clean_item_no_list(i):
         return i
     elif Unicode.is_unicode_type(itype):
         return i
-    elif itype in integer_types:
+    elif itype == int:
         return i
     elif itype == bool:
         return i
@@ -263,3 +255,43 @@ def trace(min_elapsed=0.0, discard=None):
     t = begin_trace(min_elapsed, discard)
     yield
     end_trace(t)
+
+
+def sample_stack_all(count=10, interval=0.1):
+    """Sample the stack in a thread and print it at regular intervals."""
+
+    def print_stack_all(l, ll):
+        l1 = list()
+        l1.append("*** STACKTRACE - START ***")
+        code = []
+        for threadId, stack in sys._current_frames().items():
+            sub_code = []
+            sub_code.append("# ThreadID: %s" % threadId)
+            for filename, lineno, name, line in traceback.extract_stack(stack):
+                sub_code.append('File: "%s", line %d, in %s' % (filename, lineno, name))
+                if line:
+                    sub_code.append("  %s" % (line.strip()))
+            if not "in select" in sub_code[-2] and \
+               not "in wait" in sub_code[-2] and \
+               not "in print_stack_all" in sub_code[-2] and \
+               not "in sample_stack_all" in sub_code[-2] and \
+               not "in checkcache" in sub_code[-2] and \
+               not "in __do_sleep" in sub_code[-2] and \
+               not any(["in do_sample" in s for s in sub_code]):
+                code.extend(sub_code)
+        for line in code:
+            l1.append(line)
+        l1.append("*** STACKTRACE - END ***")
+        with l:
+            ll.extend(l1)
+
+    def do_sample():
+        l = threading.RLock()
+        ll = list()
+        for i in range(count):
+            print_stack_all(l, ll)
+            time.sleep(interval)
+        with l:
+            print("\n".join(ll))
+
+    threading.Thread(target=do_sample).start()
