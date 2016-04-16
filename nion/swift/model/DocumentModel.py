@@ -1705,8 +1705,11 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.append_data_item(new_data_item)
             new_regions = dict()
             for region in out_regions or list():
+                region_params = region.params or dict()
                 if region.type == "interval":
                     interval_region = Region.IntervalRegion()
+                    for k, v in region_params.items():
+                        setattr(interval_region, k, v)
                     buffered_data_source.add_region(interval_region)
                     new_regions[region.name] = interval_region
             for connection in connections or list():
@@ -1806,7 +1809,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
     def get_pick_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, pick_region: Region.PointRegion=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
         in_region = DocumentModel.make_region("pick_region", "point", pick_region, {"label": _("Pick Point")})
-        out_region = DocumentModel.make_region("interval_region", "interval")
+        out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Pick"), out_regions=[out_region], connections=[connection])
@@ -1815,7 +1818,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
         in_region = DocumentModel.make_region("region", "rectangle", pick_region, {"label": _("Pick Region")})
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
-        out_region = DocumentModel.make_region("interval_region", "interval")
+        out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("sum({src} * region_mask({src}, region)[newaxis, ...], tuple(range(1, len(data_shape({src})))))", [src], [], _("Pick Sum"), out_regions=[out_region], connections=[connection])
 
