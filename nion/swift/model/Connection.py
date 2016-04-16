@@ -16,7 +16,7 @@ from nion.ui import Observable
 from nion.ui import Persistence
 
 
-class Connection(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
+class Connection(Observable.Observable, Persistence.PersistentObject):
     """ Represents a connection between two objects. """
 
     def __init__(self, type):

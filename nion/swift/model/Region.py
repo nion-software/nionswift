@@ -20,7 +20,7 @@ from nion.ui import Observable
 from nion.ui import Persistence
 
 
-class Region(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
+class Region(Observable.Observable, Persistence.PersistentObject):
     """An object to specify a region and its display properties on a data item.
 
     Regions are associated with exactly one data item.

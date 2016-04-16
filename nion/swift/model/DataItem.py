@@ -141,8 +141,7 @@ class UuidsToStringsConverter(object):
         return [uuid.UUID(uuid_str) for uuid_str in value]
 
 
-class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Cacheable,
-                         Persistence.PersistentObject):
+class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.PersistentObject):
 
     """
     A data source that stores the data directly, with optional source data that gets updated as necessary.
@@ -836,7 +835,7 @@ class BufferedDataSource(Observable.Observable, Observable.Broadcaster, Cache.Ca
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Persistence.PersistentObject):
+class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObject):
 
     """
     Data items represent a set of data sources + metadata.

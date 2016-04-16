@@ -40,7 +40,7 @@ from nion.ui import Selection
 _ = gettext.gettext
 
 
-class DocumentController(Observable.Broadcaster):
+class DocumentController:
 
     """
     Manage a document window.

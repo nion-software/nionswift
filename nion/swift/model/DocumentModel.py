@@ -640,8 +640,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         return persistent_storage._persistent_storage_handler.reference
 
 
-class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.ReferenceCounted,
-                    Persistence.PersistentObject):
+class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persistence.PersistentObject):
 
     """The document model manages storage and dependencies between data items and other objects.
 
@@ -653,6 +652,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
 
         self.data_item_deleted_event = Event.Event()  # will be called after the item is deleted
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
+        self.data_item_inserted_event = Event.Event()
+        self.data_item_removed_event = Event.Event()
 
         self.__thread_pool = ThreadPool.ThreadPool()
         self.persistent_object_context = PersistentDataItemContext(persistent_storage_systems, ignore_older_files, log_migrations)
@@ -840,7 +841,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         if data_item.maybe_data_source:
             self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
         self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
-        self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
+        self.data_item_inserted_event.fire(self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
         data_item.set_data_item_manager(self)
@@ -904,7 +905,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
-        self.notify_listeners("data_item_removed", self, data_item, index, False)
+        self.data_item_removed_event.fire(self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
         self.data_item_deleted_event.fire(data_item)
 

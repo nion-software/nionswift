@@ -379,18 +379,15 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
 
 
 class DataItemsInContainerBinding(AbstractDataItemsBinding):
-    """
-        Bind the data items in a container to this list.
-
-        The container is listened to and must send the update_counted_data_items
-        and subtract_counted_data_items messages to this object.
-    """
+    """Bind the data items in a container to this list."""
 
     def __init__(self):
         super(DataItemsInContainerBinding, self).__init__()
         self.__container = None
         self.__master_data_items = list()
         self.__data_item_content_changed_event_listeners = dict()
+        self.__data_item_inserted_event_listener = None
+        self.__data_item_removed_event_listener = None
 
     def close(self):
         self.container = None
@@ -398,22 +395,26 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
         super(DataItemsInContainerBinding, self).close()
 
     # thread safe.
-    def __get_container(self):
-        """ Return the container. """
+    @property
+    def container(self):
         return self.__container
-    # not thread safe.
-    def __set_container(self, container):
-        """ Set the container to which to listen. """
+
+    # thread safe.
+    @container.setter
+    def container(self, container):
         if self.__container:
-            self.__container.remove_listener(self)
+            self.__data_item_inserted_event_listener.close()
+            self.__data_item_inserted_event_listener = None
+            self.__data_item_removed_event_listener.close()
+            self.__data_item_removed_event_listener = None
             for data_item in reversed(copy.copy(self.__container.data_items)):
                 self.data_item_removed(self.__container, data_item, len(self._get_master_data_items()) - 1, False)
         self.__container = container
         if self.__container:
-            self.__container.add_listener(self)
+            self.__data_item_inserted_event_listener = self.__container.data_item_inserted_event.listen(self.data_item_inserted)
+            self.__data_item_removed_event_listener = self.__container.data_item_removed_event.listen(self.data_item_removed)
             for index, data_item in enumerate(self.__container.data_items):
                 self.data_item_inserted(self.__container, data_item, index, False)
-    container = property(__get_container, __set_container)
 
     # thread safe.
     def data_item_inserted(self, container, data_item, before_index, is_moving):

@@ -126,7 +126,7 @@ class GraphicSelection(object):
             self.changed_event.fire()
 
 
-class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Persistence.PersistentObject):
+class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObject):
     # Displays are associated with exactly one data item.
 
     def __init__(self):
@@ -490,7 +490,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
                 processor.mark_data_dirty()
 
     def add_region_graphic(self, region_graphic):
-        region_graphic.add_listener(self)
         before_index = len(self.__drawn_graphics)
         self.__drawn_graphics.insert(before_index, region_graphic)
         graphic_changed_listener = region_graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, region_graphic))
@@ -506,8 +505,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             # is here because removing a region may remove a data item which
             # will in turn remove the same region.
             # bad architecture.
-            region_graphic.remove_listener(self)
-            # region_graphic.about_to_be_removed()
             index = self.__drawn_graphics.index(region_graphic)
             self.__drawn_graphics.remove(region_graphic)
             graphic_changed_listener = self.__graphic_changed_listeners[index]
@@ -520,7 +517,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
             self.display_changed_event.fire()
 
     def __insert_graphic(self, name, before_index, item):
-        item.add_listener(self)
         self.__drawn_graphics.insert(before_index, item)
         graphic_changed_listener = item.graphic_changed_event.listen(functools.partial(self.graphic_changed, item))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
@@ -535,7 +531,6 @@ class Display(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, Pe
         graphic.close()
 
     def __disconnect_graphic(self, graphic):
-        graphic.remove_listener(self)
         index = self.__drawn_graphics.index(graphic)
         self.__drawn_graphics.remove(graphic)
         graphic_changed_listener = self.__graphic_changed_listeners[index]

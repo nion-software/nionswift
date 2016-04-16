@@ -33,7 +33,7 @@ _ = gettext.gettext
 RegionBinding = collections.namedtuple("RegionBinding", ["operation_property", "region_property"])
 
 
-class DataItemDataSource(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
+class DataItemDataSource(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, buffered_data_source=None):
         super(DataItemDataSource, self).__init__()
@@ -167,7 +167,7 @@ def data_source_list_factory(lookup_id):
         return None
 
 
-class OperationItem(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
+class OperationItem(Observable.Observable, Persistence.PersistentObject):
     """
         OperationItems compute new data from other data items, regions, and metadata.
 

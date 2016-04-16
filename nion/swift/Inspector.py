@@ -138,7 +138,6 @@ class InspectorPanel(Panel.Panel):
             self.request_focus = False
 
     # this message is received from the data item binding.
-    # it is established using add_listener. when it is called
     # mark the data item as needing updating.
     # thread safe.
     def __data_item_changed(self, data_item):

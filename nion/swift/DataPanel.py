@@ -785,6 +785,8 @@ class DataGroupModelController(object):
         self.__data_group_property_changed_listeners = dict()
         self.__data_group_item_inserted_listeners = dict()
         self.__data_group_item_removed_listeners = dict()
+        self.__data_group_data_item_inserted_listeners = dict()
+        self.__data_group_data_item_removed_listeners = dict()
         data_groups = document_controller.document_model.data_groups
         for index, data_group in enumerate(data_groups):
             self.item_inserted(document_controller.document_model, "data_groups", data_group, index)
@@ -793,7 +795,10 @@ class DataGroupModelController(object):
         # cheap way to unlisten to everything
         for object in self.__mapping.keys():
             if isinstance(object, DataGroup.DataGroup):
-                object.remove_listener(self)
+                self.__data_group_data_item_inserted_listeners[object.uuid].close()
+                del self.__data_group_data_item_inserted_listeners[object.uuid]
+                self.__data_group_data_item_removed_listeners[object.uuid].close()
+                del self.__data_group_data_item_removed_listeners[object.uuid]
                 self.__data_group_item_inserted_listeners[object.uuid].close()
                 del self.__data_group_item_inserted_listeners[object.uuid]
                 self.__data_group_item_removed_listeners[object.uuid].close()
@@ -855,7 +860,8 @@ class DataGroupModelController(object):
             self.__data_group_property_changed_listeners[object.uuid] = object.property_changed_event.listen(property_changed)
             self.__data_group_item_inserted_listeners[object.uuid] = object.item_inserted_event.listen(functools.partial(self.item_inserted, object))
             self.__data_group_item_removed_listeners[object.uuid] = object.item_removed_event.listen(functools.partial(self.item_removed, object))
-            object.add_listener(self)
+            self.__data_group_data_item_inserted_listeners[object.uuid] = object.data_item_inserted_event.listen(self.data_item_inserted)
+            self.__data_group_data_item_removed_listeners[object.uuid] = object.data_item_removed_event.listen(self.data_item_removed)
             self.item_model_controller.end_insert()
             # recursively insert items that already exist
             data_groups = object.data_groups
@@ -871,7 +877,10 @@ class DataGroupModelController(object):
             parent_item = self.__mapping[container]
             # manage the item model
             self.item_model_controller.begin_remove(index, index, parent_item.row, parent_item.id)
-            object.remove_listener(self)
+            self.__data_group_data_item_inserted_listeners[object.uuid].close()
+            del self.__data_group_data_item_inserted_listeners[object.uuid]
+            self.__data_group_data_item_removed_listeners[object.uuid].close()
+            del self.__data_group_data_item_removed_listeners[object.uuid]
             self.__data_group_item_inserted_listeners[object.uuid].close()
             del self.__data_group_item_inserted_listeners[object.uuid]
             self.__data_group_item_removed_listeners[object.uuid].close()

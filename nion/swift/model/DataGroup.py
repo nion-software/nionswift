@@ -10,6 +10,7 @@ import uuid
 # None
 
 # local libraries
+from nion.ui import Event
 from nion.ui import Observable
 from nion.ui import Persistence
 from nion.ui import Unicode
@@ -74,7 +75,7 @@ _ = gettext.gettext
     """
 
 
-class DataGroup(Observable.Observable, Observable.Broadcaster, Persistence.PersistentObject):
+class DataGroup(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self):
         super(DataGroup, self).__init__()
@@ -91,6 +92,8 @@ class DataGroup(Observable.Observable, Observable.Broadcaster, Persistence.Persi
         self.__data_items = list()
         self.__counted_data_items = collections.Counter()
         self.__moving = False  # ugh
+        self.data_item_inserted_event = Event.Event()
+        self.data_item_removed_event = Event.Event()
 
     def __str__(self):
         return self.title
@@ -125,7 +128,7 @@ class DataGroup(Observable.Observable, Observable.Broadcaster, Persistence.Persi
     def insert_data_item(self, before_index, data_item):
         assert data_item not in self.__data_items
         self.__data_items.insert(before_index, data_item)
-        self.notify_listeners("data_item_inserted", self, data_item, before_index, self.__moving)
+        self.data_item_inserted_event.fire(self, data_item, before_index, self.__moving)
         self.update_counted_data_items(collections.Counter([data_item]))
         data_item_uuids = self.data_item_uuids
         data_item_uuids.insert(before_index, data_item.uuid)
@@ -136,7 +139,7 @@ class DataGroup(Observable.Observable, Observable.Broadcaster, Persistence.Persi
         index = self.__data_items.index(data_item)
         self.__data_items.remove(data_item)
         self.subtract_counted_data_items(collections.Counter([data_item]))
-        self.notify_listeners("data_item_removed", self, data_item, index, self.__moving)
+        self.data_item_removed_event.fire(self, data_item, index, self.__moving)
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
         self.data_item_uuids = data_item_uuids
@@ -175,12 +178,10 @@ class DataGroup(Observable.Observable, Observable.Broadcaster, Persistence.Persi
 
     def update_counted_data_items(self, counted_data_items):
         self.__counted_data_items.update(counted_data_items)
-        self.notify_listeners("update_counted_data_items", counted_data_items)
 
     def subtract_counted_data_items(self, counted_data_items):
         self.__counted_data_items.subtract(counted_data_items)
         self.__counted_data_items += collections.Counter()  # strip empty items
-        self.notify_listeners("subtract_counted_data_items", counted_data_items)
 
     def move_data_item(self, data_item, before_index):
         index = self.data_items.index(data_item)

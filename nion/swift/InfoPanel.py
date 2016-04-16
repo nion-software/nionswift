@@ -130,7 +130,6 @@ class InfoPanel(Panel.Panel):
         super(InfoPanel, self).close()
 
     # this message is received from the document controller.
-    # it is established using add_listener
     # the only way the cursor data can be cleared is if the source is the same as the last source
     # to display cursor data.
     def __cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
