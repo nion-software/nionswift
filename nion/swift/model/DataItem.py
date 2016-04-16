@@ -922,6 +922,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
         self.metadata_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
         self.request_remove_region_event = Event.Event()
+        self.request_remove_data_item_event = Event.Event()
         self.handle_dependency_action = Event.Event()
         self.computation_changed_or_mutated_event = Event.Event()
         self.__dependent_data_item_actions_lock = threading.RLock()
@@ -1265,7 +1266,7 @@ class DataItem(Observable.Observable, Observable.Broadcaster, Cache.Cacheable, P
             # it is generated when the user deletes a operation graphic.
             # that informs the display which notifies the graphic which
             # notifies the operation which notifies this data item. ugh.
-            self.notify_listeners("request_remove_data_item", self)
+            self.request_remove_data_item_event.fire(self)
         request_remove_listener = data_source.request_remove_data_item_because_operation_removed_event.listen(notify_request_remove_data_item)
         self.__request_remove_listeners.insert(before_index, request_remove_listener)
         def request_remove_region(region_specifier):

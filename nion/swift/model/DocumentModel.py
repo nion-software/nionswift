@@ -673,6 +673,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__data_item_request_remove_region = dict()
         self.__data_item_handle_dependency_action_listeners = dict()
         self.__computation_changed_or_mutated_listeners = dict()
+        self.__data_item_request_remove_data_item_listeners = dict()
         self.__data_item_references = dict()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
@@ -720,7 +721,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
             if data_item.maybe_data_source:
                 self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
-            data_item.add_listener(self)
+            self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
             data_item.set_data_item_manager(self)
             self.__buffered_data_source_set.update(set(data_item.data_sources))
             self.buffered_data_source_set_changed_event.fire(set(data_item.data_sources), set())
@@ -831,8 +832,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         data_item.storage_cache = self.storage_cache
         data_item.persistent_object_context = self.persistent_object_context
         self.persistent_object_context.write_data_item(data_item)
-        # be a listener. why?
-        data_item.add_listener(self)
         self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
         self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
@@ -840,6 +839,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
         if data_item.maybe_data_source:
             self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
+        self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
         self.notify_listeners("data_item_inserted", self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
@@ -889,8 +889,6 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        # un-listen to data item
-        data_item.remove_listener(self)
         self.__data_item_item_inserted_listeners[data_item.uuid].close()
         del self.__data_item_item_inserted_listeners[data_item.uuid]
         self.__data_item_item_removed_listeners[data_item.uuid].close()
@@ -901,6 +899,8 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
         del self.__data_item_handle_dependency_action_listeners[data_item.uuid]
         self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
         del self.__computation_changed_or_mutated_listeners[data_item.uuid]
+        self.__data_item_request_remove_data_item_listeners[data_item.uuid].close()
+        del self.__data_item_request_remove_data_item_listeners[data_item.uuid]
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
@@ -1173,7 +1173,7 @@ class DocumentModel(Observable.Observable, Observable.Broadcaster, Observable.Re
             self.append_data_item(lena_data_item)
 
     # this message comes from a data item when it wants to be removed from the document. ugh.
-    def request_remove_data_item(self, data_item):
+    def __request_remove_data_item(self, data_item):
         DataGroup.get_data_item_container(self, data_item).remove_data_item(data_item)
 
     # TODO: what about thread safety for these classes?
