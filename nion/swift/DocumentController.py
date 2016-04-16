@@ -784,7 +784,7 @@ class DocumentController(Observable.Broadcaster):
 
     # this method creates a task. it is thread safe.
     def create_task_context_manager(self, title, task_type, logging=True):
-        task = Task.Task(title, task_type)
+        task = Task.Task(title, task_type)  # NOTE: currently, tasks don't get deleted since they are displayed until exit.
         task_context_manager = Task.TaskContextManager(self, task, logging)
         self.task_created_event.fire(task)
         return task_context_manager

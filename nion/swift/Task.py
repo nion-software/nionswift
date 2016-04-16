@@ -1,7 +1,3 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import copy
 import gettext
@@ -15,6 +11,7 @@ import time
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Utility
+from nion.ui import Event
 from nion.ui import Observable
 
 _ = gettext.gettext
@@ -44,10 +41,16 @@ _ = gettext.gettext
 class TaskPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
-        super(TaskPanel, self).__init__(document_controller, panel_id, _("Tasks"))
+        super().__init__(document_controller, panel_id, _("Tasks"))
+
+        # thread safe
+        def task_created(task):
+            with self.__pending_tasks_mutex:
+                self.__pending_tasks.append(task)
+                self.document_controller.add_task(str(id(self)), self.__perform_tasks)
 
         # connect to the document controller
-        self.__task_created_event_listener = self.document_controller.task_created_event.listen(self.task_created)
+        self.__task_created_event_listener = self.document_controller.task_created_event.listen(task_created)
 
         # the main column widget contains a stack group for each operation
         self.column = self.ui.create_column_widget(properties=properties)  # TODO: put this in scroll area
@@ -67,6 +70,7 @@ class TaskPanel(Panel.Panel):
         self.__task_needs_update = set()
         self.__task_needs_update_mutex = threading.RLock()
         self.__task_section_controller_list = list()
+        self.__task_changed_event_listeners = list()
 
     def close(self):
         self.document_controller.clear_task(str(id(self)))
@@ -74,12 +78,16 @@ class TaskPanel(Panel.Panel):
         self.__task_created_event_listener.close()
         self.__task_created_event_listener = None
         # disconnect from tasks
-        for task_section_controller in self.__task_section_controller_list:
-            task_section_controller.task.remove_listener(self)
+        for task_changed_event_listener in self.__task_changed_event_listeners:
+            task_changed_event_listener.close()
+        self.__task_changed_event_listeners = None
         # finish closing
-        super(TaskPanel, self).close()
+        super().close()
 
+    # not thread safe
     def __perform_tasks(self):
+        # for all pending tasks, make a task section controller, then add the task
+        # to the needs update list.
         with self.__pending_tasks_mutex:
             pending_tasks = self.__pending_tasks
             self.__pending_tasks = list()
@@ -90,8 +98,19 @@ class TaskPanel(Panel.Panel):
             self.__task_section_controller_list.append(task_section_controller)
             with self.__task_needs_update_mutex:
                 self.__task_needs_update.add(task)
-            task.add_listener(self)
-        # allow unfinished tasks to mark themselves as finished.
+
+            # thread safe
+            def task_changed():
+                with self.__task_needs_update_mutex:
+                    self.__task_needs_update.add(task)
+                    self.document_controller.add_task(str(id(self)), self.__perform_tasks)
+
+            # TODO: currently, tasks don't get deleted since they are displayed until exit.
+            # add the listener to a never deleted list.
+            self.__task_changed_event_listeners.append(task.task_changed_event.listen(task_changed))
+
+        # for each started task (i.e. has a section controller), if it needs an
+        # update, update it in the section controller.
         for task_section_controller in self.__task_section_controller_list:
             task = task_section_controller.task
             if task in self.__task_needs_update:
@@ -100,19 +119,8 @@ class TaskPanel(Panel.Panel):
                     self.__task_needs_update.remove(task)
                 # update
                 task_section_controller.update()
+        # finally, if there are tasks that need updating, run perform task again.
         if len(self.__task_needs_update) > 0:
-            self.document_controller.add_task(str(id(self)), self.__perform_tasks)
-
-    # thread safe
-    def task_created(self, task):
-        with self.__pending_tasks_mutex:
-            self.__pending_tasks.append(task)
-            self.document_controller.add_task(str(id(self)), self.__perform_tasks)
-
-    # thread safe
-    def task_changed(self, task):
-        with self.__task_needs_update_mutex:
-            self.__task_needs_update.add(task)
             self.document_controller.add_task(str(id(self)), self.__perform_tasks)
 
 
@@ -196,10 +204,10 @@ class TaskSectionController(object):
             self.task_ui_controller.update_task(self.task)
 
 
-class Task(Observable.Observable, Observable.Broadcaster):
+class Task(Observable.Observable):
 
-    def __init__(self, title, task_type, task_data=None, start_time=None, finish_time=None):
-        super(Task, self).__init__()
+    def __init__(self, title, task_type):
+        super().__init__()
         self.__title = title
         self.__start_time = None
         self.__finish_time = None
@@ -208,75 +216,83 @@ class Task(Observable.Observable, Observable.Broadcaster):
         self.__task_data_mutex = threading.RLock()
         self.__progress = None
         self.__progress_text = str()
-
-    def __deepcopy__(self, memo):
-        task = Task(self.task_type, self.task_data)
-        memo[id(self)] = task
-        return task
+        self.task_changed_event = Event.Event()
 
     # title
-    def __get_title(self):
+    @property
+    def title(self):
         return self.__title
-    def __set_title(self, value):
+
+    @title.setter
+    def title(self, value):
         self.__title = value
         self.notify_set_property("title", value)
-        self.notify_listeners("task_changed", self)
-    title = property(__get_title, __set_title)
+        self.task_changed_event.fire()
 
     # start time
-    def __get_start_time(self):
+    @property
+    def start_time(self):
         return self.__start_time
-    def __set_start_time(self, value):
+
+    @start_time.setter
+    def start_time(self, value):
         self.__start_time = value
         self.notify_set_property("start_time", value)
-        self.notify_listeners("task_changed", self)
-    start_time = property(__get_start_time, __set_start_time)
+        self.task_changed_event.fire()
 
     # finish time
-    def __get_finish_time(self):
+    @property
+    def finish_time(self):
         return self.__finish_time
-    def __set_finish_time(self, value):
+
+    @finish_time.setter
+    def finish_time(self, value):
         self.__finish_time = value
         self.notify_set_property("finish_time", value)
-        self.notify_listeners("task_changed", self)
-    finish_time = property(__get_finish_time, __set_finish_time)
+        self.task_changed_event.fire()
 
     # in progress
-    def __get_in_progress(self):
+    @property
+    def in_progress(self):
         return self.finish_time is None
-    in_progress = property(__get_in_progress)
 
     # progress
-    def __get_progress(self):
+    @property
+    def progress(self):
         return self.__progress
-    def __set_progress(self, progress):
-        self.__progress = progress
-        self.notify_listeners("task_changed", self)
-    progress = property(__get_progress, __set_progress)
+
+    @progress.setter
+    def progress(self, value):
+        self.__progress = value
+        self.task_changed_event.fire()
 
     # progress_text
-    def __get_progress_text(self):
+    @property
+    def progress_text(self):
         return self.__progress_text
-    def __set_progress_text(self, progress_text):
-        self.__progress_text = progress_text
-        self.notify_listeners("task_changed", self)
-    progress_text = property(__get_progress_text, __set_progress_text)
+
+    @progress_text.setter
+    def progress_text(self, value):
+        self.__progress_text = value
+        self.task_changed_event.fire()
 
     # task type
-    def __get_task_type(self):
+    @property
+    def task_type(self):
         return self.__task_type
-    task_type = property(__get_task_type)
 
     # task data
-    def __get_task_data(self):
+    @property
+    def task_data(self):
         with self.__task_data_mutex:
             return copy.copy(self.__task_data)
-    def __set_task_data(self, task_data):
+
+    @task_data.setter
+    def task_data(self, task_data):
         with self.__task_data_mutex:
             self.__task_data = copy.copy(task_data)
         self.notify_set_property("task_data", task_data)
-        self.notify_listeners("task_changed", self)
-    task_data = property(__get_task_data, __set_task_data)
+        self.task_changed_event.fire()
 
 
 # all public methods are thread safe
