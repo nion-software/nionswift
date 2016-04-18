@@ -1610,7 +1610,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
     def make_data_item_with_computation(self, fn_template: str, sources: List, params: List, label: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
         return self.__get_processing_new(fn_template, sources, params, label, prefix, out_regions, connections)
 
-    def __get_processing_new(self, fn_template: str, sources: List, params: List, label: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
+    def __get_processing_new(self, fn_template: str, sources: List, params: List, label: str, processing_id: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
         data_items = [source.data_item for source in sources]
         display_specifiers = [DataItem.DisplaySpecifier.from_data_item(data_item) for data_item in data_items]
         buffered_data_sources = [display_specifier.buffered_data_source for display_specifier in display_specifiers]
@@ -1700,6 +1700,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
                 computation.create_variable(param.name, param.type, param.value, value_default=param.value_default, value_min=param.value_min, value_max=param.value_max,
                                             control_type=param.control_type, label=param.label)
             computation.label = label
+            computation.processing_id = processing_id
             buffered_data_source = DataItem.BufferedDataSource()
             new_data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
@@ -1725,87 +1726,87 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
 
     def get_fft_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("fft({src})", [src], [], _("FFT"))
+        return self.__get_processing_new("fft({src})", [src], [], _("FFT"), "fft")
 
     def get_ifft_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False)
-        return self.__get_processing_new("ifft({src})", [src], [], _("Inverse FFT"))
+        return self.__get_processing_new("ifft({src})", [src], [], _("Inverse FFT"), "inverse-fft")
 
     def get_auto_correlate_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("autocorrelate({src})", [src], [], _("Auto Correlate"))
+        return self.__get_processing_new("autocorrelate({src})", [src], [], _("Auto Correlate"), "auto-correlate")
 
     def get_cross_correlate_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Region.RectRegion=None, crop_region2: Region.RectRegion=None) -> DataItem.DataItem:
         src1 = DocumentModel.make_source(data_item1, crop_region1, "src1", _("Source1"))
         src2 = DocumentModel.make_source(data_item2, crop_region2, "src2", _("Source2"))
-        return self.__get_processing_new("crosscorrelate({src1}, {src2})", [src1, src2], [], _("Cross Correlate"))
+        return self.__get_processing_new("crosscorrelate({src1}, {src2})", [src1, src2], [], _("Cross Correlate"), "cross-correlate")
 
     def get_sobel_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("sobel({src})", [src], [], _("Sobel"))
+        return self.__get_processing_new("sobel({src})", [src], [], _("Sobel"), "sobel")
 
     def get_laplace_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("laplace({src})", [src], [], _("Laplace"))
+        return self.__get_processing_new("laplace({src})", [src], [], _("Laplace"), "laplace")
 
     def get_gaussian_blur_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("sigma", _("Sigma"), "real", 3, value_default=3, value_min=0, value_max=100, control_type="slider")
-        return self.__get_processing_new("gaussian_blur({src}, sigma)", [src], [param], _("Gaussian Blur"))
+        return self.__get_processing_new("gaussian_blur({src}, sigma)", [src], [param], _("Gaussian Blur"), "gaussian-blur")
 
     def get_median_filter_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
-        return self.__get_processing_new("median_filter({src}, filter_size)", [src], [param], _("Median Filter"))
+        return self.__get_processing_new("median_filter({src}, filter_size)", [src], [param], _("Median Filter"), "median-filter")
 
     def get_uniform_filter_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
-        return self.__get_processing_new("uniform_filter({src}, filter_size)", [src], [param], _("Uniform Filter"))
+        return self.__get_processing_new("uniform_filter({src}, filter_size)", [src], [param], _("Uniform Filter"), "uniform-filter")
 
     def get_transpose_flip_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param1 = DocumentModel.make_parameter("do_transpose", _("Transpose"), "boolean", False, value_default=False)
         param2 = DocumentModel.make_parameter("do_flip_v", _("Flip Vertical"), "boolean", False, value_default=False)
         param3 = DocumentModel.make_parameter("do_flip_h", _("Flip Horizontal"), "boolean", False, value_default=False)
-        return self.__get_processing_new("transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", [src], [param1, param2, param3], _("Transpose/Flip"))
+        return self.__get_processing_new("transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", [src], [param1, param2, param3], _("Transpose/Flip"), "transpose-flip")
 
     def get_resample_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param1 = DocumentModel.make_parameter("width", _("Width"), "integral", 256, value_default=256, value_min=1)
         param2 = DocumentModel.make_parameter("height", _("Height"), "integral", 256, value_default=256, value_min=1)
-        return self.__get_processing_new("resample_image({src}, shape(height, width))", [src], [param1, param2], _("Resample"))
+        return self.__get_processing_new("resample_image({src}, shape(height, width))", [src], [param1, param2], _("Resample"), "resample")
 
     def get_histogram_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("bins", _("Bins"), "integral", 256, value_default=256, value_min=2)
-        return self.__get_processing_new("histogram({src}, bins)", [src], [param], _("Histogram"))
+        return self.__get_processing_new("histogram({src}, bins)", [src], [param], _("Histogram"), "histogram")
 
     def get_invert_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("invert({src})", [src], [], _("Invert"))
+        return self.__get_processing_new("invert({src})", [src], [], _("Invert"), "invert")
 
     def get_convert_to_scalar_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("{src}", [src], [], _("Scalar"))
+        return self.__get_processing_new("{src}", [src], [], _("Scalar"), "convert-to-scalar")
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
         in_region = DocumentModel.make_region("crop_region", "rectangle", crop_region, {"label": _("Crop Region")})
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("crop({src}, crop_region.bounds)", [src], [], _("Crop"))
+        return self.__get_processing_new("crop({src}, crop_region.bounds)", [src], [], _("Crop"), "crop")
 
     def get_projection_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
-        return self.__get_processing_new("sum({src}, 0)", [src], [], _("Sum"))
+        return self.__get_processing_new("sum({src}, 0)", [src], [], _("Sum"), "sum")
 
     def get_slice_sum_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
         param1 = DocumentModel.make_parameter("center", _("Center"), "integral", 0, value_default=0, value_min=0)
         param2 = DocumentModel.make_parameter("width", _("Width"), "integral", 1, value_default=1, value_min=1)
-        return self.__get_processing_new("slice_sum({src}, center, width)", [src], [param1, param2], _("Slice"))
+        return self.__get_processing_new("slice_sum({src}, center, width)", [src], [param1, param2], _("Slice"), "slice")
 
     def get_pick_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, pick_region: Region.PointRegion=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
@@ -1813,7 +1814,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
         out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Pick"), out_regions=[out_region], connections=[connection])
+        return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Pick"), "pick", out_regions=[out_region], connections=[connection])
 
     def get_pick_region_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, pick_region: Region.Region=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
@@ -1821,10 +1822,10 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
         out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("sum({src} * region_mask({src}, region)[newaxis, ...], tuple(range(1, len(data_shape({src})))))", [src], [], _("Pick Sum"), out_regions=[out_region], connections=[connection])
+        return self.__get_processing_new("sum({src} * region_mask({src}, region)[newaxis, ...], tuple(range(1, len(data_shape({src})))))", [src], [], _("Pick Sum"), "pick-sum", out_regions=[out_region], connections=[connection])
 
     def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, line_region: Region.LineRegion=None) -> DataItem.DataItem:
         in_region = DocumentModel.make_region("line_region", "line", line_region, {"label": _("Line Profile")})
         connection = DocumentModel.make_connection("interval_list", src="data_source", dst="line_region")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region])
-        return self.__get_processing_new("line_profile({src}, line_region.vector, line_region.width)", [src], [], _("Line Profile"), connections=[connection])
+        return self.__get_processing_new("line_profile({src}, line_region.vector, line_region.width)", [src], [], _("Line Profile"), "line-profile", connections=[connection])

@@ -302,6 +302,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     The computation will listen to any bound items established in the bind method. When those
     items signal a change, the needs_update_event will be fired.
+
+    The processing_id is used to specify a computation that may be updated with a different script
+    in the future. For instance, the line profile processing via the UI will produce a somewhat
+    complicated computation expression. By recording processing_id, if the computation expression
+    evolves to a better version in the future, it can be replaced with the newer version by knowing
+    that the intention of the original expression was a line profile from the UI.
+
+    The processing_id is cleared if the user changes the script expression.
     """
 
     def __init__(self, expression: str=None):
@@ -311,6 +319,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("error_text", changed=self.__error_changed)
         self.define_property("evaluate_error")
         self.define_property("label", changed=self.__label_changed)
+        self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
         self.__variable_changed_event_listeners = dict()
         self.__bound_items = dict()
@@ -385,6 +394,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if value != self.original_expression:
             self.__parse_expression(value)
             self.original_expression = value
+            self.processing_id = None
             self.needs_update = True
             self.needs_update_event.fire()
             self.computation_mutated_event.fire()
