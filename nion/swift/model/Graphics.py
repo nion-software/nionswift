@@ -1046,11 +1046,12 @@ class IntervalGraphic(Graphic):
     def adjust_part(self, mapping, original, current, part, modifiers):
         o = mapping.map_point_widget_to_channel_norm(original)
         p = mapping.map_point_widget_to_channel_norm(current)
-        if part[0] == "start":
+        constraints = self._constraints
+        if part[0] == "start" and "shape" not in constraints:
             self.start = p
-        elif part[0] == "end":
+        elif part[0] == "end" and "shape" not in constraints:
             self.end = p
-        elif part[0] == "all":
+        elif part[0] == "all" and "position" not in constraints:
             self.interval = (part[1] + (p - o), part[2] + (p - o))
 
     def nudge(self, mapping, delta):
