@@ -276,7 +276,8 @@ def sample_stack_all(count=10, interval=0.1):
                not "in print_stack_all" in sub_code[-2] and \
                not "in sample_stack_all" in sub_code[-2] and \
                not "in checkcache" in sub_code[-2] and \
-               not "in __do_sleep" in sub_code[-2] and \
+               not "do_sleep" in sub_code[-2] and \
+               not "sleep" in sub_code[-1] and \
                not any(["in do_sample" in s for s in sub_code]):
                 code.extend(sub_code)
         for line in code:
