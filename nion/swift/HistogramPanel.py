@@ -423,23 +423,26 @@ class HistogramPanel(Panel.Panel):
             histogram_data_and_metadata_stream = Stream.SampleStream(histogram_data_and_metadata_stream, 0.5)
         self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream)
 
-        def calculate_statistics(display_data_and_metadata, display_data_range):
+        def calculate_statistics(display_data_and_metadata, display_data_range, region):
             data = display_data_and_metadata.data if display_data_and_metadata else None
             data_range = display_data_range
             if data is not None:
                 mean = numpy.mean(data)
                 std = numpy.std(data)
-                rms = numpy.sqrt(numpy.mean(numpy.absolute(data) ** 2))
+                rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
                 sum = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
-                data_min, data_max = data_range if data_range is not None else (None, None)
+                if region is None:
+                    data_min, data_max = data_range if data_range is not None else (None, None)
+                else:
+                    data_min, data_max = numpy.amin(data), numpy.amax(data)
                 return { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum }
             return dict()
 
-        def calculate_future_statistics(display_data_and_metadata, display_data_range):
-            return Stream.FutureValue(calculate_statistics, display_data_and_metadata, display_data_range)
+        def calculate_future_statistics(display_data_and_metadata, display_data_range, region):
+            return Stream.FutureValue(calculate_statistics, display_data_and_metadata, display_data_range, region)
 
         display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
-        statistics_future_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_data_range_stream), calculate_future_statistics)
+        statistics_future_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_data_range_stream, region_stream), calculate_future_statistics)
         if debounce:
             statistics_future_stream = Stream.DebounceStream(statistics_future_stream, 0.05)
         if sample:
