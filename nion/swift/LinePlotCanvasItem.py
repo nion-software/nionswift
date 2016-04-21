@@ -271,7 +271,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                                                                       dimensional_calibration, intensity_calibration, y_style)
                     self.__update_data_info(data_info)
                     self.__last_data_info = (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style)
-                    self.__last_data_info_data = scalar_data
+                    self.__last_data_info_data = numpy.copy(scalar_data)
             else:
                 self.__update_data_info(LineGraphCanvasItem.LineGraphDataInfo())
                 self.__last_data_info = None
