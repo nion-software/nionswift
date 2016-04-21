@@ -253,8 +253,9 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, type):
         super(Graphic, self).__init__()
         self.define_type(type)
+        self.define_property("graphic_id", "#F00", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("color", "#F00", changed=self._property_changed)
-        self.define_property("label", changed=self._property_changed)
+        self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("is_position_locked", False, changed=self._property_changed)
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
@@ -448,6 +449,17 @@ class RectangleTypeGraphic(Graphic):
         old_size = self.bounds[1]
         origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
         self.bounds = (origin, size)
+
+    @property
+    def _bounds(self):  # useful for testing
+        center = self.center
+        size = self.size
+        return Geometry.FloatRect(origin=(center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), size=size)
+
+    @_bounds.setter
+    def _bounds(self, bounds):
+        self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
+        self.size = bounds[1]
 
     # test point hit
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
@@ -647,6 +659,22 @@ class LineTypeGraphic(Graphic):
         self.vector = self.vector[0], value
 
     @property
+    def _start(self):
+        return Geometry.FloatPoint.make(self.start)
+
+    @_start.setter
+    def _start(self, value):
+        self.start = value
+
+    @property
+    def _end(self):
+        return Geometry.FloatPoint.make(self.end)
+
+    @_end.setter
+    def _end(self, value):
+        self.end = value
+
+    @property
     def length(self):
         return Geometry.distance(self.start, self.end)
 
@@ -825,7 +853,7 @@ class LineProfileGraphic(LineTypeGraphic):
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
         self.define_property("interval_descriptors", list(), changed=self._property_changed)
         # self.interval_descriptors = [{"interval": (0.1, 0.3), "color": "#F00"}, {"interval": (0.7, 0.74), "color": "#0F0"}]
-    # accessors
+
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
@@ -888,8 +916,7 @@ class PointTypeGraphic(Graphic):
         super(PointTypeGraphic, self).__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
-        self.define_property("position", (0.5, 0.5), changed=self._property_changed,
-                             validate=lambda value: tuple(value))
+        self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value))
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
@@ -938,6 +965,14 @@ class PointTypeGraphic(Graphic):
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         raise NotImplementedError()
+
+    @property
+    def _position(self):
+        return Geometry.FloatPoint.make(self.position)
+
+    @_position.setter
+    def _position(self, value):
+        self.position = value
 
 
 class PointGraphic(PointTypeGraphic):
@@ -993,23 +1028,22 @@ class IntervalGraphic(Graphic):
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=lambda value: tuple(value))
 
-    # accessors
-    def __get_start(self):
+    @property
+    def start(self):
         return self.interval[0]
 
-    def __set_start(self, start):
-        self.interval = start, self.interval[1]
+    @start.setter
+    def start(self, value):
+        self.interval = value, self.interval[1]
 
-    start = property(__get_start, __set_start)
-
-    def __get_end(self):
+    @property
+    def end(self):
         return self.interval[1]
 
-    def __set_end(self, end):
-        self.interval = self.interval[0], end
+    @end.setter
+    def end(self, value):
+        self.interval = self.interval[0], value
 
-    end = property(__get_end, __set_end)
-    # dependent properties
     def __interval_changed(self, name, value):
         self._property_changed(name, value)
         self.notify_set_property("start", value[0])
