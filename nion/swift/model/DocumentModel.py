@@ -378,118 +378,251 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         for persistent_storage_system in self.__persistent_storage_systems:
             persistent_storage_handlers.extend(persistent_storage_system.find_data_items())
         data_items_by_uuid = dict()
-        v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
+        ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "persistent_storage_handler"])
+        reader_info_list = list()
         for persistent_storage_handler in persistent_storage_handlers:
             try:
-                properties = persistent_storage_handler.read_properties()
+                reader_info_list.append(ReaderInfo(persistent_storage_handler.read_properties(), [False], persistent_storage_handler))
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+        if not self.__ignore_older_files:
+            self.__migrate_to_v2(reader_info_list)
+            self.__migrate_to_v3(reader_info_list)
+            self.__migrate_to_v4(reader_info_list)
+            self.__migrate_to_v5(reader_info_list)
+            self.__migrate_to_v6(reader_info_list)
+            self.__migrate_to_v7(reader_info_list)
+            self.__migrate_to_v8(reader_info_list)
+            self.__migrate_to_v9(reader_info_list)
+        for reader_info in reader_info_list:
+            properties = reader_info.properties
+            changed_ref = reader_info.changed_ref
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            try:
                 version = properties.get("version", 0)
-                if self.__ignore_older_files and version != 8:
+                if self.__ignore_older_files and version != 9:
                     version = 9999
-                if version <= 1:
-                    if "spatial_calibrations" in properties:
-                        properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
-                        del properties["spatial_calibrations"]
-                    if "intensity_calibration" in properties:
-                        properties["intrinsic_intensity_calibration"] = properties["intensity_calibration"]
-                        del properties["intensity_calibration"]
-                    if "data_source_uuid" in properties:
-                        # for now, this is not translated into v2. it was an extra item.
-                        del properties["data_source_uuid"]
-                    if "properties" in properties:
-                        old_properties = properties["properties"]
-                        new_properties = properties.setdefault("hardware_source", dict())
-                        new_properties.update(copy.deepcopy(old_properties))
-                        if "session_uuid" in new_properties:
-                            del new_properties["session_uuid"]
-                        del properties["properties"]
-                    temp_data = persistent_storage_handler.read_data()
-                    if temp_data is not None:
-                        properties["master_data_dtype"] = str(temp_data.dtype)
-                        properties["master_data_shape"] = temp_data.shape
-                    properties["displays"] = [{}]
-                    properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
-                    properties["version"] = 2
-                    # rewrite needed since we added a uuid
+                if changed_ref[0]:
                     persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                    version = 2
+                # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
+                # NOTE: change writer_version in DataItem.py
+                data_item_uuid = properties["uuid"]
+                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+                if version <= data_item.writer_version:
+                    data_item.begin_reading()
+                    persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
+                    data_item.read_from_dict(persistent_storage.properties)
+                    self._set_persistent_storage_for_object(data_item, persistent_storage)
+                    data_item.persistent_object_context = self
+                    if self.__log_migrations and data_item.uuid in data_items_by_uuid:
+                        logging.info("Warning: Duplicate data item %s", data_item.uuid)
+                    data_items_by_uuid[data_item.uuid] = data_item
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+        def sort_by_date_key(data_item):
+            return data_item.created
+        data_items = list(data_items_by_uuid.values())
+        data_items.sort(key=sort_by_date_key)
+        return data_items
+
+    def __migrate_to_v9(self, reader_info_list):
+        data_source_uuid_to_data_item_uuid = dict()
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                data_source_dicts = properties.get("data_sources", list())
+                for data_source_dict in data_source_dicts:
+                    data_source_uuid_to_data_item_uuid[data_source_dict["uuid"]] = properties["uuid"]
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 8:
+                    reader_info.changed_ref[0] = True
+                    # version 8 -> 9 changes operations to computations
+                    # adjust the extra_high_tension tag.
+                    data_source_dicts = properties.get("data_sources", list())
+                    for data_source_dict in data_source_dicts:
+                        metadata = data_source_dict.get("metadata", dict())
+                        hardware_source_dict = metadata.get("hardware_source", dict())
+                        high_tension_v = hardware_source_dict.get("extra_high_tension")
+                        # hardware_source_dict.pop("extra_high_tension", None)
+                        if high_tension_v:
+                            autostem_dict = hardware_source_dict.setdefault("autostem", dict())
+                            autostem_dict["high_tension_v"] = high_tension_v
+                    if True:
+                        data_source_dicts = properties.get("data_sources", list())
+                        ExpressionInfo = collections.namedtuple("ExpressionInfo", ["label", "expression", "processing_id", "src_labels", "src_names", "variables"])
+                        info = dict()
+                        info["fft-operation"] = ExpressionInfo(_("FFT"), "fft({src})", "fft", [_("Source")], ["src"], list())
+                        info["inverse-fft-operation"] = ExpressionInfo(_("Inverse FFT"), "ifft({src})", "inverse-fft", [_("Source")], ["src"], list())
+                        info["auto-correlate-operation"] = ExpressionInfo(_("Auto Correlate"), "autocorrelate({src})", "auto-correlate", [_("Source")], ["src"], list())
+                        info["cross-correlate-operation"] = ExpressionInfo(_("Cross Correlate"), "crosscorrelate({src1}, {src2})", "cross-correlate", [_("Source1"), _("Source2")], ["src1", "src2"], list())
+                        info["invert-operation"] = ExpressionInfo(_("Invert"), "invert({src})", "invert", [_("Source")], ["src"], list())
+                        info["sobel-operation"] = ExpressionInfo(_("Sobel"), "sobel({src})", "sobel", [_("Source")], ["src"], list())
+                        info["laplace-operation"] = ExpressionInfo(_("Laplace"), "laplace({src})", "laplace", [_("Source")], ["src"], list())
+                        sigma_var = {'control_type': 'slider', 'label': _('Sigma'), 'name': 'sigma', 'type': 'variable', 'value': 3.0, 'value_default': 3.0, 'value_max': 100.0, 'value_min': 0.0, 'value_type': 'real'}
+                        info["gaussian-blur-operation"] = ExpressionInfo(_("Gaussian Blur"), "gaussian_blur({src}, sigma)", "gaussian-blur", [_("Source")], ["src"], [sigma_var])
+                        filter_size_var = {'label': _("Size"), 'op_name': 'size', 'name': 'filter_size', 'type': 'variable', 'value': 3, 'value_default': 3, 'value_max': 100, 'value_min': 1, 'value_type': 'integral'}
+                        info["median-filter-operation"] = ExpressionInfo(_("Median Filter"), "median_filter({src}, filter_size)", "median-filter", [_("Source")], ["src"], [filter_size_var])
+                        info["uniform-filter-operation"] = ExpressionInfo(_("Uniform Filter"), "uniform_filter({src}, filter_size)", "uniform-filter", [_("Source")], ["src"], [filter_size_var])
+                        do_transpose_var = {'label': _("Tranpose"), 'op_name': 'transpose', 'name': 'do_transpose', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
+                        do_flip_v_var = {'label': _("Flip Vertical"), 'op_name': 'flip_horizontal', 'name': 'do_flip_v', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
+                        do_flip_h_var = {'label': _("Flip Horizontal"), 'op_name': 'flip_vertical', 'name': 'do_flip_h', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
+                        info["transpose-flip-operation"] = ExpressionInfo(_("Transpose/Flip"), "transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", "transpose-flip", [_("Source")], ["src"], [do_transpose_var, do_flip_v_var, do_flip_h_var])
+                        info["crop-operation"] = ExpressionInfo(_("Crop"), "crop({src}, crop_region.bounds)", "crop", [_("Source")], ["src"], list())
+                        center_var = {'label': _("Center"), 'op_name': 'slice_center', 'name': 'center', 'type': 'variable', 'value': 0, 'value_default': 0, 'value_min': 0, 'value_type': 'integral'}
+                        width_var = {'label': _("Width"), 'op_name': 'slice_width', 'name': 'width', 'type': 'variable', 'value': 1, 'value_default': 1, 'value_min': 1, 'value_type': 'integral'}
+                        info["slice-operation"] = ExpressionInfo(_("Slice"), "slice_sum({src}, center, width)", "slice", [_("Source")], ["src"], [center_var, width_var])
+                        pt_var = {'label': _("Pick Point"), 'name': 'pick_region', 'type': 'variable', 'value_type': 'point'}
+                        info["pick-operation"] = ExpressionInfo(_("Pick"), "pick({src}, pick_region.position)", "pick-point", [_("Source")], ["src"], [pt_var])
+                        info["projection-operation"] = ExpressionInfo(_("Sum"), "sum({src}, 0)", "sum", [_("Source")], ["src"], list())
+                        width_var = {'label': _("Width"), 'name': 'width', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
+                        height_var = {'label': _("Height"), 'name': 'height', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
+                        info["resample-operation"] = ExpressionInfo(_("Reshape"), "resample_image({src}, shape(height, width))", "resample", [_("Source")], ["src"], [width_var, height_var])
+                        bins_var = {'label': _("Bins"), 'name': 'bins', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 2, 'value_type': 'integral'}
+                        info["histogram-operation"] = ExpressionInfo(_("Histogram"), "histogram({src}, bins)", "histogram", [_("Source")], ["src"], [bins_var])
+                        line_var = {'label': _("Line Profile"), 'name': 'line_region', 'type': 'variable', 'value_type': 'line'}
+                        info["line-profile-operation"] = ExpressionInfo(_("Line Profile"), "line_profile({src}, line_region.vector, line_region.width)", "line-profile", [_("Source")], ["src"], [line_var])
+                        info["convert-to-scalar-operation"] = ExpressionInfo(_("Scalar"), "{src}", "convert-to-scalar", [_("Source")], ["src"], list())
+                        # node-operation
+                        for data_source_dict in data_source_dicts:
+                            operation_dict = data_source_dict.get("data_source")
+                            if operation_dict and operation_dict.get("type") == "operation":
+                                del data_source_dict["data_source"]
+                                operation_id = operation_dict["operation_id"]
+                                computation_dict = dict()
+                                if operation_id in info:
+                                    computation_dict["label"] = info[operation_id].label
+                                    computation_dict["processing_id"] = info[operation_id].processing_id
+                                    computation_dict["type"] = "computation"
+                                    computation_dict["uuid"] = str(uuid.uuid4())
+                                    variables_list = list()
+                                    data_sources = operation_dict.get("data_sources", list())
+                                    srcs = ("src", ) if len(data_sources) < 2 else ("src1", "src2")
+                                    kws = {}
+                                    for src in srcs:
+                                        kws[src] = None
+                                    for i, src_data_source in enumerate(data_sources):
+                                        kws[srcs[i]] = srcs[i] + ".display_data"
+                                        if src_data_source.get("type") == "data-item-data-source":
+                                            src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["buffered_data_source_uuid"]]
+                                            variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
+                                            variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
+                                            variables_list.append(variable_src)
+                                            if operation_id == "crop-operation":
+                                                variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                                variable_src["specifier"] = {"type": "region", "uuid": operation_dict["region_connections"]["crop"], "version": 1}
+                                                variables_list.append(variable_src)
+                                        elif src_data_source.get("type") == "operation":
+                                            src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["data_sources"][0]["buffered_data_source_uuid"]]
+                                            variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
+                                            variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
+                                            variables_list.append(variable_src)
+                                            variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                            variable_src["specifier"] = {"type": "region", "uuid": src_data_source["region_connections"]["crop"], "version": 1}
+                                            variables_list.append(variable_src)
+                                            kws[srcs[i]] = "crop({}, crop_region.bounds)".format(kws[srcs[i]])
+                                    for rc_k, rc_v in operation_dict.get("region_connections", dict()).items():
+                                        if rc_k == 'pick':
+                                            variable_src = {"cascade_delete": True, "name": "pick_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                            variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
+                                            variables_list.append(variable_src)
+                                        elif rc_k == 'line':
+                                            variable_src = {"cascade_delete": True, "name": "line_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                            variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
+                                            variables_list.append(variable_src)
+                                    for var in copy.deepcopy(info[operation_id].variables):
+                                        if var.get("value_type") not in ("line", "point"):
+                                            var["uuid"] = str(uuid.uuid4())
+                                            var_name = var.get("op_name") or var.get("name")
+                                            var["value"] = operation_dict["values"].get(var_name, var.get("value"))
+                                            variables_list.append(var)
+                                    computation_dict["variables"] = variables_list
+                                    computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
+                                    data_source_dict["computation"] = computation_dict
+                        properties["version"] = 9
+                        if self.__log_migrations:
+                            logging.info("Updated %s to %s (operation to computation)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+    def __migrate_to_v8(self, reader_info_list):
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 7:
+                    reader_info.changed_ref[0] = True
+                    # version 7 -> 8 changes metadata to be stored in buffered_data_source
+                    data_source_dicts = properties.get("data_sources", list())
+                    description_metadata = properties.setdefault("metadata", dict()).setdefault("description", dict())
+                    data_source_dict = dict()
+                    if len(data_source_dicts) == 1:
+                        data_source_dict = data_source_dicts[0]
+                        excluded = ["rating", "datetime_original", "title", "source_file_path", "session_id", "caption", "flag", "datetime_modified", "connections", "data_sources", "uuid", "reader_version",
+                            "version", "metadata"]
+                        for key in list(properties.keys()):
+                            if key not in excluded:
+                                data_source_dict.setdefault("metadata", dict())[key] = properties[key]
+                                del properties[key]
+                        for key in ["caption", "flag", "rating", "title"]:
+                            if key in properties:
+                                description_metadata[key] = properties[key]
+                                del properties[key]
+                    datetime_original = properties.get("datetime_original", dict())
+                    dst_value = datetime_original.get("dst", "+00")
+                    dst_adjust = int(dst_value)
+                    tz_value = datetime_original.get("tz", "+0000")
+                    tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
+                    local_datetime = Utility.get_datetime_from_datetime_item(datetime_original)
+                    if not local_datetime:
+                        local_datetime = datetime.datetime.utcnow()
+                    data_source_dict["created"] = (local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)).isoformat()
+                    data_source_dict["modified"] = data_source_dict["created"]
+                    properties["created"] = data_source_dict["created"]
+                    properties["modified"] = properties["created"]
+                    time_zone_dict = description_metadata.setdefault("time_zone", dict())
+                    time_zone_dict["dst"] = dst_value
+                    time_zone_dict["tz"] = tz_value
+                    properties.pop("datetime_original", None)
+                    properties.pop("datetime_modified", None)
+                    properties["version"] = 8
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (ndata1)", persistent_storage_handler.reference, version)
-                if version == 2:
-                    # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
-                    for display_properties in properties.get("displays", list()):
-                        display_properties.setdefault("uuid", str(uuid.uuid4()))
-                        for graphic_properties in display_properties.get("graphics", list()):
-                            graphic_properties.setdefault("uuid", str(uuid.uuid4()))
-                    for operation_properties in properties.get("operations", list()):
-                        operation_properties.setdefault("uuid", str(uuid.uuid4()))
-                    properties["version"] = 3
-                    # rewrite needed since we added a uuid
-                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                    version = 3
-                    if self.__log_migrations:
-                        logging.info("Updated %s to %s (add uuids)", persistent_storage_handler.reference, version)
-                if version == 3:
-                    # version 3 -> 4 changes origin to offset in all calibrations.
-                    calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
-                    if "origin" in calibration_dict:
-                        calibration_dict["offset"] = calibration_dict["origin"]
-                        del calibration_dict["origin"]
-                    for calibration_dict in properties.get("intrinsic_spatial_calibrations", list()):
-                        if "origin" in calibration_dict:
-                            calibration_dict["offset"] = calibration_dict["origin"]
-                            del calibration_dict["origin"]
-                    properties["version"] = 4
-                    # no rewrite needed
-                    # persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                    version = 4
-                    if self.__log_migrations:
-                        logging.info("Updated %s to %s (calibration offset)", persistent_storage_handler.reference, version)
-                if version == 4:
-                    # version 4 -> 5 changes region_uuid to region_connections map.
-                    operations_list = properties.get("operations", list())
-                    for operation_dict in operations_list:
-                        if operation_dict["operation_id"] == "crop-operation" and "region_uuid" in operation_dict:
-                            operation_dict["region_connections"] = { "crop": operation_dict["region_uuid"] }
-                            del operation_dict["region_uuid"]
-                        elif operation_dict["operation_id"] == "line-profile-operation" and "region_uuid" in operation_dict:
-                            operation_dict["region_connections"] = { "line": operation_dict["region_uuid"] }
-                            del operation_dict["region_uuid"]
-                    properties["version"] = 5
-                    # no rewrite needed
-                    # persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                    version = 5
-                    if self.__log_migrations:
-                        logging.info("Updated %s to %s (region_uuid)", persistent_storage_handler.reference, version)
-                if version == 5:
-                    # version 5 -> 6 changes operations to a single operation, expands data sources list
-                    operations_list = properties.get("operations", list())
-                    if len(operations_list) == 1:
-                        operation_dict = operations_list[0]
-                        operation_dict["type"] = "operation"
-                        properties["operation"] = operation_dict
-                        data_sources_list = properties.get("data_sources", list())
-                        if len(data_sources_list) > 0:
-                            new_data_sources_list = list()
-                            for data_source_uuid_str in data_sources_list:
-                                new_data_sources_list.append({"type": "data-item-data-source", "data_item_uuid": data_source_uuid_str})
-                            operation_dict["data_sources"] = new_data_sources_list
-                    if "operations" in properties:
-                        del properties["operations"]
-                    if "data_sources" in properties:
-                        del properties["data_sources"]
-                    if "intrinsic_intensity_calibration" in properties:
-                        properties["intensity_calibration"] = properties["intrinsic_intensity_calibration"]
-                        del properties["intrinsic_intensity_calibration"]
-                    if "intrinsic_spatial_calibrations" in properties:
-                        properties["dimensional_calibrations"] = properties["intrinsic_spatial_calibrations"]
-                        del properties["intrinsic_spatial_calibrations"]
-                    properties["version"] = 6
-                    # no rewrite needed
-                    # persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                    version = 6
-                    if self.__log_migrations:
-                        logging.info("Updated %s to %s (operation hierarchy)", persistent_storage_handler.reference, version)
+                        logging.info("Updated %s to %s (metadata to data source)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+    def __migrate_to_v7(self, reader_info_list):
+        v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
                 if version == 6:
+                    reader_info.changed_ref[0] = True
                     # version 6 -> 7 changes data to be cached in the buffered data source object
                     buffered_data_source_dict = dict()
                     buffered_data_source_dict["type"] = "buffered-data-source"
@@ -524,84 +657,166 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     if include_data or operation_dict is not None:
                         properties["data_sources"] = [buffered_data_source_dict]
                     properties["version"] = 7
-                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                    version = 7
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (buffered data sources)", persistent_storage_handler.reference, version)
-                if version == 7:
-                    # version 7 -> 8 changes metadata to be stored in buffered_data_source
-                    data_source_dicts = properties.get("data_sources", list())
-                    description_metadata = properties.setdefault("metadata", dict()).setdefault("description", dict())
-                    if len(data_source_dicts) == 1:
-                        data_source_dict = data_source_dicts[0]
-                        excluded = ["rating", "datetime_original", "title", "source_file_path", "session_id", "caption",
-                            "flag", "datetime_modified", "connections", "data_sources", "uuid", "reader_version",
-                            "version", "metadata"]
-                        for key in list(properties.keys()):
-                            if key not in excluded:
-                                data_source_dict.setdefault("metadata", dict())[key] = properties[key]
-                                del properties[key]
-                        for key in ["caption", "flag", "rating", "title"]:
-                            if key in properties:
-                                description_metadata[key] = properties[key]
-                                del properties[key]
-                    datetime_original = properties.get("datetime_original", dict())
-                    dst_value = datetime_original.get("dst", "+00")
-                    dst_adjust = int(dst_value)
-                    tz_value = datetime_original.get("tz", "+0000")
-                    tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
-                    local_datetime = Utility.get_datetime_from_datetime_item(datetime_original)
-                    if not local_datetime:
-                        local_datetime = datetime.datetime.utcnow()
-                    data_source_dict["created"] = (local_datetime - datetime.timedelta(minutes=dst_adjust + tz_adjust)).isoformat()
-                    data_source_dict["modified"] = data_source_dict["created"]
-                    properties["created"] = data_source_dict["created"]
-                    properties["modified"] = properties["created"]
-                    time_zone_dict = description_metadata.setdefault("time_zone", dict())
-                    time_zone_dict["dst"] = dst_value
-                    time_zone_dict["tz"] = tz_value
-                    properties.pop("datetime_original", None)
-                    properties.pop("datetime_modified", None)
-                    properties["version"] = 8
-                    # no rewrite needed, but do it anyway so the user can have a simple understanding of upgrading.
-                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                    version = 8
-                    if self.__log_migrations:
-                        logging.info("Updated %s to %s (metadata to data source)", persistent_storage_handler.reference, version)
-                if version == 8:
-                    # version 8 -> 9 is not implemented yet. but adjust the extra_high_tension tag anyway.
-                    data_source_dicts = properties.get("data_sources", list())
-                    for data_source_dict in data_source_dicts:
-                        metadata = data_source_dict.get("metadata", dict())
-                        hardware_source_dict = metadata.get("hardware_source", dict())
-                        high_tension_v = hardware_source_dict.get("extra_high_tension")
-                        # hardware_source_dict.pop("extra_high_tension", None)
-                        if high_tension_v:
-                            autostem_dict = hardware_source_dict.setdefault("autostem", dict())
-                            autostem_dict["high_tension_v"] = high_tension_v
-                # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
-                # NOTE: change writer_version in DataItem.py
-                data_item_uuid = properties["uuid"]
-                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-                if version <= data_item.writer_version:
-                    data_item.begin_reading()
-                    persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
-                    data_item.read_from_dict(persistent_storage.properties)
-                    self._set_persistent_storage_for_object(data_item, persistent_storage)
-                    data_item.persistent_object_context = self
-                    if self.__log_migrations and data_item.uuid in data_items_by_uuid:
-                        logging.info("Warning: Duplicate data item %s", data_item.uuid)
-                    data_items_by_uuid[data_item.uuid] = data_item
+                        logging.info("Updated %s to %s (buffered data sources)", persistent_storage_handler.reference, properties["version"])
             except Exception as e:
                 logging.debug("Error reading %s", persistent_storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
-        def sort_by_date_key(data_item):
-            return data_item.created
-        data_items = list(data_items_by_uuid.values())
-        data_items.sort(key=sort_by_date_key)
-        return data_items
+
+    def __migrate_to_v6(self, reader_info_list):
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 5:
+                    reader_info.changed_ref[0] = True
+                    # version 5 -> 6 changes operations to a single operation, expands data sources list
+                    operations_list = properties.get("operations", list())
+                    if len(operations_list) == 1:
+                        operation_dict = operations_list[0]
+                        operation_dict["type"] = "operation"
+                        properties["operation"] = operation_dict
+                        data_sources_list = properties.get("data_sources", list())
+                        if len(data_sources_list) > 0:
+                            new_data_sources_list = list()
+                            for data_source_uuid_str in data_sources_list:
+                                new_data_sources_list.append({"type": "data-item-data-source", "data_item_uuid": data_source_uuid_str})
+                            operation_dict["data_sources"] = new_data_sources_list
+                    if "operations" in properties:
+                        del properties["operations"]
+                    if "data_sources" in properties:
+                        del properties["data_sources"]
+                    if "intrinsic_intensity_calibration" in properties:
+                        properties["intensity_calibration"] = properties["intrinsic_intensity_calibration"]
+                        del properties["intrinsic_intensity_calibration"]
+                    if "intrinsic_spatial_calibrations" in properties:
+                        properties["dimensional_calibrations"] = properties["intrinsic_spatial_calibrations"]
+                        del properties["intrinsic_spatial_calibrations"]
+                    properties["version"] = 6
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (operation hierarchy)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+    def __migrate_to_v5(self, reader_info_list):
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 4:
+                    reader_info.changed_ref[0] = True
+                    # version 4 -> 5 changes region_uuid to region_connections map.
+                    operations_list = properties.get("operations", list())
+                    for operation_dict in operations_list:
+                        if operation_dict["operation_id"] == "crop-operation" and "region_uuid" in operation_dict:
+                            operation_dict["region_connections"] = {"crop": operation_dict["region_uuid"]}
+                            del operation_dict["region_uuid"]
+                        elif operation_dict["operation_id"] == "line-profile-operation" and "region_uuid" in operation_dict:
+                            operation_dict["region_connections"] = {"line": operation_dict["region_uuid"]}
+                            del operation_dict["region_uuid"]
+                    properties["version"] = 5
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (region_uuid)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+    def __migrate_to_v4(self, reader_info_list):
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 3:
+                    reader_info.changed_ref[0] = True
+                    # version 3 -> 4 changes origin to offset in all calibrations.
+                    calibration_dict = properties.get("intrinsic_intensity_calibration", dict())
+                    if "origin" in calibration_dict:
+                        calibration_dict["offset"] = calibration_dict["origin"]
+                        del calibration_dict["origin"]
+                    for calibration_dict in properties.get("intrinsic_spatial_calibrations", list()):
+                        if "origin" in calibration_dict:
+                            calibration_dict["offset"] = calibration_dict["origin"]
+                            del calibration_dict["origin"]
+                    properties["version"] = 4
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (calibration offset)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+    def __migrate_to_v3(self, reader_info_list):
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 2:
+                    reader_info.changed_ref[0] = True
+                    # version 2 -> 3 adds uuid's to displays, graphics, and operations. regions already have uuids.
+                    for display_properties in properties.get("displays", list()):
+                        display_properties.setdefault("uuid", str(uuid.uuid4()))
+                        for graphic_properties in display_properties.get("graphics", list()):
+                            graphic_properties.setdefault("uuid", str(uuid.uuid4()))
+                    for operation_properties in properties.get("operations", list()):
+                        operation_properties.setdefault("uuid", str(uuid.uuid4()))
+                    properties["version"] = 3
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (add uuids)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
+    def __migrate_to_v2(self, reader_info_list):
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version <= 1:
+                    if "spatial_calibrations" in properties:
+                        properties["intrinsic_spatial_calibrations"] = properties["spatial_calibrations"]
+                        del properties["spatial_calibrations"]
+                    if "intensity_calibration" in properties:
+                        properties["intrinsic_intensity_calibration"] = properties["intensity_calibration"]
+                        del properties["intensity_calibration"]
+                    if "data_source_uuid" in properties:
+                        # for now, this is not translated into v2. it was an extra item.
+                        del properties["data_source_uuid"]
+                    if "properties" in properties:
+                        old_properties = properties["properties"]
+                        new_properties = properties.setdefault("hardware_source", dict())
+                        new_properties.update(copy.deepcopy(old_properties))
+                        if "session_uuid" in new_properties:
+                            del new_properties["session_uuid"]
+                        del properties["properties"]
+                    temp_data = persistent_storage_handler.read_data()
+                    if temp_data is not None:
+                        properties["master_data_dtype"] = str(temp_data.dtype)
+                        properties["master_data_shape"] = temp_data.shape
+                    properties["displays"] = [{}]
+                    properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
+                    properties["version"] = 2
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (ndata1)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
 
     def write_data_item(self, data_item):
         """ Write data item to persistent storage. """

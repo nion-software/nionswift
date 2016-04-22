@@ -407,44 +407,37 @@ class TestStorageClass(unittest.TestCase):
         document_controller.close()
 
     def test_dependencies_load_correctly_when_initially_loaded(self):
-        cache_name = ":memory:"
-        library_storage = DocumentModel.FilePersistentStorage()
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        data_item1_uuid = uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6")
-        # configure list of data items so that after sorted (on modification) they will still be listed in this order.
+        # configure list of data items so that after sorted (on creation date) they will still be listed in this order.
         # this makes one dependency (86d982d1) load before the main item (71ab9215) and one (7d3b374e) load after.
         # this tests the get_dependent_data_items after reading data.
-        memory_persistent_storage_system.properties = {'86d982d1-6d81-46fa-b19e-574e904902de': {'data_sources': [
-            {'data_dtype': None, 'data_shape': None, 'data_source': {'data_sources': [
-                {'buffered_data_source_uuid': '0a5db801-04d4-4b10-945d-c751b5127950', 'type': 'data-item-data-source',
-                    'uuid': '0d0d47a5-2a35-4391-b7a1-a237f90bf432'}], 'operation_id': 'inverse-fft-operation',
-                'type': 'operation', 'uuid': '23b6f59f-e054-47f0-94b7-10e75c652400'}, 'dimensional_calibrations': [],
-                'displays': [{'uuid': '7eaddefe-22ca-4a7a-b53f-b1c07f3f8553'}], 'created': '2015-01-22T17:16:12.421290',
-                'type': 'buffered-data-source', 'uuid': '66128bc9-2fd5-47b8-8122-5b57fbfe58d7'}], 'metadata': {},
-            'created': '2015-01-22T17:16:12.120937', 'uuid': '86d982d1-6d81-46fa-b19e-574e904902de', 'version': 8},
-            '71ab9215-c6ae-4c36-aaf5-92ce78db02b6': {'data_sources': [
-                {'data_dtype': 'int64', 'data_shape': (512, 512), 'dimensional_calibrations': [{}, {}],
-                    'displays': [{'uuid': '106c5711-e8cd-4fc4-9f9d-9268b35359a2'}],
-                    'created': '2015-01-22T17:16:12.319959', 'type': 'buffered-data-source',
-                    'uuid': '0a5db801-04d4-4b10-945d-c751b5127950'}], 'metadata': {},
-                'created': '2015-01-22T17:16:12.219730', 'uuid': '71ab9215-c6ae-4c36-aaf5-92ce78db02b6', 'version': 8},
-            '7d3b374e-e48b-460f-91de-7ff4e1a1a63c': {'data_sources': [{'data_dtype': None, 'data_shape': None,
-                'data_source': {'data_sources': [{'buffered_data_source_uuid': '0a5db801-04d4-4b10-945d-c751b5127950',
-                    'type': 'data-item-data-source', 'uuid': '183316ac-6cdf-4f74-a4f2-85982e4c63c2'}],
-                    'operation_id': 'fft-operation', 'type': 'operation',
-                    'uuid': 'b856672f-9d48-46a4-9a48-b0c9847b59a7'}, 'dimensional_calibrations': [],
-                'displays': [{'uuid': '7e01b8d6-3f3b-4234-9176-c57dbf2bc029'}], 'created': '2015-01-22T17:16:12.408454',
-                'type': 'buffered-data-source', 'uuid': 'd02f93be-e79a-4b2c-8fe2-0b0d27219251'}], 'metadata': {},
-                'created': '2015-01-22T17:16:12.308003', 'uuid': '7d3b374e-e48b-460f-91de-7ff4e1a1a63c', 'version': 8}}
-        # read it back
-        storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        new_data_item1 = document_controller.document_model.get_data_item_by_uuid(data_item1_uuid)
-        new_data_item1_data_items_len = len(document_controller.document_model.get_dependent_data_items(new_data_item1))
-        self.assertEqual(data_item1_uuid, new_data_item1.uuid)
-        self.assertEqual(2, new_data_item1_data_items_len)
-        document_controller.close()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(item_uuid=uuid.UUID('86d982d1-6d81-46fa-b19e-574e904902de'))
+            data_item1.append_data_source(DataItem.BufferedDataSource())
+            data_item2 = DataItem.DataItem(item_uuid=uuid.UUID('71ab9215-c6ae-4c36-aaf5-92ce78db02b6'))
+            data_item2.append_data_source(DataItem.BufferedDataSource())
+            data_item3 = DataItem.DataItem(item_uuid=uuid.UUID('7d3b374e-e48b-460f-91de-7ff4e1a1a63c'))
+            data_item3.append_data_source(DataItem.BufferedDataSource())
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            computation1 = document_model.create_computation("ifft(a)")
+            computation1.create_object("a", document_model.get_object_specifier(data_item2, "data"))
+            data_item1.maybe_data_source.set_computation(computation1)
+            computation2 = document_model.create_computation("fft(a)")
+            computation2.create_object("a", document_model.get_object_specifier(data_item2, "data"))
+            data_item3.maybe_data_source.set_computation(computation2)
+        memory_persistent_storage_system.properties["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
+        memory_persistent_storage_system.properties["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
+        memory_persistent_storage_system.properties["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item1_uuid = uuid.UUID("71ab9215-c6ae-4c36-aaf5-92ce78db02b6")
+            new_data_item1 = document_model.get_data_item_by_uuid(data_item1_uuid)
+            new_data_item1_data_items_len = len(document_model.get_dependent_data_items(new_data_item1))
+            self.assertEqual(data_item1_uuid, new_data_item1.uuid)
+            self.assertEqual(2, new_data_item1_data_items_len)
 
     # test whether we can update master_data and have it written to the db
     def test_db_storage_write_data(self):
@@ -1278,7 +1271,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(data_item.properties["version"], data_item.writer_version)
             self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0])
             self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0]["graphics"][0])
-            self.assertTrue("uuid" in data_item.properties["data_sources"][0]["data_source"])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item
@@ -1323,9 +1315,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
             self.assertEqual(data_item.properties["version"], data_item.writer_version)
-            self.assertEqual(len(data_item.operation.region_connections), 1)
-            self.assertEqual(data_item.operation.region_connections["crop"], uuid.UUID(region_uuid_str))
-            self.assertFalse("region_uuid" in data_item.properties["data_sources"][0]["data_source"])
+            self.assertIsNotNone(data_item.maybe_data_source.computation)
+            # self.assertEqual(len(data_item.maybe_data_source.region_connections), 1)
+            # self.assertEqual(data_item.operation.region_connections["crop"], uuid.UUID(region_uuid_str))
+            # self.assertFalse("region_uuid" in data_item.properties["data_sources"][0]["data_source"])
 
     def test_data_items_v5_migration(self):
         # construct v5 data item
@@ -1354,9 +1347,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
             data_item = document_model.data_items[1]
             self.assertEqual(data_item.properties["version"], data_item.writer_version)
-            self.assertIsNotNone(data_item.operation)
-            self.assertEqual(len(data_item.operation.data_sources), 1)
-            self.assertEqual(str(data_item.operation.data_sources[0].source_data_item.uuid), data_item_dict["uuid"])
+            self.assertIsNotNone(data_item.maybe_data_source.computation)
+            self.assertEqual(len(data_item.maybe_data_source.computation.variables), 1)
+            self.assertEqual(document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             # calibration renaming
             data_item = document_model.data_items[0]
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -1400,9 +1393,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(str(document_model.data_items[2].uuid), data_item3_dict["uuid"])
             data_item = document_model.data_items[1]
             self.assertEqual(data_item.properties["version"], data_item.writer_version)
-            self.assertIsNotNone(data_item.operation)
-            self.assertEqual(len(data_item.operation.data_sources), 1)
-            self.assertEqual(str(data_item.operation.data_sources[0].source_data_item.uuid), data_item_dict["uuid"])
+            self.assertIsNotNone(data_item.maybe_data_source.computation)
+            self.assertEqual(len(data_item.maybe_data_source.computation.variables), 1)
+            self.assertEqual(document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             # calibration renaming
             data_item = document_model.data_items[0]
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -1452,6 +1445,856 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].data_sources[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
             self.assertEqual(document_model.data_items[0].data_sources[0].modified, document_model.data_items[0].data_sources[0].created)
             self.assertEqual(document_model.data_items[0].data_sources[0].metadata.get("hardware_source").get("autostem").get("high_tension_v"), 42)
+
+    def test_data_items_v8_to_v9_fft_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}  # TODO: make one with values
+        dst_reference["region_connections"] = {}  # TODO: make one with region connections
+        dst_reference["operation_id"] = "fft-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "fft")
+            self.assertEqual(computation.expression, "fft(src.display_data)")
+            self.assertEqual(len(computation.variables), 1)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_cross_correlate_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+
+        src2_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        src2_data_item_dict["uuid"] = str(uuid.uuid4())
+        src2_data_item_dict["version"] = 8
+        src2_data_source_dict = dict()
+        src2_uuid_str = str(uuid.uuid4())
+        src2_data_source_dict["uuid"] = src2_uuid_str
+        src2_data_source_dict["type"] = "buffered-data-source"
+        src2_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src2_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src2_data_source_dict["data_shape"] = (8, 8)
+        src2_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src2_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        src2_data_item_dict["data_sources"] = [src2_data_source_dict]
+
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("C", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}  # TODO: make one with values
+        dst_reference["region_connections"] = {}  # TODO: make one with region connections
+        dst_reference["operation_id"] = "cross-correlate-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}, {"buffered_data_source_uuid": src2_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 3)
+            self.assertIsNone(document_model.data_items[2].operation)
+            computation = document_model.data_items[2].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "cross-correlate")
+            self.assertEqual(computation.expression, "crosscorrelate(src1.display_data, src2.display_data)")
+            self.assertEqual(len(computation.variables), 2)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).data_item, document_model.data_items[1])
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_gaussian_blur_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        crop_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        crop_data_source_dict = dict()
+        crop_data_source_dict["uuid"] = str(uuid.uuid4())
+        crop_data_source_dict["type"] = "buffered-data-source"
+        crop_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        crop_data_source_dict["dimensional_calibrations"] = []
+        crop_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        crop_reference = dict()
+        crop_reference["uuid"] = str(uuid.uuid4())
+        crop_reference["type"] = "operation"
+        crop_reference["values"] = {"value": {"bounds": ((0.2, 0.3), (0.4, 0.5))}}
+        crop_reference["region_connections"] = {"crop": crop_uuid_str}
+        crop_reference["operation_id"] = "crop-operation"
+        crop_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {"sigma": 1.7}
+        dst_reference["region_connections"] = {}
+        dst_reference["operation_id"] = "gaussian-blur-operation"
+        dst_reference["data_sources"] = [crop_reference]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "gaussian-blur")
+            self.assertEqual(computation.expression, "gaussian_blur(crop(src.display_data, crop_region.bounds), sigma)")
+            self.assertEqual(len(computation.variables), 3)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
+            self.assertAlmostEqual(computation.variables[2].bound_variable.value, 1.7)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_median_filter_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {"size": 5}
+        dst_reference["region_connections"] = {}
+        dst_reference["operation_id"] = "median-filter-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "median-filter")
+            self.assertEqual(computation.expression, "median_filter(src.display_data, filter_size)")
+            self.assertEqual(len(computation.variables), 2)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertAlmostEqual(computation.variables[1].bound_variable.value, 5)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_slice_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {"slice_center": 3, "slice_width": 2}
+        dst_reference["region_connections"] = {}
+        dst_reference["operation_id"] = "slice-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "slice")
+            self.assertEqual(computation.expression, "slice_sum(src.display_data, center, width)")
+            self.assertEqual(len(computation.variables), 3)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertAlmostEqual(computation.variables[1].bound_variable.value, 3)
+            self.assertAlmostEqual(computation.variables[2].bound_variable.value, 2)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_crop_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        crop_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}
+        dst_reference["region_connections"] = {"crop": crop_uuid_str}
+        dst_reference["operation_id"] = "crop-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "crop")
+            self.assertEqual(computation.expression, "crop(src.display_data, crop_region.bounds)")
+            self.assertEqual(len(computation.variables), 2)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_projection_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        crop_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        crop_data_source_dict = dict()
+        crop_data_source_dict["uuid"] = str(uuid.uuid4())
+        crop_data_source_dict["type"] = "buffered-data-source"
+        crop_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        crop_data_source_dict["dimensional_calibrations"] = []
+        crop_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        crop_reference = dict()
+        crop_reference["uuid"] = str(uuid.uuid4())
+        crop_reference["type"] = "operation"
+        crop_reference["values"] = {"value": {"bounds": ((0.2, 0.3), (0.4, 0.5))}}
+        crop_reference["region_connections"] = {"crop": crop_uuid_str}
+        crop_reference["operation_id"] = "crop-operation"
+        crop_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}
+        dst_reference["region_connections"] = {}
+        dst_reference["operation_id"] = "projection-operation"
+        dst_reference["data_sources"] = [crop_reference]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "sum")
+            self.assertEqual(computation.expression, "sum(crop(src.display_data, crop_region.bounds), 0)")
+            self.assertEqual(len(computation.variables), 2)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_convert_to_scalar_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        crop_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["regions"] = [{"type": "rectangle-region", "uuid": crop_uuid_str, "size": (0.4, 0.5), "center": (0.4, 0.55)}]
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        crop_data_source_dict = dict()
+        crop_data_source_dict["uuid"] = str(uuid.uuid4())
+        crop_data_source_dict["type"] = "buffered-data-source"
+        crop_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        crop_data_source_dict["dimensional_calibrations"] = []
+        crop_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        crop_reference = dict()
+        crop_reference["uuid"] = str(uuid.uuid4())
+        crop_reference["type"] = "operation"
+        crop_reference["values"] = {"value": {"bounds": ((0.2, 0.3), (0.4, 0.5))}}
+        crop_reference["region_connections"] = {"crop": crop_uuid_str}
+        crop_reference["operation_id"] = "crop-operation"
+        crop_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}
+        dst_reference["region_connections"] = {}
+        dst_reference["operation_id"] = "convert-to-scalar-operation"
+        dst_reference["data_sources"] = [crop_reference]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "convert-to-scalar")
+            self.assertEqual(computation.expression, "crop(src.display_data, crop_region.bounds)")
+            self.assertEqual(len(computation.variables), 2)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_resample_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {"width": 200}  # height intentionally missing
+        dst_reference["region_connections"] = {}
+        dst_reference["operation_id"] = "resample-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "resample")
+            self.assertEqual(computation.expression, "resample_image(src.display_data, shape(height, width))")
+            self.assertEqual(len(computation.variables), 3)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertAlmostEqual(computation.variables[1].bound_variable.value, 200)
+            self.assertAlmostEqual(computation.variables[2].bound_variable.value, 256)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_pick_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        point_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["regions"] = [{"type": "point-region", "uuid": point_uuid_str, "position": (0.4, 0.5)}]
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}
+        dst_reference["region_connections"] = {"pick": point_uuid_str}
+        dst_reference["operation_id"] = "pick-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "pick")
+            self.assertEqual(computation.expression, "pick(src.display_data, pick_region.position)")
+            self.assertEqual(len(computation.variables), 2)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].position[0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].position[1], 0.5)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_line_profile_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        line_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["regions"] = [{"type": "line-region", "uuid": line_uuid_str, "width": 1.3, "start": (0.2, 0.3), "end": (0.4, 0.5)}]
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}
+        dst_reference["region_connections"] = {"line": line_uuid_str}
+        dst_reference["operation_id"] = "line-profile-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            computation = document_model.data_items[1].maybe_data_source.computation
+            self.assertEqual(computation.processing_id, "line-profile")
+            self.assertEqual(computation.expression, "line_profile(src.display_data, line_region.vector, line_region.width)")
+            self.assertEqual(len(computation.variables), 2)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].start[0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].start[1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].end[0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].end[1], 0.5)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].width, 1.3)
+            computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v8_to_v9_unknown_migration(self):
+        # construct v8 data items
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_data_item_dict["uuid"] = str(uuid.uuid4())
+        src_data_item_dict["version"] = 8
+        src_data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        src_data_source_dict["uuid"] = src_uuid_str
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        src_data_item_dict["data_sources"] = [src_data_source_dict]
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 8
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        dst_reference = dict()
+        dst_reference["uuid"] = str(uuid.uuid4())
+        dst_reference["type"] = "operation"
+        dst_reference["values"] = {}  # TODO: make one with values
+        dst_reference["region_connections"] = {}  # TODO: make one with region connections
+        dst_reference["operation_id"] = "unknown-bad-operation"
+        dst_reference["data_sources"] = [{"buffered_data_source_uuid": src_uuid_str, "type": "data-item-data-source", "uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["data_source"] = dst_reference
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertIsNone(document_model.data_items[1].operation)
+            self.assertIsNone(document_model.data_items[1].maybe_data_source.computation)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def print_fft_operation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            fft_operation = Operation.OperationItem("fft-operation")
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, fft_operation)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_resample_operation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            resample_operation = Operation.OperationItem("resample-operation")
+            resample_operation.set_property("width", 128)
+            resample_operation.set_property("height", 96)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, resample_operation)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_pick_operation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
+            point_region = Region.PointRegion()
+            point_region.position = (0.2, 0.6)
+            data_item.maybe_data_source.add_region(point_region)
+            document_model.append_data_item(data_item)
+            pick_operation = Operation.OperationItem("pick-operation")
+            pick_operation.set_property("position", point_region.position)
+            pick_operation.establish_associated_region("pick", data_item.maybe_data_source, point_region)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, pick_operation)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_line_profile_operation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
+            line_region = Region.LineRegion()
+            line_region.start = (0.2, 0.6)
+            line_region.end = (0.4, 0.3)
+            line_region.width = 1.4
+            data_item.maybe_data_source.add_region(line_region)
+            document_model.append_data_item(data_item)
+            line_profile_operation = Operation.OperationItem("line-profile-operation")
+            line_profile_operation.set_property("start", line_region.start)
+            line_profile_operation.set_property("end", line_region.end)
+            line_profile_operation.set_property("width", line_region.width)
+            line_profile_operation.establish_associated_region("line", data_item.maybe_data_source, line_region)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, line_profile_operation)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_cross_correlate_operation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item2)
+            cc_operation = Operation.OperationItem("cross-correlate-operation")
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item2)
+            document_controller.add_binary_processing_operation(cc_operation, display_specifier.buffered_data_source_specifier, display_specifier2.buffered_data_source_specifier)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_crop_operation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
+            data_item.maybe_data_source.add_region(crop_region)
+            document_model.append_data_item(data_item)
+            crop_operation = Operation.OperationItem("crop-operation")
+            crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, crop_operation)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_gaussian_blur_operation_with_crop(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
+            data_item.maybe_data_source.add_region(crop_region)
+            document_model.append_data_item(data_item)
+            gaussian_blur_operation = Operation.OperationItem("gaussian-blur-operation")
+            gaussian_blur_operation.set_property("sigma", 1.7)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, gaussian_blur_operation, crop_region=crop_region)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_fft_computation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_model.get_fft_new(data_item)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_gaussian_blur_computation_with_crop(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
+            data_item.maybe_data_source.add_region(crop_region)
+            document_model.append_data_item(data_item)
+            document_model.get_gaussian_blur_new(data_item, crop_region)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
+
+    def print_crop_computation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
+            data_item.maybe_data_source.add_region(crop_region)
+            document_model.append_data_item(data_item)
+            document_model.get_crop_new(data_item, crop_region)
+        import pprint
+        pprint.pprint(memory_persistent_storage_system.properties)
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)

@@ -887,7 +887,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
     Metadata.
     """
 
-    writer_version = 8
+    writer_version = 9
 
     def __init__(self, data=None, item_uuid=None):
         super(DataItem, self).__init__()
