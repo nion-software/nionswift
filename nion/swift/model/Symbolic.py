@@ -436,8 +436,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             l = dict()
             for variable_name, object_specifier in computation_variable_map.items():
                 resolved_object = computation_context.resolve_object_specifier(object_specifier)
-                if resolved_object is not None:
-                    g[variable_name] = resolved_object.value
+                g[variable_name] = resolved_object.value if resolved_object else None
             expression_lines = expression_lines[:-1] + ["result = {0}".format(expression_lines[-1]), ]
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
