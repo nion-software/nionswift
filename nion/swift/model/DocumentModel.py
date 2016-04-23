@@ -1249,6 +1249,9 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
     def recompute_all(self):
         self.__thread_pool.run_all()
 
+    def recompute_one(self):
+        self.__thread_pool.run_one()
+
     def start_dispatcher(self):
         self.__thread_pool.start(16)
 
