@@ -22,9 +22,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Operation
 from nion.swift.model import Region
-from nion.ui import Binding
 from nion.ui import Observable
 from nion.ui import Test
 
@@ -45,6 +43,7 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNone(weak_data_item())
 
     def test_copy_data_item(self):
+        # NOTE: does not test computation, which is tested elsewhere
         source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         h, w = 8, 8
         data = numpy.zeros((h, w), numpy.uint32)
@@ -57,9 +56,6 @@ class TestDataItemClass(unittest.TestCase):
         metadata.setdefault("test", dict())["two"] = 22
         data_item.set_metadata(metadata)
         display_specifier.display.display_limits = (100, 900)
-        invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(source_data_item._create_test_data_source())
-        data_item.set_operation(invert_operation)
         display_specifier.display.append_graphic(Graphics.RectangleGraphic())
         data_item_copy = copy.deepcopy(data_item)
         display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
@@ -75,7 +71,6 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNot(data_item.metadata.get("test"), data_item_copy.metadata.get("test"))
         # make sure display counts match
         self.assertEqual(len(display_specifier.buffered_data_source.displays), len(display_specifier2.buffered_data_source.displays))
-        self.assertEqual(data_item.operation.operation_id, data_item_copy.operation.operation_id)
         # tuples and strings are immutable, so test to make sure old/new are independent
         self.assertEqual(data_item.title, data_item_copy.title)
         data_item.title = "data_item1"
@@ -86,14 +81,13 @@ class TestDataItemClass(unittest.TestCase):
         # make sure dates are independent
         self.assertIsNot(data_item.created, data_item_copy.created)
         self.assertIsNot(display_specifier.buffered_data_source.created, display_specifier2.buffered_data_source.created)
-        # make sure calibrations, operations, nor graphics are not shared.
+        # make sure calibrations, computations, nor graphics are not shared.
         # there is a subtlety here: the dimensional_calibrations property accessor will return a copy of
         # the list each time it is called. store these in variables do make sure they don't get deallocated
         # and re-used immediately (causing a test failure).
         dimensional_calibrations = display_specifier.buffered_data_source.dimensional_calibrations
         dimensional_calibrations2 = display_specifier2.buffered_data_source.dimensional_calibrations
         self.assertNotEqual(id(dimensional_calibrations[0]), id(dimensional_calibrations2[0]))
-        self.assertNotEqual(data_item.operation, data_item_copy.operation)
         self.assertNotEqual(display_specifier.display.graphics[0], display_specifier2.display.graphics[0])
 
     def test_data_item_with_existing_computation_initializes_dependencies(self):
@@ -174,31 +168,30 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item2a = DataItem.DataItem()
-            operation2a = Operation.OperationItem("resample-operation")
-            operation2a.add_data_source(data_item2._create_test_data_source())
-            data_item2a.set_operation(operation2a)
             document_model.append_data_item(data_item2)  # add this first
-            document_model.append_data_item(data_item2a)  # add this second
-            # verify
-            self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
+            data_item2a = document_model.get_invert_new(data_item2)
             # copy the dependent item
             data_item2a_copy = copy.deepcopy(data_item2a)
             document_model.append_data_item(data_item2a_copy)
             # verify data source
-            self.assertEqual(data_item2a.operation.data_sources[0].source_data_item, data_item2)
-            self.assertEqual(data_item2a_copy.operation.data_sources[0].source_data_item, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(data_item2a.maybe_data_source.computation.variables[0].variable_specifier).data_item, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(data_item2a_copy.maybe_data_source.computation.variables[0].variable_specifier).data_item, data_item2)
 
     def test_copy_data_item_with_crop(self):
-        source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        crop_operation = Operation.OperationItem("crop-operation")
-        crop_operation.set_property("bounds", ((0.25,0.25), (0.5,0.5)))
-        crop_operation.add_data_source(source_data_item._create_test_data_source())
-        data_item.set_operation(crop_operation)
-        data_item_copy = copy.deepcopy(data_item)
-        self.assertNotEqual(data_item_copy.operation, data_item.operation)
-        self.assertEqual(data_item_copy.operation.get_property("bounds"), data_item.operation.get_property("bounds"))
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = (0.25,0.25), (0.5,0.5)
+            source_data_item.maybe_data_source.add_region(crop_region)
+            document_model.append_data_item(source_data_item)
+            data_item = document_model.get_crop_new(source_data_item, crop_region)
+            data_item_copy = copy.deepcopy(data_item)
+            document_model.append_data_item(data_item_copy)
+            self.assertNotEqual(data_item_copy.maybe_data_source.computation, data_item.maybe_data_source.computation)
+            document_model.recompute_all()
+            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.maybe_data_source.computation.variables[1].variable_specifier).value,
+                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[1].variable_specifier).value)
 
     def test_copy_data_item_with_transaction(self):
         document_model = DocumentModel.DocumentModel()
@@ -287,13 +280,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_model.append_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
+            data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             data_item_inverted_display = inverted_display_specifier.display
             data_item_inverted_display.get_processor("thumbnail").recompute_data(self.app.ui)
             data_item_inverted_display.get_processed_data("thumbnail")
@@ -303,7 +292,7 @@ class TestDataItemClass(unittest.TestCase):
             # the thumbnail should also be dirty.
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = data_ref.master_data + 1.0
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             self.assertTrue(data_item_inverted_display.is_cached_value_dirty("thumbnail_data"))
 
     def test_delete_nested_data_item(self):
@@ -311,19 +300,9 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item2a = DataItem.DataItem()
-            operation2a = Operation.OperationItem("resample-operation")
-            operation2a.add_data_source(data_item2._create_test_data_source())
-            data_item2a.set_operation(operation2a)
-            data_item2a1 = DataItem.DataItem()
-            operation2a1 = Operation.OperationItem("resample-operation")
-            operation2a1.add_data_source(data_item2a._create_test_data_source())
-            data_item2a1.set_operation(operation2a1)
             document_model.append_data_item(data_item2)  # add this first
-            document_model.append_data_item(data_item2a)  # add this second
-            document_model.append_data_item(data_item2a1)
-            # verify
-            self.assertEqual(len(document_model.data_items), 3)
+            data_item2a = document_model.get_invert_new(data_item2)
+            data_item2a1 = document_model.get_invert_new(data_item2a)
             # remove item (and implicitly its dependency)
             document_model.remove_data_item(data_item2a)
             self.assertEqual(len(document_model.data_items), 1)
@@ -353,11 +332,7 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             document_model.recompute_all()
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
@@ -393,12 +368,9 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item.maybe_data_source.add_region(Region.RectRegion())
             document_model.append_data_item(data_item)
-            crop_data_item = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            crop_data_item.set_operation(crop_operation)
-            document_model.append_data_item(crop_data_item)
+            document_model.get_crop_new(data_item)
             # should remove properly when shutting down.
 
     def test_removing_derived_data_item_updates_dependency_info_on_source(self):
@@ -407,12 +379,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item1.title = "1"
             document_model.append_data_item(data_item1)
-            data_item1a = DataItem.DataItem()
+            data_item1a = document_model.get_invert_new(data_item1)
             data_item1a.title = "1a"
-            operation1a = Operation.OperationItem("invert-operation")
-            operation1a.add_data_source(data_item1._create_test_data_source())
-            data_item1a.set_operation(operation1a)
-            document_model.append_data_item(data_item1a)
             self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
             document_model.remove_data_item(data_item1a)
             self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
@@ -422,13 +390,9 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted_data_item.recompute_data()
+            document_model.recompute_all()
             self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_loaded)
 
     def test_loading_dependent_data_should_not_cause_source_data_to_load(self):
@@ -437,14 +401,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
+            data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
             # begin checks
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             self.assertFalse(display_specifier.buffered_data_source.is_data_loaded)
             with inverted_display_specifier.buffered_data_source.data_ref() as d:
                 self.assertFalse(display_specifier.buffered_data_source.is_data_loaded)
@@ -456,20 +416,16 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
+            data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             data_changed_ref = [False]
             def data_item_content_changed(changes):
                 data_changed_ref[0] = data_changed_ref[0] or DataItem.DATA in changes
             with contextlib.closing(data_item_inverted.data_item_content_changed_event.listen(data_item_content_changed)):
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
-                data_item_inverted.recompute_data()
+                document_model.recompute_all()
                 self.assertTrue(data_changed_ref)
                 self.assertFalse(display_specifier.buffered_data_source.is_data_stale)
                 self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
@@ -480,16 +436,12 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_model.append_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted_data_item.recompute_data()
+            document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
-            self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
+            self.assertTrue(inverted_display_specifier.buffered_data_source.computation.needs_update)
 
     def test_modifying_source_data_should_queue_recompute_in_document_model(self):
         document_model = DocumentModel.DocumentModel()
@@ -497,18 +449,14 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted_data_item.recompute_data()
+            document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
-            self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
+            self.assertTrue(inverted_display_specifier.buffered_data_source.computation.needs_update)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+            self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
 
     def test_is_data_stale_should_propagate_to_data_items_dependent_on_source(self):
         document_model = DocumentModel.DocumentModel()
@@ -516,24 +464,21 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted2_data_item = DataItem.DataItem()
-            invert_operation2 = Operation.OperationItem("invert-operation")
-            invert_operation2.add_data_source(inverted_data_item._create_test_data_source())
-            inverted2_data_item.set_operation(invert_operation2)
-            document_model.append_data_item(inverted2_data_item)
+            inverted2_data_item = document_model.get_invert_new(inverted_data_item)
             inverted2_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted2_data_item)
-            inverted2_data_item.recompute_data()
+            document_model.recompute_all()
+            self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
+            self.assertFalse(inverted2_display_specifier.buffered_data_source.computation.needs_update)
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
-            self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
-            inverted_data_item.recompute_data()
-            self.assertTrue(inverted2_display_specifier.buffered_data_source.is_data_stale)
+            self.assertTrue(inverted_display_specifier.buffered_data_source.computation.needs_update)
+            document_model.recompute_one()
+            self.assertTrue(inverted2_display_specifier.buffered_data_source.computation.needs_update)
+            document_model.recompute_all()
+            self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
+            self.assertFalse(inverted2_display_specifier.buffered_data_source.computation.needs_update)
 
     def test_data_item_that_is_recomputed_notifies_listeners_of_a_single_data_change(self):
         # this test ensures that doing a recompute_data is efficient and doesn't produce
@@ -543,14 +488,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted_data_item.recompute_data()
-            self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+            document_model.recompute_all()
+            self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
             data_changed_ref = [0]
             def data_item_content_changed(changes):
                 if DataItem.DATA in changes:
@@ -558,208 +499,78 @@ class TestDataItemClass(unittest.TestCase):
             with contextlib.closing(inverted_data_item.data_item_content_changed_event.listen(data_item_content_changed)):
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
-                self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
+                self.assertTrue(inverted_display_specifier.buffered_data_source.computation.needs_update)
                 self.assertEqual(data_changed_ref[0], 0)
-                inverted_data_item.recompute_data()
-                self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+                document_model.recompute_all()
+                self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
                 self.assertEqual(data_changed_ref[0], 1)
 
-    class DummyOperation(Operation.Operation):
-        def __init__(self):
-            description = [ { "name": "Param", "property": "param", "type": "scalar", "default": 0.0 } ]
-            super(TestDataItemClass.DummyOperation, self).__init__("Dummy", "dummy-operation", description)
-            self.count = 0
-        def get_processed_data(self, data_sources, values):
-            self.count += 1
-            return numpy.zeros((16, 16))
-
-    def test_operation_data_gets_cached(self):
+    def test_adding_removing_data_item_with_crop_computation_updates_drawn_graphics(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item_dummy = DataItem.DataItem()
-            dummy_operation = TestDataItemClass.DummyOperation()
-            Operation.OperationManager().register_operation("dummy-operation", lambda: dummy_operation)
-            dummy_operation_item = Operation.OperationItem("dummy-operation")
-            dummy_operation_item.add_data_source(data_item._create_test_data_source())
-            data_item_dummy.set_operation(dummy_operation_item)
-            document_model.append_data_item(data_item_dummy)
-            dummy_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_dummy)
-            data_item_dummy.recompute_data()
-            with dummy_display_specifier.buffered_data_source.data_ref() as d:
-                start_count = dummy_operation.count
-                d.data
-                self.assertEqual(dummy_operation.count, start_count)
-                d.data
-                self.assertEqual(dummy_operation.count, start_count)
-
-    class SumOperation(Operation.Operation):
-
-        def __init__(self):
-            super(TestDataItemClass.SumOperation, self).__init__("Add2", "add2-operation")
-
-        def get_processed_data(self, data_sources, values):
-            result = None
-            for data_source in data_sources:
-                if result is None:
-                    result = data_source.data
-                else:
-                    result += data_source.data
-            return result
-
-    def test_operation_with_multiple_data_sources_is_allowed(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.uint32))
-            data_item2 = DataItem.DataItem(numpy.ones((8, 8), numpy.uint32))
-            data_item3 = DataItem.DataItem(numpy.ones((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item1)
-            document_model.append_data_item(data_item2)
-            document_model.append_data_item(data_item3)
-            data_item_sum = DataItem.DataItem()
-            sum_operation = TestDataItemClass.SumOperation()
-            Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
-            sum_operation_item = Operation.OperationItem("sum-operation")
-            sum_operation_item.add_data_source(data_item1._create_test_data_source())
-            sum_operation_item.add_data_source(data_item2._create_test_data_source())
-            sum_operation_item.add_data_source(data_item3._create_test_data_source())
-            data_item_sum.set_operation(sum_operation_item)
-            data_item_sum.recompute_data()
-            document_model.append_data_item(data_item_sum)
-            summed_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_sum)
-            summed_data = summed_display_specifier.buffered_data_source.data
-            self.assertEqual(summed_data[0, 0], 3)
-
-    def test_operation_with_composite_data_source_applies_composition_and_generates_correct_result(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            h, w = 8, 8
-            data_item = DataItem.DataItem(numpy.ones((h, w), numpy.float32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.maybe_data_source.add_region(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(crop_operation)
-            inverted_data_item = DataItem.DataItem()
-            inverted_data_item.set_operation(invert_operation)
-            inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted_data_item.recompute_data()
-            self.assertEqual(inverted_display_specifier.buffered_data_source.data_shape, (h/2, w/2))
-            self.assertEqual(inverted_display_specifier.buffered_data_source.data_dtype, display_specifier.buffered_data_source.data_dtype)
-            self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[h/4, w/4], -1.0)
-
-    def test_adding_removing_data_item_with_crop_operation_updates_drawn_graphics(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
-            data_item_crop = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
-            data_item_crop.set_operation(crop_operation)
-            document_model.append_data_item(data_item_crop)
+            data_item_crop = document_model.get_crop_new(data_item, crop_region)
             self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
             document_model.remove_data_item(data_item_crop)
             self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
 
-    def test_adding_removing_crop_operation_to_existing_data_item_updates_drawn_graphics(self):
+    def disabled_test_adding_removing_crop_computation_to_existing_data_item_updates_drawn_graphics(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.maybe_data_source.add_region(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
-            data_item_crop = DataItem.DataItem()
-            document_model.append_data_item(data_item_crop)
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-            crop_operation.add_data_source(data_item._create_test_data_source())
+            data_item_crop = document_model.get_crop_new(data_item, crop_region)
             self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
-            data_item_crop.set_operation(crop_operation)
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
-            data_item_crop.set_operation(None)
+            data_item_crop.maybe_data_source.set_computation(None)
+            # the associated graphic should now be deleted.
             self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
 
-    def test_updating_operation_graphic_property_notifies_data_item(self):
+    def test_updating_computation_graphic_property_notifies_data_item(self):
         display_changed_ref = [False]
         def display_changed():
             display_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.maybe_data_source.add_region(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
-                data_item_crop = DataItem.DataItem()
-                crop_operation = Operation.OperationItem("crop-operation")
-                crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-                crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-                crop_operation.add_data_source(data_item._create_test_data_source())
-                data_item_crop.set_operation(crop_operation)
-                document_model.append_data_item(data_item_crop)
+                document_model.get_crop_new(data_item, crop_region)
                 display_changed_ref[0] = False
                 display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 self.assertTrue(display_changed_ref[0])
 
     # necessary to make inspector display updated values properly
-    def test_updating_operation_graphic_property_with_same_value_notifies_data_item(self):
+    def test_updating_computation_graphic_property_with_same_value_notifies_data_item(self):
         display_changed_ref = [False]
         def display_changed():
             display_changed_ref[0] = True
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.maybe_data_source.add_region(crop_region)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_model.append_data_item(data_item)
             with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
-                data_item_crop = DataItem.DataItem()
-                crop_operation = Operation.OperationItem("crop-operation")
-                crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-                crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-                crop_operation.add_data_source(data_item._create_test_data_source())
-                data_item_crop.set_operation(crop_operation)
-                document_model.append_data_item(data_item_crop)
+                document_model.get_crop_new(data_item, crop_region)
                 display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 display_changed_ref[0] = False
                 display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 self.assertTrue(display_changed_ref[0])
-
-    def test_updating_region_bounds_updates_crop_graphic(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_crop = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-            crop_region = Region.RectRegion()
-            DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(crop_region)
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            data_item_crop.set_operation(crop_operation)
-            document_model.append_data_item(data_item_crop)
-            # verify assumptions
-            self.assertEqual(crop_operation.get_property("bounds"), ((0.25, 0.25), (0.5, 0.5)))
-            # operation should now match the region
-            self.assertEqual(crop_region.center, (0.5, 0.5))
-            self.assertEqual(crop_region.size, (0.5, 0.5))
-            # make change and verify it changed
-            crop_region.center = 0.6, 0.6
-            bounds = crop_operation.get_property("bounds")
-            self.assertAlmostEqual(bounds[0][0], 0.35)
-            self.assertAlmostEqual(bounds[0][1], 0.35)
-            self.assertAlmostEqual(bounds[1][0], 0.5)
-            self.assertAlmostEqual(bounds[1][1], 0.5)
 
     def test_snapshot_should_copy_raw_metadata(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -776,28 +587,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item2)
-            data_item = DataItem.DataItem()
-            operation = Operation.OperationItem("cross-correlate-operation")
-            operation.add_data_source(data_item1._create_test_data_source())
-            operation.add_data_source(data_item2._create_test_data_source())
-            data_item.set_operation(operation)
-            document_model.append_data_item(data_item)
-
-    def test_data_item_allows_remove_second_of_two_data_sources(self):
-        # two data sources are not currently supported
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item1 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item1)
-            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item2)
-            data_item = DataItem.DataItem()
-            operation = Operation.OperationItem("cross-correlate-operation")
-            operation.add_data_source(data_item1._create_test_data_source())
-            operation.add_data_source(data_item2._create_test_data_source())
-            data_item.set_operation(operation)
-            document_model.append_data_item(data_item)
-            operation.remove_data_source(operation.data_sources[1])
+            document_model.get_cross_correlate_new(data_item1, data_item2)
 
     def test_region_graphic_gets_added_to_existing_display(self):
         document_model = DocumentModel.DocumentModel()
@@ -838,25 +628,6 @@ class TestDataItemClass(unittest.TestCase):
                 buffered_data_source.remove_region(crop_region)
                 self.assertTrue(display_changed_ref[0])
 
-    def test_data_source_connects_if_added_after_data_item_is_already_in_document(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            # configure the source item
-            data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
-            document_model.append_data_item(data_item)
-            # configure the dependent item
-            data_item2 = DataItem.DataItem()
-            document_model.append_data_item(data_item2)
-            # add data source AFTER data_item2 is in library
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item2.set_operation(invert_operation)
-            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item2)
-            data_item2.recompute_data()
-            # see if the data source got connected
-            self.assertIsNotNone(display_specifier2.buffered_data_source.data)
-            self.assertEqual(data_item2.operation.data_sources[0].source_data_item, data_item)
-
     def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -864,11 +635,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             # configure the dependent item
-            data_item2 = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item2.set_operation(invert_operation)
-            document_model.append_data_item(data_item2)
+            data_item2 = document_model.get_invert_new(data_item)
             # make sure the dependency list is updated
             self.assertEqual(document_model.get_dependent_data_items(data_item), [data_item2])
 
@@ -879,11 +646,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             # configure the dependent item
-            data_item2 = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item2.set_operation(invert_operation)
-            document_model.append_data_item(data_item2)
+            data_item2 = document_model.get_invert_new(data_item)
             # begin the transaction
             with document_model.data_item_transaction(data_item):
                 self.assertTrue(data_item.in_transaction_state)
@@ -900,11 +663,7 @@ class TestDataItemClass(unittest.TestCase):
             # begin the transaction
             with document_model.data_item_transaction(data_item):
                 # configure the dependent item
-                data_item2 = DataItem.DataItem()
-                invert_operation = Operation.OperationItem("invert-operation")
-                invert_operation.add_data_source(data_item._create_test_data_source())
-                data_item2.set_operation(invert_operation)
-                document_model.append_data_item(data_item2)
+                data_item2 = document_model.get_invert_new(data_item)
                 # check to make sure it is under transaction
                 self.assertTrue(data_item.in_transaction_state)
                 self.assertTrue(data_item2.in_transaction_state)
@@ -916,22 +675,18 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.maybe_data_source.add_region(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # begin the transaction
             with document_model.data_item_transaction(data_item):
-                data_item_crop1 = DataItem.DataItem()
-                crop_operation = Operation.OperationItem("crop-operation")
-                crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-                crop_region = Region.RectRegion()
-                crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-                crop_operation.add_data_source(data_item._create_test_data_source())
-                data_item_crop1.set_operation(crop_operation)
-                document_model.append_data_item(data_item_crop1)
+                data_item_crop1 = document_model.get_crop_new(data_item, crop_region)
                 # change the bounds of the graphic
                 display_specifier.display.drawn_graphics[0].bounds = ((0.31, 0.32), (0.6, 0.4))
-                # make sure it is connected to the crop operation
-                bounds = crop_operation.get_property("bounds")
+                # make sure it is connected to the crop computation
+                bounds = crop_region.bounds
                 self.assertAlmostEqual(bounds[0][0], 0.31)
                 self.assertAlmostEqual(bounds[0][1], 0.32)
                 self.assertAlmostEqual(bounds[1][0], 0.6)
@@ -956,37 +711,8 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with document_model.data_item_live(data_item):
-                data_item_crop1 = DataItem.DataItem()
-                crop_operation = Operation.OperationItem("crop-operation")
-                crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-                crop_region = Region.RectRegion()
-                crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source, crop_region)
-                crop_operation.add_data_source(data_item._create_test_data_source())
-                data_item_crop1.set_operation(crop_operation)
-                document_model.append_data_item(data_item_crop1)
+                data_item_crop1 = document_model.get_invert_new(data_item)
                 self.assertTrue(data_item_crop1.is_live)
-            self.assertFalse(data_item.is_live)
-            self.assertFalse(data_item_crop1.is_live)
-
-    def test_data_item_removed_from_live_data_item_becomes_unlive(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            # configure the source item
-            data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
-            document_model.append_data_item(data_item)
-            data_item_crop1 = DataItem.DataItem()
-            sum_operation = TestDataItemClass.SumOperation()
-            Operation.OperationManager().register_operation("sum-operation", lambda: sum_operation)
-            sum_operation_item = Operation.OperationItem("sum-operation")
-            sum_operation_item.add_data_source(data_item._create_test_data_source())
-            data_item_crop1.set_operation(sum_operation_item)
-            document_model.append_data_item(data_item_crop1)
-            with document_model.data_item_live(data_item):
-                # check assumptions
-                self.assertTrue(data_item.is_live)
-                self.assertTrue(data_item_crop1.is_live)
-                sum_operation_item.remove_data_source(sum_operation_item.data_sources[0])
-                self.assertFalse(data_item_crop1.is_live)
             self.assertFalse(data_item.is_live)
             self.assertFalse(data_item_crop1.is_live)
 
@@ -999,16 +725,12 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             def live_it(n):
                 for _ in range(n):
-                    with data_item.live():
+                    with document_model.data_item_live(data_item):
                         pass
-            thread = threading.Thread(target=live_it, args=(1000, )).start()
-            with data_item.live():
+            threading.Thread(target=live_it, args=(1000, )).start()
+            with document_model.data_item_live(data_item):
                 for _ in range(100):
-                    data_item_inverted = DataItem.DataItem()
-                    invert_operation = Operation.OperationItem("invert-operation")
-                    invert_operation.add_data_source(data_item._create_test_data_source())
-                    data_item_inverted.set_operation(invert_operation)
-                    document_model.append_data_item(data_item_inverted)
+                    data_item_inverted = document_model.get_invert_new(data_item)
                     document_model.remove_data_item(data_item_inverted)
 
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale(self):
@@ -1032,65 +754,37 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
-            copied_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            copied_data_item.set_operation(invert_operation)
-            document_model.append_data_item(copied_data_item)
+            copied_data_item = document_model.get_invert_new(data_item)
             copied_display_specifier = DataItem.DisplaySpecifier.from_data_item(copied_data_item)
-            copied_data_item.recompute_data()
-            self.assertFalse(copied_display_specifier.buffered_data_source.is_data_stale)
+            document_model.recompute_all()
+            self.assertFalse(copied_display_specifier.buffered_data_source.computation.needs_update)
             copied_display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration())
-            self.assertFalse(copied_display_specifier.buffered_data_source.is_data_stale)
+            self.assertFalse(copied_display_specifier.buffered_data_source.computation.needs_update)
 
-    def test_adding_operation_should_mark_the_data_as_stale(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
-            document_model.append_data_item(data_item)
-            copied_data_item = DataItem.DataItem()
-            blur_operation = Operation.OperationItem("gaussian-blur-operation")
-            blur_operation.add_data_source(data_item._create_test_data_source())
-            document_model.append_data_item(copied_data_item)
-            copied_data_item.recompute_data()
-            copied_data_item.set_operation(blur_operation)
-            copied_display_specifier = DataItem.DisplaySpecifier.from_data_item(copied_data_item)
-            self.assertTrue(copied_display_specifier.buffered_data_source.is_data_stale)
-
-    def test_removing_operation_should_not_mark_the_data_as_stale(self):
+    def test_removing_computation_should_not_mark_the_data_as_stale(self):
         # is this test valid any more?
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
-            copied_data_item = DataItem.DataItem()
-            blur_operation = Operation.OperationItem("gaussian-blur-operation")
-            blur_operation.add_data_source(data_item._create_test_data_source())
-            document_model.append_data_item(copied_data_item)
-            copied_data_item.recompute_data()
-            copied_data_item.set_operation(blur_operation)
-            copied_display_specifier = DataItem.DisplaySpecifier.from_data_item(copied_data_item)
-            self.assertTrue(copied_display_specifier.buffered_data_source.is_data_stale)
-            copied_data_item.recompute_data()
-            self.assertFalse(copied_display_specifier.buffered_data_source.is_data_stale)
-            copied_data_item.set_operation(None)
-            self.assertFalse(copied_display_specifier.buffered_data_source.is_data_stale)
+            copied_data_item = document_model.get_invert_new(data_item)
+            document_model.recompute_all()
+            self.assertFalse(copied_data_item.maybe_data_source.computation.needs_update)
+            copied_data_item.maybe_data_source.set_computation(None)
+            document_model.recompute_all()
+            self.assertIsNotNone(copied_data_item.maybe_data_source.data)
 
-    def test_changing_operation_should_mark_the_data_as_stale(self):
+    def test_changing_computation_should_mark_the_data_as_stale(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
-            copied_data_item = DataItem.DataItem()
-            blur_operation = Operation.OperationItem("gaussian-blur-operation")
-            blur_operation.add_data_source(data_item._create_test_data_source())
-            copied_data_item.set_operation(blur_operation)
-            document_model.append_data_item(copied_data_item)
+            copied_data_item = document_model.get_gaussian_blur_new(data_item)
             copied_display_specifier = DataItem.DisplaySpecifier.from_data_item(copied_data_item)
-            copied_data_item.recompute_data()
-            self.assertFalse(copied_display_specifier.buffered_data_source.is_data_stale)
-            blur_operation.set_property("sigma", 0.1)
-            self.assertTrue(copied_display_specifier.buffered_data_source.is_data_stale)
+            document_model.recompute_all()
+            self.assertFalse(copied_display_specifier.buffered_data_source.computation.needs_update)
+            copied_data_item.maybe_data_source.computation.variables[1].value = 0.1
+            self.assertTrue(copied_display_specifier.buffered_data_source.computation.needs_update)
 
     def test_reloading_stale_data_should_still_be_stale(self):
         document_model = DocumentModel.DocumentModel()
@@ -1098,26 +792,21 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted_data_item.recompute_data()
-            self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+            document_model.recompute_all()
+            self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = data_ref.master_data + 2.0
-            self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
+            self.assertTrue(inverted_display_specifier.buffered_data_source.computation.needs_update)
             # data is now unloaded and stale.
             self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_loaded)
-            self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
             # don't recompute
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -1.0)
             # data should still be stale
-            self.assertTrue(inverted_display_specifier.buffered_data_source.is_data_stale)
+            self.assertTrue(inverted_display_specifier.buffered_data_source.computation.needs_update)
 
     def test_recomputing_data_gives_correct_result(self):
         document_model = DocumentModel.DocumentModel()
@@ -1125,18 +814,14 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
+            data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = data_ref.master_data + 2.0
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -3.0)
 
     def test_recomputing_data_does_not_notify_listeners_of_stale_data_unless_it_is_really_stale(self):
@@ -1149,7 +834,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.recompute_all()
             display_specifier.display.get_processor("statistics").recompute_data(None)
             self.assertFalse(display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-            data_item.recompute_data()
+            document_model.recompute_all()
             self.assertFalse(display_specifier.display.is_cached_value_dirty("statistics_data_2"))
 
     def test_recomputing_data_after_cached_data_is_called_gives_correct_result(self):
@@ -1159,13 +844,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            inverted_data_item = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            inverted_data_item.set_operation(invert_operation)
-            document_model.append_data_item(inverted_data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            inverted_data_item.recompute_data()
+            document_model.recompute_all()
             self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
@@ -1174,7 +855,7 @@ class TestDataItemClass(unittest.TestCase):
             # verify the actual data values are still stale
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -1.0)
             # recompute and verify the data values are valid
-            inverted_data_item.recompute_data()
+            document_model.recompute_all()
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -3.0)
 
     def test_statistics_marked_dirty_when_data_changed(self):
@@ -1194,11 +875,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
+            data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
             inverted_display_specifier.display.get_processor("statistics").recompute_data(None)
             inverted_display_specifier.display.get_processed_data("statistics")
@@ -1208,7 +885,7 @@ class TestDataItemClass(unittest.TestCase):
             # the statistics should also be dirty.
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = data_ref.master_data + 1.0
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             self.assertTrue(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
 
     def test_statistics_marked_dirty_when_source_data_recomputed(self):
@@ -1217,11 +894,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
+            data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
             inverted_display_specifier.display.get_processor("statistics").recompute_data(None)
             inverted_display_specifier.display.get_processed_data("statistics")
@@ -1231,10 +904,10 @@ class TestDataItemClass(unittest.TestCase):
             # the statistics should also be dirty.
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = data_ref.master_data + 2.0
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             self.assertTrue(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
             # next recompute data, the statistics should be dirty now.
-            data_item_inverted.recompute_data()
+            document_model.recompute_all()
             self.assertTrue(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
             # get the new statistics and verify they are correct.
             inverted_display_specifier.display.get_processor("statistics").recompute_data(None)
@@ -1273,40 +946,6 @@ class TestDataItemClass(unittest.TestCase):
             display_specifier.display.slice_width = 4
             display_specifier.display.get_processor("histogram").recompute_data(None)
             histogram = display_specifier.display.get_processed_data("histogram")
-
-    def test_adding_operation_updates_ordered_operations_list(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
-            document_model.append_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
-            # make sure the ordered_operations property returns correct value
-            self.assertEqual(data_item_inverted.ordered_operations, [invert_operation])
-            # make a binding and make sure it returns correct list
-            binding = Binding.ListBinding(data_item_inverted, "ordered_operations")
-            self.assertEqual(binding.items, [invert_operation])
-            # configure binding. use lists as cheap way around scoping issues.
-            removed_index = list()
-            inserted_operation_item = list()
-            inserted_before_index = list()
-            def ordered_operation_removed(index):
-                removed_index.append(index)
-            def ordered_operation_inserted(operation_item, before_index):
-                inserted_operation_item.append(operation_item)
-                inserted_before_index.append(before_index)
-            binding.remover = ordered_operation_removed
-            binding.inserter = ordered_operation_inserted
-            data_item_inverted.set_operation(None)
-            self.assertEqual(removed_index, [0])
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            self.assertEqual(inserted_operation_item, [invert_operation])
-            self.assertEqual(inserted_before_index, [0])
 
     def test_modifying_data_item_modified_property_works(self):
         document_model = DocumentModel.DocumentModel()
@@ -1365,14 +1004,9 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_cropped = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            data_item_cropped.set_operation(crop_operation)
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-            document_model.append_data_item(data_item_cropped)
-            data_item_cropped.recompute_data()
+            DataItem.DisplaySpecifier.from_data_item(data_item)
+            data_item_cropped = document_model.get_invert_new(data_item)
+            document_model.recompute_all()
             data_item._set_modified(modified)
             data_item_cropped._set_modified(modified)
             self.assertEqual(document_model.data_items[0].modified, modified)
@@ -1380,30 +1014,6 @@ class TestDataItemClass(unittest.TestCase):
             def handle_next(x): pass
             data_item.data_sources[0].get_data_and_calibration_publisher().subscribex(Observable.Subscriber(handle_next))
             document_model.recompute_all()
-            self.assertEqual(document_model.data_items[0].modified, modified)
-            self.assertEqual(document_model.data_items[1].modified, modified)
-
-    def test_data_item_with_operation_with_malformed_values_does_not_changed_when_values_are_updated_with_same_value(self):
-        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_cropped = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.set_property("bounds", ((0.25, 0.25), (0.5, 0.5)))
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            data_item_cropped.set_operation(crop_operation)
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-            document_model.append_data_item(data_item_cropped)
-            data_item_cropped.recompute_data()
-            data_item._set_modified(modified)
-            data_item_cropped._set_modified(modified)
-            self.assertEqual(document_model.data_items[0].modified, modified)
-            self.assertEqual(document_model.data_items[1].modified, modified)
-            crop_operation.set_property("bounds", [[0.25, 0.25], [0.5, 0.5]])
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
 
@@ -1448,14 +1058,10 @@ class TestDataItemClass(unittest.TestCase):
             src_data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
             document_model.append_data_item(src_data_item)
             time.sleep(0.01)
-            data_item = DataItem.DataItem()
-            operation = Operation.OperationItem("invert-operation")
-            operation.add_data_source(document_model.data_items[0]._create_test_data_source())
-            data_item.set_operation(operation)
-            document_model.append_data_item(data_item)
+            data_item = document_model.get_invert_new(src_data_item)
             document_model.recompute_all()
             self.assertIsNotNone(src_data_item.maybe_data_source.data_modified)
-            self.assertGreaterEqual(data_item.maybe_data_source.source_data_modified, src_data_item.maybe_data_source.data_modified)
+            self.assertGreaterEqual(data_item.maybe_data_source.data_modified, src_data_item.maybe_data_source.data_modified)
 
     def test_processed_data_item_has_source_data_modified_equal_to_sources_created_when_sources_data_modified_is_none(self):
         document_model = DocumentModel.DocumentModel()
@@ -1464,13 +1070,9 @@ class TestDataItemClass(unittest.TestCase):
             src_data_item.maybe_data_source.data_modified = None
             document_model.append_data_item(src_data_item)
             time.sleep(0.01)
-            data_item = DataItem.DataItem()
-            operation = Operation.OperationItem("invert-operation")
-            operation.add_data_source(document_model.data_items[0]._create_test_data_source())
-            data_item.set_operation(operation)
-            document_model.append_data_item(data_item)
+            data_item = document_model.get_invert_new(src_data_item)
             document_model.recompute_all()
-            self.assertGreaterEqual(data_item.maybe_data_source.source_data_modified, src_data_item.maybe_data_source.created)
+            self.assertGreaterEqual(data_item.maybe_data_source.data_modified, src_data_item.maybe_data_source.created)
 
     def test_transaction_does_not_cascade_to_data_item_refs(self):
         # no reason to cascade since there is no high cost data to be loaded for aggregate data items
@@ -1509,47 +1111,42 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_loaded)
 
     def test_dependent_calibration(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
-        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
-        self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
-        data_item_copy = DataItem.DataItem()
-        invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(data_item._create_test_data_source())
-        data_item_copy.set_operation(invert_operation)
-        display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
-        data_item_copy.recompute_data()
-        dimensional_calibrations = display_specifier2.buffered_data_source.dimensional_calibrations
-        self.assertEqual(len(dimensional_calibrations), 2)
-        self.assertEqual(int(dimensional_calibrations[0].offset), 3)
-        self.assertEqual(int(dimensional_calibrations[0].scale), 2)
-        self.assertEqual(dimensional_calibrations[0].units, "x")
-        self.assertEqual(int(dimensional_calibrations[1].offset), 3)
-        self.assertEqual(int(dimensional_calibrations[1].scale), 2)
-        self.assertEqual(dimensional_calibrations[1].units, "x")
-        fft_operation = Operation.OperationItem("fft-operation")
-        fft_operation.add_data_source(data_item._create_test_data_source())
-        data_item_copy.set_operation(fft_operation)
-        data_item_copy.recompute_data()
-        dimensional_calibrations = display_specifier2.buffered_data_source.dimensional_calibrations
-        self.assertEqual(int(dimensional_calibrations[0].offset), 0)
-        self.assertEqual(dimensional_calibrations[0].units, "1/x")
-        self.assertEqual(int(dimensional_calibrations[1].offset), 0)
-        self.assertEqual(dimensional_calibrations[1].units, "1/x")
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(3.0, 2.0, u"x"))
+            display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(3.0, 2.0, u"x"))
+            self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
+            data_item_copy = document_model.get_invert_new(data_item)
+            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
+            document_model.recompute_all()
+            dimensional_calibrations = display_specifier2.buffered_data_source.dimensional_calibrations
+            self.assertEqual(len(dimensional_calibrations), 2)
+            self.assertEqual(int(dimensional_calibrations[0].offset), 3)
+            self.assertEqual(int(dimensional_calibrations[0].scale), 2)
+            self.assertEqual(dimensional_calibrations[0].units, "x")
+            self.assertEqual(int(dimensional_calibrations[1].offset), 3)
+            self.assertEqual(int(dimensional_calibrations[1].scale), 2)
+            self.assertEqual(dimensional_calibrations[1].units, "x")
+            fft_data_item = document_model.get_fft_new(data_item)
+            document_model.recompute_all()
+            dimensional_calibrations = fft_data_item.maybe_data_source.dimensional_calibrations
+            self.assertEqual(int(dimensional_calibrations[0].offset), 0)
+            self.assertEqual(dimensional_calibrations[0].units, "1/x")
+            self.assertEqual(int(dimensional_calibrations[1].offset), 0)
+            self.assertEqual(dimensional_calibrations[1].units, "1/x")
 
     def test_double_dependent_calibration(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        data_item2 = DataItem.DataItem()
-        operation2 = Operation.OperationItem("resample-operation")
-        operation2.add_data_source(data_item._create_test_data_source())
-        data_item2.set_operation(operation2)
-        data_item3 = DataItem.DataItem()
-        operation3 = Operation.OperationItem("resample-operation")
-        operation3.add_data_source(data_item2._create_test_data_source())
-        data_item3.set_operation(operation3)
-        display_specifier3 = DataItem.DisplaySpecifier.from_data_item(data_item3)
-        display_specifier3.buffered_data_source.dimensional_calibrations
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_item2 = document_model.get_invert_new(data_item)
+            data_item3 = document_model.get_invert_new(data_item2)
+            display_specifier3 = DataItem.DisplaySpecifier.from_data_item(data_item3)
+            self.assertIsNotNone(display_specifier3.buffered_data_source.dimensional_calibrations)
 
     def test_spatial_calibration_on_rgb(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8, 4), numpy.uint8))

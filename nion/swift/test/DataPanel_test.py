@@ -47,23 +47,15 @@ class TestDataPanelClass(unittest.TestCase):
         data_item1.title = "data_item1"
         document_model.append_data_item(data_item1)
         data_group.append_data_item(data_item1)
-        data_item1a = DataItem.DataItem()
+        data_item1a = document_model.get_invert_new(data_item1)
         data_item1a.title = "data_item1a"
-        operation1a = Operation.OperationItem("invert-operation")
-        operation1a.add_data_source(data_item1._create_test_data_source())
-        data_item1a.set_operation(operation1a)
-        document_model.append_data_item(data_item1a)
         data_group.append_data_item(data_item1a)
         data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item2.title = "data_item2"
         document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
-        data_item2a = DataItem.DataItem()
+        data_item2a = document_model.get_invert_new(data_item2)
         data_item2a.title = "data_item2a"
-        operation2a = Operation.OperationItem("invert-operation")
-        operation2a.add_data_source(data_item2._create_test_data_source())
-        data_item2a.set_operation(operation2a)
-        document_model.append_data_item(data_item2a)
         data_group.append_data_item(data_item2a)
         data_item3 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         data_item3.title = "data_item3"

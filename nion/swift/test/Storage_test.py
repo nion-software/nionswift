@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import copy
@@ -855,77 +852,26 @@ class TestStorageClass(unittest.TestCase):
         # clean up
         document_controller.close()
 
-    def test_reloading_data_item_establishes_operation_connection_to_storage(self):
-        cache_name = ":memory:"
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        invert_operation = Operation.OperationItem("invert-operation")
-        data_item.set_operation(invert_operation)
-        document_controller.close()
-        # read it back
-        storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        # clean up
-        document_controller.close()
-
-    def test_changes_to_operation_values_are_saved(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        gaussian_operation = Operation.OperationItem("gaussian-blur-operation")
-        data_item.set_operation(gaussian_operation)
-        gaussian_operation.set_property("sigma", 1.7)
-        document_controller.close()
-        # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        # verify that properties read it correctly
-        self.assertAlmostEqual(document_model.data_items[0].operation.get_property("sigma"), 1.7)
-        # clean up
-        document_controller.close()
-
     def test_reloaded_line_profile_operation_binds_to_roi(self):
-        cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        data_item2 = DataItem.DataItem()
-        document_model.append_data_item(data_item2)
-        line_profile_operation = Operation.OperationItem("line-profile-operation")
-        line_profile_operation.set_property("vector", ((0.1, 0.2), (0.3, 0.4)))
-        line_profile_operation.establish_associated_region("line", display_specifier.buffered_data_source)
-        line_profile_operation.add_data_source(data_item._create_test_data_source())
-        data_item2.set_operation(line_profile_operation)
-        document_controller.close()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            document_model.get_line_profile_new(data_item)
+            data_item.maybe_data_source.regions[0].vector = (0.1, 0.2), (0.3, 0.4)
         # read it back
-        storage_cache = Cache.DbStorageCache(cache_name)
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        read_data_item = document_controller.document_model.data_items[0]
-        read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-        # verify that properties read it correctly
-        self.assertEqual(read_display_specifier.buffered_data_source.regions[0].start, (0.1, 0.2))
-        self.assertEqual(read_display_specifier.buffered_data_source.regions[0].end, (0.3, 0.4))
-        start,end = document_model.data_items[1].operation.values["vector"]
-        self.assertEqual(start, (0.1, 0.2))
-        self.assertEqual(end, (0.3, 0.4))
-        read_display_specifier.buffered_data_source.regions[0].start = 0.11, 0.22
-        start,end = document_model.data_items[1].operation.values["vector"]
-        self.assertEqual(start, (0.11, 0.22))
-        self.assertEqual(end, (0.3, 0.4))
-        # clean up
-        document_controller.close()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = document_model.data_items[0]
+            data_item2 = document_model.data_items[1]
+            # verify that properties read it correctly
+            self.assertEqual(data_item.maybe_data_source.regions[0].start, (0.1, 0.2))
+            self.assertEqual(data_item.maybe_data_source.regions[0].end, (0.3, 0.4))
+            data_item.maybe_data_source.regions[0].start = 0.11, 0.22
+            vector = document_model.resolve_object_specifier(data_item2.maybe_data_source.computation.variables[1].specifier).value.vector
+            self.assertEqual(vector[0], (0.11, 0.22))
+            self.assertEqual(vector[1], (0.3, 0.4))
 
     def test_reloaded_graphics_load_properly(self):
         cache_name = ":memory:"
@@ -1009,10 +955,8 @@ class TestStorageClass(unittest.TestCase):
         workspace_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(workspace_dir)
         file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
-        cache_name = os.path.join(workspace_dir, "Data.cache")
         try:
-            storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
             with contextlib.closing(document_model):
                 data_item = DataItem.DataItem()
                 data_item.append_data_source(DataItem.BufferedDataSource())
@@ -1020,11 +964,7 @@ class TestStorageClass(unittest.TestCase):
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
                 document_model.append_data_item(data_item)
-                data_item2 = DataItem.DataItem()
-                invert_operation = Operation.OperationItem("invert-operation")
-                invert_operation.add_data_source(data_item._create_test_data_source())
-                data_item2.set_operation(invert_operation)
-                document_model.append_data_item(data_item2)
+                data_item2 = document_model.get_invert_new(data_item)
                 data_file_path = data_item._test_get_file_path()
                 data2_file_path = data_item2._test_get_file_path()
                 # make sure assumptions are correct
@@ -1033,13 +973,11 @@ class TestStorageClass(unittest.TestCase):
                 self.assertTrue(os.path.exists(data2_file_path))
                 self.assertTrue(os.path.isfile(data2_file_path))
             document_model = None
-            storage_cache = None
             # delete the original file
             os.remove(data_file_path)
             # read it back the library
             file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
-            storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
             with contextlib.closing(document_model):
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertTrue(os.path.isfile(data2_file_path))
@@ -1047,7 +985,6 @@ class TestStorageClass(unittest.TestCase):
                 document_model.remove_data_item(document_model.data_items[0])
                 self.assertFalse(os.path.exists(data2_file_path))
             document_model = None
-            storage_cache = None
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -1117,12 +1054,8 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item)
-            data_item_inverted = DataItem.DataItem()
-            invert_operation = Operation.OperationItem("invert-operation")
-            invert_operation.add_data_source(data_item._create_test_data_source())
-            data_item_inverted.set_operation(invert_operation)
-            document_model.append_data_item(data_item_inverted)
-            data_item_inverted.recompute_data()
+            document_model.get_invert_new(data_item)
+            document_model.recompute_all()
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
@@ -1135,40 +1068,34 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            crop_region = Region.RectRegion()
+            data_item.maybe_data_source.add_region(crop_region)
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_cropped = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            data_item_cropped.set_operation(crop_operation)
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-            document_model.append_data_item(data_item_cropped)
-            data_item_cropped.recompute_data()
+            document_model.get_crop_new(data_item, crop_region)
+            document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
+            self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_stale)
 
     def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            crop_region = Region.RectRegion()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.maybe_data_source.add_region(crop_region)
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_cropped = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            data_item_cropped.set_operation(crop_operation)
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-            document_model.append_data_item(data_item_cropped)
-            data_item_cropped.recompute_data()
+            document_model.get_crop_new(data_item, crop_region)
+            document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
+            self.assertEqual(read_display_specifier2.buffered_data_source.data_shape, (4, 4))
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
@@ -1177,52 +1104,9 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            read_display_specifier.buffered_data_source.regions[0].bounds = (0.25, 0.25), (0.5, 0.5)
-            self.assertTrue(read_display_specifier2.buffered_data_source.is_data_stale)
+            read_display_specifier.buffered_data_source.regions[0].bounds = (0.25, 0.25), (0.75, 0.75)
             document_model.recompute_all()
-            self.assertEqual(read_display_specifier2.buffered_data_source.data_shape, (4, 4))
-
-    def test_cropped_data_item_with_region_does_not_need_histogram_recompute_when_reloaded(self):
-        # tests caching on display
-        current_working_directory = os.getcwd()
-        workspace_dir = os.path.join(current_working_directory, "__Test")
-        Cache.db_make_directory_if_needed(workspace_dir)
-        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([workspace_dir])
-        lib_name = os.path.join(workspace_dir, "Data.nslib")
-        cache_name = os.path.join(workspace_dir, "Data.cache")
-        try:
-            storage_cache = Cache.DbStorageCache(cache_name)
-            library_storage = DocumentModel.FilePersistentStorage(lib_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
-            with contextlib.closing(document_model):
-                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-                document_model.append_data_item(data_item)
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                cropped_data_item = DataItem.DataItem()
-                crop_operation = Operation.OperationItem("crop-operation")
-                crop_operation.add_data_source(data_item._create_test_data_source())
-                cropped_data_item.set_operation(crop_operation)
-                crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-                document_model.append_data_item(cropped_data_item)
-                cropped_display_specifier = DataItem.DisplaySpecifier.from_data_item(cropped_data_item)
-                cropped_data_item.recompute_data()
-                histogram1 = numpy.copy(cropped_display_specifier.display.get_processed_data("histogram"))
-                cropped_display_specifier.display.get_processor("histogram").recompute_data(None)
-                histogram2 = numpy.copy(cropped_display_specifier.display.get_processed_data("histogram"))
-            self.assertFalse(numpy.array_equal(histogram1, histogram2))
-            # read it back
-            storage_cache = Cache.DbStorageCache(cache_name)
-            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
-            with contextlib.closing(document_model):
-                read_data_item = document_model.data_items[1]
-                read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-                histogram3 = numpy.copy(read_display_specifier.display.get_processed_data("histogram"))
-                self.assertTrue(numpy.array_equal(histogram2, histogram3))
-            storage_cache = None
-            document_model = None
-        finally:
-            #logging.debug("rmtree %s", workspace_dir)
-            shutil.rmtree(workspace_dir)
+            self.assertEqual(read_display_specifier2.buffered_data_source.data_shape, (6, 6))
 
     def test_data_items_v1_migration(self):
         # construct v1 data item
@@ -1316,9 +1200,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = document_model.data_items[0]
             self.assertEqual(data_item.properties["version"], data_item.writer_version)
             self.assertIsNotNone(data_item.maybe_data_source.computation)
-            # self.assertEqual(len(data_item.maybe_data_source.region_connections), 1)
-            # self.assertEqual(data_item.operation.region_connections["crop"], uuid.UUID(region_uuid_str))
-            # self.assertFalse("region_uuid" in data_item.properties["data_sources"][0]["data_source"])
+            # not really checking beyond this; the program has changed enough to make the region connection not work without a data source
 
     def test_data_items_v5_migration(self):
         # construct v5 data item
@@ -2025,7 +1907,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
-            self.assertEqual(computation.processing_id, "pick")
+            self.assertEqual(computation.processing_id, "pick-point")
             self.assertEqual(computation.expression, "pick(src.display_data, pick_region.position)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
@@ -2139,178 +2021,17 @@ class TestStorageClass(unittest.TestCase):
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
 
-    def print_fft_operation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            fft_operation = Operation.OperationItem("fft-operation")
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, fft_operation)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_resample_operation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            resample_operation = Operation.OperationItem("resample-operation")
-            resample_operation.set_property("width", 128)
-            resample_operation.set_property("height", 96)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, resample_operation)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_pick_operation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
-            point_region = Region.PointRegion()
-            point_region.position = (0.2, 0.6)
-            data_item.maybe_data_source.add_region(point_region)
-            document_model.append_data_item(data_item)
-            pick_operation = Operation.OperationItem("pick-operation")
-            pick_operation.set_property("position", point_region.position)
-            pick_operation.establish_associated_region("pick", data_item.maybe_data_source, point_region)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, pick_operation)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_line_profile_operation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8, 8), numpy.uint32))
-            line_region = Region.LineRegion()
-            line_region.start = (0.2, 0.6)
-            line_region.end = (0.4, 0.3)
-            line_region.width = 1.4
-            data_item.maybe_data_source.add_region(line_region)
-            document_model.append_data_item(data_item)
-            line_profile_operation = Operation.OperationItem("line-profile-operation")
-            line_profile_operation.set_property("start", line_region.start)
-            line_profile_operation.set_property("end", line_region.end)
-            line_profile_operation.set_property("width", line_region.width)
-            line_profile_operation.establish_associated_region("line", data_item.maybe_data_source, line_region)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, line_profile_operation)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_cross_correlate_operation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item2)
-            cc_operation = Operation.OperationItem("cross-correlate-operation")
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item2)
-            document_controller.add_binary_processing_operation(cc_operation, display_specifier.buffered_data_source_specifier, display_specifier2.buffered_data_source_specifier)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_crop_operation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
-            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
-            data_item.maybe_data_source.add_region(crop_region)
-            document_model.append_data_item(data_item)
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.establish_associated_region("crop", data_item.maybe_data_source, crop_region)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, crop_operation)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_gaussian_blur_operation_with_crop(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
-            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
-            data_item.maybe_data_source.add_region(crop_region)
-            document_model.append_data_item(data_item)
-            gaussian_blur_operation = Operation.OperationItem("gaussian-blur-operation")
-            gaussian_blur_operation.set_property("sigma", 1.7)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, gaussian_blur_operation, crop_region=crop_region)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_fft_computation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            document_model.get_fft_new(data_item)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_gaussian_blur_computation_with_crop(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
-            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
-            data_item.maybe_data_source.add_region(crop_region)
-            document_model.append_data_item(data_item)
-            document_model.get_gaussian_blur_new(data_item, crop_region)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
-    def print_crop_computation(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
-            crop_region.bounds = ((0.2, 0.3), (0.4, 0.5))
-            data_item.maybe_data_source.add_region(crop_region)
-            document_model.append_data_item(data_item)
-            document_model.get_crop_new(data_item, crop_region)
-        import pprint
-        pprint.pprint(memory_persistent_storage_system.properties)
-
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            crop_region = Region.RectRegion()
+            data_item.maybe_data_source.add_region(crop_region)
             document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_cropped = DataItem.DataItem()
-            crop_operation = Operation.OperationItem("crop-operation")
-            crop_operation.add_data_source(data_item._create_test_data_source())
-            data_item_cropped.set_operation(crop_operation)
-            crop_operation.establish_associated_region("crop", display_specifier.buffered_data_source)
-            document_model.append_data_item(data_item_cropped)
-            data_item_cropped.recompute_data()
+            data_item_cropped = document_model.get_crop_new(data_item, crop_region)
+            document_model.recompute_all()
             data_item._set_modified(modified)
             data_item_cropped._set_modified(modified)
             self.assertEqual(document_model.data_items[0].modified, modified)

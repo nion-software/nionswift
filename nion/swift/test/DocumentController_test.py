@@ -465,25 +465,22 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller.processing_duplicate()
         document_controller.close()
 
-    def test_processing_duplicate_with_operation_copies_it_but_has_same_data_source(self):
+    def test_processing_duplicate_with_computation_copies_it_but_has_same_data_source(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
-        document_model.append_data_item(source_data_item)
-        data_item = DataItem.DataItem()
-        invert_operation = Operation.OperationItem("invert-operation")
-        invert_operation.add_data_source(source_data_item._create_test_data_source())
-        data_item.set_operation(invert_operation)
-        document_model.append_data_item(data_item)
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
-        data_item_dup = document_controller.processing_duplicate().data_item
-        self.assertIsNotNone(data_item_dup.operation)
-        self.assertNotEqual(data_item_dup.operation, data_item.operation)
-        self.assertNotEqual(data_item_dup.operation.data_sources[0], data_item.operation.data_sources[0])
-        self.assertEqual(data_item_dup.operation.data_sources[0].buffered_data_source_uuid, data_item.operation.data_sources[0].buffered_data_source_uuid)
-        self.assertEqual(data_item_dup.operation.data_sources[0].source_data_item, data_item.operation.data_sources[0].source_data_item)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            data_item = document_model.get_invert_new(source_data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            data_item_dup = document_controller.processing_duplicate().data_item
+            self.assertIsNotNone(data_item_dup.maybe_data_source.computation)
+            self.assertNotEqual(data_item_dup.maybe_data_source.computation, data_item.maybe_data_source.computation)
+            self.assertNotEqual(data_item_dup.maybe_data_source.computation.variables[0], data_item.maybe_data_source.computation.variables[0])
+            self.assertEqual(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier["uuid"], data_item.maybe_data_source.computation.variables[0].variable_specifier["uuid"])
+            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier).data_item,
+                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()
