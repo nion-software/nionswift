@@ -30,7 +30,6 @@ from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
-from nion.swift.model import Operation
 from nion.swift.model import Region as RegionModule
 from nion.swift.model import Utility
 from nion.swift import Application as ApplicationModule
@@ -1987,58 +1986,7 @@ class API_1(object):
         return PanelReference()
 
     def create_unary_operation(self, unary_operation_delegate):
-
-        class DelegateOperation(Operation.Operation):
-            def __init__(self):
-                super(DelegateOperation, self).__init__(unary_operation_delegate.operation_name, unary_operation_delegate.operation_id, unary_operation_delegate.operation_description)
-                self.region_types = dict()
-                self.region_bindings = dict()
-                operation_region_bindings = getattr(unary_operation_delegate, "operation_region_bindings", dict())
-                for operation_region_id, binding_description in iter(operation_region_bindings.items()):
-                    self.region_types[operation_region_id] = binding_description["type"]
-                    for binding in binding_description["bindings"]:
-                        for from_key, to_key in iter(binding.items()):
-                            self.region_bindings[operation_region_id] = [Operation.RegionBinding(from_key, to_key)]
-
-            def get_processed_data_and_calibration(self, data_and_metadatas, values):
-                # doesn't do any bounds checking
-                return unary_operation_delegate.get_processed_data_and_metadata(data_and_metadatas[0], values)
-
-        def apply_operation(document_controller):
-            display_specifier = document_controller.selected_display_specifier
-            buffered_data_source = display_specifier.buffered_data_source if display_specifier else None
-            data_and_metadata = buffered_data_source.data_and_calibration if buffered_data_source else None
-            if data_and_metadata and unary_operation_delegate.can_apply_to_data(data_and_metadata):
-                operation = Operation.OperationItem(unary_operation_delegate.operation_id)
-                for operation_region_id in getattr(unary_operation_delegate, "operation_region_bindings", dict()).keys():
-                    operation.establish_associated_region(operation_region_id, buffered_data_source)
-                return document_controller.add_processing_operation(display_specifier.buffered_data_source_specifier, operation, prefix=unary_operation_delegate.operation_prefix)
-            return DataItemModule.DisplaySpecifier()
-
-        def build_menus(document_controller):
-            """ Make menu item for this operation. """
-            document_controller.processing_menu.add_menu_item(unary_operation_delegate.operation_name, lambda: apply_operation(document_controller))
-
-        class OperationReference(object):
-
-            def __init__(self):
-                self.__unary_operation_delegate = unary_operation_delegate
-                Operation.OperationManager().register_operation(unary_operation_delegate.operation_id, lambda: DelegateOperation())
-                ApplicationModule.app.register_menu_handler(build_menus) # called on import to make the menu entry for this plugin
-
-            def __del__(self):
-                self.close()
-
-            def close(self):
-                if self.__unary_operation_delegate:
-                    unary_operation_delegate_close_fn = getattr(self.__unary_operation_delegate, "close", None)
-                    if unary_operation_delegate_close_fn:
-                       unary_operation_delegate_close_fn()
-                    Operation.OperationManager().unregister_operation(unary_operation_delegate.operation_id)
-                    ApplicationModule.app.unregister_menu_handler(build_menus)
-                    self.__unary_operation_delegate = None
-
-        return OperationReference()
+        return None
 
     def get_all_hardware_source_ids(self):
         return HardwareSourceModule.HardwareSourceManager().get_all_hardware_source_ids()

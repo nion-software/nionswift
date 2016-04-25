@@ -21,7 +21,6 @@ from nion.swift import Widgets
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Operation
 from nion.swift.model import Symbolic
 from nion.ui import Binding
 from nion.ui import Converter
@@ -1207,116 +1206,6 @@ class GraphicsInspectorSection(InspectorSection):
         return column
 
 
-class OperationsInspectorSection(InspectorSection):
-
-    """
-        Subclass InspectorSection to implement operations inspector.
-    """
-
-    def __init__(self, ui, data_item):
-        super(OperationsInspectorSection, self).__init__(ui, "operations", _("Operations"))
-        # ui. create the spatial operations list.
-        header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
-        list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), None, header_for_empty_list_widget)
-        list_widget.bind_items(Binding.ListBinding(data_item, "ordered_operations"))
-        self.add_widget_to_content(list_widget)
-        self.finish_widget_content()
-
-    # not thread safe
-    def __create_header_for_empty_list_widget(self):
-        header_for_empty_list_row = self.ui.create_row_widget()
-        header_for_empty_list_row.add(self.ui.create_label_widget("None", properties={"stylesheet": "font: italic"}))
-        return header_for_empty_list_row
-
-    # not thread safe.
-    def __create_list_item_widget(self, operation):
-
-        operation_widget = self.ui.create_column_widget()
-
-        operation_title_row = self.ui.create_row_widget()
-        operation_title_row.add(self.ui.create_label_widget(operation.name))
-        operation_title_row.add_stretch()
-        operation_widget.add(operation_title_row)
-
-        for item in operation.description:
-            name = item["name"]
-            type = item["type"]
-            property = item["property"]
-            if type == "scalar":
-                row_widget = self.ui.create_row_widget()
-                label_widget = self.ui.create_label_widget(name)
-                slider_widget = self.ui.create_slider_widget()
-                slider_widget.maximum = 100
-                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property, converter=Converter.FloatToScaledIntegerConverter(100)))
-                line_edit_widget = self.ui.create_line_edit_widget()
-                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=Converter.FloatToPercentStringConverter()))
-                row_widget.add(label_widget)
-                row_widget.add_spacing(8)
-                row_widget.add(slider_widget)
-                row_widget.add_spacing(8)
-                row_widget.add(line_edit_widget)
-                row_widget.add_stretch()
-                operation_widget.add_spacing(4)
-                operation_widget.add(row_widget)
-            elif type == "integer-field":
-                row_widget = self.ui.create_row_widget()
-                label_widget = self.ui.create_label_widget(name)
-                line_edit_widget = self.ui.create_line_edit_widget()
-                line_edit_widget.bind_text(Operation.OperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
-                row_widget.add(label_widget)
-                row_widget.add_spacing(8)
-                row_widget.add(line_edit_widget)
-                row_widget.add_stretch()
-                operation_widget.add_spacing(4)
-                operation_widget.add(row_widget)
-            elif type == "boolean-checkbox":
-                row_widget = self.ui.create_row_widget()
-                check_box_widget = self.ui.create_check_box_widget(name)
-                check_box_widget.bind_check_state(Operation.OperationPropertyBinding(operation, property, converter=Converter.CheckedToCheckStateConverter()))
-                row_widget.add(check_box_widget)
-                row_widget.add_stretch()
-                operation_widget.add_spacing(4)
-                operation_widget.add(row_widget)
-            elif type == "slice-center-field":
-                row_widget = self.ui.create_row_widget()
-                label_widget = self.ui.create_label_widget(name)
-                line_edit_widget = self.ui.create_line_edit_widget()
-                slider_widget = self.ui.create_slider_widget()
-                slider_widget.maximum = operation.data_sources[0].buffered_data_source.data_and_calibration.dimensional_shape[0] - 1
-                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
-                line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
-                row_widget.add(label_widget)
-                row_widget.add_spacing(8)
-                row_widget.add(slider_widget)
-                row_widget.add_spacing(8)
-                row_widget.add(line_edit_widget)
-                row_widget.add_stretch()
-                operation_widget.add_spacing(4)
-                operation_widget.add(row_widget)
-            elif type == "slice-width-field":
-                row_widget = self.ui.create_row_widget()
-                label_widget = self.ui.create_label_widget(name)
-                line_edit_widget = self.ui.create_line_edit_widget()
-                slider_widget = self.ui.create_slider_widget()
-                slider_widget.minimum = 1
-                slider_widget.maximum = operation.data_sources[0].buffered_data_source.data_and_calibration.dimensional_shape[0]
-                slider_widget.bind_value(Operation.OperationPropertyBinding(operation, property))
-                line_edit_widget.bind_text(Operation.SliceOperationPropertyBinding(operation, property, converter=Converter.IntegerToStringConverter()))
-                row_widget.add(label_widget)
-                row_widget.add_spacing(8)
-                row_widget.add(slider_widget)
-                row_widget.add_spacing(8)
-                row_widget.add(line_edit_widget)
-                row_widget.add_stretch()
-                operation_widget.add_spacing(4)
-                operation_widget.add(row_widget)
-
-        column = self.ui.create_column_widget()
-        column.add_spacing(4)
-        column.add(operation_widget)
-        return column
-
-
 class ComputationInspectorSection(InspectorSection):
 
     """
@@ -1586,7 +1475,6 @@ class DataItemInspector(object):
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
@@ -1598,7 +1486,6 @@ class DataItemInspector(object):
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
@@ -1611,7 +1498,6 @@ class DataItemInspector(object):
             self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(OperationsInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True

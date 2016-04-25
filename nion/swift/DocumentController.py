@@ -28,12 +28,10 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
 from nion.ui import Event
-from nion.ui import Observable
 from nion.ui import Process
 from nion.ui import Selection
 
@@ -907,62 +905,6 @@ class DocumentController:
         inspector_panel = self.find_dock_widget("inspector-panel").panel
         if inspector_panel is not None:
             inspector_panel.request_focus = True
-
-    def add_processing_operation(self, buffered_data_source_specifier, operation, prefix=None, suffix=None, crop_region=None):
-        data_item = buffered_data_source_specifier.data_item
-        buffered_data_source = buffered_data_source_specifier.buffered_data_source
-        if data_item:
-            assert isinstance(data_item, DataItem.DataItem)
-            data_source = Operation.DataItemDataSource(buffered_data_source)
-            if crop_region:
-                crop_operation = Operation.OperationItem("crop-operation")
-                assert crop_region in buffered_data_source.regions
-                crop_operation.set_property("bounds", crop_region.bounds)
-                crop_operation.establish_associated_region("crop", buffered_data_source, crop_region)
-                crop_operation.add_data_source(data_source)
-                data_source = crop_operation
-            operation.add_data_source(data_source)
-            new_data_item = DataItem.DataItem()
-            new_data_item.title = (prefix if prefix else "") + data_item.title + (suffix if suffix else "")
-            new_data_item.set_operation(operation)
-            new_data_item.category = data_item.category
-            self.document_model.append_data_item(new_data_item)
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-            self.display_data_item(new_display_specifier, source_data_item=data_item)
-            return new_display_specifier
-        return DataItem.DisplaySpecifier()
-
-    def add_binary_processing_operation(self, operation, buffered_data_source_specifier1, buffered_data_source_specifier2, prefix=None, suffix=None, crop_region1=None, crop_region2=None):
-        if buffered_data_source_specifier1.buffered_data_source and buffered_data_source_specifier2.buffered_data_source:
-            new_data_item = DataItem.DataItem()
-            new_data_item.title = (prefix if prefix else "") + buffered_data_source_specifier1.data_item.title + (suffix if suffix else "")
-            new_data_item.set_operation(operation)
-            if buffered_data_source_specifier1.data_item.category == "temporary":
-                new_data_item.category = "temporary"
-            if buffered_data_source_specifier2.data_item.category == "temporary":
-                new_data_item.category = "temporary"
-            data_source1 = Operation.DataItemDataSource(buffered_data_source_specifier1.buffered_data_source)
-            if crop_region1:
-                crop_operation = Operation.OperationItem("crop-operation")
-                assert crop_region1 in buffered_data_source_specifier1.buffered_data_source.regions
-                crop_operation.set_property("bounds", crop_region1.bounds)
-                crop_operation.establish_associated_region("crop", buffered_data_source_specifier1.buffered_data_source, crop_region1)
-                crop_operation.add_data_source(data_source1)
-                data_source1 = crop_operation
-            data_source2 = Operation.DataItemDataSource(buffered_data_source_specifier2.buffered_data_source)
-            if crop_region2:
-                crop_operation = Operation.OperationItem("crop-operation")
-                assert crop_region2 in buffered_data_source_specifier2.buffered_data_source.regions
-                crop_operation.set_property("bounds", crop_region2.bounds)
-                crop_operation.establish_associated_region("crop", buffered_data_source_specifier2.buffered_data_source, crop_region2)
-                crop_operation.add_data_source(data_source2)
-                data_source2 = crop_operation
-            operation.add_data_source(data_source1)
-            operation.add_data_source(data_source2)
-            self.document_model.append_data_item(new_data_item)
-            self.display_data_item(DataItem.DisplaySpecifier.from_data_item(new_data_item), source_data_item=buffered_data_source_specifier1.data_item)
-            return new_data_item
-        return None
 
     def __get_crop_region(self, display_specifier):
         crop_region = None

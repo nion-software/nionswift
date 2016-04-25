@@ -19,7 +19,6 @@ from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import Display
-from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
@@ -86,10 +85,6 @@ class CalibrationList(object):
     Data sources can subscribe to other data items becoming available via the data item manager.
 
     set_data_item_manager(data_item_manager)
-
-    Data sources should provide a list of child data sources of important types.
-
-    * ordered_operation_data_sources
 """
 
 
@@ -122,10 +117,6 @@ def data_source_factory(lookup_id):
     type = lookup_id("type")
     if type == "buffered-data-source":
         return BufferedDataSource()
-    elif type == "data-item-data-source":
-        return Operation.DataItemDataSource()
-    elif type == "operation":
-        return Operation.operation_item_factory(lookup_id)
     else:
         return None
 
@@ -174,7 +165,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.define_property("source_data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
-        self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)  # will be deep copied when copying, needs explicit set method set_data_source
         self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
@@ -185,13 +175,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__change_changed = False
-        self.__recompute_lock = threading.RLock()
-        self.__recompute_allowed = True
-        self.__recompute_critical_section_lock = threading.Lock()
-        self.__recompute_last = 0
-        self.__pending_data = None
-        self.__pending_data_lock = threading.RLock()
-        self.__is_recomputing = False
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
@@ -222,8 +205,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         for display in self.displays:
             self.__disconnect_display(display)
             display.close()
-        if self.data_source:
-            self.data_source.close()
         if self.__computation_mutated_event_listener:
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
@@ -235,14 +216,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
-        with self.__recompute_lock:
-            self.__recompute_allowed = False
         for region in self.regions:
             region.about_to_be_removed()
         for display in self.displays:
             display.about_to_be_removed()
-        if self.data_source:
-            self.data_source.about_to_be_removed()
         if self.computation:
             for variable in self.computation.variables:
                 if variable.cascade_delete:
@@ -277,9 +254,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             self.remove_region(region)
         for region in buffered_data_source.regions:
             self.add_region(copy.deepcopy(region))
-        # data source
-        if buffered_data_source.data_source:
-            self.set_item("data_source", copy.deepcopy(buffered_data_source.data_source))
         # data
         if buffered_data_source.has_data:
             self.__set_data(numpy.copy(buffered_data_source.data))
@@ -311,11 +285,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         super(BufferedDataSource, self).read_from_dict(properties)
 
     def finish_reading(self):
-        # called when reading is finished. gives the data item a chance to
-        # mark its data as valid.
-        if self.has_data:
-            with self.__pending_data_lock:
-                self.__pending_data = None
         # display properties need to be updated after storage_cache is initialized.
         # this is where to do it. in order for these methods to not have the side
         # effect of invalidating cached values, they need to occur while is_reading
@@ -330,15 +299,11 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             if self.__data_item_manager and computation:
                 self.__data_item_manager.computation_changed(self, None)
             self.__data_item_manager = data_item_manager
-            if self.data_source:
-                self.data_source.set_data_item_manager(self.__data_item_manager)
             if self.__data_item_manager and computation:
                 self.__data_item_manager.computation_changed(self, computation)
 
     def set_dependent_data_item(self, data_item):
         self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
-        if self.data_source:
-            self.data_source.set_dependent_data_item(data_item)
 
     def __get_dependent_data_item(self):
         return self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
@@ -399,45 +364,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             self.__computation_cascade_delete_event_listener = new_computation.cascade_delete_event.listen(computation_cascade_delete)
         self.computation_changed_or_mutated_event.fire(self, self.computation)
         self.__metadata_changed()
-
-    def __data_source_changed(self, name, old_data_source, new_data_source):
-        # and about to be removed messages
-        if old_data_source and not new_data_source:
-            old_data_source.about_to_be_removed()  # ugh. this is intended to notify that the data item is about to be removed from the document.
-        if old_data_source:
-            # handle listeners/observers
-            old_data_source.set_dependent_data_item(None)
-            old_data_source.set_data_item_manager(None)
-            self.__request_remove_listener.close()
-            self.__request_remove_listener = None
-        if new_data_source:
-            # handle listeners/observers
-            new_data_source.set_dependent_data_item(self.__get_dependent_data_item())
-            new_data_source.set_data_item_manager(self.__data_item_manager)
-            def notify_request_remove_data_item_because_operation_removed():
-                self.request_remove_data_item_because_operation_removed_event.fire()
-            self.__request_remove_listener = new_data_source.request_remove_data_item_because_operation_removed_event.listen(notify_request_remove_data_item_because_operation_removed)
-            subscriber = Observable.Subscriber(self.__handle_next_value)
-            publisher = new_data_source.get_data_and_calibration_publisher()
-            self.__subscription = publisher.subscribex(subscriber)
-
-    def __handle_next_value(self, data_and_calibration):
-        # when a new value from the data source comes in, it should replace
-        # any existing pending value. if the data is not being computed, it
-        # should also schedule the computation using the data item manager.
-        # the recompute function will take care of scheduling another
-        # computation if necessary at the end.
-        with self.__pending_data_lock:
-            self.__pending_data = data_and_calibration
-            if self.__data_item_manager and not self.__is_recomputing:
-                self.__data_item_manager.dispatch_task(self.recompute_data, "data")
-
-    @property
-    def ordered_operation_data_sources(self):
-        if self.data_source:
-            return self.data_source.ordered_operation_data_sources
-        else:
-            return list()
 
     @property
     def data_and_calibration(self):
@@ -646,11 +572,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 self.__unload_data()
         return final_count
 
-    @property
-    def is_data_stale(self):
-        """Return whether the data is currently stale."""
-        return self.__pending_data is not None
-
     # used for testing
     @property
     def is_data_loaded(self):
@@ -748,43 +669,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     def r_value_changed(self):
         with self._changes():
             self.__change_changed = True
-
-    def recompute_data(self):
-        """Ensures that the data is synchronized with the sources/operation by recomputing if necessary."""
-        if self.__recompute_critical_section_lock.acquire(False):
-            with self._changes():
-                with self.__recompute_lock:
-                    if self.__recompute_allowed:
-                        try:
-                            with self.__pending_data_lock:  # only one thread should be computing data at once
-                                pending_data = self.__pending_data
-                                self.__pending_data = None
-                                self.__is_recomputing = True
-                            if pending_data is not None:
-                                self.increment_data_ref_count()  # make sure data is loaded
-                                try:
-                                    operation_data = pending_data.data_fn()
-                                    if operation_data is not None:
-                                        self.__set_data(operation_data)
-                                        self.source_data_modified = pending_data.timestamp
-                                finally:
-                                    self.decrement_data_ref_count()  # unload data
-                                operation_intensity_calibration = pending_data.intensity_calibration
-                                operation_dimensional_calibrations = pending_data.dimensional_calibrations
-                                if operation_intensity_calibration is not None and operation_dimensional_calibrations is not None:
-                                    self.set_intensity_calibration(operation_intensity_calibration)
-                                    for index, dimensional_calibration in enumerate(operation_dimensional_calibrations):
-                                        self.set_dimensional_calibration(index, dimensional_calibration)
-                                MINIMUM_UPDATE_DELAY = 0.1  # seconds
-                                elapsed = time.time() - self.__recompute_last
-                                time.sleep(max(MINIMUM_UPDATE_DELAY - elapsed, 0))
-                                self.__recompute_last = time.time()
-                        finally:  # this should occur so that temporary errors in computation are ignored
-                            with self.__pending_data_lock:
-                                self.__is_recomputing = False
-                                if self.__pending_data and self.__data_item_manager:
-                                    self.__data_item_manager.dispatch_task(self.recompute_data, "data")
-            self.__recompute_critical_section_lock.release()
 
     @property
     def dimensional_shape(self):
@@ -1328,32 +1212,6 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
     def __remove_connection(self, name, index, connection):
         connection.close()
 
-    @property
-    def operation(self):
-        if len(self.data_sources) == 1:
-            return self.data_sources[0].data_source
-        return None
-
-    def set_operation(self, operation):
-        if len(self.data_sources) == 0:
-            self.append_data_source(BufferedDataSource())
-        if len(self.data_sources) == 1:
-            old_operation = self.data_sources[0].data_source
-            if old_operation is not None:
-                self.notify_remove_item("ordered_operations", old_operation, 0)
-            self.data_sources[0].set_data_source(operation)
-            if operation is not None:
-                self.notify_insert_item("ordered_operations", operation, 0)
-        else:
-            raise AttributeError("operation")
-
-    @property
-    def ordered_operations(self):
-        data_sources = list()
-        for data_source in self.data_sources:
-            data_sources.extend(data_source.ordered_operation_data_sources)
-        return data_sources
-
     def set_data_item_manager(self, data_item_manager):
         """Set the data item manager. May be called from thread."""
         with self.__data_item_manager_lock:
@@ -1387,11 +1245,6 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
     @property
     def maybe_data_source(self):
         return self.data_sources[0] if len(self.data_sources) == 1 else None
-
-    def recompute_data(self):
-        """Recompute all data sources."""
-        for data_source in self.data_sources:
-            data_source.recompute_data()
 
     @property
     def size_and_data_format_as_string(self):
@@ -1428,11 +1281,6 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         if len(self.data_sources) == 1:
             return DisplaySpecifier(self, self.data_sources[0], self.data_sources[0].displays[0])
         return DisplaySpecifier()
-
-    # testing methods
-
-    def _create_test_data_source(self):
-        return Operation.DataItemDataSource(BufferedDataSourceSpecifier.from_data_item(self).buffered_data_source)
 
     # descriptive metadata
 

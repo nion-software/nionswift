@@ -19,15 +19,12 @@ from nion.swift import DataPanel
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
-from nion.swift.model import Connection
 from nion.swift.model import DataItem
-from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Event
 from nion.ui import Geometry
-from nion.ui import Observable
 
 _ = gettext.gettext
 

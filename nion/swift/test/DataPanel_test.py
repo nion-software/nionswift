@@ -17,7 +17,6 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
-from nion.swift.model import Operation
 from nion.ui import Geometry
 from nion.ui import Test
 

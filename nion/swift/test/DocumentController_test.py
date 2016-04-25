@@ -18,7 +18,6 @@ from nion.swift import DisplayPanel
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.ui import Test
 
@@ -334,20 +333,6 @@ class TestDocumentControllerClass(unittest.TestCase):
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
         self.assertTrue(cropped_data_item.maybe_data_source.computation.needs_update)
         document_controller.close()
-
-    class SumOperation(Operation.Operation):
-
-        def __init__(self):
-            super(TestDocumentControllerClass.SumOperation, self).__init__("Sum", "sum-operation")
-
-        def get_processed_data(self, data_sources, values):
-            result = None
-            for data_source in data_sources:
-                if result is None:
-                    result = data_source.data
-                else:
-                    result += data_source.data
-            return result
 
     def test_creating_with_variable_produces_valid_computation(self):
         document_model = DocumentModel.DocumentModel()

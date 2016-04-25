@@ -22,7 +22,6 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Operation
 from nion.swift.model import Region
 from nion.ui import Test
 
@@ -1061,7 +1060,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
+            self.assertFalse(read_display_specifier2.buffered_data_source.computation.needs_update)
 
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
@@ -1075,11 +1074,11 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
+            self.assertFalse(read_display_specifier2.buffered_data_source.computation.needs_update)
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_stale)
+            self.assertFalse(document_model.data_items[1].maybe_data_source.computation.needs_update)
 
     def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
@@ -1094,7 +1093,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(read_display_specifier2.buffered_data_source.is_data_stale)
+            self.assertFalse(read_display_specifier2.buffered_data_source.computation.needs_update)
             self.assertEqual(read_display_specifier2.buffered_data_source.data_shape, (4, 4))
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -1367,7 +1366,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "fft")
             self.assertEqual(computation.expression, "fft(src.display_data)")
@@ -1433,7 +1431,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 3)
-            self.assertIsNone(document_model.data_items[2].operation)
             computation = document_model.data_items[2].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "cross-correlate")
             self.assertEqual(computation.expression, "crosscorrelate(src1.display_data, src2.display_data)")
@@ -1499,7 +1496,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "gaussian-blur")
             self.assertEqual(computation.expression, "gaussian_blur(crop(src.display_data, crop_region.bounds), sigma)")
@@ -1555,7 +1551,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "median-filter")
             self.assertEqual(computation.expression, "median_filter(src.display_data, filter_size)")
@@ -1606,7 +1601,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "slice")
             self.assertEqual(computation.expression, "slice_sum(src.display_data, center, width)")
@@ -1660,7 +1654,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "crop")
             self.assertEqual(computation.expression, "crop(src.display_data, crop_region.bounds)")
@@ -1726,7 +1719,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "sum")
             self.assertEqual(computation.expression, "sum(crop(src.display_data, crop_region.bounds), 0)")
@@ -1796,7 +1788,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "convert-to-scalar")
             self.assertEqual(computation.expression, "crop(src.display_data, crop_region.bounds)")
@@ -1851,7 +1842,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "resample")
             self.assertEqual(computation.expression, "resample_image(src.display_data, shape(height, width))")
@@ -1905,7 +1895,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "pick-point")
             self.assertEqual(computation.expression, "pick(src.display_data, pick_region.position)")
@@ -1960,7 +1949,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "line-profile")
             self.assertEqual(computation.expression, "line_profile(src.display_data, line_region.vector, line_region.width)")
@@ -2016,7 +2004,6 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].operation)
             self.assertIsNone(document_model.data_items[1].maybe_data_source.computation)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)

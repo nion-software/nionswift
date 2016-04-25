@@ -335,7 +335,7 @@ class TestDataItemClass(unittest.TestCase):
             inverted_data_item = document_model.get_invert_new(data_item)
             document_model.recompute_all()
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+            self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
 
     def test_data_range(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -427,8 +427,7 @@ class TestDataItemClass(unittest.TestCase):
                     data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
                 document_model.recompute_all()
                 self.assertTrue(data_changed_ref)
-                self.assertFalse(display_specifier.buffered_data_source.is_data_stale)
-                self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+                self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
 
     def test_modifying_source_data_should_trigger_data_item_stale_from_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -738,14 +737,16 @@ class TestDataItemClass(unittest.TestCase):
         # from the data sources, if there are any.
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
-            document_model.append_data_item(data_item)
+            src_data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
+            document_model.append_data_item(src_data_item)
+            data_item = document_model.get_invert_new(src_data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertFalse(display_specifier.buffered_data_source.is_data_stale)
+            document_model.recompute_all()
+            self.assertFalse(display_specifier.buffered_data_source.computation.needs_update)
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((8, 8), numpy.uint32)
             display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration())
-            self.assertFalse(display_specifier.buffered_data_source.is_data_stale)
+            self.assertFalse(display_specifier.buffered_data_source.computation.needs_update)
 
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale_for_data_item_with_data_source(self):
         # changing metadata or data will override what has been computed
@@ -847,7 +848,7 @@ class TestDataItemClass(unittest.TestCase):
             inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_stale)
+            self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_specifier.buffered_data_source.data_ref() as data_ref:
