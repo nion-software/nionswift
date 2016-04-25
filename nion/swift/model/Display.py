@@ -351,6 +351,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
                 slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
                 slice_interval_end = slice_interval_start + self.slice_width
                 return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
+            return 0, 0
         return None
 
     @slice_interval.setter
