@@ -1272,13 +1272,14 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
                     if computation.begin_evaluate():
                         try:
                             while computation.needs_update:
-                                with buffered_data_source.data_ref() as data_ref:
-                                    data_and_metadata = computation.evaluate_data()
-                                    if data_and_metadata:
-                                        data_ref.data = data_and_metadata.data
-                                        buffered_data_source.update_metadata(data_and_metadata.metadata)
-                                        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-                                        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+                                with buffered_data_source._changes():
+                                    with buffered_data_source.data_ref() as data_ref:
+                                        data_and_metadata = computation.evaluate_data()
+                                        if data_and_metadata:
+                                            data_ref.data = data_and_metadata.data
+                                            buffered_data_source.update_metadata(data_and_metadata.metadata)
+                                            buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+                                            buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
                                 time.sleep(0.05)
                         except Exception as e:
                             computation.error_text = _("Unable to compute data")
