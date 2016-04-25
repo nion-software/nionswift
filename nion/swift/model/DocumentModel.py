@@ -1627,7 +1627,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
         for source, buffered_data_source in zip(sources, buffered_data_sources):
             for requirement in source.requirements or list():
                 if requirement.type == "dimensionality":
-                    dimensionality = len(buffered_data_source.dimensional_shape)
+                    dimensionality = len(buffered_data_source.dimensional_shape) if buffered_data_source else 0
                     if requirement.mn is not None and dimensionality < requirement.mn:
                         return None
                     if requirement.mx is not None and dimensionality > requirement.mx:
