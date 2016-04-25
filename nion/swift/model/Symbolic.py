@@ -552,3 +552,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         """Unlisten and close each bound item."""
         for variable in self.variables:
             self.__unbind_variable(variable)
+
+    def _set_variable_value(self, variable_name, value):
+        for variable in self.variables:
+            if variable.name == variable_name:
+                variable.value = value
