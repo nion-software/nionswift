@@ -1580,6 +1580,13 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
         self.__channel_buffer_start_listeners.pop(hardware_source.hardware_source_id, None)
         self.__channel_buffer_stop_listeners.pop(hardware_source.hardware_source_id, None)
 
+    def get_snapshot_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        assert isinstance(data_item, DataItem.DataItem)
+        data_item_copy = data_item.snapshot()
+        data_item_copy.title = _("Snapshot of ") + data_item.title
+        self.append_data_item(data_item_copy)
+        return data_item_copy
+
     Requirement = collections.namedtuple("Requirement", ["type", "mn", "mx"])
 
     @staticmethod
