@@ -1211,6 +1211,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["intrinsic_spatial_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intrinsic_intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        data_item_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:01:00.000000'}
         data_item_dict["version"] = 5
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         data_item2_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
@@ -1218,6 +1219,7 @@ class TestStorageClass(unittest.TestCase):
         data_item2_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         data_item2_dict["operations"] = [{"operation_id": "invert-operation"}]
         data_item2_dict["data_sources"] = [data_item_dict["uuid"]]
+        data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         data_item2_dict["version"] = 5
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
@@ -1249,6 +1251,7 @@ class TestStorageClass(unittest.TestCase):
         data_item_dict["master_data_shape"] = (8, 8)
         data_item_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         data_item_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        data_item_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:01:00.000000'}
         data_item_dict["version"] = 6
         memory_persistent_storage_system.data["A"] = numpy.zeros((8, 8), numpy.uint32)
         data_item2_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
@@ -1263,6 +1266,7 @@ class TestStorageClass(unittest.TestCase):
         data_item3_dict["master_data_shape"] = None
         data_item3_dict["dimensional_calibrations"] = []
         data_item3_dict["intensity_calibration"] = {}
+        data_item2_dict["datetime_original"] = {'dst': '+60', 'tz': '-0800', 'local_datetime': '2000-06-30T15:02:00.000000'}
         data_item3_dict["version"] = 6
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
