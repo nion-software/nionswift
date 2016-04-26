@@ -464,100 +464,99 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                         if high_tension_v:
                             autostem_dict = hardware_source_dict.setdefault("autostem", dict())
                             autostem_dict["high_tension_v"] = high_tension_v
-                    if True:
-                        data_source_dicts = properties.get("data_sources", list())
-                        ExpressionInfo = collections.namedtuple("ExpressionInfo", ["label", "expression", "processing_id", "src_labels", "src_names", "variables"])
-                        info = dict()
-                        info["fft-operation"] = ExpressionInfo(_("FFT"), "fft({src})", "fft", [_("Source")], ["src"], list())
-                        info["inverse-fft-operation"] = ExpressionInfo(_("Inverse FFT"), "ifft({src})", "inverse-fft", [_("Source")], ["src"], list())
-                        info["auto-correlate-operation"] = ExpressionInfo(_("Auto Correlate"), "autocorrelate({src})", "auto-correlate", [_("Source")], ["src"], list())
-                        info["cross-correlate-operation"] = ExpressionInfo(_("Cross Correlate"), "crosscorrelate({src1}, {src2})", "cross-correlate", [_("Source1"), _("Source2")], ["src1", "src2"], list())
-                        info["invert-operation"] = ExpressionInfo(_("Invert"), "invert({src})", "invert", [_("Source")], ["src"], list())
-                        info["sobel-operation"] = ExpressionInfo(_("Sobel"), "sobel({src})", "sobel", [_("Source")], ["src"], list())
-                        info["laplace-operation"] = ExpressionInfo(_("Laplace"), "laplace({src})", "laplace", [_("Source")], ["src"], list())
-                        sigma_var = {'control_type': 'slider', 'label': _('Sigma'), 'name': 'sigma', 'type': 'variable', 'value': 3.0, 'value_default': 3.0, 'value_max': 100.0, 'value_min': 0.0, 'value_type': 'real'}
-                        info["gaussian-blur-operation"] = ExpressionInfo(_("Gaussian Blur"), "gaussian_blur({src}, sigma)", "gaussian-blur", [_("Source")], ["src"], [sigma_var])
-                        filter_size_var = {'label': _("Size"), 'op_name': 'size', 'name': 'filter_size', 'type': 'variable', 'value': 3, 'value_default': 3, 'value_max': 100, 'value_min': 1, 'value_type': 'integral'}
-                        info["median-filter-operation"] = ExpressionInfo(_("Median Filter"), "median_filter({src}, filter_size)", "median-filter", [_("Source")], ["src"], [filter_size_var])
-                        info["uniform-filter-operation"] = ExpressionInfo(_("Uniform Filter"), "uniform_filter({src}, filter_size)", "uniform-filter", [_("Source")], ["src"], [filter_size_var])
-                        do_transpose_var = {'label': _("Tranpose"), 'op_name': 'transpose', 'name': 'do_transpose', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
-                        do_flip_v_var = {'label': _("Flip Vertical"), 'op_name': 'flip_horizontal', 'name': 'do_flip_v', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
-                        do_flip_h_var = {'label': _("Flip Horizontal"), 'op_name': 'flip_vertical', 'name': 'do_flip_h', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
-                        info["transpose-flip-operation"] = ExpressionInfo(_("Transpose/Flip"), "transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", "transpose-flip", [_("Source")], ["src"], [do_transpose_var, do_flip_v_var, do_flip_h_var])
-                        info["crop-operation"] = ExpressionInfo(_("Crop"), "crop({src}, crop_region.bounds)", "crop", [_("Source")], ["src"], list())
-                        center_var = {'label': _("Center"), 'op_name': 'slice_center', 'name': 'center', 'type': 'variable', 'value': 0, 'value_default': 0, 'value_min': 0, 'value_type': 'integral'}
-                        width_var = {'label': _("Width"), 'op_name': 'slice_width', 'name': 'width', 'type': 'variable', 'value': 1, 'value_default': 1, 'value_min': 1, 'value_type': 'integral'}
-                        info["slice-operation"] = ExpressionInfo(_("Slice"), "slice_sum({src}, center, width)", "slice", [_("Source")], ["src"], [center_var, width_var])
-                        pt_var = {'label': _("Pick Point"), 'name': 'pick_region', 'type': 'variable', 'value_type': 'point'}
-                        info["pick-operation"] = ExpressionInfo(_("Pick"), "pick({src}, pick_region.position)", "pick-point", [_("Source")], ["src"], [pt_var])
-                        info["projection-operation"] = ExpressionInfo(_("Sum"), "sum({src}, 0)", "sum", [_("Source")], ["src"], list())
-                        width_var = {'label': _("Width"), 'name': 'width', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
-                        height_var = {'label': _("Height"), 'name': 'height', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
-                        info["resample-operation"] = ExpressionInfo(_("Reshape"), "resample_image({src}, shape(height, width))", "resample", [_("Source")], ["src"], [width_var, height_var])
-                        bins_var = {'label': _("Bins"), 'name': 'bins', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 2, 'value_type': 'integral'}
-                        info["histogram-operation"] = ExpressionInfo(_("Histogram"), "histogram({src}, bins)", "histogram", [_("Source")], ["src"], [bins_var])
-                        line_var = {'label': _("Line Profile"), 'name': 'line_region', 'type': 'variable', 'value_type': 'line'}
-                        info["line-profile-operation"] = ExpressionInfo(_("Line Profile"), "line_profile({src}, line_region.vector, line_region.width)", "line-profile", [_("Source")], ["src"], [line_var])
-                        info["convert-to-scalar-operation"] = ExpressionInfo(_("Scalar"), "{src}", "convert-to-scalar", [_("Source")], ["src"], list())
-                        # node-operation
-                        for data_source_dict in data_source_dicts:
-                            operation_dict = data_source_dict.get("data_source")
-                            if operation_dict and operation_dict.get("type") == "operation":
-                                del data_source_dict["data_source"]
-                                operation_id = operation_dict["operation_id"]
-                                computation_dict = dict()
-                                if operation_id in info:
-                                    computation_dict["label"] = info[operation_id].label
-                                    computation_dict["processing_id"] = info[operation_id].processing_id
-                                    computation_dict["type"] = "computation"
-                                    computation_dict["uuid"] = str(uuid.uuid4())
-                                    variables_list = list()
-                                    data_sources = operation_dict.get("data_sources", list())
-                                    srcs = ("src", ) if len(data_sources) < 2 else ("src1", "src2")
-                                    kws = {}
-                                    for src in srcs:
-                                        kws[src] = None
-                                    for i, src_data_source in enumerate(data_sources):
-                                        kws[srcs[i]] = srcs[i] + ".display_data"
-                                        if src_data_source.get("type") == "data-item-data-source":
-                                            src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["buffered_data_source_uuid"]]
-                                            variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
-                                            variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
-                                            variables_list.append(variable_src)
-                                            if operation_id == "crop-operation":
-                                                variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
-                                                variable_src["specifier"] = {"type": "region", "uuid": operation_dict["region_connections"]["crop"], "version": 1}
-                                                variables_list.append(variable_src)
-                                        elif src_data_source.get("type") == "operation":
-                                            src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["data_sources"][0]["buffered_data_source_uuid"]]
-                                            variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
-                                            variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
-                                            variables_list.append(variable_src)
+                    data_source_dicts = properties.get("data_sources", list())
+                    ExpressionInfo = collections.namedtuple("ExpressionInfo", ["label", "expression", "processing_id", "src_labels", "src_names", "variables", "use_display_data"])
+                    info = dict()
+                    info["fft-operation"] = ExpressionInfo(_("FFT"), "fft({src})", "fft", [_("Source")], ["src"], list(), True)
+                    info["inverse-fft-operation"] = ExpressionInfo(_("Inverse FFT"), "ifft({src})", "inverse-fft", [_("Source")], ["src"], list(), False)
+                    info["auto-correlate-operation"] = ExpressionInfo(_("Auto Correlate"), "autocorrelate({src})", "auto-correlate", [_("Source")], ["src"], list(), True)
+                    info["cross-correlate-operation"] = ExpressionInfo(_("Cross Correlate"), "crosscorrelate({src1}, {src2})", "cross-correlate", [_("Source1"), _("Source2")], ["src1", "src2"], list(), True)
+                    info["invert-operation"] = ExpressionInfo(_("Invert"), "invert({src})", "invert", [_("Source")], ["src"], list(), True)
+                    info["sobel-operation"] = ExpressionInfo(_("Sobel"), "sobel({src})", "sobel", [_("Source")], ["src"], list(), True)
+                    info["laplace-operation"] = ExpressionInfo(_("Laplace"), "laplace({src})", "laplace", [_("Source")], ["src"], list(), True)
+                    sigma_var = {'control_type': 'slider', 'label': _('Sigma'), 'name': 'sigma', 'type': 'variable', 'value': 3.0, 'value_default': 3.0, 'value_max': 100.0, 'value_min': 0.0, 'value_type': 'real'}
+                    info["gaussian-blur-operation"] = ExpressionInfo(_("Gaussian Blur"), "gaussian_blur({src}, sigma)", "gaussian-blur", [_("Source")], ["src"], [sigma_var], True)
+                    filter_size_var = {'label': _("Size"), 'op_name': 'size', 'name': 'filter_size', 'type': 'variable', 'value': 3, 'value_default': 3, 'value_max': 100, 'value_min': 1, 'value_type': 'integral'}
+                    info["median-filter-operation"] = ExpressionInfo(_("Median Filter"), "median_filter({src}, filter_size)", "median-filter", [_("Source")], ["src"], [filter_size_var], True)
+                    info["uniform-filter-operation"] = ExpressionInfo(_("Uniform Filter"), "uniform_filter({src}, filter_size)", "uniform-filter", [_("Source")], ["src"], [filter_size_var], True)
+                    do_transpose_var = {'label': _("Tranpose"), 'op_name': 'transpose', 'name': 'do_transpose', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
+                    do_flip_v_var = {'label': _("Flip Vertical"), 'op_name': 'flip_horizontal', 'name': 'do_flip_v', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
+                    do_flip_h_var = {'label': _("Flip Horizontal"), 'op_name': 'flip_vertical', 'name': 'do_flip_h', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
+                    info["transpose-flip-operation"] = ExpressionInfo(_("Transpose/Flip"), "transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", "transpose-flip", [_("Source")], ["src"], [do_transpose_var, do_flip_v_var, do_flip_h_var], True)
+                    info["crop-operation"] = ExpressionInfo(_("Crop"), "crop({src}, crop_region.bounds)", "crop", [_("Source")], ["src"], list(), True)
+                    center_var = {'label': _("Center"), 'op_name': 'slice_center', 'name': 'center', 'type': 'variable', 'value': 0, 'value_default': 0, 'value_min': 0, 'value_type': 'integral'}
+                    width_var = {'label': _("Width"), 'op_name': 'slice_width', 'name': 'width', 'type': 'variable', 'value': 1, 'value_default': 1, 'value_min': 1, 'value_type': 'integral'}
+                    info["slice-operation"] = ExpressionInfo(_("Slice"), "slice_sum({src}, center, width)", "slice", [_("Source")], ["src"], [center_var, width_var], False)
+                    pt_var = {'label': _("Pick Point"), 'name': 'pick_region', 'type': 'variable', 'value_type': 'point'}
+                    info["pick-operation"] = ExpressionInfo(_("Pick"), "pick({src}, pick_region.position)", "pick-point", [_("Source")], ["src"], [pt_var], False)
+                    info["projection-operation"] = ExpressionInfo(_("Sum"), "sum({src}, 0)", "sum", [_("Source")], ["src"], list(), False)
+                    width_var = {'label': _("Width"), 'name': 'width', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
+                    height_var = {'label': _("Height"), 'name': 'height', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
+                    info["resample-operation"] = ExpressionInfo(_("Reshape"), "resample_image({src}, shape(height, width))", "resample", [_("Source")], ["src"], [width_var, height_var], True)
+                    bins_var = {'label': _("Bins"), 'name': 'bins', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 2, 'value_type': 'integral'}
+                    info["histogram-operation"] = ExpressionInfo(_("Histogram"), "histogram({src}, bins)", "histogram", [_("Source")], ["src"], [bins_var], True)
+                    line_var = {'label': _("Line Profile"), 'name': 'line_region', 'type': 'variable', 'value_type': 'line'}
+                    info["line-profile-operation"] = ExpressionInfo(_("Line Profile"), "line_profile({src}, line_region.vector, line_region.width)", "line-profile", [_("Source")], ["src"], [line_var], True)
+                    info["convert-to-scalar-operation"] = ExpressionInfo(_("Scalar"), "{src}", "convert-to-scalar", [_("Source")], ["src"], list(), True)
+                    # node-operation
+                    for data_source_dict in data_source_dicts:
+                        operation_dict = data_source_dict.get("data_source")
+                        if operation_dict and operation_dict.get("type") == "operation":
+                            del data_source_dict["data_source"]
+                            operation_id = operation_dict["operation_id"]
+                            computation_dict = dict()
+                            if operation_id in info:
+                                computation_dict["label"] = info[operation_id].label
+                                computation_dict["processing_id"] = info[operation_id].processing_id
+                                computation_dict["type"] = "computation"
+                                computation_dict["uuid"] = str(uuid.uuid4())
+                                variables_list = list()
+                                data_sources = operation_dict.get("data_sources", list())
+                                srcs = ("src", ) if len(data_sources) < 2 else ("src1", "src2")
+                                kws = {}
+                                for src in srcs:
+                                    kws[src] = None
+                                for i, src_data_source in enumerate(data_sources):
+                                    kws[srcs[i]] = srcs[i] + (".display_data" if info[operation_id].use_display_data else ".data")
+                                    if src_data_source.get("type") == "data-item-data-source":
+                                        src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["buffered_data_source_uuid"]]
+                                        variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
+                                        variables_list.append(variable_src)
+                                        if operation_id == "crop-operation":
                                             variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
-                                            variable_src["specifier"] = {"type": "region", "uuid": src_data_source["region_connections"]["crop"], "version": 1}
+                                            variable_src["specifier"] = {"type": "region", "uuid": operation_dict["region_connections"]["crop"], "version": 1}
                                             variables_list.append(variable_src)
-                                            kws[srcs[i]] = "crop({}, crop_region.bounds)".format(kws[srcs[i]])
-                                    for rc_k, rc_v in operation_dict.get("region_connections", dict()).items():
-                                        if rc_k == 'pick':
-                                            variable_src = {"cascade_delete": True, "name": "pick_region", "type": "variable", "uuid": str(uuid.uuid4())}
-                                            variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
-                                            variables_list.append(variable_src)
-                                        elif rc_k == 'line':
-                                            variable_src = {"cascade_delete": True, "name": "line_region", "type": "variable", "uuid": str(uuid.uuid4())}
-                                            variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
-                                            variables_list.append(variable_src)
-                                    for var in copy.deepcopy(info[operation_id].variables):
-                                        if var.get("value_type") not in ("line", "point"):
-                                            var["uuid"] = str(uuid.uuid4())
-                                            var_name = var.get("op_name") or var.get("name")
-                                            var["value"] = operation_dict["values"].get(var_name, var.get("value"))
-                                            variables_list.append(var)
-                                    computation_dict["variables"] = variables_list
-                                    computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
-                                    data_source_dict["computation"] = computation_dict
-                        properties["version"] = 9
-                        if self.__log_migrations:
-                            logging.info("Updated %s to %s (operation to computation)", persistent_storage_handler.reference, properties["version"])
+                                    elif src_data_source.get("type") == "operation":
+                                        src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["data_sources"][0]["buffered_data_source_uuid"]]
+                                        variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
+                                        variables_list.append(variable_src)
+                                        variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src["specifier"] = {"type": "region", "uuid": src_data_source["region_connections"]["crop"], "version": 1}
+                                        variables_list.append(variable_src)
+                                        kws[srcs[i]] = "crop({}, crop_region.bounds)".format(kws[srcs[i]])
+                                for rc_k, rc_v in operation_dict.get("region_connections", dict()).items():
+                                    if rc_k == 'pick':
+                                        variable_src = {"cascade_delete": True, "name": "pick_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
+                                        variables_list.append(variable_src)
+                                    elif rc_k == 'line':
+                                        variable_src = {"cascade_delete": True, "name": "line_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
+                                        variables_list.append(variable_src)
+                                for var in copy.deepcopy(info[operation_id].variables):
+                                    if var.get("value_type") not in ("line", "point"):
+                                        var["uuid"] = str(uuid.uuid4())
+                                        var_name = var.get("op_name") or var.get("name")
+                                        var["value"] = operation_dict["values"].get(var_name, var.get("value"))
+                                        variables_list.append(var)
+                                computation_dict["variables"] = variables_list
+                                computation_dict["original_expression"] = info[operation_id].expression.format(**kws)
+                                data_source_dict["computation"] = computation_dict
+                    properties["version"] = 9
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (operation to computation)", persistent_storage_handler.reference, properties["version"])
             except Exception as e:
                 logging.debug("Error reading %s", persistent_storage_handler.reference)
                 import traceback

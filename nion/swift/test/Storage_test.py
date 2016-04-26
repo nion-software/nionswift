@@ -1375,7 +1375,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(computation.expression, "fft(src.display_data)")
             self.assertEqual(len(computation.variables), 1)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1441,7 +1444,13 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).data_item, document_model.data_items[1])
-            computation.evaluate_data().data
+            data1 = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data1
+            data2 = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[1].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data2
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1511,7 +1520,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
             self.assertAlmostEqual(computation.variables[2].bound_variable.value, 1.7)
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1561,7 +1573,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             self.assertAlmostEqual(computation.variables[1].bound_variable.value, 5)
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1607,12 +1622,15 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "slice")
-            self.assertEqual(computation.expression, "slice_sum(src.display_data, center, width)")
+            self.assertEqual(computation.expression, "slice_sum(src.data, center, width)")
             self.assertEqual(len(computation.variables), 3)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             self.assertAlmostEqual(computation.variables[1].bound_variable.value, 3)
             self.assertAlmostEqual(computation.variables[2].bound_variable.value, 2)
-            computation.evaluate_data().data
+            data = numpy.arange(512).reshape((8, 8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1664,7 +1682,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1725,7 +1746,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "sum")
-            self.assertEqual(computation.expression, "sum(crop(src.display_data, crop_region.bounds), 0)")
+            self.assertEqual(computation.expression, "sum(crop(src.data, crop_region.bounds), 0)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
@@ -1733,7 +1754,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1802,7 +1826,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1853,7 +1880,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             self.assertAlmostEqual(computation.variables[1].bound_variable.value, 200)
             self.assertAlmostEqual(computation.variables[2].bound_variable.value, 256)
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
@@ -1901,14 +1931,22 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "pick-point")
-            self.assertEqual(computation.expression, "pick(src.display_data, pick_region.position)")
+            self.assertEqual(computation.expression, "pick(src.data, pick_region.position)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].position[0], 0.4)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].position[1], 0.5)
-            computation.evaluate_data().data
+            data = numpy.arange(512).reshape((8, 8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            data0 = computation.evaluate_data().data
             self.assertIsNone(computation.error_text)
+            document_model.data_items[0].maybe_data_source.regions[0].position = 0.0, 0.0
+            data1 = computation.evaluate_data().data
+            self.assertIsNone(computation.error_text)
+            self.assertFalse(numpy.array_equal(data0, data1))
+            self.assertTrue(numpy.array_equal(data1, data[:, 0, 0]))
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
 
@@ -1964,7 +2002,10 @@ class TestStorageClass(unittest.TestCase):
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].end[0], 0.4)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].end[1], 0.5)
             self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].width, 1.3)
-            computation.evaluate_data().data
+            data = numpy.arange(64).reshape((8, 8))
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = data
+            self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
