@@ -688,10 +688,10 @@ class DocumentController:
         documents_dir = self.ui.get_document_location()
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
         library_filename = "Nion Swift Workspace.nslib"
-        cache_filename = "Nion Swift Cache.nscache"
+        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.writer_version)
         library_path = os.path.join(workspace_dir, library_filename)
         cache_path = os.path.join(workspace_dir, cache_filename)
-        data_path = os.path.join(workspace_dir, "Nion Swift Data")
+        data_path = os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
         if not os.path.exists(library_path):
             with open(library_path, "w") as fp:
                 json.dump({}, fp)

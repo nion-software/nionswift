@@ -30,6 +30,7 @@ from nion.swift import ToolbarPanel
 from nion.swift import Workspace
 from nion.swift import Widgets
 from nion.swift.model import Cache
+from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import PlugInManager
@@ -141,7 +142,7 @@ class Application(object):
             workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
             workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
         library_filename = "Nion Swift Workspace.nslib"
-        cache_filename = "Nion Swift Cache.nscache"
+        cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.writer_version)
         library_path = os.path.join(workspace_dir, library_filename)
         cache_path = os.path.join(workspace_dir, cache_filename)
         if not skip_choose and not os.path.exists(library_path):
@@ -151,7 +152,7 @@ class Application(object):
         if os.path.exists(library_path):
             self.migrate_library(workspace_dir, library_path, welcome_message)
         self.workspace_dir = workspace_dir
-        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([os.path.join(workspace_dir, "Nion Swift Data")])
+        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
         create_new_document = not os.path.exists(library_path)
         if create_new_document:
             if welcome_message:
