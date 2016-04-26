@@ -22,7 +22,6 @@ from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Region
 from nion.ui import Observable
 from nion.ui import Test
 
@@ -56,7 +55,7 @@ class TestDataItemClass(unittest.TestCase):
         metadata.setdefault("test", dict())["two"] = 22
         data_item.set_metadata(metadata)
         display_specifier.display.display_limits = (100, 900)
-        display_specifier.display.append_graphic(Graphics.RectangleGraphic())
+        display_specifier.display.add_graphic(Graphics.RectangleGraphic())
         data_item_copy = copy.deepcopy(data_item)
         display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
         self.assertNotEqual(id(data), id(display_specifier2.buffered_data_source.data))
@@ -181,9 +180,9 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25,0.25), (0.5,0.5)
-            source_data_item.maybe_data_source.add_region(crop_region)
+            source_data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(source_data_item)
             data_item = document_model.get_crop_new(source_data_item, crop_region)
             data_item_copy = copy.deepcopy(data_item)
@@ -311,7 +310,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         rect_graphic = Graphics.RectangleGraphic()
-        display_specifier.display.append_graphic(rect_graphic)
+        display_specifier.display.add_graphic(rect_graphic)
         self.assertEqual(len(display_specifier.display.graphics), 1)
         data_item_copy = copy.deepcopy(data_item)
         display_specifier2 = DataItem.DisplaySpecifier.from_data_item(data_item_copy)
@@ -368,7 +367,7 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item.maybe_data_source.add_region(Region.RectRegion())
+            data_item.maybe_data_source.displays[0].add_graphic(Graphics.RectangleGraphic())
             document_model.append_data_item(data_item)
             document_model.get_crop_new(data_item)
             # should remove properly when shutting down.
@@ -504,34 +503,34 @@ class TestDataItemClass(unittest.TestCase):
                 self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
                 self.assertEqual(data_changed_ref[0], 1)
 
-    def test_adding_removing_data_item_with_crop_computation_updates_drawn_graphics(self):
+    def test_adding_removing_data_item_with_crop_computation_updates_graphics(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.maybe_data_source.add_region(crop_region)
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
+            self.assertEqual(len(display_specifier.display.graphics), 1)
             document_model.remove_data_item(data_item_crop)
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
+            self.assertEqual(len(display_specifier.display.graphics), 0)
 
-    def disabled_test_adding_removing_crop_computation_to_existing_data_item_updates_drawn_graphics(self):
+    def disabled_test_adding_removing_crop_computation_to_existing_data_item_updates_graphics(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.maybe_data_source.add_region(crop_region)
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
+            self.assertEqual(len(display_specifier.display.graphics), 1)
             data_item_crop.maybe_data_source.set_computation(None)
             # the associated graphic should now be deleted.
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
+            self.assertEqual(len(display_specifier.display.graphics), 0)
 
     def test_updating_computation_graphic_property_notifies_data_item(self):
         display_changed_ref = [False]
@@ -540,15 +539,15 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.maybe_data_source.add_region(crop_region)
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
                 document_model.get_crop_new(data_item, crop_region)
                 display_changed_ref[0] = False
-                display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+                display_specifier.display.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 self.assertTrue(display_changed_ref[0])
 
     # necessary to make inspector display updated values properly
@@ -559,16 +558,16 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.maybe_data_source.add_region(crop_region)
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_model.append_data_item(data_item)
             with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
                 document_model.get_crop_new(data_item, crop_region)
-                display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+                display_specifier.display.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 display_changed_ref[0] = False
-                display_specifier.display.drawn_graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
+                display_specifier.display.graphics[0].bounds = ((0.2,0.3), (0.8,0.7))
                 self.assertTrue(display_changed_ref[0])
 
     def test_snapshot_should_copy_raw_metadata(self):
@@ -594,19 +593,9 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 0)
-            display_specifier.buffered_data_source.add_region(Region.PointRegion())
-            self.assertEqual(len(display_specifier.display.drawn_graphics), 1)
-
-    def test_region_graphic_gets_added_to_new_display(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.add_region(Region.PointRegion())
-            display_specifier.buffered_data_source.add_display(Display.Display())
-            self.assertEqual(len(display_specifier.buffered_data_source.displays[1].drawn_graphics), 1)
+            self.assertEqual(len(display_specifier.display.graphics), 0)
+            display_specifier.display.add_graphic(Graphics.PointGraphic())
+            self.assertEqual(len(display_specifier.display.graphics), 1)
 
     # necessary to make inspector display updated values properly
     def test_adding_region_generates_display_changed(self):
@@ -619,12 +608,11 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             with contextlib.closing(display_specifier.display.display_changed_event.listen(display_changed)):
-                crop_region = Region.RectRegion()
-                buffered_data_source = display_specifier.buffered_data_source
-                buffered_data_source.add_region(crop_region)
+                crop_region = Graphics.RectangleGraphic()
+                display_specifier.display.add_graphic(crop_region)
                 self.assertTrue(display_changed_ref[0])
                 display_changed_ref[0] = False
-                buffered_data_source.remove_region(crop_region)
+                display_specifier.display.remove_graphic(crop_region)
                 self.assertTrue(display_changed_ref[0])
 
     def test_connecting_data_source_updates_dependent_data_items_property_on_source(self):
@@ -674,16 +662,16 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.maybe_data_source.add_region(crop_region)
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # begin the transaction
             with document_model.data_item_transaction(data_item):
                 data_item_crop1 = document_model.get_crop_new(data_item, crop_region)
                 # change the bounds of the graphic
-                display_specifier.display.drawn_graphics[0].bounds = ((0.31, 0.32), (0.6, 0.4))
+                display_specifier.display.graphics[0].bounds = ((0.31, 0.32), (0.6, 0.4))
                 # make sure it is connected to the crop computation
                 bounds = crop_region.bounds
                 self.assertAlmostEqual(bounds[0][0], 0.31)

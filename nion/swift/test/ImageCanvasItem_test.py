@@ -16,7 +16,7 @@ from nion.swift import ImageCanvasItem
 from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.ui import Geometry
 from nion.ui import Test
 
@@ -75,14 +75,14 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = Panel.HeaderCanvasItem().header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
-            rect_region = Region.RectRegion()
+            rect_region = Graphics.RectangleGraphic()
             rect_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            line_region = Region.LineRegion()
+            line_region = Graphics.LineGraphic()
             line_region.start = (0.0, 1.0)
             line_region.end = (0.75, 0.25)
             # draws line, then rect
-            data_item.maybe_data_source.add_region(line_region)
-            data_item.maybe_data_source.add_region(rect_region)
+            data_item.maybe_data_source.displays[0].add_graphic(line_region)
+            data_item.maybe_data_source.displays[0].add_graphic(rect_region)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((50, 950))
             self.assertEqual(display_specifier.display.graphic_selection.indexes, set((0, )))
@@ -101,14 +101,14 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = Panel.HeaderCanvasItem().header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
-            rect_region = Region.RectRegion()
+            rect_region = Graphics.RectangleGraphic()
             rect_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            line_region = Region.LineRegion()
+            line_region = Graphics.LineGraphic()
             line_region.start = (0.5, 0.5)
             line_region.end = (0.5, 1.0)
             # draws line, then rect
-            data_item.maybe_data_source.add_region(line_region)
-            data_item.maybe_data_source.add_region(rect_region)
+            data_item.maybe_data_source.displays[0].add_graphic(line_region)
+            data_item.maybe_data_source.displays[0].add_graphic(rect_region)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((500, 600))
@@ -126,12 +126,12 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = Panel.HeaderCanvasItem().header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
-            rect_region1 = Region.RectRegion()
+            rect_region1 = Graphics.RectangleGraphic()
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
-            rect_region2 = Region.RectRegion()
+            rect_region2 = Graphics.RectangleGraphic()
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
-            data_item.maybe_data_source.add_region(rect_region1)
-            data_item.maybe_data_source.add_region(rect_region2)
+            data_item.maybe_data_source.displays[0].add_graphic(rect_region1)
+            data_item.maybe_data_source.displays[0].add_graphic(rect_region2)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((700, 700))
@@ -152,12 +152,12 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = Panel.HeaderCanvasItem().header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
-            rect_region1 = Region.RectRegion()
+            rect_region1 = Graphics.RectangleGraphic()
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
-            rect_region2 = Region.RectRegion()
+            rect_region2 = Graphics.RectangleGraphic()
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
-            data_item.maybe_data_source.add_region(rect_region1)
-            data_item.maybe_data_source.add_region(rect_region2)
+            data_item.maybe_data_source.displays[0].add_graphic(rect_region1)
+            data_item.maybe_data_source.displays[0].add_graphic(rect_region2)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((500, 500))
             self.assertEqual(display_specifier.display.graphic_selection.indexes, set((1, )))

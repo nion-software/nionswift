@@ -32,9 +32,9 @@ from nion.data import Calibration
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
-from nion.swift.model import Connection
+from nion.swift.model import DataItem
+from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Region
 from nion.swift.model import Utility
 from nion.ui import Event
 from nion.ui import Observable
@@ -889,10 +889,10 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
 
     def connect(self, src_data_item, dst_data_item):
-        data_source = src_data_item.maybe_data_source
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(src_data_item)
         crop_region = None
-        for region in data_source.regions:
-            if region.region_id == self.__processor_id:
+        for region in display_specifier.display.graphics:
+            if region.graphic_id == self.__processor_id:
                 crop_region = region
                 break
         def close_all():
@@ -905,12 +905,12 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                 self.__remove_listener = None
         if not crop_region:
             close_all()
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = self.bounds
             crop_region.is_bounds_constrained = True
-            crop_region.region_id = self.__processor_id
+            crop_region.graphic_id = self.__processor_id
             crop_region.label = _("Crop")
-            data_source.add_region(crop_region)
+            display_specifier.display.add_graphic(crop_region)
         if not self.__crop_listener:
             def property_changed(k, v):
                 if k == "bounds":
@@ -919,7 +919,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                 if v == crop_region:
                     close_all()
             self.__crop_listener = crop_region.property_changed_event.listen(property_changed)
-            self.__remove_listener = data_source.item_removed_event.listen(region_removed)
+            self.__remove_listener = display_specifier.display.item_removed_event.listen(region_removed)
             self.__crop_region = crop_region
 
 def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=None):

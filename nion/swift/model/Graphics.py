@@ -253,15 +253,14 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, type):
         super(Graphic, self).__init__()
         self.define_type(type)
-        self.define_property("graphic_id", "#F00", changed=self._property_changed, validate=lambda s: str(s) if s else None)
-        self.define_property("color", "#F00", changed=self._property_changed)
+        self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
+        self.define_property("color", "#F80", changed=self._property_changed)
         self.define_property("label", changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("is_position_locked", False, changed=self._property_changed)
         self.define_property("is_shape_locked", False, changed=self._property_changed)
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.__region = None
         self.graphic_changed_event = Event.Event()
-        self.remove_region_graphic_event = Event.Event()
         self.about_to_be_removed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
@@ -400,9 +399,6 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def nudge(self, mapping, delta):
         raise NotImplementedError()
 
-    def notify_remove_region_graphic(self):
-        self.remove_region_graphic_event.fire()
-
     def label_position(self, mapping, font_metrics, padding):
         raise NotImplementedError()
 
@@ -421,7 +417,7 @@ class RectangleTypeGraphic(Graphic):
             value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
         if value[1][1] < 0:  # width is negative
             value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
-        return tuple(copy.deepcopy(value))
+        return (value[0][0], value[0][1]), (value[1][0], value[1][1])
 
     def __bounds_changed(self, name, value):
         self._property_changed(name, value)
@@ -1102,6 +1098,7 @@ class IntervalGraphic(Graphic):
 def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
+        "line-profile-graphic": LineProfileGraphic,
         "rect-graphic": RectangleGraphic,
         "ellipse-graphic": EllipseGraphic,
         "point-graphic": PointGraphic,

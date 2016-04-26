@@ -9,7 +9,7 @@
 # None
 
 # local libraries
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.ui import Binding
 from nion.ui import Converter
 from nion.ui import Observable
@@ -121,24 +121,24 @@ class PropertyConnection(Connection):
 
 
 class IntervalListConnection(Connection):
-    """Binds the intervals on a buffered data source to the interval_descriptors on a line profile graphic.
+    """Binds the intervals on a display to the interval_descriptors on a line profile graphic.
 
-    This is a one way connection from the data source to the line profile graphic.
+    This is a one way connection from the display to the line profile graphic.
     """
 
-    def __init__(self, buffered_data_source=None, line_profile=None):
+    def __init__(self, display=None, line_profile=None):
         super().__init__("interval-list-connection")
         self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("target_uuid", converter=Converter.UuidToStringConverter())
         # these are only set in persistent object context changed
-        self.__source = buffered_data_source
+        self.__source = display
         self.__target = line_profile
         self.__item_inserted_event_listener = None
         self.__item_removed_event_listener = None
         self.__interval_mutated_listeners = list()
         # but setup if we were passed objects
-        if buffered_data_source is not None:
-            self.source_uuid = buffered_data_source.uuid
+        if display is not None:
+            self.source_uuid = display.uuid
         if line_profile is not None:
             self.target_uuid = line_profile.uuid
 
@@ -158,8 +158,8 @@ class IntervalListConnection(Connection):
             detach()
             interval_descriptors = list()
             if self.__source:
-                for region in self.__source.regions:
-                    if isinstance(region, Region.IntervalRegion):
+                for region in self.__source.graphics:
+                    if isinstance(region, Graphics.IntervalGraphic):
                         interval_descriptor = {"interval": region.interval, "color": "#F00"}
                         interval_descriptors.append(interval_descriptor)
                         self.__interval_mutated_listeners.append(region.property_changed_event.listen(lambda k, v: reattach()))
@@ -167,11 +167,11 @@ class IntervalListConnection(Connection):
                 self.__target.interval_descriptors = interval_descriptors
 
         def item_inserted(key, value, before_index):
-            if key == "region" and self.__target:
+            if key == "graphics" and self.__target:
                 reattach()
 
         def item_removed(key, value, index):
-            if key == "region" and self.__target:
+            if key == "graphics" and self.__target:
                 reattach()
 
         def source_registered(source):

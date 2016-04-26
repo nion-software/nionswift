@@ -20,7 +20,6 @@ from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Region
 from nion.ui import Binding
 from nion.ui import Observable
 from nion.ui import Test
@@ -117,11 +116,11 @@ class TestInspectorClass(unittest.TestCase):
     def test_graphic_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.buffered_data_source.add_region(Region.PointRegion())
+        display_specifier.display.add_graphic(Graphics.PointGraphic())
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
-        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
+        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.graphics[0])
         self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "128.0 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
         self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "128.0 mmm")
@@ -129,10 +128,10 @@ class TestInspectorClass(unittest.TestCase):
     def test_graphic_inspector_section_displays_sensible_units(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.buffered_data_source.add_region(Region.PointRegion())
+        display_specifier.display.add_graphic(Graphics.PointGraphic())
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
+        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.graphics[0])
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), units="mm"))
         self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "181.0 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(scale=math.sqrt(2.0), offset=5.55555, units="mm"))
@@ -147,13 +146,13 @@ class TestInspectorClass(unittest.TestCase):
     def test_graphic_inspector_display_calibrated_length_units(self):
         data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        line_region = Region.LineRegion()
+        line_region = Graphics.LineGraphic()
         line_region.start = (0, 0)
         line_region.end = (1, 1)
-        display_specifier.buffered_data_source.add_region(line_region)
+        display_specifier.display.add_graphic(line_region)
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
+        Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.graphics[0])
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
         self.assertEqual(graphic_widget.children[2].children[0].children[1].text, "223.607 mm")  # sqrt(100*100 + 200*200)
@@ -161,13 +160,13 @@ class TestInspectorClass(unittest.TestCase):
     def test_graphic_inspector_sets_calibrated_length_units(self):
         data_item = DataItem.DataItem(numpy.zeros((200, 100), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        line_region = Region.LineRegion()
+        line_region = Graphics.LineGraphic()
         line_region.start = (0, 0)
         line_region.end = (0.5, 0.5)
-        display_specifier.buffered_data_source.add_region(line_region)
+        display_specifier.display.add_graphic(line_region)
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.drawn_graphics[0])
+        Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.buffered_data_source.dimensional_shape, display_specifier.display.graphics[0])
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
         length_str = "{0:g}".format(math.sqrt(100 * 100 + 200 * 200))
@@ -270,13 +269,13 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
-            document_controller.add_point_region()
-            document_controller.add_line_region()
-            document_controller.add_rectangle_region()
-            document_controller.add_ellipse_region()
-            document_controller.add_interval_region()
+            document_controller.add_point_graphic()
+            document_controller.add_line_graphic()
+            document_controller.add_rectangle_graphic()
+            document_controller.add_ellipse_graphic()
+            document_controller.add_interval_graphic()
             data_item.maybe_data_source.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
-            self.assertTrue(len(data_item.maybe_data_source.regions) == 5)
+            self.assertTrue(len(data_item.maybe_data_source.displays[0].graphics) == 5)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
@@ -291,13 +290,13 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
-            document_controller.add_point_region()
-            document_controller.add_line_region()
-            document_controller.add_rectangle_region()
-            document_controller.add_ellipse_region()
-            document_controller.add_interval_region()
+            document_controller.add_point_graphic()
+            document_controller.add_line_graphic()
+            document_controller.add_rectangle_graphic()
+            document_controller.add_ellipse_graphic()
+            document_controller.add_interval_graphic()
             data_item.maybe_data_source.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
-            self.assertTrue(len(data_item.maybe_data_source.regions) == 5)
+            self.assertTrue(len(data_item.maybe_data_source.displays[0].graphics) == 5)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
@@ -312,13 +311,13 @@ class TestInspectorClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
-            document_controller.add_point_region()
-            document_controller.add_line_region()
-            document_controller.add_rectangle_region()
-            document_controller.add_ellipse_region()
-            document_controller.add_interval_region()
+            document_controller.add_point_graphic()
+            document_controller.add_line_graphic()
+            document_controller.add_rectangle_graphic()
+            document_controller.add_ellipse_graphic()
+            document_controller.add_interval_graphic()
             data_item.maybe_data_source.displays[0].graphic_selection.clear()  # make sure all graphics show up in inspector
-            self.assertTrue(len(data_item.maybe_data_source.regions) == 5)
+            self.assertTrue(len(data_item.maybe_data_source.displays[0].graphics) == 5)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)

@@ -23,7 +23,6 @@ from nion.swift.model import Graphics
 from nion.swift.model import LineGraphCanvasItem
 from nion.ui import CanvasItem
 from nion.ui import Event
-from nion.ui import Model
 from nion.ui import Observable
 from nion.ui import Persistence
 
@@ -144,9 +143,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.__lookup = None  # temporary for experimentation
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
-        self.__drawn_graphics = Model.ListModel(self, "drawn_graphics")
         self.__graphic_changed_listeners = list()
-        self.__remove_region_graphic_listeners = list()
         self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
         self.__display_data = None
         self.__preview = None
@@ -166,6 +163,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.display_graphic_selection_changed_event = Event.Event()
         self.display_processor_needs_recompute_event = Event.Event()
         self.display_processor_data_updated_event = Event.Event()
+        self.display_graphic_will_remove_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
 
@@ -176,7 +174,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
-            self.__disconnect_graphic(graphic)
+            self.__disconnect_graphic(graphic, 0)
             graphic.close()
         self.graphic_selection = None
         assert self._about_to_be_removed
@@ -307,12 +305,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         return processor.get_cached_data() if processor else None
 
     @property
-    def drawn_graphics(self):
-        return copy.copy(self.__drawn_graphics)
-
-    @property
     def selected_graphics(self):
-        return [self.__drawn_graphics[i] for i in self.graphic_selection.indexes]
+        return [self.graphics[i] for i in self.graphic_selection.indexes]
 
     def __validate_display_limits(self, value):
         if value is not None:
@@ -490,64 +484,32 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             for processor in self.__processors.values():
                 processor.mark_data_dirty()
 
-    def add_region_graphic(self, region_graphic):
-        before_index = len(self.__drawn_graphics)
-        self.__drawn_graphics.insert(before_index, region_graphic)
-        graphic_changed_listener = region_graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, region_graphic))
-        self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
-        remove_region_graphic_listener = region_graphic.remove_region_graphic_event.listen(functools.partial(self.remove_region_graphic, region_graphic))
-        self.__remove_region_graphic_listeners.insert(before_index, remove_region_graphic_listener)
-        self.graphic_selection.insert_index(before_index)
-        self.display_changed_event.fire()
-
-    def remove_region_graphic(self, region_graphic):
-        if region_graphic in self.__drawn_graphics:
-            # this hack (checking if region_graphic is in drawn graphics)
-            # is here because removing a region may remove a data item which
-            # will in turn remove the same region.
-            # bad architecture.
-            index = self.__drawn_graphics.index(region_graphic)
-            self.__drawn_graphics.remove(region_graphic)
-            graphic_changed_listener = self.__graphic_changed_listeners[index]
-            graphic_changed_listener.close()
-            self.__graphic_changed_listeners.remove(graphic_changed_listener)
-            remove_region_graphic_listener = self.__remove_region_graphic_listeners[index]
-            remove_region_graphic_listener.close()
-            self.__remove_region_graphic_listeners.remove(remove_region_graphic_listener)
-            self.graphic_selection.remove_index(index)
-            self.display_changed_event.fire()
-
     def __insert_graphic(self, name, before_index, item):
-        self.__drawn_graphics.insert(before_index, item)
         graphic_changed_listener = item.graphic_changed_event.listen(functools.partial(self.graphic_changed, item))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
-        remove_region_graphic_listener = item.remove_region_graphic_event.listen(functools.partial(self.remove_region_graphic, item))
-        self.__remove_region_graphic_listeners.insert(before_index, remove_region_graphic_listener)
         self.graphic_selection.insert_index(before_index)
         self.display_changed_event.fire()
+        self.notify_insert_item("graphics", item, before_index)
 
     def __remove_graphic(self, name, index, graphic):
         graphic.about_to_be_removed()
-        self.__disconnect_graphic(graphic)
+        self.__disconnect_graphic(graphic, index)
+        self.display_graphic_will_remove_event.fire(graphic)
         graphic.close()
 
-    def __disconnect_graphic(self, graphic):
-        index = self.__drawn_graphics.index(graphic)
-        self.__drawn_graphics.remove(graphic)
+    def __disconnect_graphic(self, graphic, index):
         graphic_changed_listener = self.__graphic_changed_listeners[index]
         graphic_changed_listener.close()
         self.__graphic_changed_listeners.remove(graphic_changed_listener)
-        remove_region_graphic_listener = self.__remove_region_graphic_listeners[index]
-        remove_region_graphic_listener.close()
-        self.__remove_region_graphic_listeners.remove(remove_region_graphic_listener)
         self.graphic_selection.remove_index(index)
         self.display_changed_event.fire()
+        self.notify_remove_item("graphics", graphic, index)
 
     def insert_graphic(self, before_index, graphic):
         """ Insert a graphic before the index """
         self.insert_item("graphics", before_index, graphic)
 
-    def append_graphic(self, graphic):
+    def add_graphic(self, graphic):
         """ Append a graphic """
         self.append_item("graphics", graphic)
 
@@ -558,13 +520,6 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def extend_graphics(self, graphics):
         """ Extend the graphics array with the list of graphics """
         self.extend_items("graphics", graphics)
-
-    def remove_drawn_graphic(self, drawn_graphic):
-        """ Remove a drawn graphic which might be intrinsic or a graphic associated with an operation on a child """
-        if drawn_graphic in self.graphics:
-            self.remove_graphic(drawn_graphic)
-        else:  # a synthesized graphic
-            drawn_graphic.notify_remove_region_graphic()
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.

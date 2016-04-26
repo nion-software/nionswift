@@ -13,7 +13,7 @@ import numpy
 # local libraries
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 
 
 class TestRegionClass(unittest.TestCase):
@@ -24,9 +24,9 @@ class TestRegionClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            point_region = Region.PointRegion()
-            display_specifier.buffered_data_source.add_region(point_region)
-            drawn_graphic = display_specifier.display.drawn_graphics[0]
+            point_region = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(point_region)
+            drawn_graphic = display_specifier.display.graphics[0]
             self.assertEqual(point_region.position, drawn_graphic.position)
             point_region.position = (0.3, 0.7)
             self.assertEqual(point_region.position, drawn_graphic.position)
@@ -37,9 +37,9 @@ class TestRegionClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            point_region = Region.PointRegion()
-            display_specifier.buffered_data_source.add_region(point_region)
-            drawn_graphic = display_specifier.display.drawn_graphics[0]
+            point_region = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(point_region)
+            drawn_graphic = display_specifier.display.graphics[0]
             self.assertEqual(point_region.position, drawn_graphic.position)
             drawn_graphic.position = (0.3, 0.7)
             self.assertEqual(point_region.position, drawn_graphic.position)
@@ -51,18 +51,18 @@ class TestRegionClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             regions = list()
-            regions.append(Region.PointRegion())
-            regions.append(Region.RectRegion())
-            regions.append(Region.EllipseRegion())
-            regions.append(Region.LineRegion())
-            regions.append(Region.IntervalRegion())
+            regions.append(Graphics.PointGraphic())
+            regions.append(Graphics.RectangleGraphic())
+            regions.append(Graphics.EllipseGraphic())
+            regions.append(Graphics.LineGraphic())
+            regions.append(Graphics.IntervalGraphic())
             for region in regions:
                 region.label = "label"
                 region.is_position_locked = False
                 region.is_shape_locked = False
                 region.is_bounds_constrained = False
-                display_specifier.buffered_data_source.add_region(region)
-                drawn_graphic = display_specifier.display.drawn_graphics[-1]
+                display_specifier.display.add_graphic(region)
+                drawn_graphic = display_specifier.display.graphics[-1]
                 self.assertEqual(region.label, drawn_graphic.label)
                 self.assertEqual(region.is_position_locked, drawn_graphic.is_position_locked)
                 self.assertEqual(region.is_shape_locked, drawn_graphic.is_shape_locked)
@@ -77,7 +77,7 @@ class TestRegionClass(unittest.TestCase):
                 self.assertEqual(region.is_bounds_constrained, drawn_graphic.is_bounds_constrained)
 
     def test_copying_region_with_empty_label_copies_it_correctly(self):
-        region = Region.PointRegion()
+        region = Graphics.PointGraphic()
         region_copy = copy.deepcopy(region)
         self.assertIsNone(region.label)
         self.assertIsNone(region_copy.label)
@@ -88,10 +88,10 @@ class TestRegionClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            point_region = Region.PointRegion()
-            display_specifier.buffered_data_source.add_region(point_region)
+            point_region = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(point_region)
             self.assertFalse(point_region._closed)
-            display_specifier.buffered_data_source.remove_region(point_region)
+            display_specifier.display.remove_graphic(point_region)
             self.assertTrue(point_region._closed)
 
     def test_removing_data_item_closes_point_region(self):
@@ -100,8 +100,8 @@ class TestRegionClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            point_region = Region.PointRegion()
-            display_specifier.buffered_data_source.add_region(point_region)
+            point_region = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(point_region)
             self.assertFalse(point_region._closed)
             document_model.remove_data_item(data_item)
             self.assertTrue(point_region._closed)

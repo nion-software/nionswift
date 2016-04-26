@@ -136,6 +136,8 @@ def clean_item(i):
     elif itype == type(None):
         return i
     logging.info("[1] Unable to handle type %s", itype)
+    import traceback
+    traceback.print_stack()
     return None
 
 

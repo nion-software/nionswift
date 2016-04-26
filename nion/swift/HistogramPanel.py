@@ -12,7 +12,7 @@ from nion.data import Image
 from nion.swift import Panel
 from nion.swift import Widgets
 from nion.swift.model import DataItem
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.ui import Binding
 from nion.ui import CanvasItem
 from nion.ui import Event
@@ -279,7 +279,8 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
         def handle_histogram_data_future(histogram_data_future):
             def handle_histogram_data(histogram_data):
-                self.__histogram_canvas_item._set_histogram_data(histogram_data)
+                if self.__histogram_canvas_item:  # hack to fix closing issues.
+                    self.__histogram_canvas_item._set_histogram_data(histogram_data)
             histogram_data_future.evaluate(handle_histogram_data)
 
         self.__histogram_data_stream_listener = histogram_data_future_stream.value_stream.listen(handle_histogram_data_future)
@@ -369,7 +370,7 @@ class HistogramPanel(Panel.Panel):
 
         def calculate_region_data(data_and_metadata, region):
             if region is not None and data_and_metadata is not None:
-                if data_and_metadata.is_data_1d and isinstance(region, Region.IntervalRegion):
+                if data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
                     interval = region.interval
                     if 0 <= interval[0] < 1 and 0 < interval[1] <= 1:
                         start, end = int(interval[0] * data_and_metadata.data_shape[0]), int(interval[1] * data_and_metadata.data_shape[0])
@@ -377,7 +378,7 @@ class HistogramPanel(Panel.Panel):
                             cropped_data_and_metadata = Core.function_crop_interval(data_and_metadata, interval)
                             if cropped_data_and_metadata:
                                 return cropped_data_and_metadata
-                elif data_and_metadata.is_data_2d and isinstance(region, Region.RectRegion):
+                elif data_and_metadata.is_data_2d and isinstance(region, Graphics.RectangleTypeGraphic):
                     cropped_data_and_metadata = Core.function_crop(data_and_metadata, region.bounds)
                     if cropped_data_and_metadata:
                         return cropped_data_and_metadata
@@ -525,7 +526,7 @@ class TargetRegionStream:
         def display_graphic_selection_changed(graphic_selection):
             current_index = graphic_selection.current_index
             if current_index is not None:
-                new_value = display.drawn_graphics[current_index].region
+                new_value = display.graphics[current_index]
                 if new_value != self.__value:
                     self.__value = new_value
                     self.value_stream.fire(self.__value)

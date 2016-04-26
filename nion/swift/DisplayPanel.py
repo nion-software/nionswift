@@ -20,7 +20,7 @@ from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift.model import DataItem
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Event
@@ -508,8 +508,8 @@ class DataItemDataSourceDisplay(object):
                 # this message comes from the display when the graphic selection changes
                 display_calibrated_values = display.display_calibrated_values
                 data_and_calibration = display.data_and_calibration
-                drawn_graphics = display.drawn_graphics
-                self.__display_canvas_item.update_regions(data_and_calibration, graphic_selection, drawn_graphics, display_calibrated_values)
+                graphics = display.graphics
+                self.__display_canvas_item.update_regions(data_and_calibration, graphic_selection, graphics, display_calibrated_values)
 
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
@@ -575,17 +575,17 @@ class DataItemDataSourceDisplay(object):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display_specifier.display.graphic_selection.clear()
 
-    def add_and_select_region(self, region):
+    def add_and_select_region(self, region: Graphics.Graphic):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display_specifier.buffered_data_source.add_region(region)  # this will also make a drawn graphic
+        display_specifier.display.add_graphic(region)  # this will also make a drawn graphic
         # hack to select it. it will be the last item.
-        display_specifier.display.graphic_selection.set(len(display_specifier.display.drawn_graphics) - 1)
+        display_specifier.display.graphic_selection.set(len(display_specifier.display.graphics) - 1)
 
     def nudge_selected_graphics(self, mapping, delta):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
         if display:
-            all_graphics = display.drawn_graphics
+            all_graphics = display.graphics
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
             for graphic in graphics:
                 graphic.nudge(mapping, delta)
@@ -594,7 +594,7 @@ class DataItemDataSourceDisplay(object):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         with display_specifier.data_item.data_item_changes():
             for graphic in graphic_drag_items:
-                index = display_specifier.display.drawn_graphics.index(graphic)
+                index = display_specifier.display.graphics.index(graphic)
                 part_data = (graphic_drag_part, ) + graphic_part_data[index]
                 graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
 
@@ -655,76 +655,68 @@ class DataItemDataSourceDisplay(object):
         bounds = tuple(pos), (0, 0)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
-        buffered_data_source = display_specifier.buffered_data_source
-        if display and buffered_data_source:
+        if display:
             display.graphic_selection.clear()
-            region = Region.RectRegion()
+            region = Graphics.RectangleGraphic()
             region.bounds = bounds
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
-            return graphic
+            display.add_graphic(region)
+            display.graphic_selection.set(display.graphics.index(region))
+            return region
         return None
 
     def create_ellipse(self, pos):
         bounds = tuple(pos), (0, 0)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
-        buffered_data_source = display_specifier.buffered_data_source
-        if display and buffered_data_source:
+        if display:
             display.graphic_selection.clear()
-            region = Region.EllipseRegion()
+            region = Graphics.EllipseGraphic()
             region.bounds = bounds
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
-            return graphic
+            display.add_graphic(region)
+            display.graphic_selection.set(display.graphics.index(region))
+            return region
         return None
 
     def create_line(self, pos):
         pos = tuple(pos)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
-        buffered_data_source = display_specifier.buffered_data_source
-        if display and buffered_data_source:
+        display = display_specifier.display
+        if display:
             display.graphic_selection.clear()
-            region = Region.LineRegion()
+            region = Graphics.LineGraphic()
             region.start = pos
             region.end = pos
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
-            return graphic
+            display.add_graphic(region)
+            display.graphic_selection.set(display.graphics.index(region))
+            return region
         return None
 
     def create_point(self, pos):
         pos = tuple(pos)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
-        buffered_data_source = display_specifier.buffered_data_source
-        if display and buffered_data_source:
+        if display:
             display.graphic_selection.clear()
-            region = Region.PointRegion()
+            region = Graphics.PointGraphic()
             region.position = pos
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
-            return graphic
+            display.add_graphic(region)
+            display.graphic_selection.set(display.graphics.index(region))
+            return region
         return None
 
     def create_line_profile(self, pos):
         pos = tuple(pos)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
-        buffered_data_source = display_specifier.buffered_data_source
-        if display and buffered_data_source:
+        if display:
             display.graphic_selection.clear()
-            line_profile_region = Region.LineRegion()
+            line_profile_region = Graphics.LineProfileGraphic()
             line_profile_region.start = pos
             line_profile_region.end = pos
-            buffered_data_source.add_region(line_profile_region)
+            display.add_graphic(line_profile_region)
             self.__delegate.display_line_profile(self.__data_item, line_profile_region)
-            return line_profile_region.graphic
+            return line_profile_region
         return None
 
 
@@ -962,7 +954,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
                     display_panel_content.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
 
-                def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Region.LineRegion):
+                def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
                     document_controller = display_panel_content.document_controller
                     document_model = document_controller.document_model
                     line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)

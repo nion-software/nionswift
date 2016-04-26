@@ -14,11 +14,12 @@ import threading
 import weakref
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.data import Context
 from nion.data import DataAndMetadata
+from nion.swift.model import Graphics
 from nion.ui import Converter
 from nion.ui import Event
 from nion.ui import Observable
@@ -34,11 +35,9 @@ def region_by_uuid(context, region_uuid):
 
 
 def region_mask(data_and_metadata, region):
-    import numpy
-    from nion.swift.model import Region
     data_shape = data_and_metadata.data_shape[-2:]
     mask = numpy.zeros(data_shape)
-    if isinstance(region, Region.RectRegion):
+    if isinstance(region, Graphics.RectangleTypeGraphic):
         bounds = region.bounds
         bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])),
             (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
@@ -267,9 +266,10 @@ class ComputationContext(object):
         """Supports region lookup by uuid."""
         for data_item in self.__context.data_items:
             for data_source in data_item.data_sources:
-                for region in data_source.regions:
-                    if region.uuid == region_uuid:
-                        return self.__context.get_object_specifier(region)
+                for display in data_source.displays:
+                    for region in display.graphics:
+                        if region.uuid == region_uuid:
+                            return self.__context.get_object_specifier(region)
         return None
 
     def resolve_object_specifier(self, object_specifier):

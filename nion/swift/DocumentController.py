@@ -27,8 +27,8 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
+from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
 from nion.ui import Event
@@ -39,24 +39,7 @@ _ = gettext.gettext
 
 
 class DocumentController:
-
-    """
-    Manage a document window.
-
-    Operations
-
-    Operations can be applied to the selected data item (as selected in a pane or an item in the data panel.
-
-    If an operation can operate on a region and a suitable region is selected, the operation will operate on
-    the region.
-
-    If an operation must operate on a region and a suitable region is not selected, a default region will be
-    created and the operation will operate on that region.
-
-    If an operation can operate on multiple data items and multiple data items are selected in the data panel,
-    the operation will operate on all of them. The data panel will keep track of the primary data item and
-    the others will be unordered past that. The same region rules apply.
-    """
+    """Manage a document window."""
 
     # document_window is passed from the application container.
     # the next method to be called will be initialize.
@@ -279,11 +262,11 @@ class DocumentController:
 
 
         # these are temporary menu items, so don't need to assign them to variables, for now
-        self.processing_menu.add_menu_item(_("Add Line Region"), lambda: self.add_line_region())
-        self.processing_menu.add_menu_item(_("Add Ellipse Region"), lambda: self.add_ellipse_region())
-        self.processing_menu.add_menu_item(_("Add Rectangle Region"), lambda: self.add_rectangle_region())
-        self.processing_menu.add_menu_item(_("Add Point Region"), lambda: self.add_point_region())
-        self.processing_menu.add_menu_item(_("Add Interval Region"), lambda: self.add_interval_region())
+        self.processing_menu.add_menu_item(_("Add Line Graphic"), lambda: self.add_line_graphic())
+        self.processing_menu.add_menu_item(_("Add Ellipse Graphic"), lambda: self.add_ellipse_graphic())
+        self.processing_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
+        self.processing_menu.add_menu_item(_("Add Point Graphic"), lambda: self.add_point_graphic())
+        self.processing_menu.add_menu_item(_("Add Interval Graphic"), lambda: self.add_interval_graphic())
         self.processing_menu.add_separator()
 
         self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+S")
@@ -802,70 +785,60 @@ class DocumentController:
             assert data_group in container.data_groups
             container.remove_data_group(data_group)
 
-    def add_line_region(self):
+    def add_line_graphic(self):
         display_specifier = self.selected_display_specifier
         if display_specifier:
-            buffered_data_source = display_specifier.buffered_data_source
             display = display_specifier.display
-            region = Region.LineRegion()
-            region.start = (0.2, 0.2)
-            region.end = (0.8, 0.8)
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
+            graphic = Graphics.LineGraphic()
+            graphic.start = (0.2, 0.2)
+            graphic.end = (0.8, 0.8)
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
 
-    def add_rectangle_region(self):
+    def add_rectangle_graphic(self):
         display_specifier = self.selected_display_specifier
         if display_specifier:
-            buffered_data_source = display_specifier.buffered_data_source
             display = display_specifier.display
-            region = Region.RectRegion()
-            region.bounds = ((0.25,0.25), (0.5,0.5))
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
 
-    def add_ellipse_region(self):
+    def add_ellipse_graphic(self):
         display_specifier = self.selected_display_specifier
         if display_specifier:
-            buffered_data_source = display_specifier.buffered_data_source
             display = display_specifier.display
-            region = Region.EllipseRegion()
-            region.bounds = ((0.25,0.25), (0.5,0.5))
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
+            graphic = Graphics.EllipseGraphic()
+            graphic.bounds = ((0.25,0.25), (0.5,0.5))
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
 
-    def add_point_region(self):
+    def add_point_graphic(self):
         display_specifier = self.selected_display_specifier
         if display_specifier:
-            buffered_data_source = display_specifier.buffered_data_source
             display = display_specifier.display
-            region = Region.PointRegion()
-            region.position = (0.5,0.5)
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
+            graphic = Graphics.PointGraphic()
+            graphic.position = (0.5,0.5)
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
 
-    def add_interval_region(self):
+    def add_interval_graphic(self):
         display_specifier = self.selected_display_specifier
         if display_specifier:
-            buffered_data_source = display_specifier.buffered_data_source
             display = display_specifier.display
-            region = Region.IntervalRegion()
-            region.start = 0.25
-            region.end = 0.75
-            buffered_data_source.add_region(region)
-            graphic = region.graphic
-            display.graphic_selection.set(display.drawn_graphics.index(graphic))
+            graphic = Graphics.IntervalGraphic()
+            graphic.start = 0.25
+            graphic.end = 0.75
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
 
@@ -874,9 +847,9 @@ class DocumentController:
         if display_specifier:
             display = display_specifier.display
             if display.graphic_selection.has_selection:
-                graphics = [display.drawn_graphics[index] for index in display.graphic_selection.indexes]
+                graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
                 for graphic in graphics:
-                    display.remove_drawn_graphic(graphic)
+                    display.remove_graphic(graphic)
                 return True
         return False
 
@@ -906,17 +879,17 @@ class DocumentController:
         if inspector_panel is not None:
             inspector_panel.request_focus = True
 
-    def __get_crop_region(self, display_specifier):
-        crop_region = None
+    def __get_crop_graphic(self, display_specifier):
+        crop_graphic = None
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
             display = display_specifier.display
             current_index = display.graphic_selection.current_index
             if current_index is not None:
-                region = display.drawn_graphics[current_index].region
-                if isinstance(region, Region.RectRegion):
-                    crop_region = region
-        return crop_region
+                graphic = display.graphics[current_index]
+                if isinstance(graphic, Graphics.RectangleTypeGraphic):
+                    crop_graphic = graphic
+        return crop_graphic
 
     def processing_fft(self):
         return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_fft_new))
@@ -1017,9 +990,9 @@ class DocumentController:
         if len(selected_data_items) == 2:
             display_specifier1 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
             display_specifier2 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[1])
-            crop_region1 = self.__get_crop_region(display_specifier1)
-            crop_region2 = self.__get_crop_region(display_specifier2)
-            data_item = self.document_model.get_cross_correlate_new(display_specifier1.data_item, display_specifier2.data_item, crop_region1, crop_region2)
+            crop_graphic1 = self.__get_crop_graphic(display_specifier1)
+            crop_graphic2 = self.__get_crop_graphic(display_specifier2)
+            data_item = self.document_model.get_cross_correlate_new(display_specifier1.data_item, display_specifier2.data_item, crop_graphic1, crop_graphic2)
             if data_item:
                 new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 self.display_data_item(new_display_specifier)
@@ -1028,8 +1001,8 @@ class DocumentController:
 
     def __processing_new(self, fn):
         display_specifier = self.selected_display_specifier
-        crop_region = self.__get_crop_region(display_specifier)
-        data_item = fn(display_specifier.data_item, crop_region)
+        crop_graphic = self.__get_crop_graphic(display_specifier)
+        data_item = fn(display_specifier.data_item, crop_graphic)
         if data_item:
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.display_data_item(new_display_specifier)
@@ -1073,8 +1046,8 @@ class DocumentController:
         if display:
             current_index = display.graphic_selection.current_index
             if current_index is not None:
-                region = display.drawn_graphics[current_index].region
-                uuid_str = str(region.uuid)
+                graphic = display.graphics[current_index]
+                uuid_str = str(graphic.uuid)
                 self.ui.clipboard_set_text(uuid_str)
                 return
         if data_item:

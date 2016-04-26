@@ -27,10 +27,10 @@ from nion.data import Calibration as CalibrationModule
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DataItem as DataItemModule
+from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
-from nion.swift.model import Region as RegionModule
 from nion.swift.model import Utility
 from nion.swift import Application as ApplicationModule
 from nion.swift import Panel as PanelModule
@@ -78,25 +78,19 @@ class ObjectSpecifier(object):
             return DataItem(document_model.get_data_item_by_uuid(uuid.UUID(object_uuid_str)))
         elif object_type == "data_group":
             return DataGroup(document_model.get_data_group_by_uuid(uuid.UUID(object_uuid_str)))
-        elif object_type == "region":
+        elif object_type in ("region", "graphic"):
             for data_item in document_model.data_items:
                 for data_source in data_item.data_sources:
-                    for region in data_source.regions:
-                        if region.uuid == object_uuid:
-                            return region
+                    for display in data_source.displays:
+                        for region in display.graphics:
+                            if region.uuid == object_uuid:
+                                return region
         elif object_type == "display":
             for data_item in document_model.data_items:
                 for data_source in data_item.data_sources:
                     for display in data_source.displays:
                         if display.uuid == object_uuid:
                             return display
-        elif object_type == "graphic":
-            for data_item in document_model.data_items:
-                for data_source in data_item.data_sources:
-                    for display in data_source.displays:
-                        for graphic in display.drawn_graphics:
-                            if graphic.uuid == object_uuid:
-                                return graphic
         elif object_type == "hardware_source":
             return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
         elif object_type == "instrument":
@@ -442,6 +436,15 @@ class Panel(PanelModule.Panel):
 
 class Region(object):
 
+    region_to_graphic_type_map = {
+        "point-graphic": "point-region",
+        "rect-graphic": "rectangle-region",
+        "ellipse-graphic": "ellipse-region",
+        "line-graphic": "line-region",
+        "line-profile-graphic": "line-region",
+        "interval-graphic": "interval-region",
+    }
+
     def __init__(self, region):
         self.__region = region
 
@@ -455,7 +458,7 @@ class Region(object):
 
     @property
     def type(self):
-        return self.__region.type
+        return Region.region_to_graphic_type_map.get(self.__region.type)
 
     @property
     def label(self):
@@ -597,7 +600,7 @@ class DataItem(object):
 
     @property
     def regions(self):
-        return [Region(region) for region in self.__data_item.maybe_data_source.regions]
+        return [Region(region) for region in self.__data_item.maybe_data_source.displays[0].graphics]
 
     @property
     def display(self):
@@ -615,41 +618,41 @@ class DataItem(object):
 
         Scriptable: Yes
         """
-        region = RegionModule.PointRegion()
+        region = Graphics.PointGraphic()
         region.position = Geometry.FloatPoint(y, x)
-        self.__data_item.maybe_data_source.add_region(region)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
     def add_rectangle_region(self, center_y, center_x, height, width):
-        region = RegionModule.RectRegion()
+        region = Graphics.RectangleGraphic()
         region.center = Geometry.FloatPoint(center_y, center_x)
         region.size = Geometry.FloatSize(height, width)
-        self.__data_item.maybe_data_source.add_region(region)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
     def add_ellipse_region(self, center_y, center_x, height, width):
-        region = RegionModule.EllipseRegion()
+        region = Graphics.EllipseGraphic()
         region.center = Geometry.FloatPoint(center_y, center_x)
         region.size = Geometry.FloatSize(height, width)
-        self.__data_item.maybe_data_source.add_region(region)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
     def add_line_region(self, start_y, start_x, end_y, end_x):
-        region = RegionModule.LineRegion()
+        region = Graphics.LineGraphic()
         region.start = Geometry.FloatPoint(start_y, start_x)
         region.end = Geometry.FloatPoint(end_y, end_x)
-        self.__data_item.maybe_data_source.add_region(region)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
     def add_interval_region(self, start, end):
-        region = RegionModule.IntervalRegion()
+        region = Graphics.IntervalGraphic()
         region.start = start
         region.end = end
-        self.__data_item.maybe_data_source.add_region(region)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
     def remove_region(self, region):
-        self.__data_item.maybe_data_source.remove_region(region._region)
+        self.__data_item.maybe_data_source.displays[0].remove_graphic(region._region)
 
     def data_item_to_svg(self):
 
@@ -798,7 +801,7 @@ class Display(object):
 
     @property
     def graphics(self):
-        return [Graphic(graphic) for graphic in self.__display.drawn_graphics]
+        return [Graphic(graphic) for graphic in self.__display.graphics]
 
     @property
     def data_item(self):

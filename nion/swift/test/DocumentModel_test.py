@@ -14,7 +14,7 @@ from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.ui import Test
 
 
@@ -105,12 +105,12 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             line_profile_data_item = document_model.get_line_profile_new(data_item)
-            self.assertEqual(len(data_item.maybe_data_source.regions[0].interval_descriptors), 0)
-            interval = Region.IntervalRegion()
+            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics[0].interval_descriptors), 0)
+            interval = Graphics.IntervalGraphic()
             interval.interval = 0.3, 0.6
-            line_profile_data_item.maybe_data_source.add_region(interval)
-            self.assertEqual(len(data_item.maybe_data_source.regions[0].interval_descriptors), 1)
-            self.assertEqual(data_item.maybe_data_source.regions[0].interval_descriptors[0]["interval"], interval.interval)
+            line_profile_data_item.maybe_data_source.displays[0].add_graphic(interval)
+            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics[0].interval_descriptors), 1)
+            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].interval_descriptors[0]["interval"], interval.interval)
 
     def test_processing_pick_configures_in_and_out_regions_and_connection(self):
         document_model = DocumentModel.DocumentModel()
@@ -119,22 +119,22 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             pick_data_item = document_model.get_pick_new(data_item)
-            self.assertEqual(len(data_item.maybe_data_source.regions), 1)
+            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics), 1)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(pick_data_item.maybe_data_source.data, d[:, 4, 4]))
-            data_item.maybe_data_source.regions[0].position = 0, 0
+            data_item.maybe_data_source.displays[0].graphics[0].position = 0, 0
             document_model.recompute_all()
             self.assertFalse(numpy.array_equal(pick_data_item.maybe_data_source.data, d[:, 4, 4]))
             self.assertTrue(numpy.array_equal(pick_data_item.maybe_data_source.data, d[:, 0, 0]))
-            self.assertEqual(pick_data_item.maybe_data_source.regions[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
+            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
             interval1 = 5 / d.shape[0], 8 / d.shape[0]
-            pick_data_item.maybe_data_source.regions[0].interval = interval1
-            self.assertEqual(pick_data_item.maybe_data_source.regions[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
-            self.assertEqual(pick_data_item.maybe_data_source.regions[0].interval, interval1)
+            pick_data_item.maybe_data_source.displays[0].graphics[0].interval = interval1
+            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
+            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, interval1)
             interval2 = 10 / d.shape[0], 15 / d.shape[0]
             data_item.maybe_data_source.displays[0].slice_interval = interval2
-            self.assertEqual(pick_data_item.maybe_data_source.regions[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
-            self.assertEqual(pick_data_item.maybe_data_source.regions[0].interval, interval2)
+            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
+            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, interval2)
 
 if __name__ == '__main__':
     unittest.main()

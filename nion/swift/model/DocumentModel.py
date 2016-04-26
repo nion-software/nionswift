@@ -25,9 +25,9 @@ from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
-from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
@@ -397,13 +397,14 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
             self.__migrate_to_v7(reader_info_list)
             self.__migrate_to_v8(reader_info_list)
             self.__migrate_to_v9(reader_info_list)
+            self.__migrate_to_v10(reader_info_list)
         for reader_info in reader_info_list:
             properties = reader_info.properties
             changed_ref = reader_info.changed_ref
             persistent_storage_handler = reader_info.persistent_storage_handler
             try:
                 version = properties.get("version", 0)
-                if self.__ignore_older_files and version != 9:
+                if self.__ignore_older_files and version != 10:
                     version = 9999
                 if changed_ref[0]:
                     persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
@@ -431,6 +432,76 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         data_items.sort(key=sort_by_date_key)
         return data_items
 
+    def __migrate_to_v10(self, reader_info_list):
+        translate_region_type = {"point-region": "point-graphic", "line-region": "line-profile-graphic", "rectangle-region": "rect-graphic", "ellipse-region": "ellipse-graphic",
+            "interval-region": "interval-graphic"}
+        for reader_info in reader_info_list:
+            persistent_storage_handler = reader_info.persistent_storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 9:
+                    reader_info.changed_ref[0] = True
+                    # import pprint
+                    # pprint.pprint(properties)
+                    for data_source in properties.get("data_sources", list()):
+                        displays = data_source.get("displays", list())
+                        if len(displays) > 0:
+                            display = displays[0]
+                            for region in data_source.get("regions", list()):
+                                graphic = dict()
+                                graphic["type"] = translate_region_type[region["type"]]
+                                graphic["uuid"] = region["uuid"]
+                                region_id = region.get("region_id")
+                                if region_id is not None:
+                                    graphic["graphic_id"] = region_id
+                                label = region.get("label")
+                                if label is not None:
+                                    graphic["label"] = label
+                                is_position_locked = region.get("is_position_locked")
+                                if is_position_locked is not None:
+                                    graphic["is_position_locked"] = is_position_locked
+                                is_shape_locked = region.get("is_shape_locked")
+                                if is_shape_locked is not None:
+                                    graphic["is_shape_locked"] = is_shape_locked
+                                is_bounds_constrained = region.get("is_bounds_constrained")
+                                if is_bounds_constrained is not None:
+                                    graphic["is_bounds_constrained"] = is_bounds_constrained
+                                center = region.get("center")
+                                size = region.get("size")
+                                if center is not None and size is not None:
+                                    graphic["bounds"] = (center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), (size[0], size[1])
+                                start = region.get("start")
+                                if start is not None:
+                                    graphic["start"] = start
+                                end = region.get("end")
+                                if end is not None:
+                                    graphic["end"] = end
+                                width = region.get("width")
+                                if width is not None:
+                                    graphic["width"] = width
+                                position = region.get("position")
+                                if position is not None:
+                                    graphic["position"] = position
+                                interval = region.get("interval")
+                                if interval is not None:
+                                    graphic["interval"] = interval
+                                display.setdefault("graphics", list()).append(graphic)
+                        data_source.pop("regions", None)
+                    for connection in properties.get("connections", list()):
+                        if connection.get("type") == "interval-list-connection":
+                            connection["source_uuid"] = properties["data_sources"][0]["displays"][0]["uuid"]
+                    # pprint.pprint(properties)
+                    # version 9 -> 10 merges regions into graphics.
+                    properties["version"] = 10
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (regions merged into graphics)", persistent_storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+
     def __migrate_to_v9(self, reader_info_list):
         data_source_uuid_to_data_item_uuid = dict()
         for reader_info in reader_info_list:
@@ -454,7 +525,6 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 if version == 8:
                     reader_info.changed_ref[0] = True
                     # version 8 -> 9 changes operations to computations
-                    # adjust the extra_high_tension tag.
                     data_source_dicts = properties.get("data_sources", list())
                     for data_source_dict in data_source_dicts:
                         metadata = data_source_dict.get("metadata", dict())
@@ -1147,10 +1217,11 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
             region = bound_region.value
             for data_item in self.data_items:
                 for data_source in data_item.data_sources:
-                    if region in data_source.regions:
-                        if not region._about_to_be_removed:  # HACK! to handle document closing. Argh.
-                            data_source.remove_region(region)
-                            break
+                    for display in data_source.displays:
+                        if region in display.graphics:
+                            if not region._about_to_be_removed:  # HACK! to handle document closing. Argh.
+                                display.remove_graphic(region)
+                                break
 
     def __handle_dependency_action(self, data_item):
         for action, target_data_item in data_item._get_pending_dependent_data_items():
@@ -1510,7 +1581,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
                 return {"version": 1, "type": "data_item", "uuid": str(object.uuid), "property": property_name}
             else:
                 return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
-        elif isinstance(object, Region.Region):
+        elif isinstance(object, Graphics.Graphic):
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
         return None
 
@@ -1610,29 +1681,30 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 for data_item in self.data_items:
                     for data_source in data_item.data_sources:
-                        for region in data_source.regions:
-                            if region.uuid == object_uuid:
-                                class BoundRegion(object):
-                                    def __init__(self, object):
-                                        self.__object = object
-                                        self.changed_event = Event.Event()
-                                        self.deleted_event = Event.Event()
-                                        def remove_region():
-                                            self.deleted_event.fire()
-                                        self.__remove_region_because_graphic_removed_listener = self.__object.remove_region_because_graphic_removed_event.listen(remove_region)
-                                        def property_changed(property_name_being_changed, value):
-                                            self.changed_event.fire()
-                                        self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
-                                    def close(self):
-                                        self.__property_changed_listener.close()
-                                        self.__property_changed_listener = None
-                                        self.__remove_region_because_graphic_removed_listener.close()
-                                        self.__remove_region_because_graphic_removed_listener = None
-                                    @property
-                                    def value(self):
-                                        return self.__object
-                                if region:
-                                    return BoundRegion(region)
+                        for display in data_source.displays:
+                            for region in display.graphics:
+                                if region.uuid == object_uuid:
+                                    class BoundRegion(object):
+                                        def __init__(self, display, object):
+                                            self.__object = object
+                                            self.changed_event = Event.Event()
+                                            self.deleted_event = Event.Event()
+                                            def remove_region(region):
+                                                self.deleted_event.fire()
+                                            self.__remove_region_listener = display.display_graphic_will_remove_event.listen(remove_region)
+                                            def property_changed(property_name_being_changed, value):
+                                                self.changed_event.fire()
+                                            self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
+                                        def close(self):
+                                            self.__property_changed_listener.close()
+                                            self.__property_changed_listener = None
+                                            self.__remove_region_listener.close()
+                                            self.__remove_region_listener = None
+                                        @property
+                                        def value(self):
+                                            return self.__object
+                                    if region:
+                                        return BoundRegion(display, region)
         return None
 
     class DataItemReference:
@@ -1839,6 +1911,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
         data_items = [source.data_item for source in sources]
         display_specifiers = [DataItem.DisplaySpecifier.from_data_item(data_item) for data_item in data_items]
         buffered_data_sources = [display_specifier.buffered_data_source for display_specifier in display_specifiers]
+        displays = [display_specifier.display for display_specifier in display_specifiers]
         for source, buffered_data_source in zip(sources, buffered_data_sources):
             for requirement in source.requirements or list():
                 if requirement.type == "dimensionality":
@@ -1857,7 +1930,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
             crop_names = list()
             regions = list()
             region_map = dict()
-            for i, (source, buffered_data_source) in enumerate(zip(sources, buffered_data_sources)):
+            for i, (source, display) in enumerate(zip(sources, displays)):
                 suffix = i if len(sources) > 1 else ""
                 src_name = source.name if source.name else "src{}".format(suffix)
                 src_text = "{}.{}".format(src_name, "display_data" if source.use_display_data else "data")
@@ -1872,44 +1945,44 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
                         if region.region:
                             point_region = region.region
                         else:
-                            point_region = Region.PointRegion()
+                            point_region = Graphics.PointGraphic()
                             for k, v in region_params.items():
                                 setattr(point_region, k, v)
-                            buffered_data_source.add_region(point_region)
+                            display.add_graphic(point_region)
                         regions.append((region.name, point_region, region_params.get("label")))
                         region_map[region.name] = point_region
                     elif region.type == "line":
                         if region.region:
                             line_region = region.region
                         else:
-                            line_region = Region.LineRegion()
+                            line_region = Graphics.LineProfileGraphic()
                             line_region.start = 0.25, 0.25
                             line_region.end = 0.75, 0.75
                             for k, v in region_params.items():
                                 setattr(line_region, k, v)
-                            buffered_data_source.add_region(line_region)
+                            display.add_graphic(line_region)
                         regions.append((region.name, line_region, region_params.get("label")))
                         region_map[region.name] = line_region
                     elif region.type == "rectangle":
                         if region.region:
                             rect_region = region.region
                         else:
-                            rect_region = Region.RectRegion()
+                            rect_region = Graphics.RectangleGraphic()
                             rect_region.center = 0.5, 0.5
                             rect_region.size = 0.5, 0.5
                             for k, v in region_params.items():
                                 setattr(rect_region, k, v)
-                            buffered_data_source.add_region(rect_region)
+                            display.add_graphic(rect_region)
                         regions.append((region.name, rect_region, region_params.get("label")))
                         region_map[region.name] = rect_region
                     elif region.type == "interval":
                         if region.region:
                             interval_region = region.region
                         else:
-                            interval_region = Region.IntervalRegion()
+                            interval_region = Graphics.IntervalGraphic()
                             for k, v in region_params.items():
                                 setattr(interval_region, k, v)
-                            buffered_data_source.add_region(interval_region)
+                            display.add_graphic(interval_region)
                         regions.append((region.name, interval_region, region_params.get("label")))
                         region_map[region.name] = interval_region
             expression = fn_template.format(**dict(zip(src_names, src_texts)))
@@ -1930,14 +2003,15 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
             new_data_item.append_data_source(buffered_data_source)
             buffered_data_source.set_computation(computation)
             self.append_data_item(new_data_item)
+            display = buffered_data_source.displays[0]
             new_regions = dict()
             for region in out_regions or list():
                 region_params = region.params or dict()
                 if region.type == "interval":
-                    interval_region = Region.IntervalRegion()
+                    interval_region = Graphics.IntervalGraphic()
                     for k, v in region_params.items():
                         setattr(interval_region, k, v)
-                    buffered_data_source.add_region(interval_region)
+                    display.add_graphic(interval_region)
                     new_regions[region.name] = interval_region
             for connection in connections or list():
                 if connection.type == "property":
@@ -1945,95 +2019,95 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
                         # TODO: how to refer to the buffered_data_sources?
                         new_data_item.add_connection(Connection.PropertyConnection(buffered_data_sources[0].displays[0], connection.src_prop, new_regions[connection.dst], connection.dst_prop))
                 elif connection.type == "interval_list":
-                    new_data_item.add_connection(Connection.IntervalListConnection(buffered_data_source, region_map[connection.dst]))
+                    new_data_item.add_connection(Connection.IntervalListConnection(display, region_map[connection.dst]))
             return new_data_item
         return None
 
-    def get_fft_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_fft_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         return self.__get_processing_new("fft({src})", [src], [], _("FFT"), "fft")
 
-    def get_ifft_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_ifft_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False)
         return self.__get_processing_new("ifft({src})", [src], [], _("Inverse FFT"), "inverse-fft")
 
-    def get_auto_correlate_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_auto_correlate_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         return self.__get_processing_new("autocorrelate({src})", [src], [], _("Auto Correlate"), "auto-correlate")
 
-    def get_cross_correlate_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Region.RectRegion=None, crop_region2: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_cross_correlate_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src1 = DocumentModel.make_source(data_item1, crop_region1, "src1", _("Source1"))
         src2 = DocumentModel.make_source(data_item2, crop_region2, "src2", _("Source2"))
         return self.__get_processing_new("crosscorrelate({src1}, {src2})", [src1, src2], [], _("Cross Correlate"), "cross-correlate")
 
-    def get_sobel_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_sobel_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         return self.__get_processing_new("sobel({src})", [src], [], _("Sobel"), "sobel")
 
-    def get_laplace_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_laplace_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         return self.__get_processing_new("laplace({src})", [src], [], _("Laplace"), "laplace")
 
-    def get_gaussian_blur_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_gaussian_blur_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("sigma", _("Sigma"), "real", 3, value_default=3, value_min=0, value_max=100, control_type="slider")
         return self.__get_processing_new("gaussian_blur({src}, sigma)", [src], [param], _("Gaussian Blur"), "gaussian-blur")
 
-    def get_median_filter_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_median_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
         return self.__get_processing_new("median_filter({src}, filter_size)", [src], [param], _("Median Filter"), "median-filter")
 
-    def get_uniform_filter_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_uniform_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
         return self.__get_processing_new("uniform_filter({src}, filter_size)", [src], [param], _("Uniform Filter"), "uniform-filter")
 
-    def get_transpose_flip_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_transpose_flip_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param1 = DocumentModel.make_parameter("do_transpose", _("Transpose"), "boolean", False, value_default=False)
         param2 = DocumentModel.make_parameter("do_flip_v", _("Flip Vertical"), "boolean", False, value_default=False)
         param3 = DocumentModel.make_parameter("do_flip_h", _("Flip Horizontal"), "boolean", False, value_default=False)
         return self.__get_processing_new("transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", [src], [param1, param2, param3], _("Transpose/Flip"), "transpose-flip")
 
-    def get_resample_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_resample_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param1 = DocumentModel.make_parameter("width", _("Width"), "integral", 256, value_default=256, value_min=1)
         param2 = DocumentModel.make_parameter("height", _("Height"), "integral", 256, value_default=256, value_min=1)
         return self.__get_processing_new("resample_image({src}, shape(height, width))", [src], [param1, param2], _("Resample"), "resample")
 
-    def get_histogram_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_histogram_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         param = DocumentModel.make_parameter("bins", _("Bins"), "integral", 256, value_default=256, value_min=2)
         return self.__get_processing_new("histogram({src}, bins)", [src], [param], _("Histogram"), "histogram")
 
-    def get_invert_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_invert_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         return self.__get_processing_new("invert({src})", [src], [], _("Invert"), "invert")
 
-    def get_convert_to_scalar_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_convert_to_scalar_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
         return self.__get_processing_new("{src}", [src], [], _("Scalar"), "convert-to-scalar")
 
-    def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
         in_region = DocumentModel.make_region("crop_region", "rectangle", crop_region, {"label": _("Crop Region")})
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("crop({src}, crop_region.bounds)", [src], [], _("Crop"), "crop")
 
-    def get_projection_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_projection_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
         return self.__get_processing_new("sum({src}, 0)", [src], [], _("Sum"), "sum")
 
-    def get_slice_sum_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None) -> DataItem.DataItem:
+    def get_slice_sum_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
         src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
         param1 = DocumentModel.make_parameter("center", _("Center"), "integral", 0, value_default=0, value_min=0)
         param2 = DocumentModel.make_parameter("width", _("Width"), "integral", 1, value_default=1, value_min=1)
         return self.__get_processing_new("slice_sum({src}, center, width)", [src], [param1, param2], _("Slice"), "slice")
 
-    def get_pick_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, pick_region: Region.PointRegion=None) -> DataItem.DataItem:
+    def get_pick_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.PointTypeGraphic=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
         in_region = DocumentModel.make_region("pick_region", "point", pick_region, {"label": _("Pick Point")})
         out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
@@ -2041,7 +2115,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Pick"), "pick-point", out_regions=[out_region], connections=[connection])
 
-    def get_pick_region_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, pick_region: Region.Region=None) -> DataItem.DataItem:
+    def get_pick_region_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
         requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
         in_region = DocumentModel.make_region("region", "rectangle", pick_region, {"label": _("Pick Region")})
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
@@ -2049,7 +2123,7 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
         return self.__get_processing_new("sum({src} * region_mask({src}, region)[newaxis, ...], tuple(range(1, len(data_shape({src})))))", [src], [], _("Pick Sum"), "pick-mask-sum", out_regions=[out_region], connections=[connection])
 
-    def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Region.RectRegion=None, line_region: Region.LineRegion=None) -> DataItem.DataItem:
+    def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
         in_region = DocumentModel.make_region("line_region", "line", line_region, {"label": _("Line Profile")})
         connection = DocumentModel.make_connection("interval_list", src="data_source", dst="line_region")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region])

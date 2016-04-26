@@ -19,7 +19,6 @@ from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import Display
-from nion.swift.model import Region
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import Event
@@ -76,11 +75,6 @@ class CalibrationList(object):
     keeps track of that so as to maintain the dependent_data_item list on data items.
 
     set_dependent_data_item(data_item)
-
-    Data sources, particularly operations, may have associated regions. When a region is deleted, it will
-    notify its listeners that it is being removed via this method.
-
-    remove_region(region)
 
     Data sources can subscribe to other data items becoming available via the data item manager.
 
@@ -167,8 +161,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
-        self.define_relationship("regions", Region.region_factory, insert=self.__insert_region, remove=self.__remove_region)
-        self.__remove_region_listeners = list()
         self.__request_remove_listener = None
         self.__data = None
         self.__data_lock = threading.RLock()
@@ -185,7 +177,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.computation_changed_or_mutated_event = Event.Event()  # outgoing message
         self.data_and_metadata_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
-        self.request_remove_data_item_because_operation_removed_event = Event.Event()
+        self.request_remove_data_item_because_computation_removed_event = Event.Event()
         self.request_remove_region_because_data_item_removed_event = Event.Event()
         if data is not None:
             self.__set_data(data)
@@ -198,12 +190,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
-        for region in self.regions:
-            self.__disconnect_region(0, region)
-            region.close()
-        self.__remove_region_listeners = None
         for display in self.displays:
-            self.__disconnect_display(display)
             display.close()
         if self.__computation_mutated_event_listener:
             self.__computation_mutated_event_listener.close()
@@ -216,8 +203,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
-        for region in self.regions:
-            region.about_to_be_removed()
         for display in self.displays:
             display.about_to_be_removed()
         if self.computation:
@@ -249,11 +234,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             self.remove_display(display)
         for display in buffered_data_source.displays:
             self.add_display(copy.deepcopy(display))
-        # regions
-        for region in self.regions:
-            self.remove_region(region)
-        for region in buffered_data_source.regions:
-            self.add_region(copy.deepcopy(region))
         # data
         if buffered_data_source.has_data:
             self.__set_data(numpy.copy(buffered_data_source.data))
@@ -280,8 +260,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     def read_from_dict(self, properties):
         for display in self.displays:
             self.remove_display(display)
-        for region in self.regions:
-            self.remove_region(region)
         super(BufferedDataSource, self).read_from_dict(properties)
 
     def finish_reading(self):
@@ -311,9 +289,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     @property
     def _data_item(self):
         return self.__get_dependent_data_item()
-
-    def will_remove_operation_region(self, region):
-        self.remove_region(region)
 
     def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
@@ -359,7 +334,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 self.computation_changed_or_mutated_event.fire(self, new_computation)
                 self.__metadata_changed()
             def computation_cascade_delete():
-                self.request_remove_data_item_because_operation_removed_event.fire()
+                self.request_remove_data_item_because_computation_removed_event.fire()
             self.__computation_mutated_event_listener = new_computation.computation_mutated_event.listen(computation_mutated)
             self.__computation_cascade_delete_event_listener = new_computation.cascade_delete_event.listen(computation_cascade_delete)
         self.computation_changed_or_mutated_event.fire(self, self.computation)
@@ -454,69 +429,20 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         # override from Cacheable
         for display in self.displays:
             display.storage_cache = storage_cache
-        for region in self.regions:
-            region.storage_cache = storage_cache
 
     def __insert_display(self, name, before_index, display):
         # listen
         display.update_data(self.data_and_calibration)
-        # connect the regions
-        for region in self.regions:
-            region_graphic = region.graphic
-            if region_graphic:
-                display.add_region_graphic(region_graphic)
 
     def __remove_display(self, name, index, display):
         display.about_to_be_removed()
-        self.__disconnect_display(display)# close the display
         display.close()
-
-    def __disconnect_display(self, display):
-        # disconnect the regions
-        for region in self.regions:
-            region_graphic = region.graphic
-            if region_graphic:
-                display.remove_region_graphic(region_graphic)
 
     def add_display(self, display):
         self.append_item("displays", display)
 
     def remove_display(self, display):
         self.remove_item("displays", display)
-
-    def __insert_region(self, name, before_index, region):
-        # listen
-        remove_region_listener = region.remove_region_because_graphic_removed_event.listen(functools.partial(self.remove_region, region))
-        self.__remove_region_listeners.insert(before_index, remove_region_listener)
-        # connect to the displays
-        region_graphic = region.graphic
-        assert region_graphic
-        for display in self.displays:
-            display.add_region_graphic(region_graphic)
-        self.notify_insert_item("region", region, before_index)
-
-    def __remove_region(self, name, index, region):
-        region.about_to_be_removed()
-        self.__disconnect_region(index, region)
-        region.close()
-
-    def __disconnect_region(self, index, region):
-        # disconnect from displays
-        region_graphic = region.graphic
-        assert region_graphic
-        for display in self.displays:
-            display.remove_region_graphic(region_graphic)
-        # and unlisten
-        remove_region_listener = self.__remove_region_listeners[index]
-        remove_region_listener.close()
-        self.__remove_region_listeners.remove(remove_region_listener)
-        self.notify_remove_item("region", region, index)
-
-    def add_region(self, region):
-        self.append_item("regions", region)
-
-    def remove_region(self, region):
-        self.remove_item("regions", region)
 
     @property
     def has_data(self):
@@ -659,7 +585,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 self.__change_changed = False
         # if the change count is now zero, it means that we're ready
         # to pass on the next value.
-        if change_count == 0 and changed:
+        if change_count == 0 and changed and self.__publisher:  # check for publisher helps closing issues during tests
             data_and_calibration = self.data_and_calibration
             self.__publisher.notify_next_value(data_and_calibration)
             self.data_and_metadata_changed_event.fire()
@@ -771,7 +697,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
     Metadata.
     """
 
-    writer_version = 9
+    writer_version = 10
 
     def __init__(self, data=None, item_uuid=None):
         super(DataItem, self).__init__()
@@ -861,6 +787,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
+        self.request_remove_data_item_event = None
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
         assert not self._about_to_be_removed
@@ -1146,11 +1073,12 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         data_source.set_data_item_manager(self.__data_item_manager)
         def notify_request_remove_data_item():
             # this message comes from the operation.
-            # it is generated when the user deletes a operation graphic.
+            # it is generated when the user deletes a graphic.
             # that informs the display which notifies the graphic which
             # notifies the operation which notifies this data item. ugh.
-            self.request_remove_data_item_event.fire(self)
-        request_remove_listener = data_source.request_remove_data_item_because_operation_removed_event.listen(notify_request_remove_data_item)
+            if self.request_remove_data_item_event:
+                self.request_remove_data_item_event.fire(self)
+        request_remove_listener = data_source.request_remove_data_item_because_computation_removed_event.listen(notify_request_remove_data_item)
         self.__request_remove_listeners.insert(before_index, request_remove_listener)
         def request_remove_region(region_specifier):
             self.request_remove_region_event.fire(region_specifier)

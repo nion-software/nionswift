@@ -11,7 +11,7 @@ from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DocumentModel
 from nion.swift.model import DataItem
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.ui import Test
 
 
@@ -133,13 +133,13 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(r4.type, "interval-region")
             r4.set_property("end", 0.3)
             self.assertAlmostEqual(r4.get_property("end"), 0.3)
-            self.assertEqual(len(data_item.maybe_data_source.regions), 4)
-            self.assertEqual(len(data_item_1d.maybe_data_source.regions), 1)
-            self.assertIsInstance(data_item.maybe_data_source.regions[0], Region.PointRegion)
-            self.assertIsInstance(data_item.maybe_data_source.regions[1], Region.RectRegion)
-            self.assertIsInstance(data_item.maybe_data_source.regions[2], Region.EllipseRegion)
-            self.assertIsInstance(data_item.maybe_data_source.regions[3], Region.LineRegion)
-            self.assertIsInstance(data_item_1d.maybe_data_source.regions[0], Region.IntervalRegion)
+            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics), 4)
+            self.assertEqual(len(data_item_1d.maybe_data_source.displays[0].graphics), 1)
+            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[0], Graphics.PointGraphic)
+            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[1], Graphics.RectangleGraphic)
+            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[2], Graphics.EllipseGraphic)
+            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[3], Graphics.LineGraphic)
+            self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[0], Graphics.IntervalGraphic)
 
 
 if __name__ == '__main__':

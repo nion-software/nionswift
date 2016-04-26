@@ -22,7 +22,6 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Region
 from nion.ui import Test
 
 
@@ -69,11 +68,11 @@ class TestStorageClass(unittest.TestCase):
         metadata = data_item.metadata
         metadata.setdefault("test", dict())["one"] = 1
         data_item.set_metadata(metadata)
-        buffered_data_source = DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source
-        buffered_data_source.add_region(Region.PointRegion())
-        buffered_data_source.add_region(Region.LineRegion())
-        buffered_data_source.add_region(Region.RectRegion())
-        buffered_data_source.add_region(Region.EllipseRegion())
+        display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        display.add_graphic(Graphics.PointGraphic())
+        display.add_graphic(Graphics.LineGraphic())
+        display.add_graphic(Graphics.RectangleGraphic())
+        display.add_graphic(Graphics.EllipseGraphic())
         document_controller.document_model.append_data_item(data_item)
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
@@ -96,10 +95,10 @@ class TestStorageClass(unittest.TestCase):
         document_controller.selected_display_panel = display_panel
         display_panel.set_displayed_data_item(data_item)
         self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
-        document_controller.add_line_region()
-        document_controller.add_rectangle_region()
-        document_controller.add_ellipse_region()
-        document_controller.add_point_region()
+        document_controller.add_line_graphic()
+        document_controller.add_rectangle_graphic()
+        document_controller.add_ellipse_graphic()
+        document_controller.add_point_graphic()
         display_panel.set_displayed_data_item(data_item)
         self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
         document_controller.processing_gaussian_blur()
@@ -784,7 +783,7 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
-    def test_reloading_data_item_with_display_builds_drawn_graphics_properly(self):
+    def test_reloading_data_item_with_display_builds_graphics_properly(self):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
@@ -794,7 +793,7 @@ class TestStorageClass(unittest.TestCase):
         read_data_item = document_model.data_items[0]
         read_data_item_uuid = read_data_item.uuid
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-        self.assertEqual(len(read_display_specifier.display.drawn_graphics), 9)  # verify assumptions
+        self.assertEqual(len(read_display_specifier.display.graphics), 9)  # verify assumptions
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
@@ -802,8 +801,8 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         read_data_item = document_model.get_data_item_by_uuid(read_data_item_uuid)
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-        # verify drawn_graphics reload
-        self.assertEqual(len(read_display_specifier.display.drawn_graphics), 9)
+        # verify graphics reload
+        self.assertEqual(len(read_display_specifier.display.graphics), 9)
         # clean up
         document_controller.close()
 
@@ -858,16 +857,16 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             document_model.get_line_profile_new(data_item)
-            data_item.maybe_data_source.regions[0].vector = (0.1, 0.2), (0.3, 0.4)
+            data_item.maybe_data_source.displays[0].graphics[0].vector = (0.1, 0.2), (0.3, 0.4)
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = document_model.data_items[0]
             data_item2 = document_model.data_items[1]
             # verify that properties read it correctly
-            self.assertEqual(data_item.maybe_data_source.regions[0].start, (0.1, 0.2))
-            self.assertEqual(data_item.maybe_data_source.regions[0].end, (0.3, 0.4))
-            data_item.maybe_data_source.regions[0].start = 0.11, 0.22
+            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].start, (0.1, 0.2))
+            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].end, (0.3, 0.4))
+            data_item.maybe_data_source.displays[0].graphics[0].start = 0.11, 0.22
             vector = document_model.resolve_object_specifier(data_item2.maybe_data_source.computation.variables[1].specifier).value.vector
             self.assertEqual(vector[0], (0.11, 0.22))
             self.assertEqual(vector[1], (0.3, 0.4))
@@ -883,7 +882,7 @@ class TestStorageClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         rect_graphic = Graphics.RectangleGraphic()
         rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
-        display_specifier.display.append_graphic(rect_graphic)
+        display_specifier.display.add_graphic(rect_graphic)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
@@ -904,10 +903,10 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
-        point_region = Region.PointRegion()
+        point_region = Graphics.PointGraphic()
         point_region.position = (0.6, 0.4)
         point_region_uuid = point_region.uuid
-        DataItem.DisplaySpecifier.from_data_item(data_item).buffered_data_source.add_region(point_region)
+        DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(point_region)
         document_controller.close()
         # read it back
         storage_cache = Cache.DbStorageCache(cache_name)
@@ -916,9 +915,9 @@ class TestStorageClass(unittest.TestCase):
         read_data_item = document_controller.document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
         # verify
-        self.assertEqual(read_display_specifier.buffered_data_source.regions[0].type, "point-region")
-        self.assertEqual(read_display_specifier.buffered_data_source.regions[0].uuid, point_region_uuid)
-        self.assertEqual(read_display_specifier.buffered_data_source.regions[0].position, (0.6, 0.4))
+        self.assertEqual(read_display_specifier.display.graphics[0].type, "point-graphic")
+        self.assertEqual(read_display_specifier.display.graphics[0].uuid, point_region_uuid)
+        self.assertEqual(read_display_specifier.display.graphics[0].position, (0.6, 0.4))
         # clean up
         document_controller.close()
 
@@ -1029,10 +1028,10 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
         document_model.append_data_item(data_item)
-        crop_region = Region.RectRegion()
+        crop_region = Graphics.RectangleGraphic()
         crop_region.bounds = ((0.25, 0.25), (0.5, 0.5))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.buffered_data_source.add_region(crop_region)
+        display_specifier.display.add_graphic(crop_region)
         display_panel = document_controller.selected_display_panel
         display_panel.set_displayed_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
@@ -1042,10 +1041,10 @@ class TestStorageClass(unittest.TestCase):
             read_data_item = document_model.data_items[0]
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
             computation_bounds = document_model.resolve_object_specifier(document_model.data_items[1].maybe_data_source.computation.variables[1].specifier).value.bounds
-            self.assertEqual(read_display_specifier.buffered_data_source.regions[0].bounds, computation_bounds)
-            read_display_specifier.buffered_data_source.regions[0].bounds = ((0.3, 0.4), (0.5, 0.6))
+            self.assertEqual(read_display_specifier.display.graphics[0].bounds, computation_bounds)
+            read_display_specifier.display.graphics[0].bounds = ((0.3, 0.4), (0.5, 0.6))
             computation_bounds = document_model.resolve_object_specifier(document_model.data_items[1].maybe_data_source.computation.variables[1].specifier).value.bounds
-            self.assertEqual(read_display_specifier.buffered_data_source.regions[0].bounds, computation_bounds)
+            self.assertEqual(read_display_specifier.display.graphics[0].bounds, computation_bounds)
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
@@ -1067,8 +1066,8 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
-            crop_region = Region.RectRegion()
-            data_item.maybe_data_source.add_region(crop_region)
+            crop_region = Graphics.RectangleGraphic()
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
@@ -1085,9 +1084,9 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
-            crop_region = Region.RectRegion()
+            crop_region = Graphics.RectangleGraphic()
             crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
-            data_item.maybe_data_source.add_region(crop_region)
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()
@@ -1103,7 +1102,7 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            read_display_specifier.buffered_data_source.regions[0].bounds = (0.25, 0.25), (0.75, 0.75)
+            read_display_specifier.display.graphics[0].bounds = (0.25, 0.25), (0.75, 0.75)
             document_model.recompute_all()
             self.assertEqual(read_display_specifier2.buffered_data_source.data_shape, (6, 6))
 
@@ -1514,11 +1513,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(computation.expression, "gaussian_blur(crop(src.display_data, crop_region.bounds), sigma)")
             self.assertEqual(len(computation.variables), 3)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
-            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][0], 0.2)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[0][0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[0][1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[1][0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[1][1], 0.5)
             self.assertAlmostEqual(computation.variables[2].bound_variable.value, 1.7)
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
@@ -1681,7 +1680,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(computation.expression, "crop(src.display_data, crop_region.bounds)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
-            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
@@ -1749,11 +1748,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(computation.expression, "sum(crop(src.data, crop_region.bounds), 0)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
-            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][0], 0.2)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[0][0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[0][1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[1][0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[1][1], 0.5)
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
@@ -1821,11 +1820,11 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(computation.expression, "crop(src.display_data, crop_region.bounds)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
-            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][0], 0.2)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[0][1], 0.3)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][0], 0.4)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].bounds[1][1], 0.5)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[0][0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[0][1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[1][0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].bounds[1][1], 0.5)
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
@@ -1934,15 +1933,15 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(computation.expression, "pick(src.data, pick_region.position)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
-            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].position[0], 0.4)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].position[1], 0.5)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].position[0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].position[1], 0.5)
             data = numpy.arange(512).reshape((8, 8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
             data0 = computation.evaluate_data().data
             self.assertIsNone(computation.error_text)
-            document_model.data_items[0].maybe_data_source.regions[0].position = 0.0, 0.0
+            document_model.data_items[0].maybe_data_source.displays[0].graphics[0].position = 0.0, 0.0
             data1 = computation.evaluate_data().data
             self.assertIsNone(computation.error_text)
             self.assertFalse(numpy.array_equal(data0, data1))
@@ -1996,12 +1995,12 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(computation.expression, "line_profile(src.display_data, line_region.vector, line_region.width)")
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
-            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.regions[0])
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].start[0], 0.2)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].start[1], 0.3)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].end[0], 0.4)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].end[1], 0.5)
-            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.regions[0].width, 1.3)
+            self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].start[0], 0.2)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].start[1], 0.3)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].end[0], 0.4)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].end[1], 0.5)
+            self.assertAlmostEqual(document_model.data_items[0].maybe_data_source.displays[0].graphics[0].width, 1.3)
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
@@ -2053,14 +2052,140 @@ class TestStorageClass(unittest.TestCase):
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], data_item.writer_version)
 
+    def test_data_items_v9_to_v10_migration(self):
+        # construct v9 data items with regions, make sure they get translated to graphics
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_dict["uuid"] = str(uuid.uuid4())
+        data_item_dict["version"] = 9
+        data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        data_source_dict["uuid"] = src_uuid_str
+        data_source_dict["type"] = "buffered-data-source"
+        data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_source_dict["data_shape"] = (8, 8)
+        data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        point_uuid_str = str(uuid.uuid4())
+        line_uuid_str = str(uuid.uuid4())
+        rect_uuid_str = str(uuid.uuid4())
+        ellipse_uuid_str = str(uuid.uuid4())
+        interval_uuid_str = str(uuid.uuid4())
+        data_source_dict["regions"] = [
+            {"type": "point-region", "uuid": point_uuid_str, "region_id": "point", "label": "PointR", "position": (0.4, 0.5)},
+            {"type": "line-region", "uuid": line_uuid_str, "region_id": "line", "label": "LineR", "width": 1.3, "start": (0.2, 0.3), "end": (0.4, 0.5)},
+            {"type": "rectangle-region", "uuid": rect_uuid_str, "region_id": "rect", "label": "RectR", "center": (0.4, 0.3), "size": (0.44, 0.33)},
+            {"type": "ellipse-region", "uuid": ellipse_uuid_str, "region_id": "ellipse", "label": "EllipseR", "center": (0.4, 0.3), "size": (0.44, 0.33)},
+            {"type": "interval-region", "uuid": interval_uuid_str, "region_id": "interval", "label": "IntervalR", "start": 0.2, "end": 0.3},
+        ]
+        data_item_dict["data_sources"] = [data_source_dict]
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 1)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+            graphics = display_specifier.display.graphics
+            self.assertEqual(len(graphics), 5)
+            self.assertIsInstance(graphics[0], Graphics.PointGraphic)
+            self.assertEqual(str(graphics[0].uuid), point_uuid_str)
+            self.assertEqual(graphics[0].graphic_id, "point")
+            self.assertAlmostEqual(graphics[0].position[0], 0.4)
+            self.assertAlmostEqual(graphics[0].position[1], 0.5)
+            self.assertIsInstance(graphics[1], Graphics.LineProfileGraphic)
+            self.assertEqual(str(graphics[1].uuid), line_uuid_str)
+            self.assertEqual(graphics[1].graphic_id, "line")
+            self.assertAlmostEqual(graphics[1].width, 1.3)
+            self.assertAlmostEqual(graphics[1].start[0], 0.2)
+            self.assertAlmostEqual(graphics[1].start[1], 0.3)
+            self.assertAlmostEqual(graphics[1].end[0], 0.4)
+            self.assertAlmostEqual(graphics[1].end[1], 0.5)
+            self.assertIsInstance(graphics[2], Graphics.RectangleGraphic)
+            self.assertEqual(str(graphics[2].uuid), rect_uuid_str)
+            self.assertEqual(graphics[2].graphic_id, "rect")
+            self.assertAlmostEqual(graphics[2].bounds[0][0], 0.4 - 0.44/2)
+            self.assertAlmostEqual(graphics[2].bounds[0][1], 0.3 - 0.33/2)
+            self.assertAlmostEqual(graphics[2].bounds[1][0], 0.44)
+            self.assertAlmostEqual(graphics[2].bounds[1][1], 0.33)
+            self.assertIsInstance(graphics[3], Graphics.EllipseGraphic)
+            self.assertEqual(str(graphics[3].uuid), ellipse_uuid_str)
+            self.assertEqual(graphics[3].graphic_id, "ellipse")
+            self.assertAlmostEqual(graphics[3].bounds[0][0], 0.4 - 0.44/2)
+            self.assertAlmostEqual(graphics[3].bounds[0][1], 0.3 - 0.33/2)
+            self.assertAlmostEqual(graphics[3].bounds[1][0], 0.44)
+            self.assertAlmostEqual(graphics[3].bounds[1][1], 0.33)
+            self.assertIsInstance(graphics[4], Graphics.IntervalGraphic)
+            self.assertEqual(str(graphics[4].uuid), interval_uuid_str)
+            self.assertEqual(graphics[4].graphic_id, "interval")
+            self.assertAlmostEqual(graphics[4].start, 0.2)
+            self.assertAlmostEqual(graphics[4].end, 0.3)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
+    def test_data_items_v9_to_v10_line_profile_migration(self):
+        # construct v9 data items with regions, make sure they get translated to graphics
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+
+        data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        data_item_uuid = str(uuid.uuid4())
+        data_item_dict["uuid"] = data_item_uuid
+        data_item_dict["version"] = 9
+        data_source_dict = dict()
+        src_uuid_str = str(uuid.uuid4())
+        data_source_dict["uuid"] = src_uuid_str
+        data_source_dict["type"] = "buffered-data-source"
+        data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        data_source_dict["data_shape"] = (8, 8)
+        data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+        line_uuid_str = str(uuid.uuid4())
+        data_source_dict["regions"] = [
+            {"type": "line-region", "uuid": line_uuid_str, "region_id": "line", "label": "LineR", "width": 1.3, "start": (0.2, 0.3), "end": (0.4, 0.5)},
+        ]
+        data_item_dict["data_sources"] = [data_source_dict]
+
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_uuid = str(uuid.uuid4())
+        dst_data_item_dict["uuid"] = dst_data_item_uuid
+        dst_data_item_dict["version"] = 9
+        dst_data_source_dict = dict()
+        dst_data_source_uuid = str(uuid.uuid4())
+        dst_data_source_dict["uuid"] = dst_data_source_uuid
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+        dst_data_source_dict["dimensional_calibrations"] = []
+        dst_data_source_dict["intensity_calibration"] = { "offset": 0.0, "scale": 1.0, "units": "" }
+        computation_dict = {"type": "computation", "processing_id": "line-profile", "uuid": str(uuid.uuid4())}
+        computation_dict["original_expression"] = "line_profile(src.display_data, line_region.vector, line_region.width)"
+        variables = list()
+        computation_dict["variables"] = variables
+        variables.append({"name": "src", "specifier": {"type": "data_item", "uuid": data_item_uuid, "version": 1}, "type": "variable", "uuid": str(uuid.uuid4())})
+        variables.append({"name": "line_region", "specifier": {"type": "region", "uuid": line_uuid_str, "version": 1}, "type": "variable", "uuid": str(uuid.uuid4())})
+        dst_data_source_dict["computation"] = computation_dict
+        dst_data_item_dict["data_sources"] = [dst_data_source_dict]
+        dst_data_item_dict["connections"] = [{"source_uuid": dst_data_source_uuid, "target_uuid": line_uuid_str, "type": "interval-list-connection", "uuid": str(uuid.uuid4())}]
+
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(len(document_model.data_items), 2)
+            src_display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+            dst_display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[1])
+            self.assertEqual(src_display_specifier.display.graphics[0], document_model.resolve_object_specifier(dst_display_specifier.buffered_data_source.computation.variables[1].variable_specifier).value)
+            for data_item in document_model.data_items:
+                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            crop_region = Region.RectRegion()
-            data_item.maybe_data_source.add_region(crop_region)
+            crop_region = Graphics.RectangleGraphic()
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             data_item_cropped = document_model.get_crop_new(data_item, crop_region)
             document_model.recompute_all()

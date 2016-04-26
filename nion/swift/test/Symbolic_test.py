@@ -20,7 +20,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import Geometry
 from nion.ui import Test
@@ -368,10 +368,10 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             d = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(d)
-            region = Region.RectRegion()
+            region = Graphics.RectangleGraphic()
             region.center = 0.41, 0.51
             region.size = 0.52, 0.42
-            data_item.maybe_data_source.add_region(region)
+            data_item.maybe_data_source.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("crop(a, regionA.bounds)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
@@ -430,10 +430,10 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data = numpy.random.randn(64, 64)
             data_item = DataItem.DataItem(data)
-            region = Region.RectRegion()
+            region = Graphics.RectangleGraphic()
             region.center = 0.41, 0.51
             region.size = 0.52, 0.42
-            data_item.maybe_data_source.add_region(region)
+            data_item.maybe_data_source.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("crop(a, regionA.bounds)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
@@ -443,7 +443,7 @@ class TestSymbolicClass(unittest.TestCase):
                 needs_update_ref[0] = True
             needs_update_event_listener = computation.needs_update_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
-                data_item.maybe_data_source.regions[0].size = 0.53, 0.43
+                data_item.maybe_data_source.displays[0].graphics[0].size = 0.53, 0.43
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_handles_data_lookups(self):
@@ -463,10 +463,10 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             d = numpy.random.randn(100, 100)
             data_item = DataItem.DataItem(d)
-            region = Region.RectRegion()
+            region = Graphics.RectangleGraphic()
             region.center = 0.5, 0.5
             region.size = 0.6, 0.4
-            data_item.maybe_data_source.add_region(region)
+            data_item.maybe_data_source.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid)))
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
@@ -809,10 +809,10 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             src_data = numpy.random.randn(20, 20)
             data_item = DataItem.DataItem(src_data)
-            line_region = Region.LineRegion()
+            line_region = Graphics.LineProfileGraphic()
             line_region.start = 0.25, 0.25
             line_region.end = 0.75, 0.75
-            data_item.maybe_data_source.add_region(line_region)
+            data_item.maybe_data_source.displays[0].add_graphic(line_region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("line_profile(src.display_data, line_region.vector, line_region.width)")
             computation.create_object("src", document_model.get_object_specifier(data_item))
@@ -917,9 +917,9 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
-            region = Region.RectRegion()
+            region = Graphics.RectangleGraphic()
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
-            data_item.maybe_data_source.add_region(region)
+            data_item.maybe_data_source.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("crop(a, r.bounds)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
@@ -1044,8 +1044,8 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
-            region = Region.RectRegion()
-            data_item.maybe_data_source.add_region(region)
+            region = Graphics.RectangleGraphic()
+            data_item.maybe_data_source.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)

@@ -141,7 +141,7 @@ class ConsolePanel(Panel):
         self.console = code.InteractiveConsole(locals)
         lines = [
             "from nion.swift import DocumentController",
-            "from nion.swift.model import DocumentModel, DataItem, PlugInManager, Region",
+            "from nion.swift.model import DocumentModel, DataItem, PlugInManager, Graphics",
             "from nion.data import Image",
             "import logging",
             "import numpy as np",

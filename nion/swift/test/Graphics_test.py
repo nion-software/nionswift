@@ -18,7 +18,6 @@ from nion.swift import DocumentController
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Region
 from nion.ui import CanvasItem
 from nion.ui import Geometry
 from nion.ui import Test
@@ -236,7 +235,7 @@ class TestGraphicsClass(unittest.TestCase):
 
         def do_drag_test(d):
             # logging.debug("test %s", d["name"])
-            region = Region.region_factory(lambda t: d["input"]["type"])
+            region = Graphics.factory(lambda t: d["input"]["type"])
             for property, initial_value in d["input"]["properties"].items():
                 setattr(region, property, initial_value)
             initial_values = dict()
@@ -250,7 +249,7 @@ class TestGraphicsClass(unittest.TestCase):
                     region.is_shape_locked = True
                 elif constraint == "position":
                     region.is_position_locked = True
-            display_specifier.buffered_data_source.add_region(region)
+            display_specifier.display.add_graphic(region)
             display_specifier.display.graphic_selection.set(0)
             display_panel.display_canvas_item.simulate_drag(*d["drag"])
             for property, expected_value in d["output"]["properties"].items():
@@ -278,7 +277,7 @@ class TestGraphicsClass(unittest.TestCase):
                         self.assertAlmostEqual(actual_value, expected_value.value)
                     else:
                         raise Exception("Unknown value type %s", type(actual_value))
-            display_specifier.buffered_data_source.remove_region(region)
+            display_specifier.display.remove_graphic(region)
             region.is_bounds_constrained = False
 
         # rectangle top-left
@@ -286,7 +285,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left corner outside of bounds with no constraints",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect(origin=(0.21, 0.22), size=(0.31, 0.32)) }
             },
             "drag": [(210, 220), (-190, -180)],
@@ -305,7 +304,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left corner outside of bounds with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
                 "constraints": ["bounds"]
             },
@@ -325,7 +324,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left corner from center towards top left with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
                 "constraints": ["bounds"]
             },
@@ -345,7 +344,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left corner from center towards top left with position constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.25, 0.25), (0.5, 0.5)) },
                 "constraints": ["position"]
             },
@@ -365,7 +364,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left corner from center outside of bounds to the top left with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
                 "constraints": ["bounds"]
             },
@@ -385,7 +384,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left corner from center outside of bounds to the bottom with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
                 "constraints": ["bounds"]
             },
@@ -405,7 +404,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left corner from center outside of bounds to the right with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.21, 0.22), (0.31, 0.32)) },
                 "constraints": ["bounds"]
             },
@@ -425,7 +424,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag squared top-left corner from outside of bounds to the bottom right with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.2, 0.3), (0.4, 0.5)) },
                 "constraints": ["bounds"]
             },
@@ -446,7 +445,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag squared top-left corner from in one direction",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
                 "constraints": ["bounds"]
             },
@@ -466,7 +465,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag squared top-left corner from outside of bounds to the bottom right with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.1, 0.3), (0.2, 0.2)) },  # center 0.2, 0.4
                 "constraints": ["bounds"]
             },
@@ -487,7 +486,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag squared top-left corner with bounds, center, square constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
                 "constraints": ["bounds"]
             },
@@ -507,7 +506,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag squared top-left corner with bounds, center, square constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.7, 0.7), (0.2, 0.2)) },  # center 0.8, 0.8
                 "constraints": ["bounds"]
             },
@@ -528,7 +527,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag top-left to top-left with shape constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
                 "constraints": ["shape"]
             },
@@ -548,7 +547,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag all to top-left with no constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
             },
             "drag": [(400, 300), (0, 0), CanvasItem.KeyboardModifiers()],
@@ -567,7 +566,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag all top-left with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
                 "constraints": ["bounds"]
             },
@@ -587,7 +586,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag all bottom-right with bounds constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.3, 0.2), (0.2, 0.2)) },  # center 0.4, 0.3
                 "constraints": ["bounds"]
             },
@@ -607,7 +606,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "drag all with restrict constraint",
             "input": {
-                "type": "rectangle-region",
+                "type": "rect-graphic",
                 "properties": { "_bounds": Geometry.FloatRect((0.4, 0.4), (0.2, 0.2)) },  # center 0.5, 0.5
             },
             "drag": [(500, 500), (800, 600), CanvasItem.KeyboardModifiers(shift=True)],
@@ -628,7 +627,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "point drag with no constraint",
             "input": {
-                "type": "point-region",
+                "type": "point-graphic",
                 "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
                 # "constraints": ["bounds"]
             },
@@ -647,7 +646,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "point drag with bounds constraint",
             "input": {
-                "type": "point-region",
+                "type": "point-graphic",
                 "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
                 "constraints": ["bounds"]
             },
@@ -666,7 +665,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "point drag with restrict",
             "input": {
-                "type": "point-region",
+                "type": "point-graphic",
                 "properties": { "_position": Geometry.FloatPoint(0.2, 0.3) },
                 "constraints": ["bounds"]
             },
@@ -687,7 +686,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "line drag with no constraints",
             "input": {
-                "type": "line-region",
+                "type": "line-graphic",
                 "properties": {
                     "_start": Geometry.FloatPoint(0.2, 0.3),
                     "_end": Geometry.FloatPoint(0.6, 0.5),
@@ -710,7 +709,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "line start drag with restrict",
             "input": {
-                "type": "line-region",
+                "type": "line-graphic",
                 "properties": {
                     "_start": Geometry.FloatPoint(0.2, 0.3),
                     "_end": Geometry.FloatPoint(0.6, 0.5),
@@ -733,7 +732,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "line drag with bounds constraint",
             "input": {
-                "type": "line-region",
+                "type": "line-graphic",
                 "properties": {
                     "_start": Geometry.FloatPoint(0.2, 0.3),
                     "_end": Geometry.FloatPoint(0.6, 0.5),
@@ -756,7 +755,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "line start drag with no constraints",
             "input": {
-                "type": "line-region",
+                "type": "line-graphic",
                 "properties": {
                     "_start": Geometry.FloatPoint(0.2, 0.3),
                     "_end": Geometry.FloatPoint(0.6, 0.5),
@@ -779,7 +778,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "line start drag with bounds constraint",
             "input": {
-                "type": "line-region",
+                "type": "line-graphic",
                 "properties": {
                     "_start": Geometry.FloatPoint(0.2, 0.3),
                     "_end": Geometry.FloatPoint(0.6, 0.5),
@@ -802,7 +801,7 @@ class TestGraphicsClass(unittest.TestCase):
         d = {
             "name": "line start drag with shape constraint",
             "input": {
-                "type": "line-region",
+                "type": "line-graphic",
                 "properties": {
                     "_start": Geometry.FloatPoint(0.2, 0.3),
                     "_end": Geometry.FloatPoint(0.6, 0.5),
@@ -834,7 +833,7 @@ class TestGraphicsClass(unittest.TestCase):
         display_panel.set_displayed_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         graphic = Graphics.PointGraphic()
-        display_specifier.display.append_graphic(graphic)
+        display_specifier.display.add_graphic(graphic)
         self.assertFalse(graphic._closed)
         display_specifier.display.remove_graphic(graphic)
         self.assertTrue(graphic._closed)
@@ -849,7 +848,7 @@ class TestGraphicsClass(unittest.TestCase):
         display_panel.set_displayed_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         graphic = Graphics.PointGraphic()
-        display_specifier.display.append_graphic(graphic)
+        display_specifier.display.add_graphic(graphic)
         self.assertFalse(graphic._closed)
         document_model.remove_data_item(data_item)
         self.assertTrue(graphic._closed)
@@ -860,11 +859,11 @@ class TestGraphicsClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            point_region = Region.PointRegion()
-            display_specifier.buffered_data_source.add_region(point_region)
-            drawn_graphic = display_specifier.display.drawn_graphics[0]
+            point_region = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(point_region)
+            drawn_graphic = display_specifier.display.graphics[0]
             self.assertFalse(drawn_graphic._closed)
-            display_specifier.buffered_data_source.remove_region(point_region)
+            display_specifier.display.remove_graphic(point_region)
             self.assertTrue(drawn_graphic._closed)
 
     def test_removing_data_item_closes_associated_drawn_graphic(self):
@@ -873,9 +872,9 @@ class TestGraphicsClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            point_region = Region.PointRegion()
-            display_specifier.buffered_data_source.add_region(point_region)
-            drawn_graphic = display_specifier.display.drawn_graphics[0]
+            point_region = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(point_region)
+            drawn_graphic = display_specifier.display.graphics[0]
             self.assertFalse(drawn_graphic._closed)
             document_model.remove_data_item(data_item)
             self.assertTrue(drawn_graphic._closed)

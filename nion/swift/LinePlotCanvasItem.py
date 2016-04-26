@@ -15,7 +15,6 @@ from nion.data import Calibration
 from nion.data import Image
 from nion.swift.model import Graphics
 from nion.swift.model import LineGraphCanvasItem
-from nion.swift.model import Region
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import Geometry
@@ -443,7 +442,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 if data_size and len(data_size) > 0:
                     widget_mapping = self.__get_mouse_mapping()
                     x = widget_mapping.map_point_widget_to_channel_norm(pos)
-                    region = Region.IntervalRegion()
+                    region = Graphics.IntervalGraphic()
                     region.start = x
                     region.end = x
                     self.delegate.add_and_select_region(region)
@@ -572,13 +571,13 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 pos = self.__graphic_drag_start_pos
                 widget_mapping = self.__get_mouse_mapping()
                 x = widget_mapping.map_point_widget_to_channel_norm(pos)
-                region = Region.IntervalRegion()
+                region = Graphics.IntervalGraphic()
                 region.start = x
                 region.end = x
                 self.delegate.add_and_select_region(region)
                 selection_indexes = self.__graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__graphics):
-                    if graphic.region == region:
+                    if graphic == region:
                         part, specific = graphic.test(widget_mapping, self.__get_font_metrics_fn, self.__graphic_drag_start_pos, False)
                         if part:
                             self.graphic_drag_item_was_selected = False

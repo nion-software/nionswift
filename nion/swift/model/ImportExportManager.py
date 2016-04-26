@@ -286,7 +286,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 line_graphic.start = (float(start[0]) / dimensional_shape[0], float(start[1]) / dimensional_shape[1])
                 line_graphic.end = (float(end[0]) / dimensional_shape[0], float(end[1]) / dimensional_shape[1])
                 line_graphic.end_arrow_enabled = True
-                display_specifier.display.append_graphic(line_graphic)
+                display_specifier.display.add_graphic(line_graphic)
 
 
 def create_data_element_from_data_item(data_item, include_data=True):

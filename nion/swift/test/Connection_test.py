@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import logging
@@ -15,7 +12,7 @@ from nion.swift import DocumentController
 from nion.swift.model import Connection
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.swift.model import Region
+from nion.swift.model import Graphics
 from nion.ui import Test
 
 
@@ -37,9 +34,9 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item_1d)
             display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
-            interval = Region.IntervalRegion()
+            interval = Graphics.IntervalGraphic()
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-            display_specifier.buffered_data_source.add_region(interval)
+            display_specifier.display.add_graphic(interval)
             connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
             data_item_1d.add_connection(connection)
             # test to see if connection updates target when source changes
@@ -56,8 +53,8 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item_1d)
             display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
-            interval = Region.IntervalRegion()
-            display_specifier_1d.buffered_data_source.add_region(interval)
+            interval = Graphics.IntervalGraphic()
+            display_specifier_1d.display.add_graphic(interval)
             connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
             data_item_1d.add_connection(connection)
             # test to see if connection updates target when source changes
@@ -76,8 +73,8 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item_1d)
             display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
-            interval = Region.IntervalRegion()
-            display_specifier_1d.buffered_data_source.add_region(interval)
+            interval = Graphics.IntervalGraphic()
+            display_specifier_1d.display.add_graphic(interval)
             connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
             data_item_1d.add_connection(connection)
         # read it back
@@ -88,7 +85,7 @@ class TestConnectionClass(unittest.TestCase):
             data_item_1d = document_model.data_items[1]
             display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
-            interval = display_specifier_1d.buffered_data_source.regions[0]
+            interval = display_specifier_1d.display.graphics[0]
             self.assertEqual(len(data_item_1d.connections), 1)
             # verify connection is working in both directions
             display_specifier_3d.display.slice_center = 11
@@ -105,8 +102,8 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item_1d)
             display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
-            interval = Region.IntervalRegion()
-            display_specifier_1d.buffered_data_source.add_region(interval)
+            interval = Graphics.IntervalGraphic()
+            display_specifier_1d.display.add_graphic(interval)
             connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
             data_item_1d.add_connection(connection)
             self.assertFalse(connection._closed)
@@ -122,8 +119,8 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item_1d)
             display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
-            interval = Region.IntervalRegion()
-            display_specifier_1d.buffered_data_source.add_region(interval)
+            interval = Graphics.IntervalGraphic()
+            display_specifier_1d.display.add_graphic(interval)
             connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
             data_item_1d.add_connection(connection)
             self.assertFalse(connection._closed)
@@ -140,11 +137,11 @@ class TestConnectionClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
             line_profile_display_specifier = document_controller.processing_line_profile()
-            interval_region = Region.IntervalRegion()
+            interval_region = Graphics.IntervalGraphic()
             interval = 0.2, 0.3
             interval_region.interval = interval
-            line_profile_display_specifier.buffered_data_source.add_region(interval_region)
-            line_profile_graphic = display_specifier.display.drawn_graphics[0]
+            line_profile_display_specifier.display.add_graphic(interval_region)
+            line_profile_graphic = display_specifier.display.graphics[0]
             interval_descriptors = line_profile_graphic.interval_descriptors
             self.assertEqual(len(interval_descriptors), 1)
             self.assertEqual(interval_descriptors[0]["interval"], interval)
@@ -159,11 +156,11 @@ class TestConnectionClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
             line_profile_display_specifier = document_controller.processing_line_profile()
-            interval_region = Region.IntervalRegion()
-            line_profile_display_specifier.buffered_data_source.add_region(interval_region)
+            interval_region = Graphics.IntervalGraphic()
+            line_profile_display_specifier.display.add_graphic(interval_region)
             interval = 0.2, 0.3
             interval_region.interval = interval
-            line_profile_graphic = display_specifier.display.drawn_graphics[0]
+            line_profile_graphic = display_specifier.display.graphics[0]
             interval_descriptors = line_profile_graphic.interval_descriptors
             self.assertEqual(len(interval_descriptors), 1)
             self.assertEqual(interval_descriptors[0]["interval"], interval)
