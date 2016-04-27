@@ -267,6 +267,7 @@ class DocumentController:
         self.processing_menu.add_menu_item(_("Add Rectangle Graphic"), lambda: self.add_rectangle_graphic())
         self.processing_menu.add_menu_item(_("Add Point Graphic"), lambda: self.add_point_graphic())
         self.processing_menu.add_menu_item(_("Add Interval Graphic"), lambda: self.add_interval_graphic())
+        self.processing_menu.add_menu_item(_("Add Channel Graphic"), lambda: self.add_channel_graphic())
         self.processing_menu.add_separator()
 
         self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+S")
@@ -837,6 +838,17 @@ class DocumentController:
             graphic = Graphics.IntervalGraphic()
             graphic.start = 0.25
             graphic.end = 0.75
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
+            return graphic
+        return None
+
+    def add_channel_graphic(self):
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            graphic = Graphics.ChannelGraphic()
+            graphic.position = 0.5
             display.add_graphic(graphic)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic

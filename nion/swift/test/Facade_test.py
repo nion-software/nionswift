@@ -125,21 +125,24 @@ class TestFacadeClass(unittest.TestCase):
             r2 = data_item_ref.add_ellipse_region(0.3, 0.4, 0.5, 0.6)
             r3 = data_item_ref.add_line_region(0.1, 0.2, 0.3, 0.4)
             r4 = data_item_1d_ref.add_interval_region(0.1, 0.2)
+            r5 = data_item_1d_ref.add_channel_region(0.5)
             r0.label = "One"
             self.assertEqual(r0.type, "point-region")
             self.assertEqual(r1.type, "rectangle-region")
             self.assertEqual(r2.type, "ellipse-region")
             self.assertEqual(r3.type, "line-region")
             self.assertEqual(r4.type, "interval-region")
+            self.assertEqual(r5.type, "channel-region")
             r4.set_property("end", 0.3)
             self.assertAlmostEqual(r4.get_property("end"), 0.3)
             self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics), 4)
-            self.assertEqual(len(data_item_1d.maybe_data_source.displays[0].graphics), 1)
+            self.assertEqual(len(data_item_1d.maybe_data_source.displays[0].graphics), 2)
             self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[0], Graphics.PointGraphic)
             self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[1], Graphics.RectangleGraphic)
             self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[2], Graphics.EllipseGraphic)
             self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[3], Graphics.LineGraphic)
             self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[0], Graphics.IntervalGraphic)
+            self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[1], Graphics.ChannelGraphic)
 
 
 if __name__ == '__main__':

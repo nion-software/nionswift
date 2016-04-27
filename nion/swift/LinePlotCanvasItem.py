@@ -224,8 +224,19 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 left_text = convert_to_calibrated_value_str(left_channel)
                 right_text = convert_to_calibrated_value_str(right_channel)
                 middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
-                RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label"])
-                region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label)
+                RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label", "style"])
+                region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, None)
+                regions.append(region)
+            elif isinstance(graphic, Graphics.ChannelGraphic):
+                graphic_start, graphic_end = graphic.position, graphic.position
+                graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
+                left_channel = graphic_start * data_length
+                right_channel = graphic_end * data_length
+                left_text = convert_to_calibrated_value_str(left_channel)
+                right_text = convert_to_calibrated_value_str(right_channel)
+                middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
+                RegionInfo = collections.namedtuple("RegionInfo", ["channels", "selected", "index", "left_text", "right_text", "middle_text", "label", "style"])
+                region = RegionInfo((graphic_start, graphic_end), graphic_selection.contains(graphic_index), graphic_index, left_text, right_text, middle_text, graphic.label, "tag")
                 regions.append(region)
 
         if self.__line_graph_regions_canvas_item.regions is None or self.__line_graph_regions_canvas_item.regions != regions:
@@ -503,7 +514,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
             for graphic_index, graphic in enumerate(graphics):
-                if isinstance(graphic, Graphics.IntervalGraphic):
+                if isinstance(graphic, (Graphics.IntervalGraphic, Graphics.ChannelGraphic)):
                     already_selected = graphic_index in selection_indexes
                     multiple_items_selected = len(selection_indexes) > 1
                     move_only = not already_selected or multiple_items_selected

@@ -520,13 +520,23 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw the data, if any
         data_info = self.data_info
+        y_properties = self.data_info.y_properties if data_info else None
         x_properties = self.data_info.x_properties if data_info else None
-        if data_info and data_info.data is not None and x_properties:
+        if data_info and data_info.data is not None and y_properties and x_properties:
 
             plot_rect = self.canvas_bounds
             plot_width = int(plot_rect[1][1]) - 1
             plot_height = int(plot_rect[1][0]) - 1
             plot_origin_y = int(plot_rect[0][0])
+
+            # extract the data we need for drawing y-axis
+            calibrated_data_min = y_properties.calibrated_data_min
+            calibrated_data_max = y_properties.calibrated_data_max
+            calibrated_data_range = calibrated_data_max - calibrated_data_min
+
+            data = data_info.data
+            if len(data.shape) > 1:
+                data = data[0, ...]
 
             # calculate the axes drawing info
             data_info.calculate_x_ticks(plot_width)
@@ -539,60 +549,100 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                 return plot_rect.width * (px - data_left) / (data_right - data_left)
 
             for region in self.regions:
-                region_channels = region.channels
+                left_channel, right_channel = region.channels
                 region_selected = region.selected
                 index = region.index
-                left_text = region.left_text
-                right_text = region.right_text
-                middle_text = region.middle_text
-                label = region.label
                 level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
                 with drawing_context.saver():
-                    drawing_context.begin_path()
-                    last_x = None
-                    for region_channel in region_channels:
-                        x = convert_coordinate_to_pixel(region_channel)
-                        drawing_context.move_to(x, plot_origin_y)
-                        drawing_context.line_to(x, plot_origin_y + plot_height)
+                    if region.style == "tag":
+                        if calibrated_data_range != 0.0:
+                            channel = (left_channel + right_channel) / 2
+                            data_value = data[int(channel * data.shape[0])]
+                            py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
+                            py = max(plot_origin_y, py)
+                            py = min(plot_origin_y + plot_height, py)
+                            x = convert_coordinate_to_pixel(channel)
+                            with drawing_context.saver():
+                                drawing_context.begin_path()
+                                drawing_context.move_to(x, py - 3)
+                                drawing_context.line_to(x, py - 13)
+                                drawing_context.line_width = 1
+                                drawing_context.stroke_style = '#F00'
+                                if not region_selected:
+                                    drawing_context.line_dash = 2
+                                drawing_context.stroke()
+
+                                label = region.label
+                                if label:
+                                    drawing_context.line_dash = 0
+                                    drawing_context.fill_style = '#F00'
+                                    drawing_context.font = "{0:d}px".format(self.font_size)
+                                    drawing_context.text_align = "center"
+                                    drawing_context.text_baseline = "bottom"
+                                    drawing_context.fill_text(label, x, py - 16)
+
+                                # drawing_context.begin_path()
+                                # drawing_context.move_to(x - 3, py - 3)
+                                # drawing_context.line_to(x + 2, py + 2)
+                                # drawing_context.move_to(x - 3, py + 3)
+                                # drawing_context.line_to(x + 2, py - 2)
+                                # drawing_context.line_width = 1
+                                # drawing_context.stroke_style = '#000'
+                                # drawing_context.stroke()
+                    else:
+                        drawing_context.begin_path()
+
+                        left = convert_coordinate_to_pixel(left_channel)
+                        drawing_context.move_to(left, plot_origin_y)
+                        drawing_context.line_to(left, plot_origin_y + plot_height)
+
+                        right = convert_coordinate_to_pixel(right_channel)
+                        drawing_context.move_to(right, plot_origin_y)
+                        drawing_context.line_to(right, plot_origin_y + plot_height)
+
                         drawing_context.line_width = 1
                         drawing_context.stroke_style = '#F00'
                         if not region_selected:
                             drawing_context.line_dash = 2
                         drawing_context.stroke()
-                        if last_x is not None:
-                            mid_x = (last_x + x) * 0.5
-                            drawing_context.move_to(last_x, level)
-                            drawing_context.line_to(mid_x - 3, level)
-                            drawing_context.move_to(mid_x + 3, level)
-                            drawing_context.line_to(x - 3, level)
-                            drawing_context.stroke()
-                            drawing_context.line_dash = 0
-                            if region_selected:
-                                draw_marker(drawing_context, (level, mid_x), fill='#F00', stroke='#F00')
-                                drawing_context.fill_style = '#F00'
-                                drawing_context.font = "{0:d}px".format(self.font_size)
-                                if middle_text:
-                                    drawing_context.text_align = "center"
-                                    drawing_context.text_baseline = "bottom"
-                                    drawing_context.fill_text(middle_text, mid_x, level - 6)
-                                if left_text:
-                                    drawing_context.text_align = "right"
-                                    drawing_context.text_baseline = "center"
-                                    drawing_context.fill_text(left_text, last_x - 4, level)
-                                if right_text:
-                                    drawing_context.text_align = "left"
-                                    drawing_context.text_baseline = "center"
-                                    drawing_context.fill_text(right_text, x + 4, level)
-                            else:
-                                draw_marker(drawing_context, (level, mid_x), stroke='#F00')
-                            if label:
-                                drawing_context.line_dash = 0
-                                drawing_context.fill_style = '#F00'
-                                drawing_context.font = "{0:d}px".format(self.font_size)
+
+                        mid_x = (left + right) // 2
+                        drawing_context.move_to(left, level)
+                        drawing_context.line_to(mid_x - 3, level)
+                        drawing_context.move_to(mid_x + 3, level)
+                        drawing_context.line_to(right - 3, level)
+                        drawing_context.stroke()
+                        drawing_context.line_dash = 0
+                        if region_selected:
+                            draw_marker(drawing_context, (level, mid_x), fill='#F00', stroke='#F00')
+                            drawing_context.fill_style = '#F00'
+                            drawing_context.font = "{0:d}px".format(self.font_size)
+                            left_text = region.left_text
+                            right_text = region.right_text
+                            middle_text = region.middle_text
+                            if middle_text:
                                 drawing_context.text_align = "center"
-                                drawing_context.text_baseline = "top"
-                                drawing_context.fill_text(label, mid_x, level + 6)
-                        last_x = x
+                                drawing_context.text_baseline = "bottom"
+                                drawing_context.fill_text(middle_text, mid_x, level - 6)
+                            if left_text:
+                                drawing_context.text_align = "right"
+                                drawing_context.text_baseline = "center"
+                                drawing_context.fill_text(left_text, left - 4, level)
+                            if right_text:
+                                drawing_context.text_align = "left"
+                                drawing_context.text_baseline = "center"
+                                drawing_context.fill_text(right_text, right + 4, level)
+                        else:
+                            draw_marker(drawing_context, (level, mid_x), stroke='#F00')
+
+                        label = region.label
+                        if label:
+                            drawing_context.line_dash = 0
+                            drawing_context.fill_style = '#F00'
+                            drawing_context.font = "{0:d}px".format(self.font_size)
+                            drawing_context.text_align = "center"
+                            drawing_context.text_baseline = "top"
+                            drawing_context.fill_text(label, mid_x, level + 6)
 
 
 class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):

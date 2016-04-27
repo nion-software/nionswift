@@ -1,9 +1,4 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
-import copy
 import gettext
 import math
 
@@ -251,7 +246,7 @@ class NullModifiers(object):
 # A Graphic object describes visible content, such as a shape, bitmap, video, or a line of text.
 class Graphic(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, type):
-        super(Graphic, self).__init__()
+        super().__init__()
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("color", "#F80", changed=self._property_changed)
@@ -393,7 +388,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
                 ctx.fill_text(self.label, text_pos.x, text_pos.y)
 
     def notify_set_property(self, key, value):
-        super(Graphic, self).notify_set_property(key, value)
+        super().notify_set_property(key, value)
         self.graphic_changed_event.fire()
 
     def nudge(self, mapping, delta):
@@ -405,7 +400,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
 
 class RectangleTypeGraphic(Graphic):
     def __init__(self, type, title):
-        super(RectangleTypeGraphic, self).__init__(type)
+        super().__init__(type)
         self.title = title
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
 
@@ -523,7 +518,7 @@ class RectangleTypeGraphic(Graphic):
 
 class RectangleGraphic(RectangleTypeGraphic):
     def __init__(self):
-        super(RectangleGraphic, self).__init__("rect-graphic", _("Rectangle"))
+        super().__init__("rect-graphic", _("Rectangle"))
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
@@ -574,7 +569,7 @@ class RectangleGraphic(RectangleTypeGraphic):
 
 class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self):
-        super(EllipseGraphic, self).__init__("ellipse-graphic", _("Ellipse"))
+        super().__init__("ellipse-graphic", _("Ellipse"))
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left
@@ -619,7 +614,7 @@ class EllipseGraphic(RectangleTypeGraphic):
 
 class LineTypeGraphic(Graphic):
     def __init__(self, type, title):
-        super(LineTypeGraphic, self).__init__(type)
+        super().__init__(type)
         self.title = title
 
         def read_vector(persistent_property, properties):
@@ -816,7 +811,7 @@ class LineTypeGraphic(Graphic):
 
 class LineGraphic(LineTypeGraphic):
     def __init__(self):
-        super(LineGraphic, self).__init__("line-graphic", _("Line"))
+        super().__init__("line-graphic", _("Line"))
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
@@ -845,7 +840,7 @@ class LineGraphic(LineTypeGraphic):
 
 class LineProfileGraphic(LineTypeGraphic):
     def __init__(self):
-        super(LineProfileGraphic, self).__init__("line-profile-graphic", _("Line Profile"))
+        super().__init__("line-profile-graphic", _("Line Profile"))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
         self.define_property("interval_descriptors", list(), changed=self._property_changed)
         # self.interval_descriptors = [{"interval": (0.1, 0.3), "color": "#F00"}, {"interval": (0.7, 0.74), "color": "#0F0"}]
@@ -909,7 +904,7 @@ class LineProfileGraphic(LineTypeGraphic):
 
 class PointTypeGraphic(Graphic):
     def __init__(self, type, title):
-        super(PointTypeGraphic, self).__init__(type)
+        super().__init__(type)
         self.title = title
         # start and end points are stored in image normalized coordinates
         self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value))
@@ -973,7 +968,7 @@ class PointTypeGraphic(Graphic):
 
 class PointGraphic(PointTypeGraphic):
     def __init__(self):
-        super(PointGraphic, self).__init__("point-graphic", _("Point"))
+        super().__init__("point-graphic", _("Point"))
         self.cross_hair_size = 12
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
@@ -1007,7 +1002,7 @@ class PointGraphic(PointTypeGraphic):
 
 class IntervalGraphic(Graphic):
     def __init__(self):
-        super(IntervalGraphic, self).__init__("interval-graphic")
+        super().__init__("interval-graphic")
         self.title = _("Interval")
         # start and end points are stored in channel normalized coordinates
         def read_interval(persistent_property, properties):
@@ -1095,6 +1090,52 @@ class IntervalGraphic(Graphic):
         return None
 
 
+class ChannelGraphic(Graphic):
+    def __init__(self):
+        super().__init__("channel-graphic")
+        self.title = _("Channel")
+        # channel is stored in image normalized coordinates
+        self.define_property("position", 0.5, changed=self.__channel_changed, validate=lambda value: float(value))
+
+    def __channel_changed(self, name, value):
+        self._property_changed(name, value)
+
+    # test is required for Graphic interface
+    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        p = mapping.map_point_channel_norm_to_widget(self.position)
+        if abs(test_point.x - p) < 4:
+            return "all", True
+        # label
+        if self.test_label(get_font_metrics_fn, mapping, test_point):
+            return "all", False
+        # didn't find anything
+        return None, None
+
+    def begin_drag(self):
+        return (self.position,)
+
+    def end_drag(self, part_data):
+        pass
+
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        o = mapping.map_point_widget_to_channel_norm(original)
+        p = mapping.map_point_widget_to_channel_norm(current)
+        constraints = self._constraints
+        if part[0] == "all" and "position" not in constraints:
+            self.position = part[1] + (p - o)
+
+    def nudge(self, mapping, delta):
+        position_channel = mapping.map_point_channel_norm_to_channel(self.position)
+        original = Geometry.FloatPoint(y=0.0, x=position_channel)
+        current = original + delta
+        self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
+
+    def label_position(self, mapping, font_metrics, padding):
+        return None
+
+
 def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
@@ -1103,6 +1144,7 @@ def factory(lookup_id):
         "ellipse-graphic": EllipseGraphic,
         "point-graphic": PointGraphic,
         "interval-graphic": IntervalGraphic,
+        "channel-graphic": ChannelGraphic,
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else None

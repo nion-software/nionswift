@@ -56,6 +56,7 @@ class TestRegionClass(unittest.TestCase):
             regions.append(Graphics.EllipseGraphic())
             regions.append(Graphics.LineGraphic())
             regions.append(Graphics.IntervalGraphic())
+            regions.append(Graphics.ChannelGraphic())
             for region in regions:
                 region.label = "label"
                 region.is_position_locked = False

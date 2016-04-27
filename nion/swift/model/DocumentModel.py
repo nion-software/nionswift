@@ -1985,6 +1985,16 @@ class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persiste
                             display.add_graphic(interval_region)
                         regions.append((region.name, interval_region, region_params.get("label")))
                         region_map[region.name] = interval_region
+                    elif region.type == "channel":
+                        if region.region:
+                            channel_region = region.region
+                        else:
+                            channel_region = Graphics.ChannelGraphic()
+                            for k, v in region_params.items():
+                                setattr(channel_region, k, v)
+                            display.add_graphic(channel_region)
+                        regions.append((region.name, channel_region, region_params.get("label")))
+                        region_map[region.name] = channel_region
             expression = fn_template.format(**dict(zip(src_names, src_texts)))
             computation = self.create_computation(expression)
             for src_name, display_specifier, source in zip(src_names, display_specifiers, sources):

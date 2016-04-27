@@ -2078,6 +2078,7 @@ class TestStorageClass(unittest.TestCase):
             {"type": "rectangle-region", "uuid": rect_uuid_str, "region_id": "rect", "label": "RectR", "center": (0.4, 0.3), "size": (0.44, 0.33)},
             {"type": "ellipse-region", "uuid": ellipse_uuid_str, "region_id": "ellipse", "label": "EllipseR", "center": (0.4, 0.3), "size": (0.44, 0.33)},
             {"type": "interval-region", "uuid": interval_uuid_str, "region_id": "interval", "label": "IntervalR", "start": 0.2, "end": 0.3},
+            # NOTE: channel-region was introduced after 10
         ]
         data_item_dict["data_sources"] = [data_source_dict]
         # read it back

@@ -443,6 +443,7 @@ class Region(object):
         "line-graphic": "line-region",
         "line-profile-graphic": "line-region",
         "interval-graphic": "interval-region",
+        "channel-graphic": "channel-region",
     }
 
     def __init__(self, region):
@@ -648,6 +649,12 @@ class DataItem(object):
         region = Graphics.IntervalGraphic()
         region.start = start
         region.end = end
+        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
+        return Region(region)
+
+    def add_channel_region(self, position):
+        region = Graphics.ChannelGraphic()
+        region.position = position
         self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
