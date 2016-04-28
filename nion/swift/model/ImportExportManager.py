@@ -18,7 +18,7 @@ from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
-from nion.ui import Unicode
+from nion.utils import Unicode
 
 
 class ImportExportIncompatibleDataError(Exception):

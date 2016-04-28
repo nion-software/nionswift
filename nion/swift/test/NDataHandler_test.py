@@ -26,7 +26,7 @@ import scipy.signal
 # local libraries
 from nion.swift import NDataHandler
 from nion.swift.model import Cache
-from nion.ui import Unicode
+from nion.utils import Unicode
 
 
 class TestNDataHandlerClass(unittest.TestCase):

@@ -19,8 +19,8 @@ import time
 import uuid
 
 from nion.swift.model import Utility
-from nion.ui import Geometry
-from nion.ui import Unicode
+from nion.utils import Geometry
+from nion.utils import Unicode
 
 # http://en.wikipedia.org/wiki/Zip_(file_format)
 # http://www.pkware.com/documents/casestudies/APPNOTE.TXT

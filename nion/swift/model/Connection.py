@@ -10,10 +10,10 @@
 
 # local libraries
 from nion.swift.model import Graphics
-from nion.ui import Binding
-from nion.ui import Converter
-from nion.ui import Observable
-from nion.ui import Persistence
+from nion.utils import Binding
+from nion.utils import Converter
+from nion.utils import Observable
+from nion.utils import Persistence
 
 
 class Connection(Observable.Observable, Persistence.PersistentObject):

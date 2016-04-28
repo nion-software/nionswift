@@ -22,8 +22,8 @@ else:
 
 # local libraries
 from nion.ui import CanvasItem
-from nion.ui import Geometry
-from nion.ui import Process
+from nion.utils import Geometry
+from nion.utils import Process
 
 
 _ = gettext.gettext

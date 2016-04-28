@@ -22,10 +22,11 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
-from nion.ui import Binding
-from nion.ui import Converter
-from nion.ui import Geometry
-from nion.ui import Observable
+from nion.utils import Binding
+from nion.utils import Converter
+from nion.utils import Geometry
+from nion.utils import Observable
+from nion.utils import PublishSubscribe
 
 _ = gettext.gettext
 
@@ -402,7 +403,7 @@ class CalibrationPublisherToObservable(Observable.Observable):
                 if calibration.units != self.__cached_value.units:
                     self.notify_set_property("units", calibration.units)
             self.__cached_value = calibration
-        subscriber = Observable.Subscriber(handle_next_calibration)
+        subscriber = PublishSubscribe.Subscriber(handle_next_calibration)
         self.__subscription = publisher.subscribex(subscriber)
 
     def close(self):

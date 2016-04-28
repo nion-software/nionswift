@@ -21,7 +21,7 @@ import numpy
 # local libraries
 from nion.data import Image
 from nion.ui import CanvasItem
-from nion.ui import Geometry
+from nion.utils import Geometry
 
 _ = gettext.gettext
 

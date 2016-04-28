@@ -21,10 +21,11 @@ from nion.swift.model import Connection
 from nion.swift.model import Display
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
-from nion.ui import Event
-from nion.ui import Observable
-from nion.ui import Persistence
-from nion.ui import Unicode
+from nion.utils import Event
+from nion.utils import Observable
+from nion.utils import Persistence
+from nion.utils import PublishSubscribe
+from nion.utils import Unicode
 
 _ = gettext.gettext
 
@@ -170,7 +171,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
-        self.__publisher = Observable.Publisher()
+        self.__publisher = PublishSubscribe.Publisher()
         self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
         self.__computation_mutated_event_listener = None  # incoming to know when the computation changes internally
         self.__computation_cascade_delete_event_listener = None
@@ -1092,7 +1093,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         def next_value(data_and_calibration):
             if not self._is_reading:
                 self.data_item_content_changed_event.fire(set([DATA]))
-        subscriber = Observable.Subscriber(next_value)
+        subscriber = PublishSubscribe.Subscriber(next_value)
         publisher = data_source.get_data_and_calibration_publisher()
         self.__subscriptions.insert(before_index, publisher.subscribex(subscriber))
         self.notify_data_item_content_changed(set([DATA]))

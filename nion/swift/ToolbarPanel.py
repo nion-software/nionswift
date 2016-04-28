@@ -12,7 +12,7 @@ import numpy
 from nion.swift import Decorators
 from nion.swift import Panel
 from nion.ui import CanvasItem
-from nion.ui import Geometry
+from nion.utils import Geometry
 
 _ = gettext.gettext
 

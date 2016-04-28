@@ -20,10 +20,10 @@ import numpy
 from nion.data import Context
 from nion.data import DataAndMetadata
 from nion.swift.model import Graphics
-from nion.ui import Converter
-from nion.ui import Event
-from nion.ui import Observable
-from nion.ui import Persistence
+from nion.utils import Converter
+from nion.utils import Event
+from nion.utils import Observable
+from nion.utils import Persistence
 
 
 def data_by_uuid(context, data_item_uuid):

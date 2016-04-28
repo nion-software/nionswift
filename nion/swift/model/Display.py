@@ -22,9 +22,9 @@ from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
 from nion.swift.model import LineGraphCanvasItem
 from nion.ui import CanvasItem
-from nion.ui import Event
-from nion.ui import Observable
-from nion.ui import Persistence
+from nion.utils import Event
+from nion.utils import Observable
+from nion.utils import Persistence
 
 _ = gettext.gettext
 

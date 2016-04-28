@@ -13,11 +13,11 @@ from nion.swift import Panel
 from nion.swift import Widgets
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
-from nion.ui import Binding
 from nion.ui import CanvasItem
-from nion.ui import Event
-from nion.ui import Model
-from nion.ui import Stream
+from nion.utils import Binding
+from nion.utils import Event
+from nion.utils import Model
+from nion.utils import Stream
 
 _ = gettext.gettext
 

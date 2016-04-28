@@ -11,8 +11,8 @@ import time
 # local libraries
 from nion.swift import Panel
 from nion.swift.model import Utility
-from nion.ui import Event
-from nion.ui import Observable
+from nion.utils import Event
+from nion.utils import Observable
 
 _ = gettext.gettext
 

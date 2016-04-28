@@ -31,11 +31,12 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
-from nion.ui import Converter
-from nion.ui import Event
-from nion.ui import Observable
-from nion.ui import Persistence
-from nion.ui import ThreadPool
+from nion.utils import Converter
+from nion.utils import Event
+from nion.utils import Observable
+from nion.utils import Persistence
+from nion.utils import ReferenceCounting
+from nion.utils import ThreadPool
 
 _ = gettext.gettext
 
@@ -924,7 +925,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         return persistent_storage._persistent_storage_handler.reference
 
 
-class DocumentModel(Observable.Observable, Observable.ReferenceCounted, Persistence.PersistentObject):
+class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject):
 
     """The document model manages storage and dependencies between data items and other objects.
 

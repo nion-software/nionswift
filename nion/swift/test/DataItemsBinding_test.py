@@ -17,7 +17,7 @@ import numpy
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
-from nion.ui import Selection
+from nion.utils import Selection
 
 
 class TestDataItemsBindingModule(unittest.TestCase):

@@ -23,8 +23,8 @@ from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
-from nion.ui import Event
-from nion.ui import Geometry
+from nion.utils import Event
+from nion.utils import Geometry
 
 _ = gettext.gettext
 

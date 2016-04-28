@@ -18,8 +18,8 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.test import DocumentController_test
 from nion.ui import CanvasItem
-from nion.ui import Geometry
 from nion.ui import Test
+from nion.utils import Geometry
 
 
 

@@ -36,7 +36,7 @@ from nion.swift import Application as ApplicationModule
 from nion.swift import Panel as PanelModule
 from nion.swift import Workspace
 from nion.ui import CanvasItem as CanvasItemModule
-from nion.ui import Geometry
+from nion.utils import Geometry
 
 
 __all__ = ["get_api"]

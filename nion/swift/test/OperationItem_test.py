@@ -16,8 +16,8 @@ from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.ui import Geometry
 from nion.ui import Test
+from nion.utils import Geometry
 
 
 class TestProcessingClass(unittest.TestCase):

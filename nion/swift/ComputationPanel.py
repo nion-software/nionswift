@@ -18,10 +18,10 @@ import weakref
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
 from nion.swift import Panel
-from nion.ui import Binding
 from nion.ui import CanvasItem
-from nion.ui import Converter
-from nion.ui import Event
+from nion.utils import Binding
+from nion.utils import Converter
+from nion.utils import Event
 
 _ = gettext.gettext
 

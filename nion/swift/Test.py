@@ -39,7 +39,7 @@ def load_tests(base_path):
     global suite_dict
     global alltests
 
-    for subdir in ["nionswift/nion/swift", "niondata/nion/data", "nionui/nion/ui"]:
+    for subdir in ["nionswift/nion/swift", "niondata/nion/data", "nionutils/nion/utils", "nionui/nion/ui"]:
         localpath = os.path.join(base_path, subdir)
         for file in os.listdir(os.path.join(localpath, "test")):
             if file.endswith("_test.py"):

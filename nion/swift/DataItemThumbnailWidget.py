@@ -12,7 +12,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
-from nion.ui import Geometry
+from nion.utils import Geometry
 
 
 class AbstractDataItemThumbnailSource(metaclass=abc.ABCMeta):

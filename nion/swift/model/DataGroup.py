@@ -10,10 +10,10 @@ import uuid
 # None
 
 # local libraries
-from nion.ui import Event
-from nion.ui import Observable
-from nion.ui import Persistence
-from nion.ui import Unicode
+from nion.utils import Event
+from nion.utils import Observable
+from nion.utils import Persistence
+from nion.utils import Unicode
 
 _ = gettext.gettext
 

@@ -13,7 +13,7 @@ import traceback
 import numpy
 
 # local libraries
-from nion.ui import Unicode
+from nion.utils import Unicode
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391

@@ -20,10 +20,10 @@ from nion.swift import Widgets
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.ui import CanvasItem
-from nion.ui import Event
-from nion.ui import Geometry
 from nion.ui import GridCanvasItem
 from nion.ui import ListCanvasItem
+from nion.utils import Event
+from nion.utils import Geometry
 
 __all__ = ["DataBrowserController", "DataListController", "DataGridController", "DataPanel"]
 

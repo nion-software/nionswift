@@ -17,7 +17,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
-from nion.ui import Geometry
+from nion.utils import Geometry
 
 
 class LinePlotCanvasItemMapping(object):

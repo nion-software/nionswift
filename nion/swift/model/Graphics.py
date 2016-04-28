@@ -6,10 +6,10 @@ import math
 import numpy  # for arange
 
 # local libraries
-from nion.ui import Event
-from nion.ui import Geometry
-from nion.ui import Observable
-from nion.ui import Persistence
+from nion.utils import Event
+from nion.utils import Geometry
+from nion.utils import Observable
+from nion.utils import Persistence
 
 _ = gettext.gettext
 

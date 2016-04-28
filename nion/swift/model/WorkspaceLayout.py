@@ -8,7 +8,7 @@ from __future__ import absolute_import
 # None
 
 # local libraries
-from nion.ui import Persistence
+from nion.utils import Persistence
 
 
 class WorkspaceLayout(Persistence.PersistentObject):

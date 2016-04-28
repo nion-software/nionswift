@@ -12,8 +12,7 @@ import threading
 # None
 
 # local libraries
-from nion.ui import Binding
-from nion.ui import Event
+from nion.utils import Binding
 
 
 class AbstractDataItemsBinding(Binding.Binding):

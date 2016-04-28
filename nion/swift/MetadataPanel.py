@@ -15,9 +15,8 @@ import weakref
 from nion.swift.model import DataItem
 from nion.swift import Panel
 from nion.ui import CanvasItem
-from nion.ui import Event
-from nion.ui import Geometry
 from nion.ui import TreeCanvasItem
+from nion.utils import Event
 
 _ = gettext.gettext
 

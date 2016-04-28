@@ -19,11 +19,10 @@ from nion.data import Calibration
 from nion.data import Image
 from nion.swift import Application
 from nion.swift.model import DataItem
-from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.ui import Observable
 from nion.ui import Test
+from nion.utils import PublishSubscribe
 
 
 class TestDataItemClass(unittest.TestCase):
@@ -1001,7 +1000,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
             def handle_next(x): pass
-            data_item.data_sources[0].get_data_and_calibration_publisher().subscribex(Observable.Subscriber(handle_next))
+            data_item.data_sources[0].get_data_and_calibration_publisher().subscribex(PublishSubscribe.Subscriber(handle_next))
             document_model.recompute_all()
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)

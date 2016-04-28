@@ -22,8 +22,8 @@ import weakref
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
-from nion.ui import Geometry
-from nion.ui import Unicode
+from nion.utils import Geometry
+from nion.utils import Unicode
 
 
 class QtKeyboardModifiers(object):

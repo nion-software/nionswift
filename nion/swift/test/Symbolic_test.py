@@ -22,8 +22,8 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
-from nion.ui import Geometry
 from nion.ui import Test
+from nion.utils import Geometry
 
 
 class TestSymbolicClass(unittest.TestCase):
