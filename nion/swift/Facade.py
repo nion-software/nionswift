@@ -8,10 +8,6 @@
     Versions numbering follows semantic version numbering: http://semver.org/
 """
 
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import datetime
 import gettext
@@ -20,7 +16,7 @@ import threading
 import uuid
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.data import Calibration as CalibrationModule
@@ -669,7 +665,6 @@ class DataItem(object):
 
         import collections
         import copy
-        import numpy
 
         display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
 
@@ -870,7 +865,8 @@ class RecordTask(object):
         if frame_parameters:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
-            self.__hardware_source.set_record_channels_enabled(channels_enabled)
+            for channel_index, channel_enabled in enumerate(channels_enabled):
+                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
 
         self.__data_and_metadata_list = None
 
@@ -927,7 +923,8 @@ class ViewTask(object):
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
-            self.__hardware_source.set_current_channels_enabled(channels_enabled)
+            for channel_index, channel_enabled in enumerate(channels_enabled):
+                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
         if not self.__was_playing:
             self.__hardware_source.start_playing()
         self.on_will_start_frame = None  # prepare the hardware here
@@ -1029,7 +1026,8 @@ class HardwareSource(object):
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
-            self.__hardware_source.set_current_channels_enabled(channels_enabled)
+            for channel_index, channel_enabled in enumerate(channels_enabled):
+                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
         self.__hardware_source.start_playing()
 
     def stop_playing(self):
@@ -1046,7 +1044,8 @@ class HardwareSource(object):
         if frame_parameters is not None:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
-            self.__hardware_source.set_record_channels_enabled(channels_enabled)
+            for channel_index, channel_enabled in enumerate(channels_enabled):
+                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
         self.__hardware_source.start_recording()
 
     def abort_recording(self):
@@ -1072,7 +1071,8 @@ class HardwareSource(object):
         if frame_parameters:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
-            self.__hardware_source.set_record_channels_enabled(channels_enabled)
+            for channel_index, channel_enabled in enumerate(channels_enabled):
+                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
         self.__hardware_source.start_recording()
         data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]

@@ -291,6 +291,7 @@ class AcquisitionTask:
     # called from the hardware source
     def abort(self):
         self.__aborted = True
+        self._request_abort_acquisition()
 
     # called from the hardware source
     def stop(self):
@@ -390,6 +391,10 @@ class AcquisitionTask:
         self.__data_elements = None
         if self.__hardware_source:
             self.__hardware_source.resume_acquisition()
+
+    def _request_abort_acquisition(self) -> None:
+        if self.__hardware_source:
+            self.__hardware_source.request_abort_acquisition()
 
     def _mark_acquisition(self) -> None:
         if self.__hardware_source:
@@ -605,6 +610,11 @@ class HardwareSource:
     # suspend.
     # must be thread safe
     def resume_acquisition(self):
+        pass
+
+    # subclasses can implement this method which is called when acquisition abort is requested.
+    # must be thread safe
+    def request_abort_acquisition(self):
         pass
 
     # subclasses can implement this method which is called when acquisition is marked for stopping.
