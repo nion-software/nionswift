@@ -276,7 +276,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     document_model.append_data_item(new_data_item)
     hardware_source.start_playing()
     try:
-        with hardware_source.get_data_element_generator(False) as data_element_generator:
+        with hardware_source.get_data_element_generator(True) as data_element_generator:
             data_element_generator()
     finally:
         hardware_source.stop_playing()
