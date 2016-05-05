@@ -132,22 +132,26 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 
 def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    frame0 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
-    frame1 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
-    frame3 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
-    frame5 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
-    testcase.assertEqual((1, 3, 5), (frame1 - frame0, frame3 - frame0, frame5 - frame0))
-    hardware_source.abort_playing()
+    try:
+        frame0 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
+        frame1 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
+        frame3 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
+        frame5 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
+        testcase.assertEqual((1, 3, 5), (frame1 - frame0, frame3 - frame0, frame5 - frame0))
+    finally:
+        hardware_source.abort_playing()
 
 def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    testcase.assertTrue(hardware_source.is_playing)
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        data_element_generator()
-        data_element_generator()
-        data_element_generator()
-        data_element_generator()
-    hardware_source.abort_playing()
+    try:
+        testcase.assertTrue(hardware_source.is_playing)
+        with hardware_source.get_data_element_generator(False) as data_element_generator:
+            data_element_generator()
+            data_element_generator()
+            data_element_generator()
+            data_element_generator()
+    finally:
+        hardware_source.abort_playing()
     document_controller.periodic()  # data items queued to be added from background thread get added here
     start_time = time.time()
     while hardware_source.is_playing:
@@ -159,11 +163,13 @@ def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_sourc
 
 def _test_simple_hardware_start_and_stop_actually_stops_acquisition(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    start_time = time.time()
-    while not hardware_source.is_playing:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
-    hardware_source.stop_playing()
+    try:
+        start_time = time.time()
+        while not hardware_source.is_playing:
+            time.sleep(0.01)
+            testcase.assertTrue(time.time() - start_time < 3.0)
+    finally:
+        hardware_source.stop_playing()
     start_time = time.time()
     while hardware_source.is_playing:
         time.sleep(0.01)
@@ -171,8 +177,10 @@ def _test_simple_hardware_start_and_stop_actually_stops_acquisition(testcase, ha
 
 def _test_simple_hardware_start_and_abort_works_as_expected(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    testcase.assertTrue(hardware_source.is_playing)
-    hardware_source.abort_playing()
+    try:
+        testcase.assertTrue(hardware_source.is_playing)
+    finally:
+        hardware_source.abort_playing()
     start_time = time.time()
     while hardware_source.is_playing:
         time.sleep(0.01)
@@ -197,56 +205,62 @@ def _test_record_only_acquires_one_item(testcase, hardware_source, document_cont
 
 def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    # start playing, grab a few frames
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        data_element_generator()
-        data_element_generator()
-    hardware_source.start_recording()
-    # wait for recording to start
-    start_time = time.time()
-    while not hardware_source.is_recording:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
-    testcase.assertTrue(hardware_source.is_playing)
-    # wait for recording to stop
-    start_time = time.time()
-    while hardware_source.is_recording:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
-    testcase.assertTrue(hardware_source.is_playing)
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        data_element_generator()
-    hardware_source.abort_playing()
+    try:
+        # start playing, grab a few frames
+        with hardware_source.get_data_element_generator(False) as data_element_generator:
+            data_element_generator()
+            data_element_generator()
+        hardware_source.start_recording()
+        # wait for recording to start
+        start_time = time.time()
+        while not hardware_source.is_recording:
+            time.sleep(0.01)
+            testcase.assertTrue(time.time() - start_time < 3.0)
+        testcase.assertTrue(hardware_source.is_playing)
+        # wait for recording to stop
+        start_time = time.time()
+        while hardware_source.is_recording:
+            time.sleep(0.01)
+            testcase.assertTrue(time.time() - start_time < 3.0)
+        testcase.assertTrue(hardware_source.is_playing)
+        with hardware_source.get_data_element_generator(False) as data_element_generator:
+            data_element_generator()
+    finally:
+        hardware_source.abort_playing()
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 2)
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing
     hardware_source.start_playing()
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        data_element_generator()
-    document_controller.periodic()
-    # now start recording
-    hardware_source.start_recording()
-    # wait for recording to start
-    start_time = time.time()
-    while not hardware_source.is_recording:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
-    hardware_source.abort_recording()
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        data_element_generator()
-    # clean up
-    hardware_source.abort_playing()
+    try:
+        with hardware_source.get_data_element_generator(False) as data_element_generator:
+            data_element_generator()
+        document_controller.periodic()
+        # now start recording
+        hardware_source.start_recording()
+        # wait for recording to start
+        start_time = time.time()
+        while not hardware_source.is_recording:
+            time.sleep(0.01)
+            testcase.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.abort_recording()
+        with hardware_source.get_data_element_generator(False) as data_element_generator:
+            data_element_generator()
+    finally:
+        # clean up
+        hardware_source.abort_playing()
 
 def _test_view_reuses_single_data_item(testcase, hardware_source, document_controller):
     document_model = document_controller.document_model
     testcase.assertEqual(len(document_model.data_items), 0)
     # play the first time
     hardware_source.start_playing()
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        data_element_generator()
-    hardware_source.stop_playing()
+    try:
+        with hardware_source.get_data_element_generator(False) as data_element_generator:
+            data_element_generator()
+    finally:
+        hardware_source.stop_playing()
     # wait for it to stop
     start_time = time.time()
     while hardware_source.is_playing:
@@ -261,9 +275,11 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     new_data_item = copy.deepcopy(document_model.data_items[0])
     document_model.append_data_item(new_data_item)
     hardware_source.start_playing()
-    with hardware_source.get_data_element_generator(False) as data_element_generator:
-        data_element_generator()
-    hardware_source.stop_playing()
+    try:
+        with hardware_source.get_data_element_generator(False) as data_element_generator:
+            data_element_generator()
+    finally:
+        hardware_source.stop_playing()
     # wait for it to stop
     start_time = time.time()
     while hardware_source.is_playing:
@@ -280,16 +296,20 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
 
 def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    data_elements = hardware_source.get_next_data_elements_to_finish()
-    hardware_source.abort_playing()
+    try:
+        data_elements = hardware_source.get_next_data_elements_to_finish()
+    finally:
+        hardware_source.abort_playing()
     document_controller.periodic()
     testcase.assertNotEqual(data_elements[0]["data"][0, 0], 0)
     testcase.assertNotEqual(data_elements[0]["data"][-1, -1], 0)
 
 def _test_get_next_data_elements_to_finish_produces_data_item_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
-    hardware_source.get_next_data_elements_to_finish()
-    hardware_source.abort_playing()
+    try:
+        hardware_source.get_next_data_elements_to_finish()
+    finally:
+        hardware_source.abort_playing()
     document_controller.periodic()
     testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[0, 0], 0)
     testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[-1, -1], 0)
@@ -303,16 +323,19 @@ def _test_exception_during_view_halts_playback(testcase, hardware_source, exposu
     hardware_source._test_acquire_exception = lambda *args: None
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        try:
+            hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        finally:
+            pass
+        testcase.assertTrue(hardware_source.is_playing)
+        enabled[0] = True
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            testcase.assertTrue(time.time() - start_time < 3.0)
+        testcase.assertFalse(hardware_source.is_playing)
     finally:
-        pass
-    testcase.assertTrue(hardware_source.is_playing)
-    enabled[0] = True
-    start_time = time.time()
-    while hardware_source.is_playing:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
-    testcase.assertFalse(hardware_source.is_playing)
+        hardware_source.abort_playing()
 
 def _test_exception_during_record_halts_playback(testcase, hardware_source, exposure):
     enabled = [False]
@@ -347,17 +370,22 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     hardware_source._test_acquire_hook = raise_exception
     hardware_source._test_acquire_exception = lambda *args: None
     hardware_source.start_playing()
-    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
-    testcase.assertTrue(hardware_source.is_playing)
-    enabled[0] = True
-    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
-    time.sleep(exposure * 0.5)
-    testcase.assertFalse(hardware_source.is_playing)
+    try:
+        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        testcase.assertTrue(hardware_source.is_playing)
+        enabled[0] = True
+        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        time.sleep(exposure * 0.5)
+        testcase.assertFalse(hardware_source.is_playing)
+    finally:
+        hardware_source.abort_playing()
     enabled[0] = False
     hardware_source.start_playing()
-    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
-    hardware_source.get_next_data_elements_to_finish(timeout=10.0)
-    hardware_source.abort_playing()
+    try:
+        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+    finally:
+        hardware_source.abort_playing()
 
 def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_source, exposure):
     # a reasonable time is 2x of record mode exposure (record mode exposure is 2x regular exposure)
