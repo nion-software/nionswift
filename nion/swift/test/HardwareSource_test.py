@@ -375,8 +375,11 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
         testcase.assertTrue(hardware_source.is_playing)
         enabled[0] = True
         hardware_source.get_next_data_elements_to_finish(timeout=10.0)
-        time.sleep(exposure * 0.5)
-        testcase.assertFalse(hardware_source.is_playing)
+        # avoid a race condition and wait for is_playing to go false.
+        start_time = time.time()
+        while hardware_source.is_playing:
+            time.sleep(0.01)
+            testcase.assertTrue(time.time() - start_time < 3.0)
     finally:
         hardware_source.abort_playing()
     enabled[0] = False

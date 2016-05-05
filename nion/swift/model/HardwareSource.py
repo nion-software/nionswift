@@ -270,6 +270,7 @@ class AcquisitionTask:
             except Exception as e:
                 # the task is finished if it doesn't execute
                 # logging.debug("exception")
+                self._stop_acquisition()
                 self.__mark_as_finished()
                 raise
 
@@ -515,7 +516,7 @@ class HardwareSource:
         self.abort_event = Event.Event()
         self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
-        self.__acquire_thread_break = False
+        self.__break_for_closing = False
         self.__acquire_thread_trigger = threading.Event()
         self.__tasks = dict()  # type: Dict[str, AcquisitionTask]
         self.__data_elements_changed_event_listeners = dict()
@@ -530,7 +531,7 @@ class HardwareSource:
     def close(self):
         # when overriding hardware source close, the acquisition loop may still be running
         # so nothing can be changed here that will make the acquisition loop fail.
-        self.__acquire_thread_break = True
+        self.__break_for_closing = True
         self.__acquire_thread_trigger.set()
         # acquire_thread should always be non-null here, otherwise close was called twice.
         self.__acquire_thread.join()
@@ -541,7 +542,7 @@ class HardwareSource:
         while self.__acquire_thread_trigger.wait():
             self.__acquire_thread_trigger.clear()
             # record task gets highest priority
-            acquire_thread_break = self.__acquire_thread_break
+            break_for_closing = self.__break_for_closing
             suspend_task_id_list = list()
             task_id = None
             if self.__tasks.get('idle'):
@@ -555,36 +556,37 @@ class HardwareSource:
                 suspend_task_id_list.append('view')
             if task_id:
                 task = self.__tasks[task_id]
-                if acquire_thread_break:
+                if break_for_closing:
+                    # abort the task, but execute one last time to make sure stop
+                    # gets called.
                     task.abort()
                     self.abort_event.fire()
-                else:
-                    try:
-                        for suspend_task_id in suspend_task_id_list:
-                            suspend_task = self.__tasks.get(suspend_task_id)
-                            if suspend_task:
-                                suspend_task.suspend()
-                        task.execute()
-                    except Exception as e:
-                        task.abort()
-                        self.abort_event.fire()
-                        if callable(self._test_acquire_exception):
-                            self._test_acquire_exception(e)
-                        else:
-                            import traceback
-                            logging.debug("{} Error: {}".format(task_id.capitalize(), e))
-                            traceback.print_exc()
-                    if task.is_finished:
-                        del self.__tasks[task_id]
-                        self.__data_elements_changed_event_listeners[task_id].close()
-                        del self.__data_elements_changed_event_listeners[task_id]
-                        self.__start_event_listeners[task_id].close()
-                        del self.__start_event_listeners[task_id]
-                        self.__stop_event_listeners[task_id].close()
-                        del self.__stop_event_listeners[task_id]
-                        self.acquisition_state_changed_event.fire(False)
-                    self.__acquire_thread_trigger.set()
-            if acquire_thread_break:
+                try:
+                    for suspend_task_id in suspend_task_id_list:
+                        suspend_task = self.__tasks.get(suspend_task_id)
+                        if suspend_task:
+                            suspend_task.suspend()
+                    task.execute()
+                except Exception as e:
+                    task.abort()
+                    self.abort_event.fire()
+                    if callable(self._test_acquire_exception):
+                        self._test_acquire_exception(e)
+                    else:
+                        import traceback
+                        logging.debug("{} Error: {}".format(task_id.capitalize(), e))
+                        traceback.print_exc()
+                if task.is_finished:
+                    del self.__tasks[task_id]
+                    self.__data_elements_changed_event_listeners[task_id].close()
+                    del self.__data_elements_changed_event_listeners[task_id]
+                    self.__start_event_listeners[task_id].close()
+                    del self.__start_event_listeners[task_id]
+                    self.__stop_event_listeners[task_id].close()
+                    del self.__stop_event_listeners[task_id]
+                    self.acquisition_state_changed_event.fire(False)
+                self.__acquire_thread_trigger.set()
+            if break_for_closing:
                 break
 
     # subclasses can implement this method which is called when acquisition starts.
