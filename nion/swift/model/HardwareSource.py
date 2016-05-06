@@ -646,12 +646,20 @@ class HardwareSource:
         pass
 
     # create the view task
-    def __create_acquisition_view_task(self):
+    def _create_acquisition_view_task(self):
         return AcquisitionTask(self, True)
 
+    # notification when view task is created
+    def _view_task_updated(self, view_task):
+        pass
+
     # create the view task
-    def __create_acquisition_record_task(self):
+    def _create_acquisition_record_task(self):
         return AcquisitionTask(self, False)
+
+    # notification when record task is created
+    def _record_task_updated(self, record_task):
+        pass
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
@@ -731,23 +739,41 @@ class HardwareSource:
 
     # call this to start acquisition
     # not thread safe
-    def start_playing(self):
+    def start_playing(self, sync_timeout=None):
         if not self.is_playing:
-            view_task = self.__create_acquisition_view_task()
+            view_task = self._create_acquisition_view_task()
             view_task._test_acquire_hook = self._test_acquire_hook
+            self._view_task_updated(view_task)
             self.start_task('view', view_task)
+        if sync_timeout is not None:
+            start = time.time()
+            while not self.is_playing:
+                time.sleep(0.01)  # 10 msec
+                assert time.time() - start < float(sync_timeout)
 
     # call this to stop acquisition immediately
     # not thread safe
-    def abort_playing(self):
+    def abort_playing(self, sync_timeout=None):
         if self.is_playing:
             self.abort_task('view')
+            self._view_task_updated(None)
+        if sync_timeout is not None:
+            start = time.time()
+            while self.is_playing:
+                time.sleep(0.01)  # 10 msec
+                assert time.time() - start < float(sync_timeout)
 
     # call this to stop acquisition gracefully
     # not thread safe
-    def stop_playing(self):
+    def stop_playing(self, sync_timeout=None):
         if self.is_playing:
             self.stop_task('view')
+            self._view_task_updated(None)
+        if sync_timeout is not None:
+            start = time.time()
+            while self.is_playing:
+                time.sleep(0.01)  # 10 msec
+                assert time.time() - start < float(sync_timeout)
 
     # return whether acquisition is running
     @property
@@ -756,22 +782,40 @@ class HardwareSource:
 
     # call this to start acquisition
     # thread safe
-    def start_recording(self):
+    def start_recording(self, sync_timeout=None):
         if not self.is_recording:
-            record_task = self.__create_acquisition_record_task()
+            record_task = self._create_acquisition_record_task()
+            self._record_task_updated(record_task)
             self.start_task('record', record_task)
+        if sync_timeout is not None:
+            start = time.time()
+            while not self.is_recording:
+                time.sleep(0.01)  # 10 msec
+                assert time.time() - start < float(sync_timeout)
 
     # call this to stop acquisition immediately
     # not thread safe
-    def abort_recording(self):
+    def abort_recording(self, sync_timeout=None):
         if self.is_recording:
             self.abort_task('record')
+            self._record_task_updated(None)
+        if sync_timeout is not None:
+            start = time.time()
+            while self.is_recording:
+                time.sleep(0.01)  # 10 msec
+                assert time.time() - start < float(sync_timeout)
 
     # call this to stop acquisition gracefully
     # not thread safe
-    def stop_recording(self):
+    def stop_recording(self, sync_timeout=None):
         if self.is_recording:
             self.stop_task('record')
+            self._record_task_updated(None)
+        if sync_timeout is not None:
+            start = time.time()
+            while self.is_recording:
+                time.sleep(0.01)  # 10 msec
+                assert time.time() - start < float(sync_timeout)
 
     def get_next_data_elements_to_finish(self, timeout=None):
         new_data_event = threading.Event()
