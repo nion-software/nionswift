@@ -15,6 +15,9 @@ import pickle
 import threading
 import uuid
 
+# typing
+from typing import List
+
 # third party libraries
 import numpy
 
@@ -41,7 +44,13 @@ __all__ = ["get_api"]
 _ = gettext.gettext
 
 
-class ObjectSpecifier(object):
+public = [
+    "Region", "DataItem", "DisplayPanel", "Graphic", "Display", "DataGroup", "RecordTask", "ViewTask", "HardwareSource",
+    "Instrument", "Library", "DocumentController", "Application", "API_1"]
+alias = {"API_1": "API"}
+
+
+class ObjectSpecifier:
 
     def __init__(self, object_type, object_uuid=None, object_id=None):
         self.object_type = object_type
@@ -97,7 +106,7 @@ class ObjectSpecifier(object):
 class CanvasItem(CanvasItemModule.AbstractCanvasItem):
 
     def __init__(self):
-        super(CanvasItem, self).__init__()
+        super().__init__()
         self.on_repaint = None
 
     def _repaint(self, drawing_context):
@@ -108,7 +117,7 @@ class CanvasItem(CanvasItemModule.AbstractCanvasItem):
 class RootCanvasItem(CanvasItemModule.RootCanvasItem):
 
     def __init__(self, ui, canvas_item, properties):
-        super(RootCanvasItem, self).__init__(ui, properties)
+        super().__init__(ui, properties)
         self.__canvas_item = canvas_item
 
     @property
@@ -124,7 +133,7 @@ class RootCanvasItem(CanvasItemModule.RootCanvasItem):
         self.__canvas_item.on_repaint = value
 
 
-class ColumnWidget(object):
+class ColumnWidget:
 
     def __init__(self, ui):
         self.__ui = ui
@@ -144,7 +153,7 @@ class ColumnWidget(object):
         self.__column_widget.add(widget._widget)
 
 
-class RowWidget(object):
+class RowWidget:
 
     def __init__(self, ui):
         self.__ui = ui
@@ -164,7 +173,7 @@ class RowWidget(object):
         self.__row_widget.add(widget._widget)
 
 
-class ComboBoxWidget(object):
+class ComboBoxWidget:
 
     def __init__(self, ui):
         self.__ui = ui
@@ -207,7 +216,7 @@ class ComboBoxWidget(object):
         self.__combo_box_widget.on_current_item_changed = value
 
 
-class LabelWidget(object):
+class LabelWidget:
 
     def __init__(self, ui):
         self.__ui = ui
@@ -226,7 +235,7 @@ class LabelWidget(object):
         self.__label_widget.text = value
 
 
-class LineEditWidget(object):
+class LineEditWidget:
 
     def __init__(self, ui):
         self.__ui = ui
@@ -256,7 +265,7 @@ class LineEditWidget(object):
         self.__line_edit_widget.select_all()
 
 
-class PushButtonWidget(object):
+class PushButtonWidget:
 
     def __init__(self, ui):
         self.__ui = ui
@@ -283,7 +292,7 @@ class PushButtonWidget(object):
         self.__push_button_widget.on_clicked = value
 
 
-class CheckBoxWidget(object):
+class CheckBoxWidget:
 
     def __init__(self, ui):
         self.__ui = ui
@@ -342,7 +351,7 @@ class CheckBoxWidget(object):
         self.__check_box_widget.on_check_state_changed = value
 
 
-class UserInterface(object):
+class UserInterface:
 
     def __init__(self, ui_version, ui):
         actual_version = "1.0.0"
@@ -422,7 +431,7 @@ class UserInterface(object):
 class Panel(PanelModule.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
-        super(Panel, self).__init__(document_controller, panel_id, panel_id)
+        super().__init__(document_controller, panel_id, panel_id)
         self.on_close = None
 
     def close(self):
@@ -430,7 +439,9 @@ class Panel(PanelModule.Panel):
             self.on_close()
 
 
-class Region(object):
+class Region:
+
+    public = ["type", "label", "get_property", "set_property"]
 
     region_to_graphic_type_map = {
         "point-graphic": "point-region",
@@ -454,27 +465,31 @@ class Region(object):
         return ObjectSpecifier("region", self.__region.uuid)
 
     @property
-    def type(self):
+    def type(self) -> str:
         return Region.region_to_graphic_type_map.get(self.__region.type)
 
     @property
-    def label(self):
+    def label(self) -> str:
         return self.__region.label
 
     @label.setter
-    def label(self, value):
+    def label(self, value: str) -> None:
         self.__region.label = value
 
-    def get_property(self, property):
+    def get_property(self, property: str):
         return getattr(self.__region, property)
 
-    def set_property(self, property, value):
+    def set_property(self, property: str, value):
         setattr(self.__region, property, value)
 
     # position, start, end, vector, center, size, bounds, angle
 
 
-class DataItem(object):
+class DataItem:
+
+    public = ["data", "set_data", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations", "set_dimensional_calibrations",
+        "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "display", "add_point_region", "add_rectangle_region",
+        "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
 
     def __init__(self, data_item):
         self.__data_item = data_item
@@ -488,7 +503,7 @@ class DataItem(object):
         return ObjectSpecifier("data_item", self.__data_item.uuid)
 
     @property
-    def data(self):
+    def data(self) -> numpy.ndarray:
         """Return the data as a numpy ndarray.
 
         .. versionadded:: 1.0
@@ -497,7 +512,7 @@ class DataItem(object):
         """
         return self.__data_item.maybe_data_source.data_and_calibration.data
 
-    def set_data(self, data):
+    def set_data(self, data: numpy.ndarray) -> None:
         """Set the data.
 
         :param data: A numpy ndarray.
@@ -510,7 +525,7 @@ class DataItem(object):
             data_ref.data = data
 
     @property
-    def intensity_calibration(self):
+    def intensity_calibration(self) -> CalibrationModule.Calibration:
         """Return a copy of the intensity calibration.
 
         .. versionadded:: 1.0
@@ -519,7 +534,7 @@ class DataItem(object):
         """
         return self.__data_item.maybe_data_source.intensity_calibration
 
-    def set_intensity_calibration(self, intensity_calibration):
+    def set_intensity_calibration(self, intensity_calibration: CalibrationModule.Calibration) -> None:
         """Set the intensity calibration.
 
         :param intensity_calibration: The intensity calibration.
@@ -531,7 +546,7 @@ class DataItem(object):
         self.__data_item.maybe_data_source.set_intensity_calibration(intensity_calibration)
 
     @property
-    def dimensional_calibrations(self):
+    def dimensional_calibrations(self) -> List[CalibrationModule.Calibration]:
         """Return a copy of the list of dimensional calibrations.
 
         .. versionadded:: 1.0
@@ -540,7 +555,7 @@ class DataItem(object):
         """
         return self.__data_item.maybe_data_source.dimensional_calibrations
 
-    def set_dimensional_calibrations(self, dimensional_calibrations):
+    def set_dimensional_calibrations(self, dimensional_calibrations: List[CalibrationModule.Calibration]) -> None:
         """Set the dimensional calibrations.
 
         :param dimensional_calibrations: A list of calibrations, must match the dimensions of the data.
@@ -552,7 +567,7 @@ class DataItem(object):
         self.__data_item.maybe_data_source.set_dimensional_calibrations(dimensional_calibrations)
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict:
         """Return a copy of the metadata as a dict.
 
         .. versionadded:: 1.0
@@ -561,7 +576,7 @@ class DataItem(object):
         """
         return self.__data_item.maybe_data_source.metadata
 
-    def set_metadata(self, metadata):
+    def set_metadata(self, metadata: dict) -> None:
         """Set the metadata.
 
         :param metadata: The metadata dict.
@@ -575,7 +590,7 @@ class DataItem(object):
         self.__data_item.maybe_data_source.set_metadata(metadata)
 
     @property
-    def data_and_metadata(self):
+    def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
         """Return the data and metadata object.
 
         .. versionadded:: 1.0
@@ -584,7 +599,7 @@ class DataItem(object):
         """
         return self.__data_item.maybe_data_source.data_and_calibration
 
-    def set_data_and_metadata(self, data_and_metadata):
+    def set_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         """Set the data and metadata.
 
         :param data_and_metadata: The data and metadata.
@@ -593,18 +608,18 @@ class DataItem(object):
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.set_data_and_calibration(data_and_metadata)
+        self.__data_item.maybe_data_source.set_data_and_calibration(data_and_metadata)
 
     @property
-    def regions(self):
+    def regions(self) -> List[Region]:
         return [Region(region) for region in self.__data_item.maybe_data_source.displays[0].graphics]
 
     @property
-    def display(self):
+    def display(self) -> "Display":
         display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
         return Display(display_specifier.display)
 
-    def add_point_region(self, y, x):
+    def add_point_region(self, y: float, x: float) -> Region:
         """Add a point region to the data item.
 
         :param x: The x coordinate, in relative units [0.0, 1.0]
@@ -620,41 +635,41 @@ class DataItem(object):
         self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
-    def add_rectangle_region(self, center_y, center_x, height, width):
+    def add_rectangle_region(self, center_y: float, center_x: float, height: float, width: float) -> Region:
         region = Graphics.RectangleGraphic()
         region.center = Geometry.FloatPoint(center_y, center_x)
         region.size = Geometry.FloatSize(height, width)
         self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
-    def add_ellipse_region(self, center_y, center_x, height, width):
+    def add_ellipse_region(self, center_y: float, center_x: float, height: float, width: float) -> Region:
         region = Graphics.EllipseGraphic()
         region.center = Geometry.FloatPoint(center_y, center_x)
         region.size = Geometry.FloatSize(height, width)
         self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
-    def add_line_region(self, start_y, start_x, end_y, end_x):
+    def add_line_region(self, start_y: float, start_x: float, end_y: float, end_x: float) -> Region:
         region = Graphics.LineGraphic()
         region.start = Geometry.FloatPoint(start_y, start_x)
         region.end = Geometry.FloatPoint(end_y, end_x)
         self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
-    def add_interval_region(self, start, end):
+    def add_interval_region(self, start: float, end: float) -> Region:
         region = Graphics.IntervalGraphic()
         region.start = start
         region.end = end
         self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
-    def add_channel_region(self, position):
+    def add_channel_region(self, position: float) -> Region:
         region = Graphics.ChannelGraphic()
         region.position = position
         self.__data_item.maybe_data_source.displays[0].add_graphic(region)
         return Region(region)
 
-    def remove_region(self, region):
+    def remove_region(self, region: Region) -> None:
         self.__data_item.maybe_data_source.displays[0].remove_graphic(region._region)
 
     def data_item_to_svg(self):
@@ -725,7 +740,9 @@ class DataItem(object):
         return dc.to_svg(size, viewbox)
 
 
-class DisplayPanel(object):
+class DisplayPanel:
+
+    public = ["data_item", "set_data_item"]
 
     def __init__(self, display_panel):
         self.__display_panel = display_panel
@@ -735,7 +752,7 @@ class DisplayPanel(object):
         return ObjectSpecifier("display_panel", self.__display_panel.uuid)
 
     @property
-    def data_item(self):
+    def data_item(self) -> DataItem:
         """Return the data item, if any, associated with this display panel.
 
         .. versionadded:: 1.0
@@ -748,7 +765,7 @@ class DisplayPanel(object):
         data_item = display_panel.data_item
         return DataItem(data_item) if data_item else None
 
-    def set_data_item(self, data_item):
+    def set_data_item(self, data_item: DataItem) -> None:
         """Set the data item associated with this display panel.
 
         :param data_item: The :py:class:`nion.swift.Facade.DataItem` object to add.
@@ -761,12 +778,13 @@ class DisplayPanel(object):
         Scriptable: Yes
         """
         display_panel = self.__display_panel
-        if not display_panel:
-            return None
-        display_panel.set_displayed_data_item(data_item._data_item)
+        if display_panel:
+            display_panel.set_displayed_data_item(data_item._data_item)
 
 
-class Graphic(object):
+class Graphic:
+
+    public = ["region"]
 
     def __init__(self, graphic):
         self.__graphic = graphic
@@ -776,11 +794,13 @@ class Graphic(object):
         return ObjectSpecifier("graphic", self.__graphic.uuid)
 
     @property
-    def region(self):
+    def region(self) -> Region:
         return Region(self.__graphic.region)
 
 
-class Display(object):
+class Display:
+
+    public = ["display_type", "selected_graphics", "graphics", "data_item"]
 
     def __init__(self, display):
         self.__display = display
@@ -790,23 +810,23 @@ class Display(object):
         return ObjectSpecifier("display", self.__display.uuid)
 
     @property
-    def display_type(self):
+    def display_type(self) -> str:
         return self.__display.display_type
 
     @display_type.setter
-    def display_type(self, value):
+    def display_type(self, value: str) -> None:
         self.__display.display_type = value
 
     @property
-    def selected_graphics(self):
+    def selected_graphics(self) -> List[Graphic]:
         return [Graphic(graphic) for graphic in self.__display.selected_graphics]
 
     @property
-    def graphics(self):
+    def graphics(self) -> List[Graphic]:
         return [Graphic(graphic) for graphic in self.__display.graphics]
 
     @property
-    def data_item(self):
+    def data_item(self) -> DataItem:
         raise AttributeError()
 
     @property
@@ -814,7 +834,9 @@ class Display(object):
         raise AttributeError()
 
 
-class DataGroup(object):
+class DataGroup:
+
+    public = ["add_data_item"]
 
     def __init__(self, data_group):
         self.__data_group = data_group
@@ -823,7 +845,7 @@ class DataGroup(object):
     def specifier(self):
         return ObjectSpecifier("data_group", self.__data_group.uuid)
 
-    def add_data_item(self, data_item):
+    def add_data_item(self, data_item: DataItem) -> None:
         """Add a data item to the group.
 
         :param data_item: The :py:class:`nion.swift.Facade.DataItem` object to add.
@@ -834,18 +856,18 @@ class DataGroup(object):
         """
         self.__data_group.append_data_item(data_item._data_item)
 
-    def remove_data_item(self, data_item):
+    def remove_data_item(self, data_item: DataItem) -> None:
         raise NotImplementedError()
 
-    def remove_all_data_items(self):
+    def remove_all_data_items(self) -> None:
         raise NotImplementedError()
 
     @property
-    def data_items(self):
+    def data_items(self) -> List[DataItem]:
         raise AttributeError()
 
 
-class Monitor(object):
+class Monitor:
 
     def __init__(self):
         self.on_data_and_metadata_list_available = None  # frame_index, data_and_metadata_list, frame_parameters
@@ -858,7 +880,9 @@ class Monitor(object):
         pass
 
 
-class RecordTask(object):
+class RecordTask:
+
+    public = ["close", "is_finished", "grab", "cancel"]
 
     def __init__(self, hardware_source, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
@@ -879,7 +903,7 @@ class RecordTask(object):
         self.__thread = threading.Thread(target=record_thread)
         self.__thread.start()
 
-    def close(self):
+    def close(self) -> None:
         """Close the task.
 
         .. versionadded:: 1.0
@@ -891,14 +915,14 @@ class RecordTask(object):
         self.__data_and_metadata_list = None
 
     @property
-    def is_finished(self):
+    def is_finished(self) -> bool:
         """Return a boolean indicating whether the task is finished.
 
         .. versionadded:: 1.0
         """
         return not self.__thread.is_alive()
 
-    def grab(self):
+    def grab(self) -> List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -911,11 +935,13 @@ class RecordTask(object):
         self.__thread.join()
         return self.__data_and_metadata_list
 
-    def cancel(self):
+    def cancel(self) -> None:
         self.__hardware_source.abort_recording()
 
 
-class ViewTask(object):
+class ViewTask:
+
+    public = ["close", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
 
     def __init__(self, hardware_source, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
@@ -930,7 +956,7 @@ class ViewTask(object):
         self.on_will_start_frame = None  # prepare the hardware here
         self.on_did_finish_frame = None  # restore the hardware here, modify the data_and_metadata here
 
-    def close(self):
+    def close(self) -> None:
         """Close the task.
 
         .. versionadded:: 1.0
@@ -940,7 +966,7 @@ class ViewTask(object):
         if not self.__was_playing:
             self.__hardware_source.stop_playing()
 
-    def grab_immediate(self):
+    def grab_immediate(self) -> List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -952,7 +978,7 @@ class ViewTask(object):
         """
         return self.grab_next_to_finish()
 
-    def grab_next_to_finish(self):
+    def grab_next_to_finish(self) -> List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -965,7 +991,7 @@ class ViewTask(object):
         data_elements = self.__hardware_source.get_next_data_elements_to_finish()
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-    def grab_next_to_start(self):
+    def grab_next_to_start(self) -> List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -979,12 +1005,18 @@ class ViewTask(object):
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
 
-class HardwareSource(object):
+class HardwareSource:
+
+    public = ["close", "profile_index", "get_default_frame_parameters", "get_frame_parameters", "get_frame_parameters_for_profile_by_index",
+        "set_frame_parameters", "set_frame_parameters_for_profile_by_index", "start_playing", "stop_playing", "abort_playing", "is_playing",
+        "start_recording", "abort_recording", "is_recording", "record", "create_record_task", "create_view_task", "grab_next_to_finish",
+        "grab_next_to_start", "get_property_as_float", "set_property_as_float", "get_property_as_int", "set_property_as_int", "get_property_as_bool",
+        "set_property_as_bool", "get_property_as_str", "set_property_as_str", "get_property_as_float_point", "set_property_as_float_point"]
 
     def __init__(self, hardware_source):
         self.__hardware_source = hardware_source
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     @property
@@ -992,37 +1024,37 @@ class HardwareSource(object):
         return ObjectSpecifier("hardware_source", object_id=self.__hardware_source.hardware_source_id)
 
     @property
-    def profile_index(self):
+    def profile_index(self) -> int:
         return self.__hardware_source.selected_profile_index
 
     @profile_index.setter
-    def profile_index(self, value):
+    def profile_index(self, value: int) -> None:
         self.__hardware_source.set_selected_profile_index(value)
 
-    def get_default_frame_parameters(self):
+    def get_default_frame_parameters(self) -> dict:
         return self.__hardware_source.get_frame_parameters_from_dict(dict()).as_dict()
 
-    def get_frame_parameters(self):
+    def get_frame_parameters(self) -> dict:
         return self.__hardware_source.get_current_frame_parameters().as_dict()
 
     # TODO: deprecate this method. user should pass record parameters each time record is started, so no need to read them back.
     def get_record_frame_parameters(self):
         return self.__hardware_source.get_record_frame_parameters().as_dict()
 
-    def get_frame_parameters_for_profile_by_index(self, profile_index):
+    def get_frame_parameters_for_profile_by_index(self, profile_index: int) -> dict:
         return self.__hardware_source.get_frame_parameters(profile_index).as_dict()
 
-    def set_frame_parameters(self, frame_parameters):
+    def set_frame_parameters(self, frame_parameters: dict) -> None:
         self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
     # TODO: deprecate this method. user should pass record parameters each time record is started.
     def set_record_frame_parameters(self, frame_parameters):
         self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
-    def set_frame_parameters_for_profile_by_index(self, profile_index, frame_parameters):
+    def set_frame_parameters_for_profile_by_index(self, profile_index: int, frame_parameters: dict) -> None:
         self.__hardware_source.set_frame_parameters(profile_index, self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
-    def start_playing(self, frame_parameters=None, channels_enabled=None):
+    def start_playing(self, frame_parameters: dict=None, channels_enabled: List[bool]=None) -> None:
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
@@ -1030,17 +1062,17 @@ class HardwareSource(object):
                 self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
         self.__hardware_source.start_playing()
 
-    def stop_playing(self):
+    def stop_playing(self) -> None:
         self.__hardware_source.stop_playing()
 
-    def abort_playing(self):
+    def abort_playing(self) -> None:
         self.__hardware_source.abort_playing()
 
     @property
-    def is_playing(self):
+    def is_playing(self) -> bool:
         return self.__hardware_source.is_playing
 
-    def start_recording(self, frame_parameters=None, channels_enabled=None):
+    def start_recording(self, frame_parameters: dict=None, channels_enabled: List[bool]=None):
         if frame_parameters is not None:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
@@ -1048,14 +1080,14 @@ class HardwareSource(object):
                 self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
         self.__hardware_source.start_recording()
 
-    def abort_recording(self):
+    def abort_recording(self) -> None:
         self.__hardware_source.abort_recording()
 
     @property
-    def is_recording(self):
+    def is_recording(self) -> bool:
         return self.__hardware_source.is_recording
 
-    def record(self, frame_parameters=None, channels_enabled=None, timeout=None):
+    def record(self, frame_parameters: dict=None, channels_enabled: List[bool]=None, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
         """Record data and return a list of data_and_metadata objects.
 
         .. versionadded:: 1.0
@@ -1077,7 +1109,7 @@ class HardwareSource(object):
         data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-    def create_record_task(self, frame_parameters=None, channels_enabled=None):
+    def create_record_task(self, frame_parameters: dict=None, channels_enabled: List[bool]=None) -> RecordTask:
         """Create a record task for this hardware source.
 
         .. versionadded:: 1.0
@@ -1095,7 +1127,7 @@ class HardwareSource(object):
         """
         return RecordTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def create_view_task(self, frame_parameters=None, channels_enabled=None):
+    def create_view_task(self, frame_parameters: dict=None, channels_enabled: List[bool]=None) -> ViewTask:
         """Create a view task for this hardware source.
 
         .. versionadded:: 1.0
@@ -1113,7 +1145,7 @@ class HardwareSource(object):
         """
         return ViewTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def grab_next_to_finish(self, timeout=None):
+    def grab_next_to_finish(self, timeout: float=None) -> DataAndMetadata.DataAndMetadata:
         """Grabs the next frame to finish and returns it as data and metadata.
 
         .. versionadded:: 1.0
@@ -1130,7 +1162,7 @@ class HardwareSource(object):
         data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-    def grab_next_to_start(self, frame_parameters=None, channels_enabled=None, timeout=None):
+    def grab_next_to_start(self, frame_parameters: dict=None, channels_enabled: List[bool]=None, timeout: float=None) -> DataAndMetadata.DataAndMetadata:
         self.start_playing(frame_parameters, channels_enabled)
         data_elements = self.__hardware_source.get_next_data_elements_to_start(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
@@ -1173,7 +1205,7 @@ class HardwareSource(object):
         self.__hardware_source.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
 
-class Instrument(object):
+class Instrument:
 
     """Represents an instrument with controls and properties.
 
@@ -1189,17 +1221,21 @@ class Instrument(object):
     begin/end transaction should be matched.
     """
 
+    public = ["close", "set_control_output", "get_control_output", "get_control_state", "get_property_as_float", "set_property_as_float",
+        "get_property_as_int", "set_property_as_int", "get_property_as_bool", "set_property_as_bool", "get_property_as_str",
+        "set_property_as_str", "get_property_as_float_point", "set_property_as_float_point"]
+
     def __init__(self, instrument):
         self.__instrument = instrument
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     @property
     def specifier(self):
         return ObjectSpecifier("instrument", object_id=self.__instrument.instrument_id)
 
-    def set_control_output(self, name, value, options=None):
+    def set_control_output(self, name: str, value: float, options: dict=None) -> None:
         """Set the value of a control asynchronously.
 
         :param name: The name of the control (string).
@@ -1225,7 +1261,7 @@ class Instrument(object):
         """
         self.__instrument.set_control_output(name, value, options)
 
-    def get_control_output(self, name):
+    def get_control_output(self, name: str) -> float:
         """Return the value of a control.
 
         :return: The control value.
@@ -1238,11 +1274,11 @@ class Instrument(object):
         """
         return self.__instrument.get_control_output(name)
 
-    def get_control_state(self, name):
+    def get_control_state(self, name: str) -> str:
         # return None if value does not exist
         return self.__instrument.get_control_state(name)
 
-    def get_property_as_float(self, name):
+    def get_property_as_float(self, name: str) -> float:
         """Return the value of a float property.
 
         :return: The property value (float).
@@ -1255,7 +1291,7 @@ class Instrument(object):
         """
         return float(self.__instrument.get_property(name))
 
-    def set_property_as_float(self, name, value):
+    def set_property_as_float(self, name: str, value: float) -> None:
         """Set the value of a float property.
 
         :param name: The name of the property (string).
@@ -1269,35 +1305,35 @@ class Instrument(object):
         """
         self.__instrument.set_property(name, float(value))
 
-    def get_property_as_int(self, name):
+    def get_property_as_int(self, name:str ) -> int:
         return int(self.__instrument.get_property(name))
 
-    def set_property_as_int(self, name, value):
+    def set_property_as_int(self, name: str, value: int) -> None:
         self.__instrument.set_property(name, int(value))
 
-    def get_property_as_bool(self, name):
+    def get_property_as_bool(self, name: str) -> bool:
         return bool(self.__instrument.get_property(name))
 
-    def set_property(self, name, value):
+    def set_property_as_bool(self, name: str, value: bool) -> None:
         self.__instrument.set_property(name, bool(value))
 
-    def get_property_as_str(self, name):
+    def get_property_as_str(self, name: str) -> str:
         return str(self.__instrument.get_property(name))
 
-    def set_property(self, name, value):
+    def set_property_as_str(self, name: str, value: str) -> None:
         self.__instrument.set_property(name, str(value))
 
-    def get_property_as_float_point(self, name):
+    def get_property_as_float_point(self, name: str) -> Geometry.FloatPoint:
         return tuple(Geometry.FloatPoint.make(self.__instrument.get_property(name)))
 
-    def set_property_as_float_point(self, name, value):
+    def set_property_as_float_point(self, name: str, value: Geometry.FloatPoint) -> None:
         self.__instrument.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
-    def get_property(self, name):
+    def get_property(self, name: str):
         # deprecated
         return self.get_property_as_float(name)
 
-    def set_property(self, name, value):
+    def set_property(self, name: str, value) -> None:
         # deprecated
         self.set_property_as_float(name, value)
 
@@ -1309,7 +1345,10 @@ class Instrument(object):
         return result_str
 
 
-class Library(object):
+class Library:
+
+    public = ["data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
+        "get_or_create_data_group", "data_ref_for_data_item"]
 
     def __init__(self, document_model):
         self.__document_model = document_model
@@ -1323,7 +1362,7 @@ class Library(object):
         return ObjectSpecifier("library")
 
     @property
-    def data_item_count(self):
+    def data_item_count(self) -> int:
         """Return the data item count.
 
         :return: The number of data items.
@@ -1335,7 +1374,7 @@ class Library(object):
         return len(self.__document_model.data_items)
 
     @property
-    def data_items(self):
+    def data_items(self) -> List[DataItem]:
         """Return the list of data items.
 
         :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
@@ -1346,7 +1385,7 @@ class Library(object):
         """
         return [DataItem(data_item) for data_item in self.__document_model.data_items]
 
-    def create_data_item(self, title=None):
+    def create_data_item(self, title: str=None) -> DataItem:
         """Create an empty data item in the library.
 
         :param title: The title of the data item (optional).
@@ -1364,7 +1403,7 @@ class Library(object):
         self.__document_model.append_data_item(data_item)
         return DataItem(data_item)
 
-    def create_data_item_from_data(self, data, title=None):
+    def create_data_item_from_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
         """Create a data item in the library from an ndarray.
 
         For efficiency, this method will directly use the data object without copying it. This means that the data
@@ -1396,7 +1435,7 @@ class Library(object):
                                                                metadata, timestamp)
         return self.create_data_item_from_data_and_metadata(data_and_metadata, title)
 
-    def create_data_item_from_data_and_metadata(self, data_and_metadata, title=None):
+    def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: str=None) -> DataItem:
         """Create a data item in the library from a data and metadata object.
 
         For efficiency, this method will directly use the data within the data_and_metadata object without copying
@@ -1428,7 +1467,7 @@ class Library(object):
         self.__document_model.append_data_item(data_item)
         return DataItem(data_item)
 
-    def get_or_create_data_group(self, title):
+    def get_or_create_data_group(self, title: str) -> DataGroup:
         """Get (or create) a data group.
 
         :param title: The title of the data group.
@@ -1441,9 +1480,9 @@ class Library(object):
         """
         return DataGroup(self.__document_model.get_or_create_data_group(title))
 
-    def data_ref_for_data_item(self, data_item):
+    def data_ref_for_data_item(self, data_item: DataItem):
 
-        class DataRef(object):
+        class DataRef:
 
             def __init__(self, document_model, data_item):
                 self.__document_model = document_model
@@ -1475,7 +1514,10 @@ class Library(object):
         return DataRef(self.__document_model, data_item)
 
 
-class DocumentController(object):
+class DocumentController:
+    public = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display", "target_data_item",
+        "show_get_string_message_box", "show_confirmation_message_box", "queue_task", "add_data", "create_data_item_from_data",
+        "create_data_item_from_data_and_metadata", "get_or_create_data_group"]
 
     def __init__(self, document_controller):
         self.__document_controller = document_controller
@@ -1489,7 +1531,7 @@ class DocumentController(object):
         return self.__document_controller
 
     @property
-    def library(self):
+    def library(self) -> Library:
         """Return the library object.
 
         .. versionadded:: 1.0
@@ -1499,7 +1541,7 @@ class DocumentController(object):
         return Library(self.__document_controller.document_model)
 
     @property
-    def all_display_panels(self):
+    def all_display_panels(self) -> List[DisplayPanel]:
         """Return the list of display panels currently visible.
 
         .. versionadded:: 1.0
@@ -1508,7 +1550,7 @@ class DocumentController(object):
         """
         return [DisplayPanel(display_panel) for display_panel in self.__document_controller.workspace_controller.display_panels]
 
-    def get_display_panel_by_id(self, identifier):
+    def get_display_panel_by_id(self, identifier: str) -> DisplayPanel:
         """Return display panel with the identifier.
 
         .. versionadded:: 1.0
@@ -1521,7 +1563,7 @@ class DocumentController(object):
             display_panel.identifier.lower() == identifier.lower()), None)
         return DisplayPanel(display_panel) if display_panel else None
 
-    def display_data_item(self, data_item, source_display_panel=None, source_data_item=None):
+    def display_data_item(self, data_item: DataItem, source_display_panel=None, source_data_item=None):
         """Display a new data item.
 
         .. versionadded:: 1.0
@@ -1540,28 +1582,28 @@ class DocumentController(object):
         raise AttributeError()
 
     @property
-    def target_display(self):
+    def target_display(self) -> Display:
         return Display(self.__document_controller.selected_display_specifier.display)
 
     @property
-    def target_data_item(self):
+    def target_data_item(self) -> DataItem:
         return DataItem(self.__document_controller.selected_display_specifier.data_item)
 
     def create_task_context_manager(self, title, task_type):
         return self.__document_controller.create_task_context_manager(title, task_type)
 
-    def show_get_string_message_box(self, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None):
+    def show_get_string_message_box(self, caption: str, text: str, accepted_fn, rejected_fn=None, accepted_text: str=None, rejected_text: str=None) -> None:
         workspace = self.__document_controller.workspace_controller
         workspace.pose_get_string_message_box(caption, text, accepted_fn, rejected_fn, accepted_text, rejected_text)
 
-    def show_confirmation_message_box(self, caption, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None, display_rejected=False):
+    def show_confirmation_message_box(self, caption: str, accepted_fn, rejected_fn=None, accepted_text: str=None, rejected_text: str=None, display_rejected: str=False) -> None:
         workspace = self.__document_controller.workspace_controller
         workspace.pose_confirmation_message_box(caption, accepted_fn, rejected_fn, accepted_text, rejected_text, display_rejected)
 
-    def queue_task(self, fn):
+    def queue_task(self, fn) -> None:
         self.__document_controller.queue_task(fn)
 
-    def add_data(self, data, title=None):
+    def add_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
         """Create a data item in the library from data.
 
         .. versionadded:: 1.0
@@ -1572,7 +1614,7 @@ class DocumentController(object):
         """
         return self.create_data_item_from_data(data, title)
 
-    def create_data_item_from_data(self, data, title=None):
+    def create_data_item_from_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
         """Create a data item in the library from data.
 
         .. versionadded:: 1.0
@@ -1583,7 +1625,7 @@ class DocumentController(object):
         """
         return DataItem(self.__document_controller.add_data(data, title))
 
-    def create_data_item_from_data_and_metadata(self, data_and_metadata, title=None):
+    def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: str=None) -> DataItem:
         """Create a data item in the library from the data and metadata.
 
         .. versionadded:: 1.0
@@ -1604,7 +1646,7 @@ class DocumentController(object):
         self.__document_controller.document_model.append_data_item(data_item)
         return DataItem(data_item)
 
-    def get_or_create_data_group(self, title):
+    def get_or_create_data_group(self, title: str) -> DataGroup:
         """Get (or create) a data group.
 
         .. versionadded:: 1.0
@@ -1616,7 +1658,9 @@ class DocumentController(object):
         return DataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
 
 
-class Application(object):
+class Application:
+
+    public = ["library", "document_controllers"]
 
     def __init__(self, application):
         self.__application = application
@@ -1630,7 +1674,7 @@ class Application(object):
         return ObjectSpecifier("library")
 
     @property
-    def library(self):
+    def library(self) -> Library:
         """Return the library object.
 
         .. versionadded:: 1.0
@@ -1640,7 +1684,7 @@ class Application(object):
         return Library(self.__application.document_controllers[0].document_model)
 
     @property
-    def document_controllers(self):
+    def document_controllers(self) -> List[DocumentController]:
         """Return the document controllers.
 
         .. versionadded:: 1.0
@@ -1650,7 +1694,7 @@ class Application(object):
         return [DocumentController(document_controller) for document_controller in self.__application.document_controllers]
 
 
-class DataAndMetadataIOHandlerInterface(object):
+class DataAndMetadataIOHandlerInterface:
     """An interface for an IO handler delegate. Implement each of the methods and properties, as required."""
 
     @property
@@ -1724,7 +1768,7 @@ class DataAndMetadataIOHandlerInterface(object):
         raise NotImplementedError()
 
 
-class API_1(object):
+class API_1:
     """An interface to Nion Swift.
 
     This class cannot be instantiated directly. Use :samp:`api_broker.get_api(version)` to get access an instance of
@@ -1747,11 +1791,15 @@ class API_1(object):
     # Allowed: add keyword arguments to end of existing methods as long as the default doesn't change functionality.
     # Allowed: add methods as long as they are optional.
 
+    public = ["create_calibration", "create_data_and_metadata", "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
+        "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids", "get_all_instrument_ids",
+        "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task"]
+
     def __init__(self, ui_version):
-        super(API_1, self).__init__()
+        super().__init__()
         self.__ui_version = ui_version
 
-    def create_calibration(self, offset=None, scale=None, units=None):
+    def create_calibration(self, offset: float=None, scale: float=None, units: str=None) -> CalibrationModule.Calibration:
         """Create a calibration object with offset, scale, and units.
 
         :param offset: The offset of the calibration.
@@ -1768,7 +1816,8 @@ class API_1(object):
         """
         return CalibrationModule.Calibration(offset, scale, units)
 
-    def create_data_and_metadata(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
+    def create_data_and_metadata(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None,
+                                 dimensional_calibrations: List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
 
         :param data: an ndarray of data.
@@ -1794,7 +1843,7 @@ class API_1(object):
         return DataAndMetadata.DataAndMetadata(lambda: data, data_shape_and_dtype, intensity_calibration,
                                                   dimensional_calibrations, metadata, timestamp)
 
-    def create_data_and_metadata_from_data(self, data, intensity_calibration=None, dimensional_calibrations=None, metadata=None, timestamp=None):
+    def create_data_and_metadata_from_data(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None, dimensional_calibrations: List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
 
         .. versionadded:: 1.0
@@ -1816,7 +1865,7 @@ class API_1(object):
         """
         class DelegateIOHandler(ImportExportManager.ImportExportHandler):
             def __init__(self):
-                super(DelegateIOHandler, self).__init__(io_handler_delegate.io_handler_id, io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
+                super().__init__(io_handler_delegate.io_handler_id, io_handler_delegate.io_handler_name, io_handler_delegate.io_handler_extensions)
 
             def read_data_elements(self, ui, extension, file_path):
                 data_and_metadata = io_handler_delegate.read_data_and_metadata(extension, file_path)
@@ -1840,7 +1889,7 @@ class API_1(object):
                 if data is not None:
                     io_handler_delegate.write_data_and_metadata(data_and_metadata, file_path, extension)
 
-        class IOHandlerReference(object):
+        class IOHandlerReference:
 
             def __init__(self):
                 self.__io_handler_delegate = io_handler_delegate
@@ -1883,7 +1932,7 @@ class API_1(object):
                 menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(
                     facade_document_controller), key_sequence=key_sequence)
 
-        class MenuItemReference(object):
+        class MenuItemReference:
 
             def __init__(self):
                 self.__menu_item_handler = menu_item_handler
@@ -1908,7 +1957,7 @@ class API_1(object):
         class FacadeHardwareSource(HardwareSourceModule.HardwareSource):
 
             def __init__(self):
-                super(FacadeHardwareSource, self).__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
+                super().__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
                 self.add_channel_buffer()
 
             def start_acquisition(self) -> bool:
@@ -1930,7 +1979,7 @@ class API_1(object):
             def stop_acquisition(self):
                 hardware_source_delegate.stop_acquisition()
 
-        class HardwareSourceReference(object):
+        class HardwareSourceReference:
 
             def __init__(self):
                 self.__hardware_source_delegate = hardware_source_delegate
@@ -1976,7 +2025,7 @@ class API_1(object):
             panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
             return panel
 
-        class PanelReference(object):
+        class PanelReference:
 
             def __init__(self):
                 self.__panel_delegate = panel_delegate
@@ -1998,13 +2047,13 @@ class API_1(object):
     def create_unary_operation(self, unary_operation_delegate):
         return None
 
-    def get_all_hardware_source_ids(self):
+    def get_all_hardware_source_ids(self) -> List[str]:
         return HardwareSourceModule.HardwareSourceManager().get_all_hardware_source_ids()
 
-    def get_all_instrument_ids(self):
+    def get_all_instrument_ids(self) -> List[str]:
         return HardwareSourceModule.HardwareSourceManager().get_all_instrument_ids()
 
-    def get_hardware_source_by_id(self, hardware_source_id, version):
+    def get_hardware_source_by_id(self, hardware_source_id: str, version: str) -> HardwareSource:
         """Return the hardware source API matching the hardware_source_id and version.
 
         .. versionadded:: 1.0
@@ -2017,7 +2066,7 @@ class API_1(object):
         hardware_source = HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
         return HardwareSource(hardware_source)
 
-    def get_instrument_by_id(self, instrument_id, version):
+    def get_instrument_by_id(self, instrument_id: str, version: str) -> Instrument:
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
@@ -2025,7 +2074,7 @@ class API_1(object):
         return Instrument(instrument)
 
     @property
-    def application(self):
+    def application(self) -> Application:
         """Return the application object.
 
         .. versionadded:: 1.0
@@ -2035,7 +2084,7 @@ class API_1(object):
         return Application(ApplicationModule.app)
 
     @property
-    def library(self):
+    def library(self) -> Library:
         """Return the library object.
 
         .. versionadded:: 1.0
@@ -2048,10 +2097,10 @@ class API_1(object):
         return ObjectSpecifier.resolve(d)
 
     # provisional
-    def queue_task(self, fn):
+    def queue_task(self, fn) -> None:
         ApplicationModule.app.document_controllers[0].queue_task(fn)
 
-    def raise_requirements_exception(self, reason):
+    def raise_requirements_exception(self, reason) -> None:
         raise PlugInManager.RequirementsException(reason)
 
 
