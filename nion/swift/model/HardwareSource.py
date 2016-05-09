@@ -233,6 +233,8 @@ class AcquisitionTask:
         self.finished_event.fire()
 
     # called from the hardware source
+    # note: abort, suspend and execute are always called from the same thread, ensuring that
+    # one can't be executing when the other is called.
     def execute(self):
         # first start the task
         if not self.__started:
@@ -246,7 +248,7 @@ class AcquisitionTask:
             # logging.debug("%s started", self)
         if self.__is_suspended:
             try:
-                self.resume()
+                self._resume_acquisition()
             finally:
                 self.__is_suspended = False
         if not self.__finished:
@@ -275,21 +277,21 @@ class AcquisitionTask:
                 raise
 
     # called from the hardware source
-    def suspend(self) -> bool:
+    # note: abort, suspend and execute are always called from the same thread, ensuring that
+    # one can't be executing when the other is called.
+    def suspend(self) -> None:
         if not self.__is_suspended:
             self.__is_suspended = True
             return self._suspend_acquisition()
         return True
-
-    # called from the hardware source
-    def resume(self):
-        self._resume_acquisition()
 
     @property
     def is_finished(self):
         return self.__finished
 
     # called from the hardware source
+    # note: abort, suspend and execute are always called from the same thread, ensuring that
+    # one can't be executing when the other is called.
     def abort(self):
         self.__aborted = True
         self._request_abort_acquisition()
