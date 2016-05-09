@@ -185,7 +185,7 @@ class AcquisitionTask:
 
     The caller controls the state of the task by calling the following methods:
         execute: start or continue acquisition, should be called repeatedly until is_finished is True
-        suspend: suspend the state of acquisition, returns bool for success
+        suspend: suspend the state of acquisition
         resume: resume a suspended state of acquisition
         stop: notify that acquisition should stop after end of current frame
         abort: notify that acquisition should abort as soon as possible
@@ -279,11 +279,10 @@ class AcquisitionTask:
     # called from the hardware source
     # note: abort, suspend and execute are always called from the same thread, ensuring that
     # one can't be executing when the other is called.
-    def suspend(self) -> bool:
+    def suspend(self) -> None:
         if not self.__is_suspended:
             self.__is_suspended = True
-            return self._suspend_acquisition()
-        return True
+            self._suspend_acquisition()
 
     @property
     def is_finished(self):
@@ -386,9 +385,10 @@ class AcquisitionTask:
         if self.__hardware_source:
             self.__hardware_source.abort_acquisition()
 
-    def _suspend_acquisition(self) -> bool:
+    def _suspend_acquisition(self) -> None:
         self.__data_elements = None
-        return self.__hardware_source.suspend_acquisition() if self.__hardware_source else False
+        if self.__hardware_source:
+            self.__hardware_source.suspend_acquisition()
 
     def _resume_acquisition(self) -> None:
         self.__data_elements = None
@@ -606,8 +606,8 @@ class HardwareSource:
     # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
     # suspend.
     # must be thread safe
-    def suspend_acquisition(self) -> bool:
-        return False
+    def suspend_acquisition(self) -> None:
+        pass
 
     # subclasses can implement this method which is called when acquisition is resumed from higher priority acquisition.
     # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
