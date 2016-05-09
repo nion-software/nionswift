@@ -279,7 +279,7 @@ class AcquisitionTask:
     # called from the hardware source
     # note: abort, suspend and execute are always called from the same thread, ensuring that
     # one can't be executing when the other is called.
-    def suspend(self) -> None:
+    def suspend(self) -> bool:
         if not self.__is_suspended:
             self.__is_suspended = True
             return self._suspend_acquisition()
