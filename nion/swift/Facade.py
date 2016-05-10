@@ -44,9 +44,12 @@ __all__ = ["get_api"]
 _ = gettext.gettext
 
 
-public = [
-    "Region", "DataItem", "DisplayPanel", "Graphic", "Display", "DataGroup", "RecordTask", "ViewTask", "HardwareSource",
+api_public = [
+    "Region", "DataItem", "DisplayPanel", "Graphic", "Display", "DataGroup",
     "Instrument", "Library", "DocumentController", "Application", "API_1"]
+hardware_source_public = [
+    "RecordTask", "ViewTask", "HardwareSource"
+]
 alias = {"API_1": "API"}
 
 
@@ -2053,7 +2056,7 @@ class API_1:
     def get_all_instrument_ids(self) -> List[str]:
         return HardwareSourceModule.HardwareSourceManager().get_all_instrument_ids()
 
-    def get_hardware_source_by_id(self, hardware_source_id: str, version: str) -> HardwareSource:
+    def get_hardware_source_by_id(self, hardware_source_id: str, version: str):
         """Return the hardware source API matching the hardware_source_id and version.
 
         .. versionadded:: 1.0

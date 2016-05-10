@@ -1,19 +1,25 @@
-# python api_tool.py > ../typeshed/nion/typeshed/API_1_0.py
+# python api_tool.py --classes api_public > ../typeshed/nion/typeshed/API_1_0.py
+# python api_tool.py --classes hardware_source_public > ../typeshed/nion/typeshed/HardwareSource_1_0.py
 
+import argparse
 import importlib
 import inspect
-import pprint
-import sys
 import typing
 
+parser = argparse.ArgumentParser(description='Generate API type stub files.')
+parser.add_argument('--classes', dest='class_list_property', required=True, help='Class list property')
+args = parser.parse_args()
+
 module = importlib.import_module("nion.swift.Facade")
+class_list_property = args.class_list_property
 
 class_dicts = dict()
 
 for member in inspect.getmembers(module, predicate=inspect.isclass):
     class_name = member[0]
-    if class_name in module.public:
-        # print("### module.public {}".format(class_name))
+    # print("### {}".format(class_name))
+    if class_name in getattr(module, class_list_property):
+        # print("### getattr(module, class_list_property) {}".format(class_name))
         class_dict = dict()
         class_dict["name"] = class_name
         class_dict["doc"] = member[1].__doc__
@@ -94,7 +100,7 @@ print("from nion.data import Calibration")
 print("from nion.data import DataAndMetadata")
 print("from nion.utils import Geometry")
 
-for class_name in module.public:
+for class_name in getattr(module, class_list_property):
     class_dict = class_dicts[class_name]
     class_name = class_dict["name"]
     class_name = getattr(module, "alias", dict()).get(class_name, class_name)
