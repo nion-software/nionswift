@@ -20,7 +20,7 @@ from nion.ui import Test
 class SimpleAcquisitionTask(HardwareSource.AcquisitionTask):
 
     def __init__(self, is_continuous, sleep, image=None):
-        super().__init__(None, is_continuous)
+        super().__init__(is_continuous)
         self.sleep = sleep
         self.image = image if image is not None else numpy.zeros(256)
 
@@ -61,7 +61,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 class ScanAcquisitionTask(HardwareSource.AcquisitionTask):
 
     def __init__(self, is_continuous, sleep, channel_enabled_list=None, scanning_ref=None, suspended_ref=None, suspended_event=None, image=None):
-        super().__init__(None, is_continuous)
+        super().__init__(is_continuous)
         self.__is_continuous = is_continuous
         self.sleep = sleep
         self.image = image if image is not None else numpy.zeros((256, 256))

@@ -1960,7 +1960,7 @@ class API_1:
         class FacadeAcquisitionTask(HardwareSourceModule.AcquisitionTask):
 
             def __init__(self):
-                super().__init__(None, True)
+                super().__init__(True)
 
             def _start_acquisition(self) -> bool:
                 if not super()._start_acquisition():

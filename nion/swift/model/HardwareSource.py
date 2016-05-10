@@ -208,8 +208,7 @@ class AcquisitionTask:
         _stop_acquisition: final call to indicate acquisition has stopped; subclasses should synchronize stop here
     """
 
-    def __init__(self, hardware_source, continuous: bool):
-        self.__hardware_source = hardware_source
+    def __init__(self, continuous: bool):
         self.__started = False
         self.__finished = False
         self.__is_suspended = False
@@ -378,40 +377,29 @@ class AcquisitionTask:
     def _start_acquisition(self) -> bool:
         self.__data_elements = None
         self.start_event.fire()
-        return self.__hardware_source.start_acquisition() if self.__hardware_source else True
+        return True
 
     def _abort_acquisition(self) -> None:
         self.__data_elements = None
-        if self.__hardware_source:
-            self.__hardware_source.abort_acquisition()
 
     def _suspend_acquisition(self) -> None:
         self.__data_elements = None
-        if self.__hardware_source:
-            self.__hardware_source.suspend_acquisition()
 
     def _resume_acquisition(self) -> None:
         self.__data_elements = None
-        if self.__hardware_source:
-            self.__hardware_source.resume_acquisition()
 
     def _request_abort_acquisition(self) -> None:
-        if self.__hardware_source:
-            self.__hardware_source.request_abort_acquisition()
+        pass
 
     def _mark_acquisition(self) -> None:
-        if self.__hardware_source:
-            self.__hardware_source.mark_acquisition()
+        pass
 
     def _stop_acquisition(self) -> None:
         self.__data_elements = None
         self.stop_event.fire()
-        if self.__hardware_source:
-            self.__hardware_source.stop_acquisition()
 
     def _acquire_data_elements(self):
-        assert self.__hardware_source
-        return self.__hardware_source.acquire_data_elements()
+        raise NotImplementedError()
 
 
 class ChannelBuffer:
@@ -649,7 +637,7 @@ class HardwareSource:
 
     # create the view task
     def _create_acquisition_view_task(self):
-        return AcquisitionTask(self, True)
+        return AcquisitionTask(True)
 
     # notification when view task is created
     def _view_task_updated(self, view_task):
@@ -657,7 +645,7 @@ class HardwareSource:
 
     # create the view task
     def _create_acquisition_record_task(self):
-        return AcquisitionTask(self, False)
+        return AcquisitionTask(False)
 
     # notification when record task is created
     def _record_task_updated(self, record_task):
