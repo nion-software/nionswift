@@ -1957,17 +1957,18 @@ class API_1:
 
     def create_hardware_source(self, hardware_source_delegate):
 
-        class FacadeHardwareSource(HardwareSourceModule.HardwareSource):
+        class FacadeAcquisitionTask(HardwareSourceModule.AcquisitionTask):
 
             def __init__(self):
-                super().__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
-                self.add_channel_buffer()
+                super().__init__(None, True)
 
-            def start_acquisition(self) -> bool:
+            def _start_acquisition(self) -> bool:
+                if not super()._start_acquisition():
+                    return False
                 hardware_source_delegate.start_acquisition()
                 return True
 
-            def acquire_data_elements(self):
+            def _acquire_data_elements(self):
                 data_and_metadata = hardware_source_delegate.acquire_data_and_metadata()
                 data_element = {
                     "version": 1,
@@ -1979,8 +1980,17 @@ class API_1:
                 }
                 return [data_element]
 
-            def stop_acquisition(self):
+            def _stop_acquisition(self) -> None:
                 hardware_source_delegate.stop_acquisition()
+
+        class FacadeHardwareSource(HardwareSourceModule.HardwareSource):
+
+            def __init__(self):
+                super().__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
+                self.add_channel_buffer()
+
+            def _create_acquisition_view_task(self) -> FacadeAcquisitionTask:
+                return FacadeAcquisitionTask()
 
         class HardwareSourceReference:
 
