@@ -17,13 +17,12 @@ from nion.swift import DocumentController
 from nion.ui import Test
 
 
-class SimpleHardwareSource(HardwareSource.HardwareSource):
+class SimpleAcquisitionTask(HardwareSource.AcquisitionTask):
 
-    def __init__(self, sleep=0.05):
-        super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
-        self.add_channel_buffer()
+    def __init__(self, is_continuous, sleep, image=None):
+        super().__init__(None, is_continuous)
         self.sleep = sleep
-        self.image = numpy.zeros(256)
+        self.image = image if image is not None else numpy.zeros(256)
 
     def make_data_element(self):
         return {
@@ -37,29 +36,43 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
             }
         }
 
-    def acquire_data_elements(self):
+    def _acquire_data_elements(self):
         self.image += 1.0
         time.sleep(self.sleep)
         data_element = self.make_data_element()
         return [data_element]
 
 
-class ScanHardwareSource(HardwareSource.HardwareSource):
+class SimpleHardwareSource(HardwareSource.HardwareSource):
 
-    def __init__(self, sleep=0.02):
-        super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
+    def __init__(self, sleep=0.05):
+        super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
+        self.add_channel_buffer()
         self.sleep = sleep
-        self.image = numpy.zeros((256, 256))
+        self.image = numpy.zeros(256)
+
+    def _create_acquisition_view_task(self) -> SimpleAcquisitionTask:
+        return SimpleAcquisitionTask(True, self.sleep, self.image)
+
+    def _create_acquisition_record_task(self) -> SimpleAcquisitionTask:
+        return SimpleAcquisitionTask(False, self.sleep, self.image)
+
+
+class ScanAcquisitionTask(HardwareSource.AcquisitionTask):
+
+    def __init__(self, is_continuous, sleep, channel_enabled_list=None, scanning_ref=None, suspended_ref=None, suspended_event=None, image=None):
+        super().__init__(None, is_continuous)
+        self.__is_continuous = is_continuous
+        self.sleep = sleep
+        self.image = image if image is not None else numpy.zeros((256, 256))
         self.frame_index = 0
         self.top = True
-        self.scanning = False
-        self.suspended = False
-        self.suspend_event = threading.Event()
-        self.add_channel_buffer("a", "A")
-        self.add_channel_buffer("b", "B")
+        self.scanning_ref = scanning_ref
+        self.suspended_ref = suspended_ref
+        self.suspend_event = suspended_event
         self.channel_ids = ["a", "b"]
         self.channel_names = ["A", "B"]
-        self.channel_enabled = [True, False]
+        self.channel_enabled = channel_enabled_list
 
     def make_data_element(self, channel_index=0, sub_area=None):
         if sub_area is not None:
@@ -81,11 +94,24 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
             }
         }
 
-    def acquire_data_elements(self):
+    def _start_acquisition(self) -> bool:
+        if not super()._start_acquisition():
+            return False
+        self.__current_sleep = self.sleep
+        self.scanning_ref[0] = True
+        if self.__is_continuous:
+            self.sleep = 0.04
+            self.top = True
+        else:
+            self.sleep = 0.02
+            self.top = True
+        return True
+
+    def _acquire_data_elements(self):
         self.image += 1.0
         time.sleep(self.__current_sleep)
         data_elements = list()
-        for channel_index in range(self.channel_count):
+        for channel_index in range(2):
             if self.channel_enabled[channel_index]:
                 if self.top:
                     sub_area = (0, 0), (128, 256)
@@ -107,26 +133,52 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
         self.top = not self.top
         return data_elements
 
-    def start_acquisition(self) -> bool:
-        self.__current_sleep = self.sleep
-        self.scanning = True
-        if self.is_recording:
-            self.sleep = 0.04
-            self.top = True
-        else:
-            self.sleep = 0.02
-            self.top = True
-        return True
-
-    def stop_acquisition(self):
-        self.scanning = False
-
-    def suspend_acquisition(self) -> None:
-        self.suspended = True
+    def _suspend_acquisition(self) -> None:
+        self.suspended_ref[0] = True
         self.suspend_event.set()
 
-    def resume_acquisition(self):
-        self.suspended = False
+    def _resume_acquisition(self):
+        self.suspended_ref[0] = False
+
+    def _stop_acquisition(self) -> None:
+        self.scanning_ref[0] = False
+        super()._stop_acquisition()
+
+
+class ScanHardwareSource(HardwareSource.HardwareSource):
+
+    def __init__(self, sleep=0.02):
+        super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
+        self.add_channel_buffer("a", "A")
+        self.add_channel_buffer("b", "B")
+        self.sleep = sleep
+        self.channel_enabled_list = [True, False]
+        self.scanning_ref = [False]
+        self.suspended_ref = [False]
+        self.suspend_event = threading.Event()
+        self.image = numpy.zeros((256, 256))
+
+    @property
+    def scanning(self):
+        return self.scanning_ref[0]
+
+    @scanning.setter
+    def scanning(self, value):
+        self.scanning_ref[0] = value
+
+    @property
+    def suspended(self):
+        return self.suspended_ref[0]
+
+    @suspended.setter
+    def suspended(self, value):
+        self.suspended_ref[0] = value
+
+    def _create_acquisition_view_task(self) -> ScanAcquisitionTask:
+        return ScanAcquisitionTask(True, self.sleep, self.channel_enabled_list, self.scanning_ref, self.suspended_ref, self.suspend_event, self.image)
+
+    def _create_acquisition_record_task(self) -> ScanAcquisitionTask:
+        return ScanAcquisitionTask(False, self.sleep, self.channel_enabled_list, self.scanning_ref, self.suspended_ref, self.suspend_event, self.image)
 
 
 def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcase, hardware_source, document_controller):
@@ -587,11 +639,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         # first start playing
-        hardware_source.start_playing()
-        start_time = time.time()
-        while not hardware_source.scanning:
-            time.sleep(0.01)
-            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.start_playing(sync_timeout=3.0)
         self.assertFalse(hardware_source.suspended)
         # now start recording
         hardware_source.sleep = 0.06
@@ -605,11 +653,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         time.sleep(0.01)
         self.assertFalse(hardware_source.suspended)
         # clean up
-        hardware_source.abort_playing()
-        start_time = time.time()
-        while hardware_source.is_playing:
-            time.sleep(0.01)
-            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.abort_playing(sync_timeout=3.0)
         document_controller.close()
 
     def test_view_reuses_externally_configured_item(self):
@@ -661,13 +705,13 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.close()
 
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
-        data_element = SimpleHardwareSource().make_data_element()
+        data_element = ScanAcquisitionTask(False, 0).make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         metadata = data_item.data_sources[0].metadata
         self.assertTrue(isinstance(metadata.get("hardware_source"), dict))
 
     def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
-        data_element = SimpleHardwareSource().make_data_element()
+        data_element = ScanAcquisitionTask(False, 0).make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         data_item.created = datetime.datetime(2000, 6, 30)
         ImportExportManager.update_data_item_from_data_element(data_item, data_element)
@@ -699,7 +743,7 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_channel_id_and_name_and_index_are_correct_for_multiview(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        hardware_source.channel_enabled = (True, True)
+        hardware_source.channel_enabled_list = (True, True)
         self.__acquire_one(document_controller, hardware_source)
         data_item0 = document_model.data_items[0]
         buffered_data_source0 = data_item0.data_sources[0]
@@ -719,7 +763,7 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_multiview_reuse_second_channel_by_id_not_index(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        hardware_source.channel_enabled = (True, True)
+        hardware_source.channel_enabled_list = (True, True)
         self.__acquire_one(document_controller, hardware_source)
         buffered_data_source0 = document_model.data_items[0].data_sources[0]
         buffered_data_source1 = document_model.data_items[1].data_sources[0]
@@ -727,7 +771,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         self.assertAlmostEqual(buffered_data_source1.data[0, 0], 1.0)
         self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)  # 2.0 because bottom half of two part partial acquisition
         self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 2.0)
-        hardware_source.channel_enabled = (False, True)
+        hardware_source.channel_enabled_list = (False, True)
         self.__acquire_one(document_controller, hardware_source)
         self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)
         self.assertAlmostEqual(buffered_data_source1.data[0, 0], 3.0)
