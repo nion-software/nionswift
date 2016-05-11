@@ -443,12 +443,10 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
 
 def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_source, exposure):
     # a reasonable time is 2x of record mode exposure (record mode exposure is 2x regular exposure)
-    hardware_source.start_recording()
-    time.sleep(exposure * 0.5)
+    hardware_source.start_recording(sync_timeout=3.0)
     testcase.assertTrue(hardware_source.is_recording)
     start = time.time()
-    while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
-        time.sleep(0.05)
+    hardware_source.stop_recording(sync_timeout=3.0)
     elapsed = time.time() - start
     # print(exposure, elapsed)
     testcase.assertTrue(elapsed < exposure * 8.0)
