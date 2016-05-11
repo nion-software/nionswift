@@ -282,7 +282,12 @@ class RunScriptDialog(Dialog.ActionDialog):
                 ast.fix_missing_locations(new_node)
                 return new_node
 
-        compiled = compile(AddCallFunctionNodeTransformer('script_main', 'api_broker').visit(script_ast), script_name, 'exec')
+        # if script_main exists, add a node to call it
+        for node in script_ast.body:
+            if getattr(node, "name", None) == "script_main":
+                script_ast = AddCallFunctionNodeTransformer('script_main', 'api_broker').visit(script_ast)
+
+        compiled = compile(script_ast, script_name, 'exec')
 
         def run_it(compiled, interactive_session):
             class APIBroker:
@@ -296,6 +301,8 @@ class RunScriptDialog(Dialog.ActionDialog):
             try:
                 g = dict()
                 g["api_broker"] = APIBroker()
+                g["print"] = self.print
+                g["input"] = self.get_string
                 exec(compiled, g)
             except Exception:
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
@@ -311,6 +318,8 @@ class RunScriptDialog(Dialog.ActionDialog):
                 func(self)
             except Exception:
                 pass
+
+            self.alert("Finished")
 
             def request_close():
                 self.document_window.request_close()
@@ -435,11 +444,3 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def alert(self, prompt: str, button_label: str = None) -> None:
         self.__accept_reject(prompt, button_label, None, False)
-
-        def request_close():
-            self.document_window.request_close()
-            self.document_window = None
-
-        with self.__lock:
-            self.__q.append(request_close)
-            self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
