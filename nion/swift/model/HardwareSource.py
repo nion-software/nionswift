@@ -200,7 +200,8 @@ class AcquisitionTask:
 
     Subclasses can override these methods to implement the acquisition:
         _start_acquisition: called once at the beginning of this task
-        _abort_acquisition: called when the caller has requested to abort acquisition
+        _abort_acquisition: called from thread when the caller has requested to abort acquisition; guaranteed to be called synchronously.
+        _request_abort_acquisition: called from UI when the called has requested to abort acquisition; may be called asynchronously.
         _suspend_acquisition: called when the caller has requested to suspend acquisition
         _resume_acquisition: called when the caller has requested to resume a suspended acquisition
         _mark_acquisition: marks the acquisition to stop at end of current frame
@@ -374,30 +375,70 @@ class AcquisitionTask:
     # override these routines. the default implementation is to
     # call back to the hardware source.
 
+    # subclasses can implement to start acquisition. it is called once.
+    # return True if successful, False if not.
+    # called synchronously from execute thread.
+    # must be thread safe
     def _start_acquisition(self) -> bool:
         self.__data_elements = None
         self.start_event.fire()
         return True
 
+    # subclasses can implement this method to abort acquisition.
+    # aborted tasks will still get marked, stopped, and send out final
+    # data_elements_changed_events and finished_events.
+    # called synchronously from execute thread.
+    # must be thread safe
     def _abort_acquisition(self) -> None:
         self.__data_elements = None
 
-    def _suspend_acquisition(self) -> None:
-        self.__data_elements = None
-
-    def _resume_acquisition(self) -> None:
-        self.__data_elements = None
-
+    # subclasses can implement this method which is called when acquisition abort is requested.
+    # this is useful if a flag/event needs to be set to break out of the acquisition loop.
+    # this method may be called asynchronously from the other methods.
+    # must be thread safe. it may be called from either UI thread or a thread.
     def _request_abort_acquisition(self) -> None:
         pass
 
+    # subclasses can implement this method which is called when acquisition is suspended for higher priority acquisition.
+    # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
+    # suspend.
+    # called synchronously from execute thread.
+    # must be thread safe
+    def _suspend_acquisition(self) -> None:
+        self.__data_elements = None
+
+    # subclasses can implement this method which is called when acquisition is resumed from higher priority acquisition.
+    # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
+    # suspend.
+    # called synchronously from execute thread.
+    # must be thread safe
+    def _resume_acquisition(self) -> None:
+        self.__data_elements = None
+
+    # subclasses can implement this method which is called when acquisition is marked for stopping.
+    # subclasses that feature a continuous mode will need implement this method so that continuous
+    # mode is marked for stopping at the end of the current frame.
+    # called synchronously from execute thread.
+    # must be thread safe
     def _mark_acquisition(self) -> None:
         pass
 
+    # subclasses can implement this method which is called to stop acquisition.
+    # no more data is expected to be generated after this call.
+    # called synchronously from execute thread.
+    # must be thread safe
     def _stop_acquisition(self) -> None:
         self.__data_elements = None
         self.stop_event.fire()
 
+    # subclasses are expected to implement this function efficiently since it will
+    # be repeatedly called. in practice that means that subclasses MUST sleep (directly
+    # or indirectly) unless the data is immediately available, which it shouldn't be on
+    # a regular basis. it is an error for this function to return an empty list of data_elements.
+    # this method can throw exceptions, it will result in the acquisition loop being aborted.
+    # returns a tuple of a list of data elements.
+    # called synchronously from execute thread.
+    # must be thread safe
     def _acquire_data_elements(self):
         raise NotImplementedError()
 
@@ -579,75 +620,34 @@ class HardwareSource:
             if break_for_closing:
                 break
 
-    # subclasses can implement this method which is called when acquisition starts.
-    # return True if successful, False if not.
-    # must be thread safe
-    def start_acquisition(self) -> bool:
-        return True
-
-    # subclasses can implement this method which is called when acquisition aborts.
-    # must be thread safe
-    def abort_acquisition(self):
-        pass
-
-    # subclasses can implement this method which is called when acquisition is suspended for higher priority acquisition.
-    # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
-    # suspend.
-    # must be thread safe
-    def suspend_acquisition(self) -> None:
-        pass
-
-    # subclasses can implement this method which is called when acquisition is resumed from higher priority acquisition.
-    # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
-    # suspend.
-    # must be thread safe
-    def resume_acquisition(self):
-        pass
-
-    # subclasses can implement this method which is called when acquisition abort is requested.
-    # must be thread safe
-    def request_abort_acquisition(self):
-        pass
-
-    # subclasses can implement this method which is called when acquisition is marked for stopping.
-    # subclasses that feature a continuous mode will need implement this method so that continuous
-    # mode is marked for stopping at the end of the current frame.
-    # must be thread safe
-    def mark_acquisition(self):
-        pass
-
-    # subclasses can implement this method which is called when acquisition stops.
-    # must be thread safe
-    def stop_acquisition(self):
-        pass
-
-    # subclasses are expected to implement this function efficiently since it will
-    # be repeatedly called. in practice that means that subclasses MUST sleep (directly
-    # or indirectly) unless the data is immediately available, which it shouldn't be on
-    # a regular basis. it is an error for this function to return an empty list of data_elements.
-    # this method can throw exceptions, it will result in the acquisition loop being aborted.
-    # returns a tuple of a list of data elements.
-    # must be thread safe
-    def acquire_data_elements(self):
-        raise NotImplementedError()
-
     # subclasses can implement this method which is called when the data items used for acquisition change.
+    # NOTE: this is called from DocumentModel!
     def data_item_states_changed(self, data_item_states):
         pass
 
+    # subclasses should implement this method to create a continuous-style acquisition task.
     # create the view task
+    # will be called from the UI thread and should return quickly.
     def _create_acquisition_view_task(self):
         return AcquisitionTask(True)
 
-    # notification when view task is created
+    # subclasses can implement this method to get notification that the view task has been changed.
+    # subclasses may have a need to access the view task and this method can help keep track of the
+    # current view task.
+    # will be called from the UI thread and should return quickly.
     def _view_task_updated(self, view_task):
         pass
 
+    # subclasses should implement this method to create a non-continuous-style acquisition task.
     # create the view task
+    # will be called from the UI thread and should return quickly.
     def _create_acquisition_record_task(self):
         return AcquisitionTask(False)
 
-    # notification when record task is created
+    # subclasses can implement this method to get notification that the record task has been changed.
+    # subclasses may have a need to access the record task and this method can help keep track of the
+    # current record task.
+    # will be called from the UI thread and should return quickly.
     def _record_task_updated(self, record_task):
         pass
 
