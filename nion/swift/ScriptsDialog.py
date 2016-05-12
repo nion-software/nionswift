@@ -235,6 +235,8 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__q = collections.deque()
         self.__output_queue = collections.deque()
 
+        self.__skip_finished = False
+
     def close(self):
         self.document_controller.clear_task(str(id(self)))
         super().close()
@@ -307,6 +309,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             except Exception:
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
                 self.alert(_("An exception was raised."), _("Close"))
+                self.__skip_finished = True
 
         self.__stack.current_index = 1
 
@@ -319,7 +322,8 @@ class RunScriptDialog(Dialog.ActionDialog):
             except Exception:
                 pass
 
-            self.alert("Finished")
+            if not self.__skip_finished:
+                self.alert("Finished")
 
             def request_close():
                 self.document_window.request_close()
