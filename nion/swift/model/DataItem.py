@@ -733,10 +733,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         self.data_item_content_changed_event = Event.Event()
         self.request_remove_region_event = Event.Event()
         self.request_remove_data_item_event = Event.Event()
-        self.handle_dependency_action = Event.Event()
         self.computation_changed_or_mutated_event = Event.Event()
-        self.__dependent_data_item_actions_lock = threading.RLock()
-        self.__dependent_data_item_actions = list()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_changes = set()
@@ -1147,24 +1144,6 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
             self.__data_item_manager = data_item_manager
             for data_source in self.data_sources:
                 data_source.set_data_item_manager(self.__data_item_manager)
-
-    def _get_pending_dependent_data_items(self):
-        with self.__dependent_data_item_actions_lock:
-            dependent_data_item_actions = copy.copy(self.__dependent_data_item_actions)
-            self.__dependent_data_item_actions.clear()
-        return dependent_data_item_actions
-
-    # track dependent data items. useful for propagating transaction support.
-    def add_dependent_data_item(self, data_item: "DataItem") -> None:
-        with self.__dependent_data_item_actions_lock:
-            self.__dependent_data_item_actions.append(('add', data_item))
-        self.handle_dependency_action.fire(self)
-
-    # track dependent data items. useful for propagating transaction support.
-    def remove_dependent_data_item(self, data_item: "DataItem") -> None:
-        with self.__dependent_data_item_actions_lock:
-            self.__dependent_data_item_actions.append(('remove', data_item))
-        self.handle_dependency_action.fire(self)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_set_property(self, key, value):

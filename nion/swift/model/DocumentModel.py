@@ -957,7 +957,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_item_inserted_listeners = dict()
         self.__data_item_item_removed_listeners = dict()
         self.__data_item_request_remove_region = dict()
-        self.__data_item_handle_dependency_action_listeners = dict()
         self.__computation_changed_or_mutated_listeners = dict()
         self.__data_item_request_remove_data_item_listeners = dict()
         self.__data_item_references = dict()
@@ -1003,7 +1002,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
             self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
             self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
-            self.__data_item_handle_dependency_action_listeners[data_item.uuid] = data_item.handle_dependency_action.listen(self.__handle_dependency_action)
             self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
             if data_item.maybe_data_source:
                 self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
@@ -1121,7 +1119,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
         self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
-        self.__data_item_handle_dependency_action_listeners[data_item.uuid] = data_item.handle_dependency_action.listen(self.__handle_dependency_action)
         self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
         if data_item.maybe_data_source:
             self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
@@ -1138,7 +1135,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.computation_changed(data_source, data_source.computation)
             if data_source.computation:
                 data_source.computation.bind(self)
-        self.__handle_dependency_action(data_item)
 
     def remove_data_item(self, data_item):
         """Remove data item from document model.
@@ -1181,8 +1177,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         del self.__data_item_item_removed_listeners[data_item.uuid]
         self.__data_item_request_remove_region[data_item.uuid].close()
         del self.__data_item_request_remove_region[data_item.uuid]
-        self.__data_item_handle_dependency_action_listeners[data_item.uuid].close()
-        del self.__data_item_handle_dependency_action_listeners[data_item.uuid]
         self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
         del self.__computation_changed_or_mutated_listeners[data_item.uuid]
         self.__data_item_request_remove_data_item_listeners[data_item.uuid].close()
@@ -1223,13 +1217,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             if not region._about_to_be_removed:  # HACK! to handle document closing. Argh.
                                 display.remove_graphic(region)
                                 break
-
-    def __handle_dependency_action(self, data_item):
-        for action, target_data_item in data_item._get_pending_dependent_data_items():
-            if action == 'add':
-                self.__add_dependency(data_item, target_data_item)
-            elif action == 'remove':
-                self.__remove_dependency(data_item, target_data_item)
 
     def __remove_dependency(self, source_data_item, target_data_item):
         with self.__dependent_data_items_lock:
