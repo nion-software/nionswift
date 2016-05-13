@@ -1003,8 +1003,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
             self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
             self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
-            if data_item.maybe_data_source:
-                self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
             self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
             data_item.set_data_item_manager(self)
             self.__buffered_data_source_set.update(set(data_item.data_sources))
@@ -1013,6 +1011,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # mark itself clean after reading all of them in.
         for data_item in data_items:
             data_item.finish_reading()
+        for data_item in data_items:
+            if data_item.maybe_data_source:
+                self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
         for data_item in data_items:
             for buffered_data_source in data_item.data_sources:
                 computation = buffered_data_source.computation

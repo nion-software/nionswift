@@ -401,6 +401,28 @@ class TestStorageClass(unittest.TestCase):
         self.assertEqual(new_data_item0.metadata.get("test")["one"], 1)
         document_controller.close()
 
+    def test_dependencies_are_correct_when_dependent_read_before_source(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            src_data_item.category = "temporary"
+            document_model.append_data_item(src_data_item)
+            dst_data_item = document_model.get_fft_new(src_data_item)
+            document_model.recompute_all()
+            dst_data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+            src_data_item_uuid = src_data_item.uuid
+            dst_data_item_uuid = dst_data_item.uuid
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            src_data_item = document_model.get_data_item_by_uuid(src_data_item_uuid)
+            dst_data_item = document_model.get_data_item_by_uuid(dst_data_item_uuid)
+            # make sure the items are loading how we expect them to load (dependent first, then source)
+            self.assertEqual(document_model.data_items[0], dst_data_item)
+            self.assertEqual(document_model.data_items[1], src_data_item)
+            # now the check to ensure the dependency is correct
+            self.assertEqual(document_model.get_dependent_data_items(src_data_item)[0], dst_data_item)
+
     def test_dependencies_load_correctly_when_initially_loaded(self):
         # configure list of data items so that after sorted (on creation date) they will still be listed in this order.
         # this makes one dependency (86d982d1) load before the main item (71ab9215) and one (7d3b374e) load after.
