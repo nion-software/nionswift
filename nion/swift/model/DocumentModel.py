@@ -1778,7 +1778,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if channel_buffer.processor:
                 src_channel_buffer = hardware_source.channel_buffers[channel_buffer.src_channel_index]
                 src_data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_channel_buffer.channel_id)).data_item
-                channel_buffer.processor.connect(src_data_item, data_item)
+                channel_buffer.processor.connect(src_data_item)
             return data_item_reference
 
     def __channel_buffer_start(self, hardware_source, channel_buffer, append_data_item_fn):

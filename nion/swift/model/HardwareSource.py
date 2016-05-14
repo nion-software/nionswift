@@ -25,7 +25,7 @@ import traceback
 import uuid
 
 # typing
-from typing import Dict
+from typing import Dict, List
 
 # local imports
 from nion.data import Calibration
@@ -444,6 +444,25 @@ class AcquisitionTask:
 
 
 class ChannelBuffer:
+    """A channel of raw data from a hardware source.
+
+    The channel buffer is an interface to the stream of data from a hardware source to a client
+    of that stream.
+
+    The client can listen to the following events from the channel:
+        * channel_buffer_updated_event
+        * channel_buffer_start_event
+        * channel_buffer_stop_event
+
+    All events will be fired the acquisition thread.
+
+    The client can access the following properties of the channel:
+        * channel_id
+        * name
+        * state
+        * src_channel_index
+        * sub_area
+    """
     def __init__(self, hardware_source: "HardwareSource", index: int, channel_id: str=None, name: str=None, src_channel_index: str=None, processor=None):
         self.__hardware_source = hardware_source
         self.__index = index
@@ -497,6 +516,7 @@ class ChannelBuffer:
         return self.__is_started
 
     def update(self, data_and_metadata: DataAndMetadata.DataAndMetadata, state: str, sub_area, view_id, is_recording) -> None:
+        """Called from hardware source when new data arrives."""
         self.__state = state
         self.__sub_area = sub_area
         self.__data_and_metadata = data_and_metadata
@@ -520,11 +540,13 @@ class ChannelBuffer:
         self.is_dirty = True
 
     def start(self):
+        """Called from hardware source when data starts streaming."""
         if not self.__is_started:
             self.__is_started = True
             self.channel_buffer_start_event.fire()
 
     def stop(self):
+        """Called from hardware source when data stops streaming."""
         if self.__is_started:
             self.channel_buffer_stop_event.fire()
             self.__is_started = False
@@ -540,7 +562,7 @@ class HardwareSource:
         super().__init__()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
-        self.__channel_buffers = list()
+        self.__channel_buffers = list()  # type: List[ChannelBuffer]
         self.features = dict()
         self.channel_buffer_states_updated = Event.Event()
         self.data_elements_available_event = Event.Event()
@@ -668,6 +690,7 @@ class HardwareSource:
             channel_buffer = self.__channel_buffers[channel_index]
             channel_buffer.update(data_and_calibration, channel_state, sub_area, view_id, not is_continuous)
             channel_buffers.append(channel_buffer)
+        # update channel buffers with processors
         for channel_buffer in self.__channel_buffers:
             src_channel_index = channel_buffer.src_channel_index
             if src_channel_index is not None:
@@ -675,6 +698,7 @@ class HardwareSource:
                 if src_channel_buffer.is_dirty and src_channel_buffer.state == "complete":
                     channel_buffer.update(channel_buffer.processor.process(src_channel_buffer.data_and_metadata), "complete", None, view_id, not is_continuous)
                 channel_buffers.append(channel_buffer)
+        # all channel buffers are clean now
         for channel_buffer in self.__channel_buffers:
             channel_buffer.is_dirty = False
 
@@ -870,11 +894,11 @@ class HardwareSource:
         yield get_data_element
 
     @property
-    def channel_count(self):
+    def channel_count(self) -> int:
         return len(self.__channel_buffers)
 
     @property
-    def channel_buffers(self):
+    def channel_buffers(self) -> List[ChannelBuffer]:
         return self.__channel_buffers
 
     def add_channel_buffer(self, channel_id: str=None, name: str=None):
@@ -907,7 +931,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         self.__bounds = bounds
         self.__processor_id = processor_id or "summed"
         self.__label = label or _("Summed")
-        self.__crop_region = None
+        self.__crop_graphic = None
         self.__crop_listener = None
         self.__remove_listener = None
 
@@ -928,45 +952,46 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         if self.__bounds != value:
             self.__bounds = value
             self.notify_set_property("bounds", value)
-            if self.__crop_region:
-                self.__crop_region.bounds = value
+            if self.__crop_graphic:
+                self.__crop_graphic.bounds = value
 
     def process(self, data_and_metadata: Core.DataAndMetadata) -> Core.DataAndMetadata:
         return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
 
-    def connect(self, src_data_item, dst_data_item):
+    def connect(self, src_data_item):
+        """Connect to the source data item, creating a crop graphic if necessary."""
         display_specifier = DataItem.DisplaySpecifier.from_data_item(src_data_item)
-        crop_region = None
-        for region in display_specifier.display.graphics:
-            if region.graphic_id == self.__processor_id:
-                crop_region = region
+        crop_graphic = None
+        for graphic in display_specifier.display.graphics:
+            if graphic.graphic_id == self.__processor_id:
+                crop_graphic = graphic
                 break
         def close_all():
-            self.__crop_region = None
+            self.__crop_graphic = None
             if self.__crop_listener:
                 self.__crop_listener.close()
                 self.__crop_listener = None
             if self.__remove_listener:
                 self.__remove_listener.close()
                 self.__remove_listener = None
-        if not crop_region:
+        if not crop_graphic:
             close_all()
-            crop_region = Graphics.RectangleGraphic()
-            crop_region.bounds = self.bounds
-            crop_region.is_bounds_constrained = True
-            crop_region.graphic_id = self.__processor_id
-            crop_region.label = _("Crop")
-            display_specifier.display.add_graphic(crop_region)
+            crop_graphic = Graphics.RectangleGraphic()
+            crop_graphic.bounds = self.bounds
+            crop_graphic.is_bounds_constrained = True
+            crop_graphic.graphic_id = self.__processor_id
+            crop_graphic.label = _("Crop")
+            display_specifier.display.add_graphic(crop_graphic)
         if not self.__crop_listener:
             def property_changed(k, v):
                 if k == "bounds":
                     self.bounds = v
-            def region_removed(k, v, i):
-                if v == crop_region:
+            def graphic_removed(k, v, i):
+                if v == crop_graphic:
                     close_all()
-            self.__crop_listener = crop_region.property_changed_event.listen(property_changed)
-            self.__remove_listener = display_specifier.display.item_removed_event.listen(region_removed)
-            self.__crop_region = crop_region
+            self.__crop_listener = crop_graphic.property_changed_event.listen(property_changed)
+            self.__remove_listener = display_specifier.display.item_removed_event.listen(graphic_removed)
+            self.__crop_graphic = crop_graphic
 
 def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=None):
     hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
