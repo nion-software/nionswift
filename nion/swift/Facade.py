@@ -1987,7 +1987,7 @@ class API_1:
 
             def __init__(self):
                 super().__init__(hardware_source_delegate.hardware_source_id, hardware_source_delegate.hardware_source_name)
-                self.add_channel_buffer()
+                self.add_data_channel()
 
             def _create_acquisition_view_task(self) -> FacadeAcquisitionTask:
                 return FacadeAcquisitionTask()

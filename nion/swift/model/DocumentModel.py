@@ -975,10 +975,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__library_storage.set_property(self, "uuid", str(self.uuid))
         self.__library_storage.set_property(self, "version", 0)
 
-        self.__channel_buffer_updated_listeners = dict()
-        self.__channel_buffer_start_listeners = dict()
-        self.__channel_buffer_stop_listeners = dict()
-        self.__channel_buffer_states_updated_listeners = dict()
+        self.__data_channel_updated_listeners = dict()
+        self.__data_channel_start_listeners = dict()
+        self.__data_channel_stop_listeners = dict()
+        self.__data_channel_states_updated_listeners = dict()
         self.__last_data_items_dict = dict()  # maps hardware source to list of data items for that hardware source
 
         self.append_data_item_event = Event.Event()
@@ -1039,24 +1039,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__hardware_source_added_event_listener = None
         self.__hardware_source_removed_event_listener.close()
         self.__hardware_source_removed_event_listener = None
-        for listener in self.__channel_buffer_states_updated_listeners.values():
+        for listener in self.__data_channel_states_updated_listeners.values():
             listener.close()
-        self.__channel_buffer_states_updated_listeners = None
+        self.__data_channel_states_updated_listeners = None
         # TODO: close other listeners here too
         HardwareSource.HardwareSourceManager().abort_all_and_close()
 
-        for listeners in self.__channel_buffer_updated_listeners.values():
+        for listeners in self.__data_channel_updated_listeners.values():
             for listener in listeners:
                 listener.close()
-        for listeners in self.__channel_buffer_start_listeners.values():
+        for listeners in self.__data_channel_start_listeners.values():
             for listener in listeners:
                 listener.close()
-        for listeners in self.__channel_buffer_stop_listeners.values():
+        for listeners in self.__data_channel_stop_listeners.values():
             for listener in listeners:
                 listener.close()
-        self.__channel_buffer_updated_listeners = None
-        self.__channel_buffer_start_listeners = None
-        self.__channel_buffer_stop_listeners = None
+        self.__data_channel_updated_listeners = None
+        self.__data_channel_start_listeners = None
+        self.__data_channel_stop_listeners = None
 
         self.__thread_pool.close()
         for data_item in self.data_items:
@@ -1752,15 +1752,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id))
         data_item_reference.data_item = data_item
 
-    def __construct_data_item_reference(self, hardware_source, channel_buffer, is_recording, append_data_item_fn):
+    def __construct_data_item_reference(self, hardware_source, data_channel, is_recording, append_data_item_fn):
         session_id = self.session_id
-        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, channel_buffer.channel_id))
+        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
         with data_item_reference.mutex:
             data_item = data_item_reference.data_item
             # if we still don't have a data item, create it.
             if not data_item:
                 data_item = DataItem.DataItem()
-                data_item.title = "%s (%s)" % (hardware_source.display_name, channel_buffer.name) if channel_buffer.name else hardware_source.display_name
+                data_item.title = "%s (%s)" % (hardware_source.display_name, data_channel.name) if data_channel.name else hardware_source.display_name
                 data_item.category = "temporary"
                 buffered_data_source = DataItem.BufferedDataSource()
                 data_item.append_data_source(buffered_data_source)
@@ -1775,21 +1775,21 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             session_metadata = self.session_metadata
             if data_item.session_metadata != session_metadata:
                 data_item.session_metadata = session_metadata
-            if channel_buffer.processor:
-                src_channel_buffer = hardware_source.channel_buffers[channel_buffer.src_channel_index]
-                src_data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_channel_buffer.channel_id)).data_item
-                channel_buffer.processor.connect(src_data_item)
+            if data_channel.processor:
+                src_data_channel = hardware_source.data_channels[data_channel.src_channel_index]
+                src_data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_data_channel.channel_id)).data_item
+                data_channel.processor.connect(src_data_item)
             return data_item_reference
 
-    def __channel_buffer_start(self, hardware_source, channel_buffer, append_data_item_fn):
-        data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, channel_buffer.channel_id)).data_item
+    def __data_channel_start(self, hardware_source, data_channel, append_data_item_fn):
+        data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
         if data_item:
             data_item.increment_data_ref_counts()
             self.begin_data_item_transaction(data_item)
             self.begin_data_item_live(data_item)
 
-    def __channel_buffer_stop(self, hardware_source, channel_buffer, append_data_item_fn):
-        data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, channel_buffer.channel_id)).data_item
+    def __data_channel_stop(self, hardware_source, data_channel, append_data_item_fn):
+        data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
         # the order of these two statements is important, at least for now (12/2013)
         # when the transaction ends, the data will get written to disk, so we need to
         # make sure it's still in memory. if decrement were to come before the end
@@ -1799,11 +1799,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.end_data_item_live(data_item)
             data_item.decrement_data_ref_counts()
 
-    def __channel_buffer_updated(self, hardware_source, channel_buffer, append_data_item_fn, data_and_metadata, is_recording):
-        data_item_reference = self.__construct_data_item_reference(hardware_source, channel_buffer, is_recording, append_data_item_fn)
+    def __data_channel_updated(self, hardware_source, data_channel, append_data_item_fn, data_and_metadata, is_recording):
+        data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel, is_recording, append_data_item_fn)
         data_item = data_item_reference.data_item
-        channel_data_state = channel_buffer.state
-        sub_area = channel_buffer.sub_area
+        channel_data_state = data_channel.state
+        sub_area = data_channel.sub_area
         # until the whole pipeline is cleaned up, recreate the data_element. guh.
         data_element = HardwareSource.convert_data_and_metadata_to_data_element(data_and_metadata)
         if sub_area:
@@ -1812,14 +1812,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if is_recording and channel_data_state == "complete":
             append_data_item_fn(copy.deepcopy(data_item), is_recording)
 
-    def __channel_buffer_states_updated(self, hardware_source, channel_buffers):
+    def __data_channel_states_updated(self, hardware_source, data_channels):
         data_item_states = list()
-        for channel_buffer in channel_buffers:
-            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, channel_buffer.channel_id))
+        for data_channel in data_channels:
+            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
             data_item = data_item_reference.data_item
-            channel_id = channel_buffer.channel_id
-            channel_data_state = channel_buffer.state
-            sub_area = channel_buffer.sub_area
+            channel_id = data_channel.channel_id
+            channel_data_state = data_channel.state
+            sub_area = data_channel.sub_area
             # make sure to send out the complete frame
             data_item_state = dict()
             if channel_id is not None:
@@ -1834,27 +1834,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         hardware_source.data_item_states_changed(data_item_states)
 
     def __hardware_source_added(self, append_data_item_fn, hardware_source):
-        self.__channel_buffer_states_updated_listeners[hardware_source.hardware_source_id] = hardware_source.channel_buffer_states_updated.listen(functools.partial(self.__channel_buffer_states_updated, hardware_source))
-        for channel_buffer in hardware_source.channel_buffers:
-            channel_buffer_updated_listener = channel_buffer.channel_buffer_updated_event.listen(functools.partial(self.__channel_buffer_updated, hardware_source, channel_buffer, append_data_item_fn))
-            self.__channel_buffer_updated_listeners.setdefault(hardware_source.hardware_source_id, list()).append(channel_buffer_updated_listener)
-            channel_buffer_start_listener = channel_buffer.channel_buffer_start_event.listen(functools.partial(self.__channel_buffer_start, hardware_source, channel_buffer, append_data_item_fn))
-            self.__channel_buffer_start_listeners.setdefault(hardware_source.hardware_source_id, list()).append(channel_buffer_start_listener)
-            channel_buffer_stop_listener = channel_buffer.channel_buffer_stop_event.listen(functools.partial(self.__channel_buffer_stop, hardware_source, channel_buffer, append_data_item_fn))
-            self.__channel_buffer_stop_listeners.setdefault(hardware_source.hardware_source_id, list()).append(channel_buffer_stop_listener)
+        self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id] = hardware_source.data_channel_states_updated.listen(functools.partial(self.__data_channel_states_updated, hardware_source))
+        for data_channel in hardware_source.data_channels:
+            data_channel_updated_listener = data_channel.data_channel_updated_event.listen(functools.partial(self.__data_channel_updated, hardware_source, data_channel, append_data_item_fn))
+            self.__data_channel_updated_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_updated_listener)
+            data_channel_start_listener = data_channel.data_channel_start_event.listen(functools.partial(self.__data_channel_start, hardware_source, data_channel, append_data_item_fn))
+            self.__data_channel_start_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_start_listener)
+            data_channel_stop_listener = data_channel.data_channel_stop_event.listen(functools.partial(self.__data_channel_stop, hardware_source, data_channel, append_data_item_fn))
+            self.__data_channel_stop_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_stop_listener)
 
     def __hardware_source_removed(self, hardware_source):
-        self.__channel_buffer_states_updated_listeners[hardware_source.hardware_source_id].close()
-        del self.__channel_buffer_states_updated_listeners[hardware_source.hardware_source_id]
-        for listener in self.__channel_buffer_updated_listeners.get(hardware_source.hardware_source_id, list()):
+        self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id].close()
+        del self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id]
+        for listener in self.__data_channel_updated_listeners.get(hardware_source.hardware_source_id, list()):
             listener.close()
-        for listener in self.__channel_buffer_start_listeners.get(hardware_source.hardware_source_id, list()):
+        for listener in self.__data_channel_start_listeners.get(hardware_source.hardware_source_id, list()):
             listener.close()
-        for listener in self.__channel_buffer_stop_listeners.get(hardware_source.hardware_source_id, list()):
+        for listener in self.__data_channel_stop_listeners.get(hardware_source.hardware_source_id, list()):
             listener.close()
-        self.__channel_buffer_updated_listeners.pop(hardware_source.hardware_source_id, None)
-        self.__channel_buffer_start_listeners.pop(hardware_source.hardware_source_id, None)
-        self.__channel_buffer_stop_listeners.pop(hardware_source.hardware_source_id, None)
+        self.__data_channel_updated_listeners.pop(hardware_source.hardware_source_id, None)
+        self.__data_channel_start_listeners.pop(hardware_source.hardware_source_id, None)
+        self.__data_channel_stop_listeners.pop(hardware_source.hardware_source_id, None)
 
     def get_snapshot_new(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
         assert isinstance(data_item, DataItem.DataItem)

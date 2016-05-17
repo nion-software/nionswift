@@ -443,16 +443,16 @@ class AcquisitionTask:
         raise NotImplementedError()
 
 
-class ChannelBuffer:
+class DataChannel:
     """A channel of raw data from a hardware source.
 
     The channel buffer is an interface to the stream of data from a hardware source to a client
     of that stream.
 
     The client can listen to the following events from the channel:
-        * channel_buffer_updated_event
-        * channel_buffer_start_event
-        * channel_buffer_stop_event
+        * data_channel_updated_event
+        * data_channel_start_event
+        * data_channel_stop_event
 
     All events will be fired the acquisition thread.
 
@@ -475,9 +475,9 @@ class ChannelBuffer:
         self.__sub_area = None
         self.__data_and_metadata = None
         self.is_dirty = False
-        self.channel_buffer_updated_event = Event.Event()
-        self.channel_buffer_start_event = Event.Event()
-        self.channel_buffer_stop_event = Event.Event()
+        self.data_channel_updated_event = Event.Event()
+        self.data_channel_start_event = Event.Event()
+        self.data_channel_stop_event = Event.Event()
 
     @property
     def index(self):
@@ -536,19 +536,19 @@ class ChannelBuffer:
             hardware_source_metadata["view_id"] = view_id
         data_and_metadata.metadata.setdefault("hardware_source", dict()).update(hardware_source_metadata)
 
-        self.channel_buffer_updated_event.fire(data_and_metadata, is_recording)
+        self.data_channel_updated_event.fire(data_and_metadata, is_recording)
         self.is_dirty = True
 
     def start(self):
         """Called from hardware source when data starts streaming."""
         if not self.__is_started:
             self.__is_started = True
-            self.channel_buffer_start_event.fire()
+            self.data_channel_start_event.fire()
 
     def stop(self):
         """Called from hardware source when data stops streaming."""
         if self.__is_started:
-            self.channel_buffer_stop_event.fire()
+            self.data_channel_stop_event.fire()
             self.__is_started = False
 
 
@@ -562,9 +562,9 @@ class HardwareSource:
         super().__init__()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
-        self.__channel_buffers = list()  # type: List[ChannelBuffer]
+        self.__data_channels = list()  # type: List[DataChannel]
         self.features = dict()
-        self.channel_buffer_states_updated = Event.Event()
+        self.data_channel_states_updated = Event.Event()
         self.data_elements_available_event = Event.Event()
         self.abort_event = Event.Event()
         self.acquisition_state_changed_event = Event.Event()
@@ -676,43 +676,43 @@ class HardwareSource:
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
     def __data_elements_changed(self, data_elements, is_continuous, view_id, is_complete, is_stopping):
-        channel_buffers = list()
+        data_channels = list()
         for data_element in data_elements:
             assert data_element is not None
             channel_id = data_element.get("channel_id")
             # find channel_index for channel_id
-            channel_index = next((channel_buffer.index for channel_buffer in self.__channel_buffers if channel_buffer.channel_id == channel_id), 0)
+            channel_index = next((data_channel.index for data_channel in self.__data_channels if data_channel.channel_id == channel_id), 0)
             data_and_calibration = convert_data_element_to_data_and_metadata(data_element)
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete" and is_stopping:
                 channel_state = "marked"
             sub_area = data_element.get("sub_area")
-            channel_buffer = self.__channel_buffers[channel_index]
-            channel_buffer.update(data_and_calibration, channel_state, sub_area, view_id, not is_continuous)
-            channel_buffers.append(channel_buffer)
+            data_channel = self.__data_channels[channel_index]
+            data_channel.update(data_and_calibration, channel_state, sub_area, view_id, not is_continuous)
+            data_channels.append(data_channel)
         # update channel buffers with processors
-        for channel_buffer in self.__channel_buffers:
-            src_channel_index = channel_buffer.src_channel_index
+        for data_channel in self.__data_channels:
+            src_channel_index = data_channel.src_channel_index
             if src_channel_index is not None:
-                src_channel_buffer = self.__channel_buffers[src_channel_index]
-                if src_channel_buffer.is_dirty and src_channel_buffer.state == "complete":
-                    channel_buffer.update(channel_buffer.processor.process(src_channel_buffer.data_and_metadata), "complete", None, view_id, not is_continuous)
-                channel_buffers.append(channel_buffer)
+                src_data_channel = self.__data_channels[src_channel_index]
+                if src_data_channel.is_dirty and src_data_channel.state == "complete":
+                    data_channel.update(data_channel.processor.process(src_data_channel.data_and_metadata), "complete", None, view_id, not is_continuous)
+                data_channels.append(data_channel)
         # all channel buffers are clean now
-        for channel_buffer in self.__channel_buffers:
-            channel_buffer.is_dirty = False
+        for data_channel in self.__data_channels:
+            data_channel.is_dirty = False
 
-        self.channel_buffer_states_updated.fire(channel_buffers)
+        self.data_channel_states_updated.fire(data_channels)
         if is_complete:
             self.data_elements_available_event.fire(data_elements)
 
     def __start(self):
-        for channel_buffer in self.__channel_buffers:
-            channel_buffer.start()
+        for data_channel in self.__data_channels:
+            data_channel.start()
 
     def __stop(self):
-        for channel_buffer in self.__channel_buffers:
-            channel_buffer.stop()
+        for data_channel in self.__data_channels:
+            data_channel.stop()
 
     # return whether task is running
     def is_task_running(self, task_id: str) -> bool:
@@ -895,17 +895,17 @@ class HardwareSource:
 
     @property
     def channel_count(self) -> int:
-        return len(self.__channel_buffers)
+        return len(self.__data_channels)
 
     @property
-    def channel_buffers(self) -> List[ChannelBuffer]:
-        return self.__channel_buffers
+    def data_channels(self) -> List[DataChannel]:
+        return self.__data_channels
 
-    def add_channel_buffer(self, channel_id: str=None, name: str=None):
-        self.__channel_buffers.append(ChannelBuffer(self, len(self.__channel_buffers), channel_id, name))
+    def add_data_channel(self, channel_id: str=None, name: str=None):
+        self.__data_channels.append(DataChannel(self, len(self.__data_channels), channel_id, name))
 
     def add_channel_processor(self, channel_index, processor):
-        self.__channel_buffers.append(ChannelBuffer(self, len(self.__channel_buffers), processor.processor_id, None, channel_index, processor))
+        self.__data_channels.append(DataChannel(self, len(self.__data_channels), processor.processor_id, None, channel_index, processor))
 
     def get_property(self, name):
         return getattr(self, name)

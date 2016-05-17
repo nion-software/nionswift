@@ -47,7 +47,7 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.05):
         super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
-        self.add_channel_buffer()
+        self.add_data_channel()
         self.sleep = sleep
         self.image = numpy.zeros(256)
 
@@ -149,8 +149,8 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.02):
         super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
-        self.add_channel_buffer("a", "A")
-        self.add_channel_buffer("b", "B")
+        self.add_data_channel("a", "A")
+        self.add_data_channel("b", "B")
         self.sleep = sleep
         self.channel_enabled_list = [True, False]
         self.scanning_ref = [False]
