@@ -944,9 +944,9 @@ class RecordTask:
 
 class ViewTask:
 
-    public = ["close", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
+    public = ["close", "grab_earliest", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
 
-    def __init__(self, hardware_source, frame_parameters, channels_enabled):
+    def __init__(self, hardware_source: HardwareSourceModule.HardwareSource, frame_parameters: dict, channels_enabled: List[bool], buffer_size: int):
         self.__hardware_source = hardware_source
         self.__was_playing = self.__hardware_source.is_playing
         if frame_parameters:
@@ -956,6 +956,8 @@ class ViewTask:
                 self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
         if not self.__was_playing:
             self.__hardware_source.start_playing()
+        self.__data_channel_buffer = HardwareSourceModule.DataChannelBuffer(self.__hardware_source.data_channels, buffer_size)
+        self.__data_channel_buffer.start()
         self.on_will_start_frame = None  # prepare the hardware here
         self.on_did_finish_frame = None  # restore the hardware here, modify the data_and_metadata here
 
@@ -966,6 +968,9 @@ class ViewTask:
 
         This method must be called when the task is no longer needed.
         """
+        self.__data_channel_buffer.stop()
+        self.__data_channel_buffer.close()
+        self.__data_channel_buffer = None
         if not self.__was_playing:
             self.__hardware_source.stop_playing()
 
@@ -979,7 +984,7 @@ class ViewTask:
         :return: The array of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
-        return self.grab_next_to_finish()
+        return self.__data_channel_buffer.grab_latest()
 
     def grab_next_to_finish(self) -> List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
@@ -991,8 +996,7 @@ class ViewTask:
         :return: The array of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
-        data_elements = self.__hardware_source.get_next_data_elements_to_finish()
-        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return self.__data_channel_buffer.grab_next()
 
     def grab_next_to_start(self) -> List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
@@ -1004,8 +1008,19 @@ class ViewTask:
         :return: The array of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
-        data_elements = self.__hardware_source.get_next_data_elements_to_start()
-        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return self.__data_channel_buffer.grab_following()
+
+    def grab_earliest(self) -> List[DataAndMetadata.DataAndMetadata]:
+        """Grab list of data/metadata from the task.
+
+        .. versionadded:: 1.0
+
+        This method will return the earliest item in the buffer or wait for the next one to finish.
+
+        :return: The array of data and metadata items that were read.
+        :rtype: list of :py:class:`DataAndMetadata`
+        """
+        return self.__data_channel_buffer.grab_earliest()
 
 
 class HardwareSource:
@@ -1121,8 +1136,8 @@ class HardwareSource:
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the record. Pass None for defaults.
         :type channels_enabled: Array of booleans.
-        :return: The :py:class:`ViewTask` object.
-        :rtype: :py:class:`ViewTask`
+        :return: The :py:class:`RecordTask` object.
+        :rtype: :py:class:`RecordTask`
 
         Callers should call close on the returned task when finished.
 
@@ -1130,7 +1145,7 @@ class HardwareSource:
         """
         return RecordTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def create_view_task(self, frame_parameters: dict=None, channels_enabled: List[bool]=None) -> ViewTask:
+    def create_view_task(self, frame_parameters: dict=None, channels_enabled: List[bool]=None, buffer_size: int=1) -> ViewTask:
         """Create a view task for this hardware source.
 
         .. versionadded:: 1.0
@@ -1139,6 +1154,8 @@ class HardwareSource:
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the view. Pass None for defaults.
         :type channels_enabled: Array of booleans.
+        :param buffer_size: The buffer size if using the grab_earliest method. Default is 1.
+        :type buffer_size: int
         :return: The :py:class:`ViewTask` object.
         :rtype: :py:class:`ViewTask`
 
@@ -1146,7 +1163,7 @@ class HardwareSource:
 
         See :py:class:`ViewTask` for examples of how to use.
         """
-        return ViewTask(self.__hardware_source, frame_parameters, channels_enabled)
+        return ViewTask(self.__hardware_source, frame_parameters, channels_enabled, buffer_size)
 
     def grab_next_to_finish(self, timeout: float=None) -> DataAndMetadata.DataAndMetadata:
         """Grabs the next frame to finish and returns it as data and metadata.
