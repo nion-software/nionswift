@@ -11,11 +11,12 @@ This module also defines individual functions that can be used to collect data f
 """
 
 # system imports
-import collections
 import configparser
 import contextlib
 import copy
 import datetime
+import enum
+import functools
 import gettext
 import logging
 import os
@@ -1163,6 +1164,152 @@ def parse_hardware_aliases_config_file(config_path):
             logging.info(traceback.format_exc())
         return True
     return False
+
+
+class DataChannelBuffer:
+    """A fixed size buffer for a list of hardware source data channels.
+
+    The buffer takes care of waiting until all channels in the list have produced
+    a full frame of data, then stores it if it matches criteria (for instance every
+    n seconds). Clients can retrieve earliest or latest data.
+
+    Possible uses: record every frame, record every nth frame, record frame periodically,
+      frame averaging, spectrum imaging.
+    """
+
+    class State(enum.Enum):
+        idle = 0
+        started = 1
+        paused = 2
+
+    def __init__(self, data_channels: List[DataChannel], buffer_size=16):
+        self.__state_lock = threading.RLock()
+        self.__state = DataChannelBuffer.State.idle
+        self.__buffer_size = buffer_size
+        self.__buffer_lock = threading.RLock()
+        self.__buffer = list()
+        self.__done_events = list()
+        self.__active_channel_ids = set()
+        self.__latest = dict()
+        self.__data_channel_updated_listeners = list()
+        self.__data_channel_start_listeners = list()
+        self.__data_channel_stop_listeners = list()
+        self.__data_channels = data_channels
+        for data_channel in self.__data_channels:
+            data_channel_updated_listener = data_channel.data_channel_updated_event.listen(functools.partial(self.__data_channel_updated, data_channel))
+            self.__data_channel_updated_listeners.append(data_channel_updated_listener)
+            data_channel_start_listener = data_channel.data_channel_start_event.listen(functools.partial(self.__data_channel_start, data_channel))
+            self.__data_channel_start_listeners.append(data_channel_start_listener)
+            data_channel_stop_listener = data_channel.data_channel_stop_event.listen(functools.partial(self.__data_channel_stop, data_channel))
+            self.__data_channel_stop_listeners.append(data_channel_stop_listener)
+            if data_channel.is_started:
+                self.__active_channel_ids.add(data_channel.channel_id)
+
+    def close(self) -> None:
+        for listener in self.__data_channel_updated_listeners:
+            listener.close()
+        for listener in self.__data_channel_start_listeners:
+            listener.close()
+        for listener in self.__data_channel_stop_listeners:
+            listener.close()
+        self.__data_channel_updated_listeners = None
+        self.__data_channel_start_listeners = None
+        self.__data_channel_stop_listeners = None
+
+    def __data_channel_updated(self, data_channel: DataChannel, data_and_metadata: DataAndMetadata.DataAndMetadata, is_recording: bool) -> None:
+        if self.__state == DataChannelBuffer.State.started:
+            if data_channel.state == "complete":
+                with self.__buffer_lock:
+                    self.__latest[data_channel.channel_id] = data_and_metadata
+                    if set(self.__latest.keys()).issuperset(self.__active_channel_ids):
+                        data_and_metadata_list = list()
+                        for data_channel in self.__data_channels:
+                            if data_channel.channel_id in self.__latest:
+                                data_and_metadata_list.append(copy.deepcopy(self.__latest[data_channel.channel_id]))
+                        self.__buffer.append(data_and_metadata_list)
+                        self.__latest = dict()
+                        if len(self.__buffer) > self.__buffer_size:
+                            self.__buffer.pop(0)
+                        for done_event in self.__done_events:
+                            done_event.set()
+                        self.__done_events = list()
+
+    def __data_channel_start(self, data_channel: DataChannel) -> None:
+        self.__active_channel_ids.add(data_channel.channel_id)
+
+    def __data_channel_stop(self, data_channel: DataChannel) -> None:
+        self.__active_channel_ids.remove(data_channel.channel_id)
+
+    def grab_latest(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+        """Grab the most recent data from the buffer, blocking until one is available. Clear earlier data."""
+        timeout = timeout if timeout is not None else 10.0
+        with self.__buffer_lock:
+            if len(self.__buffer) == 0:
+                done_event = threading.Event()
+                self.__done_events.append(done_event)
+                self.__buffer_lock.release()
+                done = done_event.wait(timeout)
+                self.__buffer_lock.acquire()
+                if not done:
+                    raise Exception("Could not grab latest.")
+            result = self.__buffer[-1]
+            self.__buffer = list()
+            return result
+
+    def grab_earliest(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+        """Grab the earliest data from the buffer, blocking until one is available."""
+        timeout = timeout if timeout is not None else 10.0
+        with self.__buffer_lock:
+            if len(self.__buffer) == 0:
+                done_event = threading.Event()
+                self.__done_events.append(done_event)
+                self.__buffer_lock.release()
+                done = done_event.wait(timeout)
+                self.__buffer_lock.acquire()
+                if not done:
+                    raise Exception("Could not grab latest.")
+            return self.__buffer.pop(0)
+
+    def grab_next(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+        """Grab the next data to finish from the buffer, blocking until one is available."""
+        with self.__buffer_lock:
+            self.__buffer = list()
+        return self.grab_latest(timeout)
+
+    def grab_following(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+        """Grab the next data to start from the buffer, blocking until one is available."""
+        self.grab_next(timeout)
+        return self.grab_next(timeout)
+
+    def start(self) -> None:
+        """Start recording.
+
+        Thread safe and UI safe."""
+        with self.__state_lock:
+            self.__state = DataChannelBuffer.State.started
+
+    def pause(self) -> None:
+        """Pause recording.
+
+        Thread safe and UI safe."""
+        with self.__state_lock:
+            if self.__state == DataChannelBuffer.State.started:
+                self.__state = DataChannelBuffer.State.paused
+
+    def resume(self) -> None:
+        """Resume recording after pause.
+
+        Thread safe and UI safe."""
+        with self.__state_lock:
+            if self.__state == DataChannelBuffer.State.paused:
+                self.__state = DataChannelBuffer.State.started
+
+    def stop(self) -> None:
+        """Stop or abort recording.
+
+        Thread safe and UI safe."""
+        with self.__state_lock:
+            self.__state = DataChannelBuffer.State.idle
 
 
 def matches_hardware_source(hardware_source_id, channel_id, data_item):
