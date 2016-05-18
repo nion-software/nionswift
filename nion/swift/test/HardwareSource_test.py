@@ -14,7 +14,7 @@ from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.ui import Test
+from nion.ui import TestUI
 
 
 class SimpleAcquisitionTask(HardwareSource.AcquisitionTask):
@@ -456,7 +456,7 @@ def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_sourc
 class TestHardwareSourceClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(Test.UserInterface(), set_global=False)
+        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         HardwareSource.HardwareSourceManager()._reset()
 
     def tearDown(self):

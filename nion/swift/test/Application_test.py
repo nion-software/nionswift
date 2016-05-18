@@ -14,7 +14,7 @@ import unittest
 # local libraries
 from nion.swift import Application
 from nion.swift.model import Cache
-from nion.ui import Test
+from nion.ui import TestUI
 
 
 class TestApplicationClass(unittest.TestCase):
@@ -32,7 +32,7 @@ class TestApplicationClass(unittest.TestCase):
         Cache.db_make_directory_if_needed(workspace1_dir)
         Cache.db_make_directory_if_needed(workspace2_dir)
         try:
-            app = Application.Application(Test.UserInterface(), set_global=False)
+            app = Application.Application(TestUI.UserInterface(), set_global=False)
             app.start(True, fixed_workspace_dir=workspace1_dir)
             app.switch_library(workspace2_dir, skip_choose=True, fixed_workspace_dir=workspace2_dir)
             app.exit()

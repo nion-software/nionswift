@@ -12,14 +12,14 @@ from nion.swift import Facade
 from nion.swift.model import DocumentModel
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
-from nion.ui import Test
+from nion.ui import TestUI
 
 
 
 class TestFacadeClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(Test.UserInterface(), set_global=True)
+        self.app = Application.Application(TestUI.UserInterface(), set_global=True)
         self.app.workspace_dir = str()
 
     def tearDown(self):

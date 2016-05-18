@@ -17,13 +17,13 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import LineGraphCanvasItem
-from nion.ui import Test
+from nion.ui import TestUI
 
 
 class TestLineGraphCanvasItem(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(Test.UserInterface(), set_global=False)
+        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
 
     def tearDown(self):
         pass

@@ -17,8 +17,9 @@ from nion.swift.model import PlugInManager
 Running tests without Qt:
 
 import Application
+import TestUI
 import Test
-Application.Application(Test.UserInterface())
+Application.Application(TestUI.UserInterface())
 Test.run_all_tests()
 Test.run_test("TestApplicationClass")
 """

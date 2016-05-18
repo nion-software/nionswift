@@ -20,7 +20,7 @@ from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import CanvasItem
-from nion.ui import Test
+from nion.ui import TestUI
 from nion.utils import Geometry
 
 
@@ -61,7 +61,7 @@ class TestDisplayPanel(object):
 class TestDisplayPanelClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(Test.UserInterface(), set_global=False)
+        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         self.document_model = DocumentModel.DocumentModel()
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
@@ -485,7 +485,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         # do focusing click, then delete
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
         # check results
         self.assertEqual(len(self.display_specifier.display.graphics), 0)
 
@@ -495,7 +495,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNotNone(self.display_panel.data_item)
         # do focusing click, then delete
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "delete", modifiers))
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
         # check results
         self.assertIsNotNone(self.display_panel.data_item)
 
@@ -944,8 +944,8 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_key_gets_dispatched_to_image_canvas_item(self):
         modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "up", modifiers))
-        # self.display_panel.display_canvas_item.key_pressed(Test.Key(None, "up", modifiers))  # direct dispatch, should work
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "up", modifiers))
+        # self.display_panel.display_canvas_item.key_pressed(TestUI.Key(None, "up", modifiers))  # direct dispatch, should work
         self.assertEqual(self.display_panel.display_canvas_item.scroll_area_canvas_item.content.canvas_rect, ((-10, 0), (1000, 1000)))
 
     def test_drop_on_overlay_middle_triggers_replace_data_item_in_panel_action(self):
@@ -1018,13 +1018,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         modifiers = CanvasItem.KeyboardModifiers()
         # focus and enter key
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         self.assertEqual(self.display_specifier.display.display_limits, (0, 0))
         with self.data_item.maybe_data_source.data_ref() as dr:
             dr.master_data[0,0] = 16
             dr.data_updated()
         self.assertEqual(self.display_specifier.display.display_limits, (0, 0))
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         self.assertEqual(self.display_specifier.display.display_limits, (0, 16))
 
     def test_dragging_to_add_point_makes_desired_point(self):
@@ -1086,7 +1086,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # focus on the display panel, then press the enter key
         modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(Test.Key(None, "enter", modifiers))
+        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         # confirm that display limits were set
         self.assertIsNotNone(self.display_specifier.display.display_limits)
 

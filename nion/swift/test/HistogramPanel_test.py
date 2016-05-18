@@ -15,13 +15,13 @@ from nion.swift import HistogramPanel
 from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
-from nion.ui import Test
+from nion.ui import TestUI
 
 
 class TestHistogramPanelClass(unittest.TestCase):
 
     def setUp(self):
-        self.app = Application.Application(Test.UserInterface(), set_global=False)
+        self.app = Application.Application(TestUI.UserInterface(), set_global=False)
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
         self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
