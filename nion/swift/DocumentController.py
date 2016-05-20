@@ -58,6 +58,8 @@ class DocumentController:
         self.create_new_document_controller_event = Event.Event()
         self.tool_mode_changed_event = Event.Event()
 
+        self.__dialogs = list()
+
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model = document_model
@@ -139,6 +141,14 @@ class DocumentController:
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
+        # dialogs
+        for weak_dialog in self.__dialogs:
+            dialog = weak_dialog()
+            if dialog:
+                try:
+                    dialog.document_window.request_close()
+                except Exception as e:
+                    pass
         # menus
         self.display_type_menu.on_about_to_show = None
         self.view_menu.on_about_to_show = None
@@ -428,7 +438,11 @@ class DocumentController:
                 row.add(logo_button)
                 row.add(column)
                 self.content.add(row)
-        AboutDialog(self.ui).show()
+
+        about_dialog = AboutDialog(self.ui)
+        about_dialog.show()
+
+        self.__dialogs.append(weakref.ref(about_dialog))
 
     def find_dock_widget(self, dock_widget_id):
         """ Return the dock widget by id. """
@@ -761,6 +775,7 @@ class DocumentController:
             export_dialog = ExportDialog.ExportDialog(self.ui)
             export_dialog.on_accept = functools.partial(export_dialog.do_export, data_items)
             export_dialog.show()
+            self.__dialogs.append(weakref.ref(export_dialog))
         elif len(data_items) == 1:
             self.export_file(data_items[0])
 
@@ -774,6 +789,7 @@ class DocumentController:
     def new_interactive_script_dialog(self):
         interactive_dialog = ScriptsDialog.RunScriptDialog(self)
         interactive_dialog.show()
+        self.__dialogs.append(weakref.ref(interactive_dialog))
 
     def add_group(self):
         data_group = DataGroup.DataGroup()
