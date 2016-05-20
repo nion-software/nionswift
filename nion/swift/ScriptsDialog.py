@@ -202,13 +202,11 @@ class RunScriptDialog(Dialog.ActionDialog):
         select_column.add_spacing(8)
         select_column.add(button_row)
         select_column.add_spacing(8)
-        select_column.add_stretch()
 
         run_column = ui.create_column_widget()
         run_column.add(self.__output_widget)
         run_column.add_spacing(6)
         run_column.add(self.__message_column)
-        run_column.add_stretch()
 
         error_label_row = ui.create_row_widget()
         error_label_row.add_spacing(12)

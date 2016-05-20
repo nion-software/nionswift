@@ -115,7 +115,7 @@ class CompositeWidgetBase:
     @tool_tip.setter
     def tool_tip(self, tool_tip):
         if tool_tip != self.tool_tip:
-            self.__delegate.tool_tip = tool_tip
+            self.__content_widget.tool_tip = tool_tip
 
     def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
         self.__content_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
@@ -231,7 +231,7 @@ class StringListWidget(CompositeWidgetBase):
         scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
         scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
 
-        canvas_widget = ui.create_canvas_widget(properties={"height": 200, "width": 560})
+        canvas_widget = ui.create_canvas_widget(properties={"min-height": 200, "min-width": 560})
         canvas_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
 
         content_widget.add(canvas_widget)
