@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!--
+java -jar batik-rasterizer.jar -h 24 -w 24 -a 0,0,24,24 artwork/sliders.svg -d nion/swift/resources/sliders_icon_24.png
+  -->
+<svg width="24" height="24" 
+     viewPort="0 0 24 24" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+
+    <path d="M 2,7 L 20,7 M 2,12 L 20,12 M 2,17 L 20,17" stroke="black" stroke-width="1.0px" />
+    <ellipse cx="7" cy="7" rx="2" ry="2" fill="#CCC" stroke="black" stroke-width="1.0px"/>
+    <ellipse cx="16" cy="12" rx="2" ry="2" fill="#CCC" stroke="black" stroke-width="1.0px"/>
+    <ellipse cx="10" cy="17" rx="2" ry="2" fill="#CCC" stroke="black" stroke-width="1.0px"/>
+
+</svg>

@@ -28,7 +28,7 @@
 
 <!--
 
-java -jar batik-rasterizer.jar -h 16 -w 16 -a 0,0,16,16 /Users/cmeyer/Developer/Nion/NionImaging/Graphics/Icons.svg -d /Users/cmeyer/Developer/Nion/NionImaging/Graphics/lock.png
+java -jar batik-rasterizer.jar -h 16 -w 16 -a 0,0,16,16 artwork/Icons.svg -d nion/swift/resources/lock.png
 
 -->
 
