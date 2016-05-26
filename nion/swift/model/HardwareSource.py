@@ -464,7 +464,7 @@ class DataChannel:
         * src_channel_index
         * sub_area
     """
-    def __init__(self, hardware_source: "HardwareSource", index: int, channel_id: str=None, name: str=None, src_channel_index: str=None, processor=None):
+    def __init__(self, hardware_source: "HardwareSource", index: int, channel_id: str=None, name: str=None, src_channel_index: int=None, processor=None):
         self.__hardware_source = hardware_source
         self.__index = index
         self.__channel_id = channel_id
@@ -652,7 +652,7 @@ class HardwareSource:
     # create the view task
     # will be called from the UI thread and should return quickly.
     def _create_acquisition_view_task(self):
-        return AcquisitionTask(True)
+        raise NotImplementedError()
 
     # subclasses can implement this method to get notification that the view task has been changed.
     # subclasses may have a need to access the view task and this method can help keep track of the
@@ -665,7 +665,7 @@ class HardwareSource:
     # create the view task
     # will be called from the UI thread and should return quickly.
     def _create_acquisition_record_task(self):
-        return AcquisitionTask(False)
+        raise NotImplementedError()
 
     # subclasses can implement this method to get notification that the record task has been changed.
     # subclasses may have a need to access the record task and this method can help keep track of the
@@ -905,7 +905,7 @@ class HardwareSource:
     def add_data_channel(self, channel_id: str=None, name: str=None):
         self.__data_channels.append(DataChannel(self, len(self.__data_channels), channel_id, name))
 
-    def add_channel_processor(self, channel_index, processor):
+    def add_channel_processor(self, channel_index: int, processor):
         self.__data_channels.append(DataChannel(self, len(self.__data_channels), processor.processor_id, None, channel_index, processor))
 
     def get_property(self, name):
