@@ -196,11 +196,10 @@ def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_sourc
     hardware_source.start_playing()
     try:
         testcase.assertTrue(hardware_source.is_playing)
-        with hardware_source.get_data_element_generator(False) as data_element_generator:
-            data_element_generator()
-            data_element_generator()
-            data_element_generator()
-            data_element_generator()
+        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_data_elements_to_finish()
     finally:
         hardware_source.abort_playing()
     document_controller.periodic()  # data items queued to be added from background thread get added here
@@ -258,9 +257,8 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
     hardware_source.start_playing()
     try:
         # start playing, grab a few frames
-        with hardware_source.get_data_element_generator(False) as data_element_generator:
-            data_element_generator()
-            data_element_generator()
+        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_data_elements_to_finish()
         hardware_source.start_recording()
         # wait for recording to start
         start_time = time.time()
@@ -274,8 +272,7 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
             time.sleep(0.01)
             testcase.assertTrue(time.time() - start_time < 3.0)
         testcase.assertTrue(hardware_source.is_playing)
-        with hardware_source.get_data_element_generator(False) as data_element_generator:
-            data_element_generator()
+        hardware_source.get_next_data_elements_to_finish()
     finally:
         hardware_source.abort_playing()
     document_controller.periodic()
@@ -285,8 +282,7 @@ def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, do
     # first start playing
     hardware_source.start_playing()
     try:
-        with hardware_source.get_data_element_generator(False) as data_element_generator:
-            data_element_generator()
+        hardware_source.get_next_data_elements_to_finish()
         document_controller.periodic()
         # now start recording
         hardware_source.start_recording()
@@ -296,8 +292,7 @@ def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, do
             time.sleep(0.01)
             testcase.assertTrue(time.time() - start_time < 3.0)
         hardware_source.abort_recording()
-        with hardware_source.get_data_element_generator(False) as data_element_generator:
-            data_element_generator()
+        hardware_source.get_next_data_elements_to_finish()
     finally:
         # clean up
         hardware_source.abort_playing()
@@ -308,8 +303,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     # play the first time
     hardware_source.start_playing()
     try:
-        with hardware_source.get_data_element_generator(False) as data_element_generator:
-            data_element_generator()
+        hardware_source.get_next_data_elements_to_finish()
     finally:
         hardware_source.stop_playing()
     # wait for it to stop
@@ -327,8 +321,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     document_model.append_data_item(new_data_item)
     hardware_source.start_playing()
     try:
-        with hardware_source.get_data_element_generator(True) as data_element_generator:
-            data_element_generator()
+        hardware_source.get_next_data_elements_to_start()
     finally:
         hardware_source.stop_playing()
     # wait for it to stop
@@ -905,6 +898,17 @@ class TestHardwareSourceClass(unittest.TestCase):
                 time.sleep(0.01)
                 self.assertTrue(time.time() - start_time < 3.0)
             document_controller.periodic()
+
+    def test_data_generator_generates_ndarrays(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        with contextlib.closing(document_controller):
+            hardware_source.start_playing()
+            try:
+                with HardwareSource.get_data_generator_by_id(hardware_source.hardware_source_id) as data_generator:
+                    self.assertIsInstance(data_generator(), numpy.ndarray)
+                    self.assertIsInstance(data_generator(), numpy.ndarray)
+            finally:
+                hardware_source.abort_playing()
 
 
 if __name__ == '__main__':

@@ -154,7 +154,7 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
                 return hardware_source, display_name
         return None
 
-    def get_hardware_source_for_hardware_source_id(self, hardware_source_id):
+    def get_hardware_source_for_hardware_source_id(self, hardware_source_id: str) -> "HardwareSource":
         info = self.__get_info_for_hardware_source_id(hardware_source_id)
         if info:
             hardware_source, display_name = info
@@ -875,24 +875,13 @@ class HardwareSource:
 
                 return new_data_elements
 
-    @contextlib.contextmanager
-    def get_data_element_generator(self, sync=True, timeout=None):
-        """
-            Return a generator for data elements.
+    def get_next_data_and_metadata_list_to_finish(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+        data_elements = self.get_next_data_elements_to_finish(timeout)
+        return [convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-            The sync parameter is used to guarantee that the frame returned is started after the generator call.
-
-            NOTE: data elements may return the same ndarray (with different data) each time it is called.
-            Callers should handle appropriately.
-        """
-
-        def get_data_element():
-            if sync:
-                return self.get_next_data_elements_to_start(timeout)[0]
-            else:
-                return self.get_next_data_elements_to_finish(timeout)[0]
-
-        yield get_data_element
+    def get_next_data_and_metadata_list_to_start(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+        data_elements = self.get_next_data_elements_to_start(timeout)
+        return [convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
     @property
     def channel_count(self) -> int:
@@ -994,10 +983,6 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
             self.__remove_listener = display_specifier.display.item_removed_event.listen(graphic_removed)
             self.__crop_graphic = crop_graphic
 
-def get_data_element_generator_by_id(hardware_source_id, sync=True, timeout=None):
-    hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
-    return hardware_source.get_data_element_generator(sync, timeout)
-
 
 @contextlib.contextmanager
 def get_data_generator_by_id(hardware_source_id, sync=True):
@@ -1008,11 +993,10 @@ def get_data_generator_by_id(hardware_source_id, sync=True):
 
         NOTE: a new ndarray is created for each call.
     """
-    with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
-        def get_last_data():
-            return data_element_generator()["data"].copy()
-        # error handling not necessary here - occurs above with get_data_element_generator_by_id function
-        yield get_last_data
+    hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
+    def get_last_data():
+        return hardware_source.get_next_data_elements_to_finish()[0]["data"].copy()
+    yield get_last_data
 
 
 def convert_data_and_metadata_to_data_element(data_and_calibration):
@@ -1030,6 +1014,7 @@ def convert_data_and_metadata_to_data_element(data_and_calibration):
     properties = data_and_calibration.metadata.get("hardware_source", dict())
     data_element["properties"] = properties
     return data_element
+
 
 def convert_data_element_to_data_and_metadata(data_element):
     data = data_element["data"]
@@ -1068,70 +1053,6 @@ def convert_data_element_to_data_and_metadata(data_element):
     timestamp = datetime.datetime.utcnow()
     return DataAndMetadata.DataAndMetadata(lambda: data.copy(), data_shape_and_dtype, intensity_calibration,
                                            dimensional_calibrations, metadata, timestamp)
-
-
-@contextlib.contextmanager
-def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
-    with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
-        def get_last_data():
-            data_element = data_element_generator()
-            return convert_data_element_to_data_and_metadata(data_element)
-        # error handling not necessary here - occurs above with get_data_element_generator_by_id function
-        yield get_last_data
-
-
-@contextlib.contextmanager
-def get_data_and_metadata_generator_by_id(hardware_source_id, sync=True):
-    with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
-        def get_last_data():
-            data_element = data_element_generator()
-            data = data_element["data"]
-            data_shape_and_dtype = data.shape, data.dtype
-            # dimensional calibrations
-            dimensional_calibrations = None
-            if "spatial_calibrations" in data_element:
-                spatial_calibrations = data_element.get("spatial_calibrations")
-                dimensional_calibrations = list()
-                for dimension, spatial_calibration in enumerate(spatial_calibrations):
-                    offset = float(spatial_calibration.get("offset", 0.0))
-                    scale = float(spatial_calibration.get("scale", 1.0))
-                    units = Unicode.u(spatial_calibration.get("units", ""))
-                    if scale != 0.0:
-                        dimensional_calibrations.append(Calibration.Calibration(offset, scale, units))
-            intensity_calibration = None
-            if "intensity_calibration" in data_element:
-                intensity_calibration_dict = data_element.get("intensity_calibration")
-                offset = float(intensity_calibration_dict.get("offset", 0.0))
-                scale = float(intensity_calibration_dict.get("scale", 1.0))
-                units = Unicode.u(intensity_calibration_dict.get("units", ""))
-                if scale != 0.0:
-                    intensity_calibration = Calibration.Calibration(offset, scale, units)
-            # properties (general tags)
-            metadata = None
-            if "properties" in data_element:
-                metadata = dict()
-                hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-                hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
-            timestamp = datetime.datetime.utcnow()
-            return DataAndMetadata.DataAndMetadata(lambda: data.copy(), data_shape_and_dtype, intensity_calibration,
-                                                      dimensional_calibrations, metadata, timestamp)
-        # error handling not necessary here - occurs above with get_data_element_generator_by_id function
-        yield get_last_data
-
-
-@contextlib.contextmanager
-def get_data_item_generator_by_id(hardware_source_id, sync=True):
-    """
-        Return a generator for data item.
-
-        :param bool sync: whether to wait for current frame to finish then collect next frame
-
-        NOTE: a new data item is created for each call.
-    """
-    with get_data_element_generator_by_id(hardware_source_id, sync) as data_element_generator:
-        def get_last_data_item():
-            return ImportExportManager.create_data_item_from_data_element(data_element_generator())
-        yield get_last_data_item
 
 
 def parse_hardware_aliases_config_file(config_path):
