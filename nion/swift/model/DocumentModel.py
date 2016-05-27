@@ -1833,7 +1833,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         hardware_source.data_item_states_changed_event.fire(data_item_states)
         hardware_source.data_item_states_changed(data_item_states)
 
-    def __hardware_source_added(self, append_data_item_fn, hardware_source):
+    def __hardware_source_added(self, append_data_item_fn, hardware_source: HardwareSource.HardwareSource) -> None:
         self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id] = hardware_source.data_channel_states_updated.listen(functools.partial(self.__data_channel_states_updated, hardware_source))
         for data_channel in hardware_source.data_channels:
             data_channel_updated_listener = data_channel.data_channel_updated_event.listen(functools.partial(self.__data_channel_updated, hardware_source, data_channel, append_data_item_fn))
@@ -1842,6 +1842,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__data_channel_start_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_start_listener)
             data_channel_stop_listener = data_channel.data_channel_stop_event.listen(functools.partial(self.__data_channel_stop, hardware_source, data_channel, append_data_item_fn))
             self.__data_channel_stop_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_stop_listener)
+            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
+            data_item = data_item_reference.data_item
+            if data_item:
+                hardware_source.clean_data_item(data_item, data_channel)
 
     def __hardware_source_removed(self, hardware_source):
         self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id].close()
