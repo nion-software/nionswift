@@ -9,6 +9,7 @@ import math
 import gettext
 import numbers
 import operator
+import threading
 
 # third party libraries
 import numpy
@@ -146,8 +147,9 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__graphic_changed_listeners = list()
         self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
         self.__display_data = None
+        self.__display_data_lock = threading.RLock()
         self.__preview = None
-        self.__preview_last = None
+        self.__preview_lock = threading.RLock()
         self.__processors = dict()
         self.__processors["statistics"] = StatisticsDataItemProcessor(self)
         self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
@@ -214,41 +216,43 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     @property
     def preview_2d(self):
-        if self.__preview is None:
-            data_2d = self.display_data
-            if Image.is_data_1d(data_2d):
-                data_2d = data_2d.reshape(1, data_2d.shape[0])
-            if data_2d is not None:
-                data_range = self.data_range
-                display_limits = self.display_limits
-                # enforce a maximum of 1024 in either dimension on the preview for performance.
-                # but only scale by integer factors.
-                target_size = 1024.0
-                if data_2d.shape[0] > 1.5 * target_size or data_2d.shape[1] > 1.5 * target_size:
-                    if data_2d.shape[0] > data_2d.shape[1]:
-                        stride = round(data_2d.shape[0]/target_size)
-                    else:
-                        stride = round(data_2d.shape[1]/target_size)
-                    data_2d = data_2d[0:data_2d.shape[0]:stride, 0:data_2d.shape[1]:stride]
-                self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup, existing=self.__preview_last)
-        return self.__preview
+        with self.__preview_lock:
+            if self.__preview is None:
+                data_2d = self.display_data
+                if Image.is_data_1d(data_2d):
+                    data_2d = data_2d.reshape(1, data_2d.shape[0])
+                if data_2d is not None:
+                    data_range = self.data_range
+                    display_limits = self.display_limits
+                    # enforce a maximum of 1024 in either dimension on the preview for performance.
+                    # but only scale by integer factors.
+                    target_size = 1024.0
+                    if data_2d.shape[0] > 1.5 * target_size or data_2d.shape[1] > 1.5 * target_size:
+                        if data_2d.shape[0] > data_2d.shape[1]:
+                            stride = round(data_2d.shape[0]/target_size)
+                        else:
+                            stride = round(data_2d.shape[1]/target_size)
+                        data_2d = data_2d[0:data_2d.shape[0]:stride, 0:data_2d.shape[1]:stride]
+                    self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup)
+            return self.__preview
 
     @property
     def display_data(self):
         try:
-            if self.__display_data is None:
-                if self.__data_and_calibration:
-                    data = self.__data_and_calibration.data
-                    if Image.is_data_1d(data):
-                        display_data = Image.scalar_from_array(data)
-                    elif Image.is_data_2d(data):
-                        display_data = Image.scalar_from_array(data)
-                    elif Image.is_data_3d(data):
-                        display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
-                    else:
-                        display_data = None
-                    self.__display_data = display_data
-            return self.__display_data
+            with self.__display_data_lock:
+                if self.__display_data is None:
+                    if self.__data_and_calibration:
+                        data = self.__data_and_calibration.data
+                        if Image.is_data_1d(data):
+                            display_data = Image.scalar_from_array(data)
+                        elif Image.is_data_2d(data):
+                            display_data = Image.scalar_from_array(data)
+                        elif Image.is_data_3d(data):
+                            display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
+                        else:
+                            display_data = None
+                        self.__display_data = display_data
+                return self.__display_data
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -475,10 +479,10 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.display_changed_event.fire()
 
     def __clear_cached_data(self):
-        self.__display_data = None
-        if self.__preview is not None:
-            self.__preview_last = self.__preview
-        self.__preview = None
+        with self.__display_data_lock:
+            self.__display_data = None
+        with self.__preview_lock:
+            self.__preview = None
         # clear the processor caches
         if not self._is_reading:
             for processor in self.__processors.values():
