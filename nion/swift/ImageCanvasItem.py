@@ -891,7 +891,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             assert data_and_calibration.is_data_2d
             assert data_and_calibration.data_dtype == numpy.uint32
             # grab the bitmap image
-            self.__bitmap_canvas_item.set_rgba_bitmap_data(data_and_calibration.data, trigger_update=False)
+            self.__bitmap_canvas_item.set_rgba_bitmap_data_fn(data_and_calibration.data_fn, trigger_update=False)
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")
