@@ -932,6 +932,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     The document model provides a dispatcher object which will run tasks in a thread pool.
     """
 
+    computation_min_period = 0.0
+
     def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
         super(DocumentModel, self).__init__()
 
@@ -1554,7 +1556,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                             buffered_data_source.update_metadata(data_and_metadata.metadata)
                                             buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
                                             buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
-                                time.sleep(0.05)
+                                time.sleep(DocumentModel.computation_min_period)
                         except Exception as e:
                             computation.error_text = _("Unable to compute data")
                         finally:

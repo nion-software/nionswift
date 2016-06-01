@@ -235,6 +235,7 @@ class Application(object):
 
     def continue_start(self, cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
         storage_cache = Cache.DbStorageCache(cache_path)
+        DocumentModel.computation_min_period = 0.1
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
                                                      persistent_storage_systems=[file_persistent_storage_system],
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files)
