@@ -471,7 +471,7 @@ class DataChannel:
         self.__name = name
         self.__src_channel_index = src_channel_index
         self.__processor = processor
-        self.__is_started = False
+        self.__start_count = False
         self.__state = None
         self.__sub_area = None
         self.__data_and_metadata = None
@@ -514,7 +514,7 @@ class DataChannel:
 
     @property
     def is_started(self):
-        return self.__is_started
+        return self.__start_count > 0
 
     def update(self, data_and_metadata: DataAndMetadata.DataAndMetadata, state: str, sub_area, view_id, is_recording) -> None:
         """Called from hardware source when new data arrives."""
@@ -542,15 +542,16 @@ class DataChannel:
 
     def start(self):
         """Called from hardware source when data starts streaming."""
-        if not self.__is_started:
-            self.__is_started = True
+        old_start_count = self.__start_count
+        self.__start_count += 1
+        if old_start_count == 0:
             self.data_channel_start_event.fire()
 
     def stop(self):
         """Called from hardware source when data stops streaming."""
-        if self.__is_started:
+        self.__start_count -= 1
+        if self.__start_count == 0:
             self.data_channel_stop_event.fire()
-            self.__is_started = False
 
 
 class HardwareSource:
