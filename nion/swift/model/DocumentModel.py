@@ -1,5 +1,6 @@
 # standard libraries
 import collections
+import concurrent.futures
 import copy
 import datetime
 import functools
@@ -1773,9 +1774,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__data_item = data_item
             self.mutex = threading.RLock()
             self.data_item_changed_event = Event.Event()
+            self.__executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            self.__latest_data_and_metadata = None
+            self.__mutex = threading.RLock()
+            self.__last_start = 0
+            self.__is_incomplete = True
 
         def close(self):
-            pass
+            self.__executor.shutdown()
+            self.__executor = None
 
         # this method gets called directly from the document model
         def data_item_inserted(self, data_item):
@@ -1799,6 +1806,29 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__data_item = value
                     self.data_item_changed_event.fire()
                     self.__document_model._update_data_item_reference(self.__key, self.__data_item)
+
+        def update_data(self, data_and_metadata, sub_area, is_recording, is_complete, append_data_item_fn):
+            with self.__mutex:
+                self.__latest_data_and_metadata = data_and_metadata
+            def do_sleep():
+                update_period = 0.05
+                time.sleep(max(update_period - (time.time() - self.__last_start), 0))
+            def do_update():
+                self.__last_start = time.time()
+                with self.__mutex:
+                    latest_data_and_metadata = self.__latest_data_and_metadata
+                    self.__latest_data_and_metadata = None
+                if latest_data_and_metadata:
+                    data_item = self.data_item
+                    data_item.update_data_and_metadata(latest_data_and_metadata, sub_area)
+                    if is_recording and is_complete:
+                        append_data_item_fn(copy.deepcopy(data_item), is_recording)
+            if not is_complete or self.__is_incomplete:
+                self.__is_incomplete = not is_complete
+                do_update()
+            else:
+                future = self.__executor.submit(do_sleep)
+                future.add_done_callback(lambda f: do_update())
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
@@ -1876,11 +1906,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __data_channel_updated(self, hardware_source, data_channel, append_data_item_fn, data_and_metadata, is_recording):
         data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel, is_recording, append_data_item_fn)
-        data_item = data_item_reference.data_item
-        sub_area = data_channel.sub_area
-        data_item.update_data_and_metadata(data_and_metadata, sub_area)
-        if is_recording and data_channel.state == "complete":
-            append_data_item_fn(copy.deepcopy(data_item), is_recording)
+        data_item_reference.update_data(data_and_metadata, data_channel.sub_area, is_recording, data_channel.state == "complete", append_data_item_fn)
 
     def __data_channel_states_updated(self, hardware_source, data_channels):
         data_item_states = list()
