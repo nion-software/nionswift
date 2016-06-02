@@ -539,24 +539,13 @@ class CalibrationsInspectorSection(InspectorSection):
         scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
         units_field = self.ui.create_line_edit_widget(properties={"width": 60})
         # convert list item to index string
-        class CalibrationToIndexStringConverter(object):
-            """
-                Convert from calibration to index within calibration list.
-                Back conversion is not implemented.
-                """
-            def __init__(self, calibrations):
-                self.__calibrations = calibrations
-            def convert(self, value):
-                index = self.__calibrations.index(value)
-                if len(self.__calibrations) == 1:
-                    return _("Channel")
-                if len(self.__calibrations) == 2:
-                    return (_("Y"), _("X"))[index]
-                return str(index)
-            def convert_back(self, str):
-                raise NotImplementedError()
-        # binding
-        row_label.bind_text(Binding.ObjectBinding(calibration, converter=CalibrationToIndexStringConverter(self.__calibrations)))
+        if len(self.__calibrations) == 1:
+            row_label_text = _("Channel")
+        elif len(self.__calibrations) == 2:
+            row_label_text = (_("Y"), _("X"))[self.__calibrations.index(calibration)]
+        else:
+            row_label_text = str(self.__calibrations.index(calibration))
+        row_label.text = row_label_text
         float_point_4_converter = Converter.FloatToStringConverter(format="{0:.4f}")
         offset_field.bind_text(Binding.PropertyBinding(calibration, "offset", converter=float_point_4_converter))
         scale_field.bind_text(Binding.PropertyBinding(calibration, "scale", float_point_4_converter))
