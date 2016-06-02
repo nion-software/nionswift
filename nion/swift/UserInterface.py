@@ -3,7 +3,7 @@ Provides a user interface object that can render to an Qt host.
 """
 
 # typing
-from typing import List
+from typing import Any, List
 
 # standard libraries
 import binascii
@@ -23,7 +23,10 @@ import weakref
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.utils import Geometry
-from nion.utils import Unicode
+
+
+def notnone(s: Any) -> str:
+    return str(s) if s is not None else str()
 
 
 class QtKeyboardModifiers(object):
@@ -556,7 +559,7 @@ class QtWidget(object):
     @tool_tip.setter
     def tool_tip(self, tool_tip):
         if tool_tip != self.__tool_tip:
-            self.proxy.Widget_setToolTip(self.widget, Unicode.u(tool_tip) if tool_tip else Unicode.u())
+            self.proxy.Widget_setToolTip(self.widget, notnone(tool_tip) if tool_tip else str())
             self.__tool_tip = tool_tip
 
     def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
@@ -733,7 +736,7 @@ class QtTabWidget(QtWidget):
             child.periodic()
 
     def add(self, child, label):
-        self.proxy.TabWidget_addTab(self.widget, child.widget, Unicode.u(label))
+        self.proxy.TabWidget_addTab(self.widget, child.widget, notnone(label))
         self.children.append(child)
         child._set_root_container(self.root_container)
 
@@ -881,19 +884,19 @@ class QtComboBoxWidget(QtWidget):
 
     @current_text.setter
     def current_text(self, value):
-        self.proxy.ComboBox_setCurrentText(self.widget, Unicode.u(value))
+        self.proxy.ComboBox_setCurrentText(self.widget, notnone(value))
 
     @property
     def current_item(self):
         current_text = self.current_text
         for item in self.items:
-            if current_text == Unicode.u(self.item_getter(item) if self.item_getter else item):
+            if current_text == notnone(self.item_getter(item) if self.item_getter else item):
                 return item
         return None
 
     @current_item.setter
     def current_item(self, value):
-        item_string = Unicode.u(self.item_getter(value) if self.item_getter and value is not None else value)
+        item_string = notnone(self.item_getter(value) if self.item_getter and value is not None else value)
         if self.widget:  # may be called as task, so verify it hasn't closed yet
             self.proxy.ComboBox_setCurrentText(self.widget, item_string)
 
@@ -906,7 +909,7 @@ class QtComboBoxWidget(QtWidget):
         self.proxy.ComboBox_removeAllItems(self.widget)
         self.__items = list()
         for item in items:
-            item_string = Unicode.u(self.item_getter(item) if self.item_getter else item)
+            item_string = notnone(self.item_getter(item) if self.item_getter else item)
             self.proxy.ComboBox_addItem(self.widget, item_string)
             self.__items.append(item)
 
@@ -993,7 +996,7 @@ class QtCheckBoxWidget(QtWidget):
     @text.setter
     def text(self, value):
         self.__text = value
-        self.proxy.CheckBox_setText(self.widget, Unicode.u(value))
+        self.proxy.CheckBox_setText(self.widget, notnone(value))
 
     @property
     def checked(self):
@@ -1073,7 +1076,7 @@ class QtLabelWidget(QtWidget):
     def __set_text(self, text):
         self.__text = text if text else ""
         if self.widget:  # may be called as task, so verify it hasn't closed yet
-            self.proxy.Label_setText(self.widget, Unicode.u(self.__text))
+            self.proxy.Label_setText(self.widget, notnone(self.__text))
     text = property(__get_text, __set_text)
 
     # bind to text. takes ownership of binding.
@@ -1199,13 +1202,13 @@ class QtLineEditWidget(QtWidget):
     def __get_text(self):
         return self.proxy.LineEdit_getText(self.widget)
     def __set_text(self, text):
-        self.proxy.LineEdit_setText(self.widget, Unicode.u(text))
+        self.proxy.LineEdit_setText(self.widget, notnone(text))
     text = property(__get_text, __set_text)
 
     def __get_placeholder_text(self):
         return self.proxy.LineEdit_getPlaceholderText(self.widget)
     def __set_placeholder_text(self, text):
-        self.proxy.LineEdit_setPlaceholderText(self.widget, Unicode.u(text))
+        self.proxy.LineEdit_setPlaceholderText(self.widget, notnone(text))
     placeholder_text = property(__get_placeholder_text, __set_placeholder_text)
 
     def __get_clear_button_enabled(self):
@@ -1300,7 +1303,7 @@ class QtTextEditWidget(QtWidget):
 
     @text.setter
     def text(self, value):
-        self.proxy.TextEdit_setText(self.widget, Unicode.u(value))
+        self.proxy.TextEdit_setText(self.widget, notnone(value))
 
     @property
     def placeholder(self):
@@ -1308,7 +1311,7 @@ class QtTextEditWidget(QtWidget):
 
     @placeholder.setter
     def placeholder(self, value):
-        self.proxy.TextEdit_setPlaceholderText(self.widget, Unicode.u(value))
+        self.proxy.TextEdit_setPlaceholderText(self.widget, notnone(value))
 
     @property
     def editable(self):
@@ -1333,10 +1336,10 @@ class QtTextEditWidget(QtWidget):
         return Selection(start, end)
 
     def append_text(self, value):
-        self.proxy.TextEdit_appendText(self.widget, Unicode.u(value))
+        self.proxy.TextEdit_appendText(self.widget, notnone(value))
 
     def insert_text(self, value):
-        self.proxy.TextEdit_insertText(self.widget, Unicode.u(value))
+        self.proxy.TextEdit_insertText(self.widget, notnone(value))
 
     def clear_selection(self):
         self.proxy.TextEdit_clearSelection(self.widget)
@@ -1912,7 +1915,7 @@ class QtAction(object):
         self.proxy = proxy
         self.native_action = native_action
         self.on_triggered = None
-        self.__title = Unicode.u()
+        self.__title = str()
         self.__checked = False
         self.__enabled = True
 
@@ -1923,7 +1926,7 @@ class QtAction(object):
         super(QtAction, self).close()
 
     def create(self, document_window, title, key_sequence, role):
-        self.__title = Unicode.u(title)
+        self.__title = notnone(title)
         self.native_action = self.proxy.Action_create(document_window.native_document_window, self.__title, key_sequence, role)
         self.proxy.Action_connect(self.native_action, self)
 
@@ -1942,7 +1945,7 @@ class QtAction(object):
 
     @title.setter
     def title(self, value):
-        self.__title = Unicode.u(value)
+        self.__title = notnone(value)
         self.proxy.Action_setTitle(self.native_action, self.__title)
 
     @property
@@ -1999,7 +2002,7 @@ class QtMenu(object):
         self.proxy.Menu_addAction(self.native_menu, action.native_action)
 
     def add_sub_menu(self, title, menu):
-        self.proxy.Menu_addMenu(self.native_menu, Unicode.u(title), menu.native_menu)
+        self.proxy.Menu_addMenu(self.native_menu, notnone(title), menu.native_menu)
 
     def add_separator(self):
         self.proxy.Menu_addSeparator(self.native_menu)
@@ -2037,7 +2040,7 @@ class QtDocumentWindow(object):
         self.on_about_to_show = None
         self.on_about_to_close = None
         self.on_activation_changed = None
-        self.__title = Unicode.u()
+        self.__title = str()
 
     def close(self):
         # this is a callback and should not be invoked directly from Python;
@@ -2084,18 +2087,18 @@ class QtDocumentWindow(object):
             self.on_clear_task(key + str(id(self)))
 
     def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (List[str], str, str):
-        selected_filter = selected_filter if selected_filter else Unicode.u()
-        file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", Unicode.u(title), Unicode.u(directory), Unicode.u(filter), Unicode.u(selected_filter))
+        selected_filter = selected_filter if selected_filter else str()
+        file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_paths, filter, directory
 
     def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
-        selected_filter = selected_filter if selected_filter else Unicode.u()
-        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "load", Unicode.u(title), Unicode.u(directory), Unicode.u(filter), Unicode.u(selected_filter))
+        selected_filter = selected_filter if selected_filter else str()
+        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "load", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_path, filter, directory
 
     def get_save_file_path(self, title, directory, filter, selected_filter=None):
-        selected_filter = selected_filter if selected_filter else Unicode.u()
-        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", Unicode.u(title), Unicode.u(directory), Unicode.u(filter), Unicode.u(selected_filter))
+        selected_filter = selected_filter if selected_filter else str()
+        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_path, filter, directory
 
     def create_dock_widget(self, widget, panel_id, title, positions, position):
@@ -2119,7 +2122,7 @@ class QtDocumentWindow(object):
     @title.setter
     def title(self, value):
         self.__title = value
-        self.proxy.DocumentWindow_setTitle(self.native_document_window, Unicode.u(value))
+        self.proxy.DocumentWindow_setTitle(self.native_document_window, notnone(value))
 
     # periodic is called periodically from the user interface object to service the window.
     def periodic(self):
@@ -2142,12 +2145,12 @@ class QtDocumentWindow(object):
         self.close()
 
     def add_menu(self, title):
-        native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, Unicode.u(title))
+        native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
         menu = QtMenu(self.proxy, self, native_menu)
         return menu
 
     def insert_menu(self, title, before_menu):
-        native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, Unicode.u(title), before_menu.native_menu)
+        native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, notnone(title), before_menu.native_menu)
         menu = QtMenu(self.proxy, self, native_menu)
         return menu
 
@@ -2162,7 +2165,7 @@ class QtDockWidget(object):
         self.document_window = document_window
         self.widget = widget
         self.widget._set_root_container(self)
-        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, Unicode.u(title), positions, position)
+        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, notnone(title), positions, position)
 
     def close(self):
         self.proxy.DocumentWindow_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
@@ -2285,13 +2288,13 @@ class QtUserInterface(object):
 
     def load_rgba_data_from_file(self, filename):
         # returns data packed as uint32
-        return self.proxy.decode_data(self.proxy.Core_readImageToBinary(Unicode.u(filename)))
+        return self.proxy.decode_data(self.proxy.Core_readImageToBinary(notnone(filename)))
 
     def save_rgba_data_to_file(self, data, filename, format):
-        return self.proxy.Core_writeBinaryToImage(data.shape[1], data.shape[0], data, Unicode.u(filename), str(format))
+        return self.proxy.Core_writeBinaryToImage(data.shape[1], data.shape[0], data, notnone(filename), str(format))
 
     def get_existing_directory_dialog(self, title, directory):
-        existing_directory, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "directory", Unicode.u(title), Unicode.u(directory), Unicode.u(), Unicode.u())
+        existing_directory, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "directory", notnone(title), notnone(directory), str(), str())
         return existing_directory, directory
 
     # persistence (associated with application)

@@ -25,7 +25,6 @@ from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
 from nion.utils import PublishSubscribe
-from nion.utils import Unicode
 
 _ = gettext.gettext
 
@@ -980,10 +979,10 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
             self.data_item_content_changed_event.fire(changes)
 
     def __validate_source_file_path(self, value):
-        value = Unicode.u(value)
+        value = str(value) if value is not None else str()
         if value:
             value = os.path.normpath(value)
-        return Unicode.u(value)
+        return value
 
     def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
@@ -1199,18 +1198,18 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
     @title.setter
     def title(self, value):
         metadata = self.metadata
-        metadata.setdefault("description", dict())["title"] = Unicode.u(value)
+        metadata.setdefault("description", dict())["title"] = str(value) if value is not None else str()
         self.set_metadata(metadata)
         self.__metadata_property_changed("title", value)
 
     @property
     def caption(self):
-        return self.metadata.get("description", dict()).get("caption", Unicode.u())
+        return self.metadata.get("description", dict()).get("caption", str())
 
     @caption.setter
     def caption(self, value):
         metadata = self.metadata
-        metadata.setdefault("description", dict())["caption"] = Unicode.u(value)
+        metadata.setdefault("description", dict())["caption"] = str(value) if value is not None else str()
         self.set_metadata(metadata)
         self.__metadata_property_changed("caption", value)
 

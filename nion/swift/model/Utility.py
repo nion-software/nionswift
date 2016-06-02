@@ -13,7 +13,7 @@ import traceback
 import numpy
 
 # local libraries
-from nion.utils import Unicode
+# None
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
@@ -127,7 +127,7 @@ def clean_item(i):
         return float(i)
     elif itype == float:
         return i
-    elif Unicode.is_unicode_type(itype):
+    elif itype == str:
         return i
     elif itype == int:
         return i
@@ -158,7 +158,7 @@ def clean_item_no_list(i):
         return float(i)
     elif itype == float:
         return i
-    elif Unicode.is_unicode_type(itype):
+    elif itype == str:
         return i
     elif itype == int:
         return i

@@ -20,7 +20,6 @@ import uuid
 
 from nion.swift.model import Utility
 from nion.utils import Geometry
-from nion.utils import Unicode
 
 # http://en.wikipedia.org/wiki/Zip_(file_format)
 # http://www.pkware.com/documents/casestudies/APPNOTE.TXT
@@ -169,7 +168,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
         data_len, crc32 = write_local_file(fp, b"data.npy", write_data, dt)
         dir_data_list.append((offset_data, b"data.npy", data_len, crc32))
     if properties is not None:
-        json_str = Unicode.u()
+        json_str = str()
         try:
             class JSONEncoder(json.JSONEncoder):
                 def default(self, obj):
@@ -187,7 +186,7 @@ def write_zip_fp(fp, data, properties, dir_data_list=None):
             traceback.print_exc()
             traceback.print_stack()
         def write_json(fp):
-            json_bytes = Unicode.str_to_bytes(json_str)
+            json_bytes = bytes(json_str, 'ISO-8859-1')
             fp.write(json_bytes)
             return binascii.crc32(json_bytes) & 0xFFFFFFFF
         offset_json = fp.tell()

@@ -35,12 +35,10 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
-from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
-from nion.utils import Unicode
 
 _ = gettext.gettext
 
@@ -125,7 +123,7 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
         return hardware_source_ids
 
     def __get_info_for_instrument_id(self, instrument_id):
-        display_name = Unicode.u()
+        display_name = str()
         seen_instrument_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
         while instrument_id in self.__aliases and instrument_id not in seen_instrument_ids:
             seen_instrument_ids.append(instrument_id)  # must go before next line
@@ -144,7 +142,7 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
         return None
 
     def __get_info_for_hardware_source_id(self, hardware_source_id):
-        display_name = Unicode.u()
+        display_name = str()
         seen_hardware_source_ids = []  # prevent loops, just so we don't get into endless loop in case of user error
         while hardware_source_id in self.__aliases and hardware_source_id not in seen_hardware_source_ids:
             seen_hardware_source_ids.append(hardware_source_id)  # must go before next line
@@ -1036,7 +1034,8 @@ def convert_data_element_to_data_and_metadata(data_element):
         for dimension, spatial_calibration in enumerate(spatial_calibrations):
             offset = float(spatial_calibration.get("offset", 0.0))
             scale = float(spatial_calibration.get("scale", 1.0))
-            units = Unicode.u(spatial_calibration.get("units", ""))
+            units = spatial_calibration.get("units", "")
+            units = str(units) if units is not None else str()
             if scale != 0.0:
                 dimensional_calibrations.append(Calibration.Calibration(offset, scale, units))
             else:
@@ -1050,7 +1049,8 @@ def convert_data_element_to_data_and_metadata(data_element):
         intensity_calibration_dict = data_element.get("intensity_calibration")
         offset = float(intensity_calibration_dict.get("offset", 0.0))
         scale = float(intensity_calibration_dict.get("scale", 1.0))
-        units = Unicode.u(intensity_calibration_dict.get("units", ""))
+        units = intensity_calibration_dict.get("units", "")
+        units = str(units) if units is not None else str()
         if scale != 0.0:
             intensity_calibration = Calibration.Calibration(offset, scale, units)
     # properties (general tags)

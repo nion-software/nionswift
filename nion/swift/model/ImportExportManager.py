@@ -18,7 +18,6 @@ from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
-from nion.utils import Unicode
 
 
 class ImportExportIncompatibleDataError(Exception):
@@ -223,14 +222,16 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 for dimension, dimension_calibration in enumerate(dimensional_calibrations):
                     offset = float(dimension_calibration.get("offset", 0.0))
                     scale = float(dimension_calibration.get("scale", 1.0))
-                    units = Unicode.u(dimension_calibration.get("units", ""))
+                    units = dimension_calibration.get("units", "")
+                    units = str(units) if units is not None else str()
                     if scale != 0.0:
                         display_specifier.buffered_data_source.set_dimensional_calibration(dimension, Calibration.Calibration(offset, scale, units))
         if "intensity_calibration" in data_element:
             intensity_calibration = data_element.get("intensity_calibration")
             offset = float(intensity_calibration.get("offset", 0.0))
             scale = float(intensity_calibration.get("scale", 1.0))
-            units = Unicode.u(intensity_calibration.get("units", ""))
+            units = intensity_calibration.get("units", "")
+            units = str(units) if units is not None else str()
             if scale != 0.0:
                 display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration(offset, scale, units))
         # properties (general tags)

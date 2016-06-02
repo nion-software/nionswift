@@ -13,7 +13,6 @@ import uuid
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
-from nion.utils import Unicode
 
 _ = gettext.gettext
 
@@ -99,7 +98,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         return self.title
 
     def __validate_title(self, value):
-        return Unicode.u(value)
+        return str(value) if value is not None else str()
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)

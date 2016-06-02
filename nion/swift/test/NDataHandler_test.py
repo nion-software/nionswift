@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import binascii
 import contextlib
@@ -21,12 +18,10 @@ else:
 
 # third party libraries
 import numpy
-import scipy.signal
 
 # local libraries
 from nion.swift import NDataHandler
 from nion.swift.model import Cache
-from nion.utils import Unicode
 
 
 class TestNDataHandlerClass(unittest.TestCase):
@@ -45,7 +40,7 @@ class TestNDataHandlerClass(unittest.TestCase):
         try:
             h = NDataHandler.NDataHandler(os.path.join(data_dir, "abc.ndata"))
             with contextlib.closing(h):
-                p = {u"abc": 1, u"def": u"bcd", u"uuid": Unicode.u(uuid.uuid4())}
+                p = {u"abc": 1, u"def": u"bcd", u"uuid": str(uuid.uuid4())}
                 # write properties
                 h.write_properties(p, now)
                 self.assertEqual(h.read_properties(), p)
@@ -78,7 +73,7 @@ class TestNDataHandlerClass(unittest.TestCase):
         data_dir = os.path.join(current_working_directory, "__Test")
         Cache.db_make_directory_if_needed(data_dir)
         try:
-            p = {u"abc": 1, u"def": u"bcd", u"uuid": Unicode.u(uuid.uuid4())}
+            p = {u"abc": 1, u"def": u"bcd", u"uuid": str(uuid.uuid4())}
             d = numpy.zeros((12,12), dtype=numpy.float32)
             # write zip file where metadata is first
             with open(os.path.join(data_dir, "file.ndata"), "w+b") as fp:
@@ -91,7 +86,7 @@ class TestNDataHandlerClass(unittest.TestCase):
                     json.dump(properties, json_io)
                     json_str = json_io.getvalue()
                     def write_json(fp):
-                        json_bytes = Unicode.str_to_bytes(json_str)
+                        json_bytes = bytes(json_str, 'ISO-8859-1')
                         fp.write(json_bytes)
                         return binascii.crc32(json_bytes) & 0xFFFFFFFF
                     offset_json = fp.tell()
@@ -140,7 +135,7 @@ class TestNDataHandlerClass(unittest.TestCase):
             with contextlib.closing(h):
                 data = numpy.random.randint(0, 10, size=(10, 10))[:,3]  # discontiguous data
                 self.assertFalse(data.flags['C_CONTIGUOUS'])
-                p = {u"uuid": Unicode.u(uuid.uuid4())}
+                p = {u"uuid": str(uuid.uuid4())}
                 # write properties
                 h.write_properties(p, now)
                 # write data
