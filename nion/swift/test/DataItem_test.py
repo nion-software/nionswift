@@ -63,7 +63,6 @@ class TestDataItemClass(unittest.TestCase):
         self.assertIsNot(data_item.properties, data_item_copy.properties)
         # uuid should not match
         self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
-        self.assertEqual(data_item.writer_version, data_item_copy.writer_version)
         # metadata get copied?
         self.assertEqual(len(data_item.metadata.get("test")), 2)
         self.assertIsNot(data_item.metadata.get("test"), data_item_copy.metadata.get("test"))

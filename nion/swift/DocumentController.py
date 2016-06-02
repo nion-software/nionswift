@@ -2,6 +2,7 @@
 import copy
 import functools
 import gettext
+import json
 import logging
 import os.path
 import random
@@ -23,6 +24,7 @@ from nion.swift import FilterPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
 from nion.swift import Workspace
+from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
@@ -681,8 +683,6 @@ class DocumentController:
         self.create_new_document_controller_event.fire(self.document_model, workspace_id, data_item)
 
     def __import_folder(self):
-        import json
-        from nion.swift.model import Cache
         documents_dir = self.ui.get_document_location()
         workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
         library_filename = "Nion Swift Workspace.nslib"

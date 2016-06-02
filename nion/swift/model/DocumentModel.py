@@ -8,6 +8,7 @@ import json
 import logging
 import numbers
 import os.path
+import shutil
 import threading
 import time
 import uuid
@@ -345,11 +346,16 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
     """
 
-    def __init__(self, persistent_storage_systems=None, ignore_older_files=False, log_migrations=True):
-        super(PersistentDataItemContext, self).__init__()
+    def __init__(self, persistent_storage_systems=None, ignore_older_files: bool=False, log_migrations: bool=True, log_copying: bool=False):
+        super().__init__()
         self.__persistent_storage_systems = persistent_storage_systems if persistent_storage_systems else [MemoryPersistentStorageSystem()]
         self.__ignore_older_files = ignore_older_files
         self.__log_migrations = log_migrations
+        self.__log_copying = log_copying
+
+    @property
+    def persistent_storage_systems(self):
+        return self.__persistent_storage_systems
 
     def read_data_items_version_stats(self):
         persistent_storage_handlers = list()  # persistent_storage_handler
@@ -368,12 +374,14 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 count[0] += 1
         return count
 
-    def read_data_items(self):
+    def read_data_items(self, target_document=None):
         """
         Read data items from the data reference handler and return as a list.
 
         Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
         on each of the data items.
+
+        Pass target_document to copy data items into new document. Useful for auto migration.
         """
         persistent_storage_handlers = list()  # persistent_storage_handler
         for persistent_storage_system in self.__persistent_storage_systems:
@@ -390,38 +398,34 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 traceback.print_exc()
                 traceback.print_stack()
         if not self.__ignore_older_files:
-            self.__migrate_to_v2(reader_info_list)
-            self.__migrate_to_v3(reader_info_list)
-            self.__migrate_to_v4(reader_info_list)
-            self.__migrate_to_v5(reader_info_list)
-            self.__migrate_to_v6(reader_info_list)
-            self.__migrate_to_v7(reader_info_list)
-            self.__migrate_to_v8(reader_info_list)
-            self.__migrate_to_v9(reader_info_list)
-            self.__migrate_to_v10(reader_info_list)
+            self.__migrate_to_latest(reader_info_list)
         for reader_info in reader_info_list:
             properties = reader_info.properties
             changed_ref = reader_info.changed_ref
             persistent_storage_handler = reader_info.persistent_storage_handler
             try:
                 version = properties.get("version", 0)
-                if self.__ignore_older_files and version != 10:
-                    version = 9999
-                if changed_ref[0]:
-                    persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
-                # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
-                # NOTE: change writer_version in DataItem.py
-                data_item_uuid = properties["uuid"]
-                data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-                if version <= data_item.writer_version:
-                    data_item.begin_reading()
-                    persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
-                    data_item.read_from_dict(persistent_storage.properties)
-                    self._set_persistent_storage_for_object(data_item, persistent_storage)
-                    data_item.persistent_object_context = self
-                    if self.__log_migrations and data_item.uuid in data_items_by_uuid:
-                        logging.info("Warning: Duplicate data item %s", data_item.uuid)
-                    data_items_by_uuid[data_item.uuid] = data_item
+                if version == DataItem.DataItem.writer_version:
+                    data_item_uuid = uuid.UUID(properties["uuid"])
+                    if target_document is not None:
+                        if not target_document.get_data_item_by_uuid(data_item_uuid):
+                            new_data_item = self.__auto_migrate_data_item(data_item_uuid, persistent_storage_handler, properties, target_document)
+                            if new_data_item:
+                                data_items_by_uuid[data_item_uuid] = new_data_item
+                    else:
+                        if changed_ref[0]:
+                            persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
+                        # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
+                        # NOTE: change writer_version in DataItem.py
+                        data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+                        data_item.begin_reading()
+                        persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
+                        data_item.read_from_dict(persistent_storage.properties)
+                        self._set_persistent_storage_for_object(data_item, persistent_storage)
+                        data_item.persistent_object_context = self
+                        if self.__log_migrations and data_item.uuid in data_items_by_uuid:
+                            logging.info("Warning: Duplicate data item %s", data_item.uuid)
+                        data_items_by_uuid[data_item.uuid] = data_item
             except Exception as e:
                 logging.debug("Error reading %s", persistent_storage_handler.reference)
                 import traceback
@@ -432,6 +436,45 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         data_items = list(data_items_by_uuid.values())
         data_items.sort(key=sort_by_date_key)
         return data_items
+
+    def __auto_migrate_data_item(self, data_item_uuid, persistent_storage_handler, properties, target_document):
+        new_data_item = None
+        target_persistent_storage_handler = None
+        for persistent_storage_system in target_document.persistent_object_context.persistent_storage_systems:
+            # create a temporary data item that can be used to get the new file reference
+            old_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+            old_data_item.begin_reading()
+            old_data_item.read_from_dict(properties)
+            old_data_item.finish_reading()
+            target_persistent_storage_handler = persistent_storage_system.make_persistent_storage_handler(old_data_item)
+            if target_persistent_storage_handler:
+                break
+        if target_persistent_storage_handler:
+            os.makedirs(os.path.dirname(target_persistent_storage_handler.reference), exist_ok=True)
+            shutil.copyfile(persistent_storage_handler.reference, target_persistent_storage_handler.reference)
+            target_persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
+            new_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+            new_data_item.begin_reading()
+            persistent_storage = DataItemPersistentStorage(persistent_storage_handler=target_persistent_storage_handler, data_item=new_data_item, properties=properties)
+            new_data_item.read_from_dict(persistent_storage.properties)
+            self._set_persistent_storage_for_object(new_data_item, persistent_storage)
+            new_data_item.persistent_object_context = target_document.persistent_object_context
+            if self.__log_copying:
+                logging.info("Copying data item %s to library.", data_item_uuid)
+        elif self.__log_copying:
+            logging.info("Unable to copy data item %s to library.", data_item_uuid)
+        return new_data_item
+
+    def __migrate_to_latest(self, reader_info_list):
+        self.__migrate_to_v2(reader_info_list)
+        self.__migrate_to_v3(reader_info_list)
+        self.__migrate_to_v4(reader_info_list)
+        self.__migrate_to_v5(reader_info_list)
+        self.__migrate_to_v6(reader_info_list)
+        self.__migrate_to_v7(reader_info_list)
+        self.__migrate_to_v8(reader_info_list)
+        self.__migrate_to_v9(reader_info_list)
+        self.__migrate_to_v10(reader_info_list)
 
     def __migrate_to_v10(self, reader_info_list):
         translate_region_type = {"point-region": "point-graphic", "line-region": "line-profile-graphic", "rectangle-region": "rect-graphic", "ellipse-region": "ellipse-graphic",
@@ -903,7 +946,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         data_item.persistent_object_context_changed()
         # write the uuid and version explicitly
         self.property_changed(data_item, "uuid", str(data_item.uuid))
-        self.property_changed(data_item, "version", data_item.writer_version)
+        self.property_changed(data_item, "version", DataItem.DataItem.writer_version)
         if data_item.maybe_data_source:
             self.rewrite_data_item_data(data_item.maybe_data_source)
 
@@ -998,6 +1041,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # first read the items
         self.read_from_dict(self.__library_storage.properties)
         data_items = self.persistent_object_context.read_data_items()
+        self.__finish_read(data_items)
+
+    def __finish_read(self, data_items: List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
             data_item.storage_cache = self.storage_cache
@@ -1074,6 +1120,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.undefine_properties()
         self.undefine_items()
         self.undefine_relationships()
+
+    def auto_migrate(self, paths: List[str], log_copying: bool=True) -> None:
+        file_persistent_storage_system = FilePersistentStorageSystem(paths)
+        persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=log_copying)
+        data_items = persistent_object_context.read_data_items(target_document=self)
+        self.__finish_read(data_items)
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

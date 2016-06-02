@@ -3,6 +3,7 @@ import contextlib
 import copy
 import datetime
 import gc
+import json
 import logging
 import os
 import shutil
@@ -17,6 +18,7 @@ import numpy
 from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift import NDataHandler
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -1037,7 +1039,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             # increment the version on the data item
-            list(memory_persistent_storage_system.properties.values())[0]["version"] = data_item.writer_version + 1
+            list(memory_persistent_storage_system.properties.values())[0]["version"] = DataItem.DataItem.writer_version + 1
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
@@ -1145,7 +1147,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(data_item.properties["version"], data_item.writer_version)
+            self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
             self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
             self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
             self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
@@ -1172,7 +1174,7 @@ class TestStorageClass(unittest.TestCase):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
-            self.assertEqual(data_item.properties["version"], data_item.writer_version)
+            self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
             self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0])
             self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0]["graphics"][0])
 
@@ -1194,7 +1196,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(data_item.properties["version"], data_item.writer_version)
+            self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
             self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
             self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
             self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
@@ -1218,7 +1220,7 @@ class TestStorageClass(unittest.TestCase):
             # check it
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
-            self.assertEqual(data_item.properties["version"], data_item.writer_version)
+            self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
             self.assertIsNotNone(data_item.maybe_data_source.computation)
             # not really checking beyond this; the program has changed enough to make the region connection not work without a data source
 
@@ -1250,7 +1252,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(str(document_model.data_items[0].uuid), data_item_dict["uuid"])
             self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
             data_item = document_model.data_items[1]
-            self.assertEqual(data_item.properties["version"], data_item.writer_version)
+            self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
             self.assertIsNotNone(data_item.maybe_data_source.computation)
             self.assertEqual(len(data_item.maybe_data_source.computation.variables), 1)
             self.assertEqual(document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
@@ -1298,7 +1300,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
             self.assertEqual(str(document_model.data_items[2].uuid), data_item3_dict["uuid"])
             data_item = document_model.data_items[1]
-            self.assertEqual(data_item.properties["version"], data_item.writer_version)
+            self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
             self.assertIsNotNone(data_item.maybe_data_source.computation)
             self.assertEqual(len(data_item.maybe_data_source.computation.variables), 1)
             self.assertEqual(document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item, document_model.data_items[0])
@@ -1402,7 +1404,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_cross_correlate_migration(self):
         # construct v8 data items
@@ -1474,7 +1476,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_gaussian_blur_migration(self):
         # construct v8 data items
@@ -1547,7 +1549,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_median_filter_migration(self):
         # construct v8 data items
@@ -1600,7 +1602,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_slice_migration(self):
         # construct v8 data items
@@ -1654,7 +1656,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_crop_migration(self):
         # construct v8 data items
@@ -1709,7 +1711,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_projection_migration(self):
         # construct v8 data items
@@ -1781,7 +1783,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_convert_to_scalar_migration(self):
         # construct v8 data items
@@ -1853,7 +1855,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_resample_migration(self):
         # construct v8 data items
@@ -1907,7 +1909,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_pick_migration(self):
         # construct v8 data items
@@ -1969,7 +1971,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertFalse(numpy.array_equal(data0, data1))
             self.assertTrue(numpy.array_equal(data1, data[:, 0, 0]))
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_line_profile_migration(self):
         # construct v8 data items
@@ -2029,7 +2031,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertIsNotNone(computation.evaluate_data().data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v8_to_v9_unknown_migration(self):
         # construct v8 data items
@@ -2072,7 +2074,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             self.assertIsNone(document_model.data_items[1].maybe_data_source.computation)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v9_to_v10_migration(self):
         # construct v9 data items with regions, make sure they get translated to graphics
@@ -2144,7 +2146,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertAlmostEqual(graphics[4].start, 0.2)
             self.assertAlmostEqual(graphics[4].end, 0.3)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
     def test_data_items_v9_to_v10_line_profile_migration(self):
         # construct v9 data items with regions, make sure they get translated to graphics
@@ -2199,7 +2201,187 @@ class TestStorageClass(unittest.TestCase):
             dst_display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[1])
             self.assertEqual(src_display_specifier.display.graphics[0], document_model.resolve_object_specifier(dst_display_specifier.buffered_data_source.computation.variables[1].variable_specifier).value)
             for data_item in document_model.data_items:
-                self.assertEqual(data_item.properties["version"], data_item.writer_version)
+                self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
+
+    def test_migrate_overwrites_old_data(self):
+        current_working_directory = os.getcwd()
+        library_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(library_dir)
+        try:
+            # construct workspace with old file
+            library_filename = "Nion Swift Workspace.nslib"
+            library_path = os.path.join(library_dir, library_filename)
+            data_path = os.path.join(library_dir, "Nion Swift Data")
+            with open(library_path, "w") as fp:
+                json.dump({}, fp)
+            data_item_dict = dict()
+            data_item_dict["uuid"] = str(uuid.uuid4())
+            data_item_dict["version"] = 9
+            data_source_dict = dict()
+            src_uuid_str = str(uuid.uuid4())
+            data_source_dict["uuid"] = src_uuid_str
+            data_source_dict["type"] = "buffered-data-source"
+            data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+            data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+            data_source_dict["data_shape"] = (8, 8)
+            data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+            data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+            data_item_dict["data_sources"] = [data_source_dict]
+            file_path = os.path.join(data_path, "File.ndata")
+            handler = NDataHandler.NDataHandler(file_path)
+            with contextlib.closing(handler):
+                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+
+            # read workspace
+            file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([data_path])
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], log_migrations=False, ignore_older_files=False)
+            document_model.close()
+
+            # verify
+            handler = NDataHandler.NDataHandler(file_path)
+            with contextlib.closing(handler):
+                new_data_item_dict = handler.read_properties()
+                self.assertEqual(new_data_item_dict["uuid"], data_item_dict["uuid"])
+                self.assertEqual(new_data_item_dict["version"], DataItem.DataItem.writer_version)
+        finally:
+            #logging.debug("rmtree %s", library_dir)
+            shutil.rmtree(library_dir)
+
+    def test_ignore_migrate_does_not_overwrite_old_data(self):
+        current_working_directory = os.getcwd()
+        library_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(library_dir)
+        try:
+            # construct workspace with old file
+            library_filename = "Nion Swift Workspace.nslib"
+            library_path = os.path.join(library_dir, library_filename)
+            data_path = os.path.join(library_dir, "Nion Swift Data")
+            with open(library_path, "w") as fp:
+                json.dump({}, fp)
+            data_item_dict = dict()
+            data_item_dict["uuid"] = str(uuid.uuid4())
+            data_item_dict["version"] = 9
+            data_source_dict = dict()
+            src_uuid_str = str(uuid.uuid4())
+            data_source_dict["uuid"] = src_uuid_str
+            data_source_dict["type"] = "buffered-data-source"
+            data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+            data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+            data_source_dict["data_shape"] = (8, 8)
+            data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+            data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+            data_item_dict["data_sources"] = [data_source_dict]
+            file_path = os.path.join(data_path, "File.ndata")
+            handler = NDataHandler.NDataHandler(file_path)
+            with contextlib.closing(handler):
+                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+
+            # read workspace
+            file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([data_path])
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], ignore_older_files=True)
+            document_model.close()
+
+            # verify
+            handler = NDataHandler.NDataHandler(file_path)
+            with contextlib.closing(handler):
+                new_data_item_dict = handler.read_properties()
+                self.assertEqual(new_data_item_dict["uuid"], data_item_dict["uuid"])
+                self.assertEqual(new_data_item_dict["version"], data_item_dict["version"])
+        finally:
+            #logging.debug("rmtree %s", library_dir)
+            shutil.rmtree(library_dir)
+
+    def test_auto_migrate_copies_old_data_to_new_library(self):
+        current_working_directory = os.getcwd()
+        library_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(library_dir)
+        try:
+            # construct workspace with old file
+            library_filename = "Nion Swift Workspace.nslib"
+            library_path = os.path.join(library_dir, library_filename)
+            old_data_path = os.path.join(library_dir, "Nion Swift Data")
+            with open(library_path, "w") as fp:
+                json.dump({}, fp)
+            data_item_dict = dict()
+            data_item_dict["uuid"] = str(uuid.uuid4())
+            data_item_dict["version"] = 9
+            data_source_dict = dict()
+            src_uuid_str = str(uuid.uuid4())
+            data_source_dict["uuid"] = src_uuid_str
+            data_source_dict["type"] = "buffered-data-source"
+            data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+            data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+            data_source_dict["data_shape"] = (8, 8)
+            data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+            data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+            data_item_dict["data_sources"] = [data_source_dict]
+            file_path = os.path.join(old_data_path, "File.ndata")
+            handler = NDataHandler.NDataHandler(file_path)
+            with contextlib.closing(handler):
+                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+
+            # auto migrate workspace
+            data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
+            file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([data_path])
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 0)
+                document_model.auto_migrate([old_data_path], log_copying=False)
+                self.assertEqual(len(document_model.data_items), 1)
+                self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
+
+        finally:
+            #logging.debug("rmtree %s", library_dir)
+            shutil.rmtree(library_dir)
+
+    def test_auto_migrate_only_copies_old_data_to_new_library_once_per_uuid(self):
+        current_working_directory = os.getcwd()
+        library_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(library_dir)
+        try:
+            # construct workspace with old file
+            library_filename = "Nion Swift Workspace.nslib"
+            library_path = os.path.join(library_dir, library_filename)
+            old_data_path = os.path.join(library_dir, "Nion Swift Data")
+            with open(library_path, "w") as fp:
+                json.dump({}, fp)
+            data_item_dict = dict()
+            data_item_dict["uuid"] = str(uuid.uuid4())
+            data_item_dict["version"] = 9
+            data_source_dict = dict()
+            src_uuid_str = str(uuid.uuid4())
+            data_source_dict["uuid"] = src_uuid_str
+            data_source_dict["type"] = "buffered-data-source"
+            data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+            data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+            data_source_dict["data_shape"] = (8, 8)
+            data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+            data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+            data_item_dict["data_sources"] = [data_source_dict]
+            file_path = os.path.join(old_data_path, "File.ndata")
+            handler = NDataHandler.NDataHandler(file_path)
+            with contextlib.closing(handler):
+                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+
+            # auto migrate workspace
+            data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
+            file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([data_path])
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 0)
+                document_model.auto_migrate([old_data_path], log_copying=False)
+                self.assertEqual(len(document_model.data_items), 1)
+                document_model.auto_migrate([old_data_path], log_copying=False)
+                self.assertEqual(len(document_model.data_items), 1)
+                self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
+
+        finally:
+            #logging.debug("rmtree %s", library_dir)
+            shutil.rmtree(library_dir)
 
     def test_data_item_with_connected_crop_region_should_not_update_modification_when_loading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)

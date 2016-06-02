@@ -703,7 +703,6 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         super(DataItem, self).__init__()
         global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.writer_version = DataItem.writer_version  # writes this version
         self.__in_transaction_state = False
         self.__is_live = False
         self.__pending_write = True
