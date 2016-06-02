@@ -31,9 +31,9 @@ from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
+from nion.ui import Selection
 from nion.utils import Event
 from nion.utils import Process
-from nion.utils import Selection
 
 _ = gettext.gettext
 

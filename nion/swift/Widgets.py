@@ -14,7 +14,7 @@ from typing import AbstractSet
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import ListCanvasItem
-from nion.utils import Selection
+from nion.ui import Selection
 
 
 class CompositeWidgetBase:
