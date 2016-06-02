@@ -1822,7 +1822,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id))
         data_item_reference.data_item = data_item
 
-    def __construct_data_item_reference(self, hardware_source, data_channel, is_recording, append_data_item_fn):
+    def __construct_data_item_reference(self, hardware_source: HardwareSource.HardwareSource, data_channel: HardwareSource.DataChannel, is_recording: bool, append_data_item_fn):
+        """Construct a data item reference.
+
+        Construct a data item reference and assign a data item to it. Update data item session id and session metadata.
+        Also connect the data channel processor.
+        """
         session_id = self.session_id
         data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
         with data_item_reference.mutex:
@@ -1872,14 +1877,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __data_channel_updated(self, hardware_source, data_channel, append_data_item_fn, data_and_metadata, is_recording):
         data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel, is_recording, append_data_item_fn)
         data_item = data_item_reference.data_item
-        channel_data_state = data_channel.state
         sub_area = data_channel.sub_area
-        # until the whole pipeline is cleaned up, recreate the data_element. guh.
-        data_element = HardwareSource.convert_data_and_metadata_to_data_element(data_and_metadata)
-        if sub_area:
-            data_element["sub_area"] = sub_area
-        ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-        if is_recording and channel_data_state == "complete":
+        data_item.update_data_and_metadata(data_and_metadata, sub_area)
+        if is_recording and data_channel.state == "complete":
             append_data_item_fn(copy.deepcopy(data_item), is_recording)
 
     def __data_channel_states_updated(self, hardware_source, data_channels):

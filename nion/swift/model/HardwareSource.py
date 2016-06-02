@@ -1006,23 +1006,6 @@ def get_data_generator_by_id(hardware_source_id, sync=True):
     yield get_last_data
 
 
-def convert_data_and_metadata_to_data_element(data_and_calibration):
-    data_element = dict()
-    data_element["data"] = data_and_calibration.data
-    if data_and_calibration.dimensional_calibrations:
-        spatial_calibrations = list()
-        for dimensional_calibration in data_and_calibration.dimensional_calibrations:
-            spatial_calibrations.append(dimensional_calibration.write_dict())
-        data_element["spatial_calibrations"] = spatial_calibrations
-    if data_and_calibration.intensity_calibration:
-        intensity_calibration = data_and_calibration.intensity_calibration
-        data_element["intensity_calibration"] = intensity_calibration.write_dict()
-    # properties (general tags)
-    properties = data_and_calibration.metadata.get("hardware_source", dict())
-    data_element["properties"] = properties
-    return data_element
-
-
 def convert_data_element_to_data_and_metadata(data_element):
     data = data_element["data"]
     data_shape_and_dtype = data.shape, data.dtype

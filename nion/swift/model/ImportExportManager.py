@@ -198,17 +198,14 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             data_item.source_file_path = data_file_path
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             data = data_element["data"]
-            sub_area = data_element.get("sub_area")
-            if sub_area is not None:
-                top = sub_area[0][0]
-                bottom = sub_area[0][0] + sub_area[1][0]
-                left = sub_area[0][1]
-                right = sub_area[0][1] + sub_area[1][1]
-                if top == 0 and left == 0 and bottom == data.shape[0] and right == data.shape[1]:
-                    sub_area = None  # sub-area is specified, but specifies entire data
             data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
+            sub_area = data_element.get("sub_area")
             if data_matches:
                 if sub_area is not None:
+                    top = sub_area[0][0]
+                    bottom = sub_area[0][0] + sub_area[1][0]
+                    left = sub_area[0][1]
+                    right = sub_area[0][1] + sub_area[1][1]
                     data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
                 else:
                     data_ref.master_data[:] = data[:]

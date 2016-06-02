@@ -9,6 +9,9 @@ import uuid
 import warnings
 import weakref
 
+# typing
+from typing import Tuple
+
 # third party libraries
 import numpy
 
@@ -987,6 +990,39 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         # changes to report.
         if data_item_change_count == 0 and len(changes) > 0:
             self.data_item_content_changed_event.fire(changes)
+
+    def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, sub_area: Tuple[Tuple[int, int], Tuple[int, int]]=None) -> None:
+        display_specifier = DisplaySpecifier.from_data_item(self)
+        assert display_specifier.buffered_data_source and display_specifier.display
+        with self.data_item_changes(), display_specifier.buffered_data_source._changes():
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
+                data = data_and_metadata.data
+                data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
+                if data_matches:
+                    if sub_area is not None:
+                        top = sub_area[0][0]
+                        bottom = sub_area[0][0] + sub_area[1][0]
+                        left = sub_area[0][1]
+                        right = sub_area[0][1] + sub_area[1][1]
+                        data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                    else:
+                        data_ref.master_data[:] = data[:]
+                    data_ref.data_updated()  # trigger change notifications
+                else:
+                    data_ref.master_data = data.copy()
+            # spatial calibrations
+            dimensional_calibrations = data_and_metadata.dimensional_calibrations
+            if len(dimensional_calibrations) == len(display_specifier.buffered_data_source.dimensional_shape):
+                for dimension, dimension_calibration in enumerate(dimensional_calibrations):
+                    display_specifier.buffered_data_source.set_dimensional_calibration(dimension, dimension_calibration)
+            display_specifier.buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+            # properties (general tags)
+            properties = data_and_metadata.metadata.get("hardware_source", dict())
+            buffered_data_source = display_specifier.buffered_data_source
+            metadata = buffered_data_source.metadata
+            hardware_source_metadata = metadata.setdefault("hardware_source", dict())
+            hardware_source_metadata.update(Utility.clean_dict(properties))
+            buffered_data_source.set_metadata(metadata)
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()
