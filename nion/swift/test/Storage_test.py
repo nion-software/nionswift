@@ -2332,6 +2332,8 @@ class TestStorageClass(unittest.TestCase):
                 document_model.auto_migrate([old_data_path], log_copying=False)
                 self.assertEqual(len(document_model.data_items), 1)
                 self.assertEqual(document_model.data_items[0].uuid, uuid.UUID(data_item_dict["uuid"]))
+                # double check correct persistent storage context
+                document_model.remove_data_item(document_model.data_items[0])
 
         finally:
             #logging.debug("rmtree %s", library_dir)

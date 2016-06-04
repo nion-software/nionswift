@@ -457,7 +457,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
             new_data_item.begin_reading()
             persistent_storage = DataItemPersistentStorage(persistent_storage_handler=target_persistent_storage_handler, data_item=new_data_item, properties=properties)
             new_data_item.read_from_dict(persistent_storage.properties)
-            self._set_persistent_storage_for_object(new_data_item, persistent_storage)
+            target_document.persistent_object_context._set_persistent_storage_for_object(new_data_item, persistent_storage)
             new_data_item.persistent_object_context = target_document.persistent_object_context
             if self.__log_copying:
                 logging.info("Copying data item %s to library.", data_item_uuid)
@@ -633,7 +633,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                 for i, src_data_source in enumerate(data_sources):
                                     kws[srcs[i]] = srcs[i] + (".display_data" if info[operation_id].use_display_data else ".data")
                                     if src_data_source.get("type") == "data-item-data-source":
-                                        src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["buffered_data_source_uuid"]]
+                                        src_uuid = data_source_uuid_to_data_item_uuid.get(src_data_source["buffered_data_source_uuid"], str(uuid.uuid4()))
                                         variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
                                         variables_list.append(variable_src)
@@ -642,7 +642,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                             variable_src["specifier"] = {"type": "region", "uuid": operation_dict["region_connections"]["crop"], "version": 1}
                                             variables_list.append(variable_src)
                                     elif src_data_source.get("type") == "operation":
-                                        src_uuid = data_source_uuid_to_data_item_uuid[src_data_source["data_sources"][0]["buffered_data_source_uuid"]]
+                                        src_uuid = data_source_uuid_to_data_item_uuid.get(src_data_source["data_sources"][0]["buffered_data_source_uuid"], str(uuid.uuid4()))
                                         variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
                                         variables_list.append(variable_src)
