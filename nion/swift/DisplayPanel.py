@@ -1268,15 +1268,15 @@ class DisplayPanel(object):
             document_controller.notify_selected_data_item_changed(self.data_item)
 
         def show_context_menu(menu, gx, gy):
-            def split_horizontal():
+            def split_vertical():
                 if workspace_controller:
                     return workspace_controller.insert_display_panel(self, "bottom")
-            def split_vertical():
+            def split_horiztonal():
                 if workspace_controller:
                     return workspace_controller.insert_display_panel(self, "right")
             menu.add_separator()
-            menu.add_menu_item(_("Split Horizontally"), split_horizontal)
-            menu.add_menu_item(_("Split Vertically"), split_vertical)
+            menu.add_menu_item(_("Split Into Top and Bottom"), split_vertical)
+            menu.add_menu_item(_("Split Into Left and Right"), split_horiztonal)
 
             menu.add_separator()
             DisplayPanelManager().build_menu(menu, self)
