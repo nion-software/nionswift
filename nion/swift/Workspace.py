@@ -18,7 +18,7 @@ from nion.ui import CanvasItem
 _ = gettext.gettext
 
 
-class Workspace(object):
+class Workspace:
     """
         The Workspace object keeps the overall layout of the window. It contains
         root item which contains tab groups arranged into boxes (rows and columns).
@@ -201,8 +201,6 @@ class Workspace(object):
         if container:
             children = desc.get("children", list())
             for child_desc in children:
-                # if child_desc is None:
-                #     child_desc = {"type": "image"}
                 child_canvas_item, child_selected_display_panel = self._construct(child_desc, display_panels, lookup_data_item)
                 container.add_canvas_item(child_canvas_item)
                 selected_display_panel = child_selected_display_panel if child_selected_display_panel else selected_display_panel

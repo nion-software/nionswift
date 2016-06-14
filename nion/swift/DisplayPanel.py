@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import copy
 import functools
@@ -460,7 +457,7 @@ class BaseDisplayPanelContent:
         raise NotImplementedError()
 
     def _select(self):
-        raise NotImplementedError()
+        pass
 
     def _begin_drag(self):
         raise NotImplementedError()
@@ -488,7 +485,7 @@ class BaseDisplayPanelContent:
         return False
 
 
-class DataItemDataSourceDisplay(object):
+class DataItemDataSourceDisplay:
 
     def __init__(self, data_item, delegate, display_type, get_font_metrics_fn):
         self.__data_item = data_item
@@ -720,7 +717,7 @@ class DataItemDataSourceDisplay(object):
         return None
 
 
-class DataItemDisplayTypeMonitor(object):
+class DataItemDisplayTypeMonitor:
     """Monitor a data item for changes to the display type.
 
     Provides the display_type_changed(display_type) event.
@@ -783,7 +780,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
 
-        super(DataDisplayPanelContent, self).__init__(document_controller)
+        super().__init__(document_controller)
 
         self.__data_item = None
         self.__display_type_monitor = DataItemDisplayTypeMonitor()
@@ -825,7 +822,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_type_changed_event_listener = None
         self.__display_type_monitor.close()
         self.__display_type_monitor = None
-        super(DataDisplayPanelContent, self).close()
+        super().close()
 
     @property
     def _display_panel_controller_for_test(self):
@@ -843,7 +840,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     # save and restore the contents of the image panel
 
     def save_contents(self):
-        d = super(DataDisplayPanelContent, self).save_contents()
+        d = super().save_contents()
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
@@ -853,7 +850,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return d
 
     def restore_contents(self, d):
-        super(DataDisplayPanelContent, self).restore_contents(d)
+        super().restore_contents(d)
         controller_type = d.get("controller_type")
         self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
         if not self.__display_panel_controller:
@@ -913,7 +910,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__display_canvas_item_delegate = None
         display_panel_content = self
         if display_type and display_type in ("image", "line_plot"):
-            class Delegate(object):
+            class Delegate:
                 @property
                 def tool_mode(self):
                     return display_panel_content.document_controller.tool_mode
@@ -1051,7 +1048,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 class EmptyDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
-        super(EmptyDisplayPanelContent, self).__init__(document_controller)
+        super().__init__(document_controller)
 
         enclosing_self = self
 
@@ -1064,7 +1061,7 @@ class EmptyDisplayPanelContent(BaseDisplayPanelContent):
         self.content_canvas_item.add_canvas_item(empty_canvas_item)
 
     def save_contents(self):
-        d = super(EmptyDisplayPanelContent, self).save_contents()
+        d = super().save_contents()
         d["display-panel-type"] = "empty-display-panel"
         return d
 
@@ -1081,7 +1078,7 @@ class EmptyDisplayPanelContent(BaseDisplayPanelContent):
 class BrowserDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
-        super(BrowserDisplayPanelContent, self).__init__(document_controller)
+        super().__init__(document_controller)
 
         self.header_canvas_item.end_header_color = "#FFC"
         self.header_canvas_item.title = _("Browser")
@@ -1138,14 +1135,14 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_items = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
-        super(BrowserDisplayPanelContent, self).close()
+        super().close()
 
     @property
     def _display_items_for_test(self):
         return self.__display_items
 
     def save_contents(self):
-        d = super(BrowserDisplayPanelContent, self).save_contents()
+        d = super().save_contents()
         d["display-panel-type"] = "browser-display-panel"
         return d
 
@@ -1171,7 +1168,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
             on_begin_drag(root_canvas_item.canvas_widget, mime_data, None)
 
 
-class DisplayPanel(object):
+class DisplayPanel:
 
     def __init__(self, document_controller, d):
         self.__weak_document_controller = weakref.ref(document_controller)
@@ -1393,7 +1390,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
     panel that isn't handled directly, listeners will be advised of this event. """
 
     def __init__(self):
-        super(DisplayPanelManager, self).__init__()
+        super().__init__()
         self.__display_panel_controllers = dict()  # maps controller_type to make_fn
         self.__display_controller_factories = dict()
         self.__display_panel_factories = dict()
