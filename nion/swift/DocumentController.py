@@ -116,9 +116,8 @@ class DocumentController:
 
         self.console = None
         self.create_menus()
-        if workspace_id:  # used only when testing reference counting
+        if workspace_id:  # this is none only when testing reference counting
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
-            self.__workspace_controller.restore(self.document_model.workspace_uuid)
 
     def close(self):
         """Close the document controller.
@@ -191,6 +190,7 @@ class DocumentController:
     def about_to_show(self):
         geometry, state = self.workspace_controller.restore_geometry_state()
         self.document_window.restore(geometry, state)
+        self.__workspace_controller.restore(self.document_model.workspace_uuid)
 
     def about_to_close(self, geometry, state):
         if self.workspace_controller:
