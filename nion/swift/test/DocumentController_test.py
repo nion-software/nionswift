@@ -299,9 +299,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel.set_displayed_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model.recompute_all()
-        self.assertEqual(new_data_item.maybe_data_source.data_shape, (h/2, w/2))
+        self.assertEqual(new_data_item.maybe_data_source.data_shape, (h//2, w//2))
         self.assertEqual(new_data_item.maybe_data_source.data_dtype, data_item.maybe_data_source.data_dtype)
-        self.assertAlmostEqual(new_data_item.maybe_data_source.data[h/4, w/4], -1.0)
+        self.assertAlmostEqual(new_data_item.maybe_data_source.data[h//4, w//4], -1.0)
         document_controller.close()
 
     def test_processing_on_crop_region_connects_region_to_operation(self):

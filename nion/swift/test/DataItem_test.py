@@ -45,7 +45,7 @@ class TestDataItemClass(unittest.TestCase):
         source_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         h, w = 8, 8
         data = numpy.zeros((h, w), numpy.uint32)
-        data[h/2, w/2] = 1000  # data range (0, 1000)
+        data[h//2, w//2] = 1000  # data range (0, 1000)
         data_item = DataItem.DataItem(data)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         data_item.title = "data_item"
