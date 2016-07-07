@@ -200,12 +200,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 self.value_max = None
                 specifier = self.specifier or {"version": 1}
                 if not specifier.get("type") in ComputationVariable.data_types:
-                    del specifier["uuid"]
+                    specifier.pop("uuid", None)
                 specifier["type"] = "data_item"
                 if value_type in ("data", "display_data"):
                     specifier["property"] = value_type
                 else:
-                    del specifier["property"]
+                    specifier.pop("property", None)
                 self.specifier = specifier
             elif value_type in ("region"):
                 self.value_type = None
@@ -215,8 +215,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 self.value_max = None
                 specifier = self.specifier or {"version": 1}
                 specifier["type"] = value_type
-                del specifier["uuid"]
-                del specifier["property"]
+                specifier.pop("uuid", None)
+                specifier.pop("property", None)
                 self.specifier = specifier
             self.variable_type_changed_event.fire()
 
@@ -233,7 +233,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             if value:
                 specifier["uuid"] = value
             else:
-                del specifier["uuid"]
+                specifier.pop("uuid", None)
             self.specifier = specifier
 
     @property
