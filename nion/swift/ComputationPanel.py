@@ -3,12 +3,11 @@ from __future__ import absolute_import
 
 # standard libraries
 import copy
+import functools
 import gettext
 import operator
 import random
-import re
 import string
-import uuid
 import weakref
 
 # third party libraries
@@ -197,7 +196,7 @@ class ComputationModel(object):
 
 class ComputationPanelSection:
 
-    def __init__(self, ui, variable, on_remove):
+    def __init__(self, ui, variable, on_remove, queue_task_fn):
 
         section_widget = ui.create_column_widget()
         section_title_row = ui.create_row_widget()
@@ -404,7 +403,9 @@ class ComputationPanelSection:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))
 
         def do_select_stack():
-            select_stack(stack, variable, variable.specifier)
+            # select stack will remove the inspector widgets, so delay it until the
+            # current event (combo box changed) has finished by queueing it.
+            queue_task_fn(functools.partial(select_stack, stack, variable, variable.specifier))
 
         self.__variable_type_changed_event_listener = variable.variable_type_changed_event.listen(do_select_stack)
 
@@ -541,7 +542,7 @@ class ComputationPanel(Panel.Panel):
         def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
             def remove_variable():
                 self.__computation_model.remove_variable(variable)
-            section = ComputationPanelSection(ui, variable, remove_variable)
+            section = ComputationPanelSection(ui, variable, remove_variable, self.document_controller.queue_task)
             self.__variable_column.insert(section.widget, index)
             self.__sections.insert(index, section)
 
