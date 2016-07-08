@@ -252,7 +252,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         mouse_clicked(image_position, modifiers)
         delete_key_pressed()
         enter_key_pressed()
-        cursor_changed(source, pos)
+        cursor_changed(pos)
         update_display_properties(display_properties)
     """
 
@@ -672,7 +672,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if super().mouse_exited():
             return True
         self.__mouse_in = False
-        self.__update_cursor_info()
+        if self.delegate:  # allow display to work without delegate
+            # whenever the cursor exits, clear the cursor display
+            self.delegate.cursor_changed(None)
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
@@ -839,9 +841,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             pos_2d = None
             if image_size and len(image_size) > 1:
                 pos_2d = self.map_widget_to_image(self.__last_mouse)
-            self.delegate.cursor_changed(self, pos_2d)
-        else:
-            self.delegate.cursor_changed(self, None)
+            self.delegate.cursor_changed(pos_2d)
 
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)

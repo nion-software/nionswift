@@ -634,14 +634,14 @@ class DataItemDataSourceDisplay:
             return True
         return False
 
-    def cursor_changed(self, source, pos):
+    def cursor_changed(self, pos):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
         data_and_calibration = display.data_and_calibration if display else None
         display_calibrated_values = display.display_calibrated_values if display else False
         if data_and_calibration and data_and_calibration.is_data_3d and pos is not None:
             pos = (display.slice_center, ) + pos
-        self.__delegate.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
+        self.__delegate.cursor_changed(data_and_calibration, display_calibrated_values, pos)
 
     def update_display_properties(self, display_properties):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -948,8 +948,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                         return True
                     return False
 
-                def cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
-                    display_panel_content.document_controller.cursor_changed(source, data_and_calibration, display_calibrated_values, pos)
+                def cursor_changed(self, data_and_calibration, display_calibrated_values, pos):
+                    display_panel_content.document_controller.cursor_changed(data_and_calibration, display_calibrated_values, pos)
 
                 def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
                     document_controller = display_panel_content.document_controller

@@ -91,9 +91,6 @@ class InfoPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        # used to maintain the display when cursor is not moving
-        self.__last_source = None
-
         position_label = ui.create_label_widget(_("Position:"))
         self.position_text = ui.create_label_widget()
         value_label = ui.create_label_widget(_("Value:"))
@@ -130,18 +127,14 @@ class InfoPanel(Panel.Panel):
         super(InfoPanel, self).close()
 
     # this message is received from the document controller.
-    # the only way the cursor data can be cleared is if the source is the same as the last source
-    # to display cursor data.
-    def __cursor_changed(self, source, data_and_calibration, display_calibrated_values, pos):
+    def __cursor_changed(self, data_and_calibration, display_calibrated_values, pos):
         position_text = ""
         value_text = ""
         if data_and_calibration:
             if pos is not None:
                 position_text, value_text = get_value_and_position_text(data_and_calibration, display_calibrated_values, pos)
-                self.__last_source = source
-        if self.__last_source == source:
-            def update_position_and_value(position_text, value_text):
-                self.position_text.text = position_text
-                self.value_text.text = value_text
+        def update_position_and_value(position_text, value_text):
+            self.position_text.text = position_text
+            self.value_text.text = value_text
 
-            self.add_task("position_and_value", lambda: update_position_and_value(position_text, value_text))
+        self.add_task("position_and_value", lambda: update_position_and_value(position_text, value_text))

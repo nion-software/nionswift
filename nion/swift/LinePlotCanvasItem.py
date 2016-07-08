@@ -62,7 +62,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         end_mouse_tracking()
         mouse_clicked(image_position, modifiers)
         delete_key_pressed()
-        cursor_changed(source, pos)
+        cursor_changed(pos)
         update_display_properties(display_properties)
 
     The line plot display layout is dependent on the data of the line plot since the width of the vertical axis is
@@ -384,6 +384,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return True
         self.__mouse_in = False
         self.__update_cursor_info()
+        if self.delegate:  # allow display to work without delegate
+            # whenever the cursor exits, clear the cursor display
+            self.delegate.cursor_changed(None)
         return True
 
     def mouse_double_clicked(self, x, y, modifiers):
@@ -699,6 +702,4 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if data_size and self.line_graph_canvas_item:
                 last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
                 pos_1d = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
-            self.delegate.cursor_changed(self, pos_1d)
-        else:
-            self.delegate.cursor_changed(self, None)
+            self.delegate.cursor_changed(pos_1d)
