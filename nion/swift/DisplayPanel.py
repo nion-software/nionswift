@@ -2,6 +2,7 @@
 import copy
 import functools
 import gettext
+import math
 import random
 import string
 import uuid
@@ -11,6 +12,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import DataPanel
 from nion.swift import Panel
@@ -89,6 +91,70 @@ _ = gettext.gettext
 
 # FUNCTION KEYS                         ACTION/KEY
 # tbd
+
+
+def get_calibrated_value_text(value: float, intensity_calibration) -> str:
+    if value is not None:
+        return intensity_calibration.convert_to_calibrated_value_str(value)
+    elif value is None:
+        return _("N/A")
+    else:
+        return str(value)
+
+
+def get_value_and_position_text(data_and_calibration, display_calibrated_values: bool, pos) -> (str, str):
+    position_text = ""
+    value_text = ""
+    data_shape = data_and_calibration.data_shape
+    if display_calibrated_values:
+        dimensional_calibrations = data_and_calibration.dimensional_calibrations
+        intensity_calibration = data_and_calibration.intensity_calibration
+    else:
+        dimensional_calibrations = [Calibration.Calibration() for i in range(0, len(pos))]
+        intensity_calibration = Calibration.Calibration()
+    if len(pos) == 3:
+        # 3d image
+        # make sure the position is within the bounds of the image
+        if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2]:
+            position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
+                dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
+                dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
+            value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
+    if len(pos) == 2:
+        # 2d image
+        # make sure the position is within the bounds of the image
+        if len(data_shape) == 1:
+            if pos[-1] >= 0 and pos[-1] < data_shape[-1]:
+                position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
+                full_pos = [0, ] * len(data_shape)
+                full_pos[-1] = pos[-1]
+                value_text = get_calibrated_value_text(data_and_calibration.get_data_value(full_pos), intensity_calibration)
+        else:
+            if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
+                is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
+                is_polar = is_polar and abs(dimensional_calibrations[0].scale * data_shape[0] - dimensional_calibrations[1].scale * data_shape[1]) < 1e-12
+                is_polar = is_polar and abs(dimensional_calibrations[0].offset / (dimensional_calibrations[0].scale * data_shape[0]) + 0.5) < 1e-12
+                is_polar = is_polar and abs(dimensional_calibrations[1].offset / (dimensional_calibrations[1].scale * data_shape[1]) + 0.5) < 1e-12
+                if is_polar:
+                    x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1])
+                    y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0])
+                    r = math.sqrt(x * x + y * y)
+                    angle = -math.atan2(y, x)
+                    r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True)
+                    position_text = u"{0}, {1:.4f}° ({2})".format(r_str, math.degrees(angle), _("polar"))
+                else:
+                    position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
+                        dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
+                value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
+    if len(pos) == 1:
+        # 1d plot
+        # make sure the position is within the bounds of the line plot
+        if pos[0] >= 0 and pos[0] < data_shape[-1]:
+            position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
+            full_pos = [0, ] * len(data_shape)
+            full_pos[-1] = pos[0]
+            value_text = get_calibrated_value_text(data_and_calibration.get_data_value(full_pos), intensity_calibration)
+    return position_text, value_text
 
 
 class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
@@ -949,7 +1015,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     return False
 
                 def cursor_changed(self, data_and_calibration, display_calibrated_values, pos):
-                    display_panel_content.document_controller.cursor_changed(data_and_calibration, display_calibrated_values, pos)
+                    position_text = ""
+                    value_text = ""
+                    if data_and_calibration and pos is not None:
+                        position_text, value_text = get_value_and_position_text(data_and_calibration, display_calibrated_values, pos)
+                    display_panel_content.document_controller.cursor_changed(position_text, value_text)
 
                 def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
                     document_controller = display_panel_content.document_controller
