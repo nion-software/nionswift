@@ -1,5 +1,6 @@
 # standard libraries
 import gettext
+import typing
 
 # third party libraries
 # None
@@ -25,26 +26,16 @@ class InfoPanel(Panel.Panel):
 
         ui = document_controller.ui
 
-        position_label = ui.create_label_widget(_("Position:"))
-        self.position_text = ui.create_label_widget()
-        value_label = ui.create_label_widget(_("Value:"))
-        self.value_text = ui.create_label_widget()
+        self.label = ui.create_label_widget()
 
-        position_row = ui.create_row_widget(properties={"spacing": 6})
-        position_row.add(position_label)
-        position_row.add(self.position_text)
-        position_row.add_stretch()
-
-        value_row = ui.create_row_widget(properties={"spacing": 6})
-        value_row.add(value_label)
-        value_row.add(self.value_text)
-        value_row.add_stretch()
+        text_row = ui.create_row_widget(properties={"spacing": 6})
+        text_row.add(self.label)
+        text_row.add_stretch()
 
         properties["spacing"] = 2
         properties["margin"] = 6
         column = ui.create_column_widget(properties=properties)
-        column.add(position_row)
-        column.add(value_row)
+        column.add(text_row)
         column.add_stretch()
 
         self.widget = column
@@ -61,9 +52,11 @@ class InfoPanel(Panel.Panel):
         super(InfoPanel, self).close()
 
     # this message is received from the document controller.
-    def __cursor_changed(self, position_text: str, value_text: str) -> None:
-        def update_position_and_value(position_text, value_text):
-            self.position_text.text = position_text
-            self.value_text.text = value_text
+    def __cursor_changed(self, text_vars: typing.Dict[str, str]) -> None:
+        def update_position_and_value(text_vars: typing.Dict[str, str]):
+            self.label.text = ""
+            if text_vars:
+                for key in text_vars:
+                    self.label.text += key + ": " + text_vars[key] + "\n"
 
-        self.add_task("position_and_value", lambda: update_position_and_value(position_text, value_text))
+        self.add_task("position_and_value", lambda: update_position_and_value(text_vars))

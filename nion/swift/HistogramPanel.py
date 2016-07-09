@@ -2,6 +2,7 @@
 import functools
 import gettext
 import operator
+import typing
 
 # third party libraries
 import numpy
@@ -160,7 +161,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     """A canvas item to draw and control a histogram."""
 
-    def __init__(self, cursor_changed):
+    def __init__(self, cursor_changed_fn: typing.Callable[[float], None]):
         super().__init__()
 
         # tell the canvas item that we want mouse events.
@@ -179,7 +180,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
         self.on_set_display_limits = None
 
-        self._cursor_changed = cursor_changed
+        self.__cursor_changed = cursor_changed_fn
 
     def close(self):
         self._set_histogram_data(None)
@@ -245,7 +246,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
-        self._cursor_changed(x / self.canvas_size[1])
+        if callable(self.__cursor_changed):
+            self.__cursor_changed(x / self.canvas_size[1])
         if super().mouse_position_changed(x, y, modifiers):
             return True
         canvas_width = self.canvas_size[1]
@@ -254,10 +256,14 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
             self.__set_display_limits((min(self.start, current), max(self.start, current)))
         return True
 
+    def mouse_exited(self) -> bool:
+        if callable(self.__cursor_changed):
+            self.__cursor_changed(None)
+        return True
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, display_stream, histogram_data_future_stream, cursor_changed):
+    def __init__(self, ui, display_stream, histogram_data_future_stream, cursor_changed_fn):
         super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 80}))
 
         self.__histogram_data_future_stream = histogram_data_future_stream
@@ -274,7 +280,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                     display.display_limits = None
 
         # create a canvas widget for this panel and put a histogram canvas item in it.
-        self.__histogram_canvas_item = HistogramCanvasItem(cursor_changed)
+        self.__histogram_canvas_item = HistogramCanvasItem(cursor_changed_fn)
         self.__histogram_canvas_item.on_set_display_limits = set_display_limits
 
         histogram_widget = ui.create_canvas_widget()
@@ -426,12 +432,15 @@ class HistogramPanel(Panel.Panel):
         if sample:
             histogram_data_and_metadata_stream = Stream.SampleStream(histogram_data_and_metadata_stream, 0.5)
 
-        def cursor_changed(canvas_x: str) -> None:
-            display_range = display_stream.value.display_range
-            adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
-            document_controller.cursor_changed(str(adjusted_x) + " (Uncalibrated)", "N/A")
+        def cursor_changed_fn(canvas_x: float) -> None:
+            if not canvas_x:
+                document_controller.cursor_changed(None)
+            if display_stream and display_stream.value and canvas_x:
+                display_range = display_stream.value.display_range
+                adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
+                document_controller.cursor_changed({_('Intensity (Uncalibrated)'): str(adjusted_x)})
 
-        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, cursor_changed)
+        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, cursor_changed_fn)
 
         def calculate_statistics(display_data_and_metadata, display_data_range, region):
             data = display_data_and_metadata.data if display_data_and_metadata else None

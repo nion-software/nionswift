@@ -11,6 +11,7 @@ import time
 import traceback
 import uuid
 import weakref
+import typing
 
 # third party libraries
 # None
@@ -666,8 +667,8 @@ class DocumentController:
 
     # this can be called from any user interface element that wants to update the cursor info
     # in the data panel. this would typically be from the image or line plot canvas.
-    def cursor_changed(self, position_text: str, value_text: str) -> None:
-        self.cursor_changed_event.fire(position_text, value_text)
+    def cursor_changed(self, text_vars: typing.Dict[str, str]) -> None:
+        self.cursor_changed_event.fire(text_vars)
 
     @property
     def tool_mode(self):

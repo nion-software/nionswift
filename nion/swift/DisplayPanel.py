@@ -1019,7 +1019,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     value_text = ""
                     if data_and_calibration and pos is not None:
                         position_text, value_text = get_value_and_position_text(data_and_calibration, display_calibrated_values, pos)
-                    display_panel_content.document_controller.cursor_changed(position_text, value_text)
+                    if position_text and value_text:
+                        display_panel_content.document_controller.cursor_changed({_("Position"): position_text, _("Value"): value_text})
+                    else:
+                        display_panel_content.document_controller.cursor_changed(None)
+
 
                 def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
                     document_controller = display_panel_content.document_controller
