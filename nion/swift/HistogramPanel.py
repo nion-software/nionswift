@@ -461,9 +461,10 @@ class HistogramPanel(Panel.Panel):
                 if display_data_and_metadata:
                     intensity_calibration = display_data_and_metadata.intensity_calibration
                     mean = intensity_calibration.convert_to_calibrated_value_str(mean)
+                    std = intensity_calibration.convert_to_calibrated_value_str(std)
                     data_min = intensity_calibration.convert_to_calibrated_value_str(data_min)
                     data_max = intensity_calibration.convert_to_calibrated_value_str(data_max)
-                    # rms = intensity_calibration.convert_to_calibrated_value_str(mean)
+                    rms = intensity_calibration.convert_to_calibrated_value_str(rms)
                     sum_data = intensity_calibration.convert_to_calibrated_value_str(sum_data)
                 return { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum_data }
             return dict()
