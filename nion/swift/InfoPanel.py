@@ -52,11 +52,16 @@ class InfoPanel(Panel.Panel):
         super(InfoPanel, self).close()
 
     # this message is received from the document controller.
-    def __cursor_changed(self, text_vars: typing.Dict[str, str]) -> None:
-        def update_position_and_value(text_vars: typing.Dict[str, str]):
+    def __cursor_changed(self, text_vars: typing.List[str]) -> None:
+        def update_position_and_value(text_vars: typing.List[str]):
             self.label.text = ""
             if text_vars:
+                del text_vars[3:] # ensure text_vars is up to 3 elements to prevent a possible exception
                 for key in text_vars:
-                    self.label.text += key + ": " + text_vars[key] + "\n"
+                    self.label.text += key + "\n"
+
+                # fill the rest of the info text with newlines to prevent a strange animation effect
+                for filler_keys in range(3 - len(text_vars)):
+                    self.label.text += "\n"
 
         self.add_task("position_and_value", lambda: update_position_and_value(text_vars))

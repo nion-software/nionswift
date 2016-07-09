@@ -443,7 +443,7 @@ class HistogramPanel(Panel.Panel):
                 adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
                 adjusted_x = intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
 
-                document_controller.cursor_changed({_('Intensity'): str(adjusted_x)})
+                document_controller.cursor_changed([_('Intensity: ') + str(adjusted_x)])
 
         self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, cursor_changed_fn)
 

@@ -1020,7 +1020,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     if data_and_calibration and pos is not None:
                         position_text, value_text = get_value_and_position_text(data_and_calibration, display_calibrated_values, pos)
                     if position_text and value_text:
-                        display_panel_content.document_controller.cursor_changed({_("Position"): position_text, _("Value"): value_text})
+                        display_panel_content.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
                     else:
                         display_panel_content.document_controller.cursor_changed(None)
 
