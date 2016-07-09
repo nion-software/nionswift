@@ -345,7 +345,7 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
                 for key in sorted(statistics_data.keys()):
                     value = statistics_data[key]
                     if value is not None:
-                        statistic_str = "{0} {1:n}".format(key, statistics_data[key])
+                        statistic_str = "{0} {1}".format(key, value)
                     else:
                         statistic_str = "{0} {1}".format(key, _("N/A"))
                     statistic_strings.append(statistic_str)
@@ -438,7 +438,6 @@ class HistogramPanel(Panel.Panel):
             if display_stream and display_stream.value and canvas_x:
                 display_range = display_stream.value.display_range
                 intensity_calibration = display_stream.value.data_and_calibration.intensity_calibration
-                data_shape = display_stream.value.data_and_calibration.data_shape
 
                 adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
                 adjusted_x = intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
@@ -454,12 +453,19 @@ class HistogramPanel(Panel.Panel):
                 mean = numpy.mean(data)
                 std = numpy.std(data)
                 rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
-                sum = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
+                sum_data = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
                 if region is None:
                     data_min, data_max = data_range if data_range is not None else (None, None)
                 else:
                     data_min, data_max = numpy.amin(data), numpy.amax(data)
-                return { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum }
+                if display_data_and_metadata:
+                    intensity_calibration = display_data_and_metadata.intensity_calibration
+                    mean = intensity_calibration.convert_to_calibrated_value_str(mean)
+                    data_min = intensity_calibration.convert_to_calibrated_value_str(data_min)
+                    data_max = intensity_calibration.convert_to_calibrated_value_str(data_max)
+                    # rms = intensity_calibration.convert_to_calibrated_value_str(mean)
+                    sum_data = intensity_calibration.convert_to_calibrated_value_str(sum_data)
+                return { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum_data }
             return dict()
 
         def calculate_future_statistics(display_data_and_metadata, display_data_range, region):
