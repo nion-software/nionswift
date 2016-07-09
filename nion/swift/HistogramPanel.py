@@ -437,8 +437,13 @@ class HistogramPanel(Panel.Panel):
                 document_controller.cursor_changed(None)
             if display_stream and display_stream.value and canvas_x:
                 display_range = display_stream.value.display_range
+                intensity_calibration = display_stream.value.data_and_calibration.intensity_calibration
+                data_shape = display_stream.value.data_and_calibration.data_shape
+
                 adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
-                document_controller.cursor_changed({_('Intensity (Uncalibrated)'): str(adjusted_x)})
+                adjusted_x = intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
+
+                document_controller.cursor_changed({_('Intensity'): str(adjusted_x)})
 
         self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, cursor_changed_fn)
 
