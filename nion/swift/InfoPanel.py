@@ -64,16 +64,10 @@ class InfoPanel(Panel.Panel):
         super(InfoPanel, self).close()
 
     # this message is received from the document controller.
-    def __cursor_changed(self, text_vars: typing.List[str]) -> None:
-        def update_position_and_value(text_vars: typing.List[str]):
-            if text_vars:
-                self.label_row_1.text = text_vars[0] if len(text_vars) > 0 else ""
-                self.label_row_2.text = text_vars[1] if len(text_vars) > 1 else ""
-                self.label_row_3.text = text_vars[2] if len(text_vars) > 2 else ""
-            else:
-                self.label_row_1.text = ""
-                self.label_row_2.text = ""
-                self.label_row_3.text = ""
+    def __cursor_changed(self, text_items: typing.List[str]) -> None:
+        def update_position_and_value(text_items: typing.List[str]):
+            self.label_row_1.text = text_items[0] if text_items and len(text_items) > 0 else None
+            self.label_row_2.text = text_items[1] if text_items and len(text_items) > 1 else None
+            self.label_row_3.text = text_items[2] if text_items and len(text_items) > 2 else None
 
-
-        self.add_task("position_and_value", lambda: update_position_and_value(text_vars))
+        self.add_task("position_and_value", lambda: update_position_and_value(text_items))
