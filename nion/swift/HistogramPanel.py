@@ -160,7 +160,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     """A canvas item to draw and control a histogram."""
 
-    def __init__(self):
+    def __init__(self, cursor_changed):
         super().__init__()
 
         # tell the canvas item that we want mouse events.
@@ -178,6 +178,8 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__pressed = False
 
         self.on_set_display_limits = None
+
+        self._cursor_changed = cursor_changed
 
     def close(self):
         self._set_histogram_data(None)
@@ -243,6 +245,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
+        self._cursor_changed(x / self.canvas_size[1])
         if super().mouse_position_changed(x, y, modifiers):
             return True
         canvas_width = self.canvas_size[1]
@@ -254,7 +257,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, display_stream, histogram_data_future_stream):
+    def __init__(self, ui, display_stream, histogram_data_future_stream, cursor_changed):
         super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 80}))
 
         self.__histogram_data_future_stream = histogram_data_future_stream
@@ -271,7 +274,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                     display.display_limits = None
 
         # create a canvas widget for this panel and put a histogram canvas item in it.
-        self.__histogram_canvas_item = HistogramCanvasItem()
+        self.__histogram_canvas_item = HistogramCanvasItem(cursor_changed)
         self.__histogram_canvas_item.on_set_display_limits = set_display_limits
 
         histogram_widget = ui.create_canvas_widget()
@@ -422,7 +425,13 @@ class HistogramPanel(Panel.Panel):
             histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05)
         if sample:
             histogram_data_and_metadata_stream = Stream.SampleStream(histogram_data_and_metadata_stream, 0.5)
-        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream)
+
+        def cursor_changed(canvas_x: str) -> None:
+            display_range = display_stream.value.display_range
+            adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
+            document_controller.cursor_changed(str(adjusted_x) + " (Uncalibrated)", "N/A")
+
+        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, cursor_changed)
 
         def calculate_statistics(display_data_and_metadata, display_data_range, region):
             data = display_data_and_metadata.data if display_data_and_metadata else None
