@@ -143,7 +143,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
-        self.define_property("color_map", changed = self.__color_map_changed)
+        self.define_property("color_map", changed=self.__color_map_changed)
         self.__lookup = None
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__graphic_changed_listeners = list()
@@ -389,16 +389,6 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         # when one of the defined properties changes, this gets called
         self.__clear_cached_data()
         self.notify_set_property(property_name, value)
-        self.display_changed_event.fire()
-
-    @property
-    def lookup_table(self):
-        return self.__lookup
-
-    @lookup_table.setter
-    def lookup_table(self, lookup):
-        self.__lookup = lookup
-        self.__clear_cached_data()
         self.display_changed_event.fire()
 
     def __validate_data_stats(self):

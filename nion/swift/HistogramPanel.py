@@ -12,9 +12,11 @@ from nion.data import Core
 from nion.data import Image
 from nion.swift import Panel
 from nion.swift import Widgets
+from nion.swift.model import ColorMaps
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Model
@@ -127,7 +129,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # canvas size
         canvas_width = self.canvas_size[1]
-        canvas_height = self.canvas_size[0]
+        canvas_height = self.canvas_size[0] - 4
 
         # draw background
         if self.background_color:
@@ -158,6 +160,57 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             drawing_context.restore()
 
 
+class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super().__init__()
+        self.__data = None
+
+    @property
+    def data(self):
+        """Return the data."""
+        return self.__data
+
+    @data.setter
+    def data(self, data):
+        """Set the data and mark the canvas item for updating.
+
+        Data should be a numpy array with a range from 0,1.
+        """
+        self.__data = data
+        self.update()
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext):
+        """Repaint the canvas item. This will occur on a thread."""
+
+        # canvas size
+        canvas_width = self.canvas_size[1]
+        canvas_height = self.canvas_size[0]
+
+        drawing_context.save()
+        drawing_context.begin_path()
+        drawing_context.move_to(0, canvas_height - 4)
+        drawing_context.line_to(canvas_width, canvas_height - 4)
+        drawing_context.line_to(canvas_width, canvas_height)
+        drawing_context.line_to(0, canvas_height)
+        drawing_context.close_path()
+        drawing_context.fill_style = "#F00"
+        color_map_gradient = drawing_context.create_linear_gradient(canvas_width, 4, 0, canvas_height - 4, canvas_width, canvas_height)
+        color_map = ColorMaps.color_maps.get(self.__data)
+        if color_map is not None:
+            index = 0
+            for stop in color_map:
+                stop_ints = stop.astype(int)
+                color_map_gradient.add_color_stop(index * (1 / (len(color_map) - 1)), "#{2:02X}{1:02X}{0:02X}".format(*stop_ints))
+                index += 1
+        else:
+            color_map_gradient.add_color_stop(0.0, '#000')
+            color_map_gradient.add_color_stop(1.0, '#FFF')
+        drawing_context.fill_style = color_map_gradient
+        drawing_context.fill()
+        drawing_context.restore()
+
+
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     """A canvas item to draw and control a histogram."""
 
@@ -170,10 +223,12 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         # create the component canvas items: adornments and the graph.
         self.__adornments_canvas_item = AdornmentsCanvasItem()
         self.__simple_line_graph_canvas_item = SimpleLineGraphCanvasItem()
+        self.__histogram_color_map_canvas_item = ColorMapCanvasItem()
 
         # canvas items get added back to front
         self.add_canvas_item(self.__simple_line_graph_canvas_item)
         self.add_canvas_item(self.__adornments_canvas_item)
+        self.add_canvas_item(self.__histogram_color_map_canvas_item)
 
         # used for mouse tracking.
         self.__pressed = False
@@ -207,6 +262,9 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         # make sure the adornments get updated
         self.__adornments_canvas_item.update()
 
+    def _set_color_map_data(self, color_map_id):
+        self.color_map = color_map_id
+
     @property
     def histogram_data(self):
         return self.__simple_line_graph_canvas_item.data
@@ -214,6 +272,14 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
     @histogram_data.setter
     def histogram_data(self, histogram_data):
         self.__simple_line_graph_canvas_item.data = histogram_data
+
+    @property
+    def color_map(self):
+        return self.__histogram_color_map_canvas_item.data
+
+    @color_map.setter
+    def color_map(self, color_map_id):
+        self.__histogram_color_map_canvas_item.data = color_map_id
 
     def __set_display_limits(self, display_limits):
         self.__adornments_canvas_item.display_limits = display_limits
@@ -261,12 +327,14 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
             self.__cursor_changed(None)
         return True
 
+
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui, display_stream, histogram_data_future_stream, cursor_changed_fn):
-        super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 80}))
+        super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 84}))
 
         self.__histogram_data_future_stream = histogram_data_future_stream
+        self.__display_future_stream = display_stream
 
         def set_display_limits(display_limits):
             display = display_stream.value
@@ -281,6 +349,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
         # create a canvas widget for this panel and put a histogram canvas item in it.
         self.__histogram_canvas_item = HistogramCanvasItem(cursor_changed_fn)
+        self._histogram_canvas_item.color_map = 'ice'
         self.__histogram_canvas_item.on_set_display_limits = set_display_limits
 
         histogram_widget = ui.create_canvas_widget()
@@ -294,6 +363,13 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
         self.__histogram_data_stream_listener = histogram_data_future_stream.value_stream.listen(handle_histogram_data_future)
         handle_histogram_data_future(self.__histogram_data_future_stream.value)
+
+        def handle_update_color_map(color_map):
+            self.__histogram_canvas_item.color_map = color_map
+
+        self.__color_map_stream = DisplayPropertyStream(self.__display_future_stream, "color_map")
+        self.__color_map_stream_listener = self.__color_map_stream.value_stream.listen(handle_update_color_map)
+        handle_update_color_map(self.__display_future_stream.value)
 
         self.content_widget.add(histogram_widget)
 
