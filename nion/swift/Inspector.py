@@ -577,6 +577,18 @@ def make_display_type_chooser(ui, display):
     display_type_row.add_stretch()
     return display_type_row
 
+def make_color_map_chooser(ui, display):
+    color_map_row = ui.create_row_widget()
+    color_map_options = ((_("Default"), None), (_("Magma"), "magma"), (_("HSV"), "hsv"), (_("Viridis"), "viridis"), (_("Plasma"), "plasma"), (_("Ice"), "ice"))
+    color_map_reverse_map = {None: 0, "magma": 1, "hsv": 2, "viridis": 3, "plasma": 4, "ice": 5}
+    color_map_chooser = ui.create_combo_box_widget(items=color_map_options, item_getter=operator.itemgetter(0))
+    color_map_chooser.on_current_item_changed = lambda item: setattr(display, "color_map_id", item[1])
+    color_map_chooser.current_item = color_map_options[color_map_reverse_map.get(display.color_map_id, 0)]
+    color_map_row.add(ui.create_label_widget(_("Color Map:"), properties={"width": 120}))
+    color_map_row.add(color_map_chooser)
+    color_map_row.add_stretch()
+    return color_map_row
+
 
 class ImageDisplayInspectorSection(InspectorSection):
 
@@ -589,6 +601,9 @@ class ImageDisplayInspectorSection(InspectorSection):
 
         # display type
         display_type_row = make_display_type_chooser(ui, display)
+
+        # color map
+        color_map_row = make_color_map_chooser(ui, display)
 
         # configure the display limit editor
         self.display_limits_range_row = ui.create_row_widget()
@@ -614,6 +629,7 @@ class ImageDisplayInspectorSection(InspectorSection):
         self.display_limits_limit_row.add_stretch()
 
         self.add_widget_to_content(display_type_row)
+        self.add_widget_to_content(color_map_row)
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
 
@@ -631,6 +647,9 @@ class LinePlotDisplayInspectorSection(InspectorSection):
 
         # display type
         display_type_row = make_display_type_chooser(ui, display)
+
+        # color map
+        color_map_row = make_color_map_chooser(ui, display)
 
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
@@ -690,6 +709,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.style_row.add_stretch()
 
         self.add_widget_to_content(display_type_row)
+        self.add_widget_to_content(color_map_row)
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)

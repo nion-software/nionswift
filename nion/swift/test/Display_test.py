@@ -243,5 +243,36 @@ class TestDisplayClass(unittest.TestCase):
             display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
             display_panel.display_canvas_item.prepare_display()  # force layout
 
+    def test_setting_color_map_id_to_none_works(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.color_map_id = None
+            self.assertEqual(display_specifier.display.color_map_id, None)
+            self.assertIsNone(display_specifier.display.color_map_data)
+
+    def test_setting_color_map_id_to_valid_value_works(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.color_map_id = 'ice'
+            self.assertEqual(display_specifier.display.color_map_id, 'ice')
+            self.assertIsNotNone(display_specifier.display.color_map_data)
+
+    def test_setting_color_map_id_to_invalid_value_works(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float64))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.color_map_id = 'elephant'
+            self.assertEqual(display_specifier.display.color_map_id, 'elephant')
+            self.assertIsNone(display_specifier.display.color_map_data)
+
+
 if __name__ == '__main__':
     unittest.main()
