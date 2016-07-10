@@ -8,6 +8,7 @@ import typing
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.data import Core
 from nion.data import Image
 from nion.swift import Panel
@@ -446,7 +447,7 @@ class HistogramPanel(Panel.Panel):
 
         self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, cursor_changed_fn)
 
-        def calculate_statistics(display_data_and_metadata, display_data_range, region):
+        def calculate_statistics(display_data_and_metadata, display_data_range, region, display_calibrated_values):
             data = display_data_and_metadata.data if display_data_and_metadata else None
             data_range = display_data_range
             if data is not None:
@@ -458,22 +459,24 @@ class HistogramPanel(Panel.Panel):
                     data_min, data_max = data_range if data_range is not None else (None, None)
                 else:
                     data_min, data_max = numpy.amin(data), numpy.amax(data)
-                if display_data_and_metadata:
-                    intensity_calibration = display_data_and_metadata.intensity_calibration
-                    mean = intensity_calibration.convert_to_calibrated_value_str(mean)
-                    std = intensity_calibration.convert_to_calibrated_value_str(std)
-                    data_min = intensity_calibration.convert_to_calibrated_value_str(data_min)
-                    data_max = intensity_calibration.convert_to_calibrated_value_str(data_max)
-                    rms = intensity_calibration.convert_to_calibrated_value_str(rms)
-                    sum_data = intensity_calibration.convert_to_calibrated_value_str(sum_data)
-                return { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum_data }
+                should_calibrate = display_data_and_metadata and display_calibrated_values
+                calibration = display_data_and_metadata.intensity_calibration if should_calibrate else Calibration.Calibration()
+                mean_str = calibration.convert_to_calibrated_value_str(mean)
+                std_str = calibration.convert_to_calibrated_value_str(std)
+                data_min_str = calibration.convert_to_calibrated_value_str(data_min)
+                data_max_str = calibration.convert_to_calibrated_value_str(data_max)
+                rms_str = calibration.convert_to_calibrated_value_str(rms)
+                sum_data_str = calibration.convert_to_calibrated_value_str(sum_data)
+
+                return { "mean": mean_str, "std": std_str, "min": data_min_str, "max": data_max_str, "rms": rms_str, "sum": sum_data_str }
             return dict()
 
-        def calculate_future_statistics(display_data_and_metadata, display_data_range, region):
-            return Stream.FutureValue(calculate_statistics, display_data_and_metadata, display_data_range, region)
+        def calculate_future_statistics(display_data_and_metadata, display_data_range, region, display_calibrated_values):
+            return Stream.FutureValue(calculate_statistics, display_data_and_metadata, display_data_range, region, display_calibrated_values)
 
         display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
-        statistics_future_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_data_range_stream, region_stream), calculate_future_statistics)
+        display_calibrated_values_stream = DisplayPropertyStream(display_stream, 'display_calibrated_values')
+        statistics_future_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_data_range_stream, region_stream, display_calibrated_values_stream), calculate_future_statistics)
         if debounce:
             statistics_future_stream = Stream.DebounceStream(statistics_future_stream, 0.05)
         if sample:
