@@ -1733,7 +1733,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                             self.changed_event = Event.Event()
                                             self.deleted_event = Event.Event()
                                             def remove_region(region):
-                                                self.deleted_event.fire()
+                                                if region == object:
+                                                    self.deleted_event.fire()
                                             self.__remove_region_listener = display.display_graphic_will_remove_event.listen(remove_region)
                                             def property_changed(property_name_being_changed, value):
                                                 self.changed_event.fire()

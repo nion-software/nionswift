@@ -879,6 +879,36 @@ class TestGraphicsClass(unittest.TestCase):
             document_model.remove_data_item(data_item)
             self.assertTrue(drawn_graphic._closed)
 
+    def test_removing_graphic_with_dependent_data_removes_dependent_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            display_specifier.display.add_graphic(crop_region)
+            cropped_data_item = document_model.get_crop_new(data_item, crop_region)
+            self.assertIn(cropped_data_item, document_model.data_items)
+            display_specifier.display.remove_graphic(crop_region)
+            self.assertNotIn(cropped_data_item, document_model.data_items)
+
+    def test_removing_one_of_two_graphics_with_dependent_data_only_removes_the_one(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            crop_region1 = Graphics.RectangleGraphic()
+            display_specifier.display.add_graphic(crop_region1)
+            crop_region2 = Graphics.RectangleGraphic()
+            display_specifier.display.add_graphic(crop_region2)
+            document_model.get_crop_new(data_item, crop_region1)
+            document_model.get_crop_new(data_item, crop_region2)
+            self.assertIn(crop_region1, display_specifier.display.graphics)
+            self.assertIn(crop_region2, display_specifier.display.graphics)
+            display_specifier.display.remove_graphic(crop_region1)
+            self.assertIn(crop_region2, display_specifier.display.graphics)
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
