@@ -377,6 +377,9 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__histogram_data_stream_listener.close()
         self.__histogram_data_stream_listener = None
         self.__histogram_data_future_stream = None
+        self.__color_map_stream_listener.close()
+        self.__color_map_stream_listener = None
+        self.__color_map_stream = None
         self.__histogram_canvas_item = None
         super().close()
 
