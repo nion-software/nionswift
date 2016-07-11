@@ -12,6 +12,7 @@ from nion.swift import HistogramPanel
 from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Graphics
 from nion.ui import TestUI
 
 
@@ -91,6 +92,15 @@ class TestHistogramPanelClass(unittest.TestCase):
     def test_cursor_histogram_of_empty_data_displays_without_exception(self):
         self.data_item.maybe_data_source.set_data_and_calibration(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), numpy.float)))
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
+
+    def test_histogram_statistics_with_zero_array(self):
+        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
+            data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
+        rect_region = Graphics.RectangleGraphic()
+        rect_region.bounds = (10000, 10000), (10001, 10001)
+        self.display_specifier.display.add_graphic(rect_region)
+        self.display_specifier.display.graphic_selection.set(0)
+        self.histogram_panel._histogram_widget._recompute()
 
 if __name__ == '__main__':
     unittest.main()
