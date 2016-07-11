@@ -1,14 +1,11 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
-import logging
 import unittest
 
 # third party libraries
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import HistogramPanel
@@ -90,6 +87,10 @@ class TestHistogramPanelClass(unittest.TestCase):
             data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
         self.assertNotEqual(stats1_text, self.histogram_panel._statistics_widget._stats1_property.value)
         self.assertNotEqual(stats2_text, self.histogram_panel._statistics_widget._stats2_property.value)
+
+    def test_cursor_histogram_of_empty_data_displays_without_exception(self):
+        self.data_item.maybe_data_source.set_data_and_calibration(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), numpy.float)))
+        self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
 
 if __name__ == '__main__':
     unittest.main()
