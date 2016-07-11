@@ -73,7 +73,7 @@ class LineGraphDataInfo(object):
     @property
     def data(self):
         if self.__data is None:
-            uncalibrated_data = self.__data_fn()
+            uncalibrated_data = self.__data_fn() if self.__data_fn else None
             if uncalibrated_data is not None:
                 calibration = self.intensity_calibration
                 if calibration:

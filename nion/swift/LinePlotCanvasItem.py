@@ -201,6 +201,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
 
+        if data_and_calibration.dimensional_shape is None or len(data_and_calibration.dimensional_shape) == 0:
+            return
+
         data_length = data_and_calibration.dimensional_shape[-1]
         dimensional_calibration = data_and_calibration.dimensional_calibrations[-1] if display_calibrated_values else Calibration.Calibration()
         calibrated_data_left = dimensional_calibration.convert_to_calibrated_value(0)
@@ -253,7 +256,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             right_channel = self.__right_channel
             display_calibrated_values = self.__display_calibrated_values
 
-            if data_and_calibration:
+            if data_and_calibration and data_and_calibration.dimensional_shape is not None and len(data_and_calibration.dimensional_shape) > 0:
                 # make sure we have the correct data
                 # assert data_and_calibration.is_data_1d
 
@@ -338,6 +341,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if len(self.__line_graph_stack.canvas_items) != 1:
                 self.__line_graph_stack.remove_all_canvas_items()
                 self.__line_graph_stack.add_canvas_item(LineGraphCanvasItem.LineGraphCanvasItem())
+                self.line_graph_canvas_item = self.__line_graph_stack.canvas_items[0]
         elif Image.is_data_2d(data):
             rows = min(16, data.shape[0])
             if len(self.__line_graph_stack.canvas_items) != rows:
@@ -352,8 +356,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     line_graph_canvas_item.color = colors[row]
                     self.__line_graph_stack.add_canvas_item(line_graph_canvas_item)
                     filled = False
-
-        self.line_graph_canvas_item = self.__line_graph_stack.canvas_items[0]
+                self.line_graph_canvas_item = self.__line_graph_stack.canvas_items[0]
 
         for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
             line_graph_canvas_item.data_info = data_info
