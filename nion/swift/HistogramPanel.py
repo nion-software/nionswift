@@ -454,7 +454,7 @@ class HistogramPanel(Panel.Panel):
         def calculate_statistics(display_data_and_metadata, display_data_range, region, display_calibrated_values):
             data = display_data_and_metadata.data if display_data_and_metadata else None
             data_range = display_data_range
-            if data is not None:
+            if data is not None and data.size > 0:
                 mean = numpy.mean(data)
                 std = numpy.std(data)
                 rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
