@@ -695,7 +695,7 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw the data, if any
         data_info = self.data_info
-        if data_info:
+        if data_info and data_info.x_properties:
 
             plot_width = int(self.canvas_size[1]) - 1
 
@@ -728,7 +728,7 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw the data, if any
         data_info = self.data_info
-        if data_info:
+        if data_info and data_info.x_properties:
 
             height = self.canvas_size[0]
             plot_width = int(self.canvas_size[1]) - 1
@@ -803,7 +803,7 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw the data, if any
         data_info = self.data_info
-        if data_info:
+        if data_info and data_info.y_properties:
 
             # canvas size
             width = self.canvas_size[1]
@@ -859,7 +859,7 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # draw the data, if any
         data_info = self.data_info
-        if data_info:
+        if data_info and data_info.y_properties:
 
             # canvas size
             width = self.canvas_size[1]
