@@ -350,6 +350,51 @@ class TestInspectorClass(unittest.TestCase):
         # panels; nor should it affect the focus functionality
         raise Exception()
 
+    def test_rectangle_dimensions_show_calibrated_units(self):
+        data_item = DataItem.DataItem(numpy.full((256, 256, 37), 0, dtype=numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.display.add_graphic(Graphics.RectangleGraphic())
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=0.5))
+        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm", scale=0.5))
+        Inspector.make_rectangle_type_inspector(self.app.ui, graphic_widget, display_specifier,
+                                                display_specifier.buffered_data_source.dimensional_shape,
+                                                display_specifier.display.graphics[0])
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")
+        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "128.00 mm")
+
+    def test_line_dimensions_show_calibrated_units(self):
+        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.display.add_graphic(Graphics.LineGraphic())
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm",
+                                                                                                      scale=0.5))
+        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm",
+                                                                                                      scale=0.5))
+        Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier,
+                                           display_specifier.buffered_data_source.dimensional_shape,
+                                           display_specifier.display.graphics[0])
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "0.00 mm")
+        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "128.00 mm")
+
+    def test_point_dimensions_show_calibrated_units(self):
+        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.display.add_graphic(Graphics.PointGraphic())
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm",
+                                                                                                      scale=0.5))
+        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm",
+                                                                                                      scale=0.5))
+        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier,
+                                            display_specifier.buffered_data_source.dimensional_shape,
+                                            display_specifier.display.graphics[0])
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "64.00 mm")
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
