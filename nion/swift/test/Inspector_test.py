@@ -351,7 +351,7 @@ class TestInspectorClass(unittest.TestCase):
         raise Exception()
 
     def test_rectangle_dimensions_show_calibrated_units(self):
-        data_item = DataItem.DataItem(numpy.full((256, 256, 37), 0, dtype=numpy.uint32))
+        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.add_graphic(Graphics.RectangleGraphic())
         graphic_widget = self.app.ui.create_column_widget()
