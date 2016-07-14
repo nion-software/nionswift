@@ -189,13 +189,13 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
 
         drawing_context.save()
         drawing_context.begin_path()
-        drawing_context.move_to(0, canvas_height - 4)
-        drawing_context.line_to(canvas_width, canvas_height - 4)
-        drawing_context.line_to(canvas_width, canvas_height)
-        drawing_context.line_to(0, canvas_height)
+        drawing_context.move_to(0, 0)
+        drawing_context.line_to(canvas_width, 0)
+        drawing_context.line_to(canvas_width, 4)
+        drawing_context.line_to(0, 4)
         drawing_context.close_path()
         drawing_context.fill_style = "#F00"
-        color_map_gradient = drawing_context.create_linear_gradient(canvas_width, 4, 0, canvas_height - 4, canvas_width, canvas_height)
+        color_map_gradient = drawing_context.create_linear_gradient(canvas_width, 4, 0, 0, canvas_width, 4)
         color_map = ColorMaps.color_maps.get(self.__data)
         if color_map is not None:
             index = 0
@@ -225,9 +225,18 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__histogram_color_map_canvas_item = ColorMapCanvasItem()
 
         # canvas items get added back to front
-        self.add_canvas_item(self.__simple_line_graph_canvas_item)
-        self.add_canvas_item(self.__adornments_canvas_item)
-        self.add_canvas_item(self.__histogram_color_map_canvas_item)
+
+        column = CanvasItem.CanvasItemComposition()
+        column.layout = CanvasItem.CanvasItemColumnLayout()
+
+        self.__graph_and_adornments = CanvasItem.CanvasItemComposition()
+        self.__graph_and_adornments.add_canvas_item(self.__simple_line_graph_canvas_item)
+        self.__graph_and_adornments.add_canvas_item(self.__adornments_canvas_item)
+
+        column.add_canvas_item(self.__graph_and_adornments)
+        column.add_canvas_item(self.__histogram_color_map_canvas_item)
+
+        self.add_canvas_item(column)
 
         # used for mouse tracking.
         self.__pressed = False
@@ -273,11 +282,11 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__simple_line_graph_canvas_item.data = histogram_data
 
     @property
-    def color_map(self):
+    def color_map(self) -> str:
         return self.__histogram_color_map_canvas_item.data
 
     @color_map.setter
-    def color_map(self, color_map_id):
+    def color_map(self, color_map_id: str) -> None:
         self.__histogram_color_map_canvas_item.data = color_map_id
 
     def __set_display_limits(self, display_limits):
@@ -329,7 +338,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, display_stream, histogram_data_future_stream, cursor_changed_fn):
+    def __init__(self, ui, display_stream, histogram_data_future_stream, color_map_stream, cursor_changed_fn):
         super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 84}))
 
         self.__histogram_data_future_stream = histogram_data_future_stream
@@ -363,12 +372,12 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__histogram_data_stream_listener = histogram_data_future_stream.value_stream.listen(handle_histogram_data_future)
         handle_histogram_data_future(self.__histogram_data_future_stream.value)
 
-        def handle_update_color_map(color_map):
-            self.__histogram_canvas_item.color_map = color_map
+        def handle_update_color_map(color_map_id):
+            self.__histogram_canvas_item.color_map = color_map_id
 
-        self.__color_map_stream = DisplayPropertyStream(self.__display_future_stream, "color_map")
+        self.__color_map_stream = color_map_stream
         self.__color_map_stream_listener = self.__color_map_stream.value_stream.listen(handle_update_color_map)
-        handle_update_color_map(self.__display_future_stream.value)
+        handle_update_color_map(self.__color_map_stream.value)
 
         self.content_widget.add(histogram_widget)
 
@@ -379,6 +388,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__color_map_stream_listener.close()
         self.__color_map_stream_listener = None
         self.__color_map_stream = None
+        self.__display_future_stream = None
         self.__histogram_canvas_item = None
         super().close()
 
@@ -505,6 +515,7 @@ class HistogramPanel(Panel.Panel):
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
         display_data_and_calibration_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, region_stream), calculate_region_data)
         histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_range_stream), calculate_future_histogram_data)
+        color_map_stream = DisplayPropertyStream(display_stream, "color_map")
         if debounce:
             histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05)
         if sample:
@@ -523,7 +534,7 @@ class HistogramPanel(Panel.Panel):
 
                 document_controller.cursor_changed([_('Intensity: ') + str(adjusted_x)])
 
-        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, cursor_changed_fn)
+        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, color_map_stream, cursor_changed_fn)
 
         def calculate_statistics(display_data_and_metadata, display_data_range, region):
             data = display_data_and_metadata.data if display_data_and_metadata else None
