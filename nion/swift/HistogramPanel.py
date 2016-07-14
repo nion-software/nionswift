@@ -129,7 +129,7 @@ class SimpleLineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
         # canvas size
         canvas_width = self.canvas_size[1]
-        canvas_height = self.canvas_size[0] - 4
+        canvas_height = self.canvas_size[0]
 
         # draw background
         if self.background_color:
@@ -684,12 +684,12 @@ class DisplayPropertyStream:
     def __display_changed(self, display):
         def display_mutated():
             new_value = getattr(display, self.__property_name)
-            try:
-                if new_value != self.__value:
+            if self.__property_name == "color_map_data":
+                if not numpy.array_equal(new_value, self.__value):
                     self.__value = new_value
                     self.value_stream.fire(self.__value)
-            except ValueError:
-                if numpy.array_equal(new_value, self.__value):
+            else:
+                if new_value != self.__value:
                     self.__value = new_value
                     self.value_stream.fire(self.__value)
         if self.__display_mutated_event_listener:
