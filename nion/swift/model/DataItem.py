@@ -1,12 +1,12 @@
 # standard libraries
 import copy
 import datetime
+import functools
 import gettext
 import os
 import threading
 import time
 import uuid
-import warnings
 import weakref
 
 # typing
@@ -167,7 +167,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.__request_remove_listener = None
         self.__data = None
         self.__data_lock = threading.RLock()
-        self.__change_thread = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__change_changed = False
@@ -578,20 +577,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 
     def _begin_changes(self):
         with self.__change_count_lock:
-            if self.__change_count == 0:
-                self.__change_thread = threading.current_thread()
-            else:
-                if self.__change_thread != threading.current_thread():
-                    warnings.warn('begin changes from different threads', RuntimeWarning, stacklevel=2)
             self.__change_count += 1
 
     def _end_changes(self):
         with self.__change_count_lock:
-            if self.__change_count == 1:
-                self.__change_thread = None
-            else:
-                if self.__change_thread != threading.current_thread():
-                    warnings.warn('end changes from different threads', RuntimeWarning, stacklevel=2)
             self.__change_count -= 1
             change_count = self.__change_count
             if change_count == 0:

@@ -985,7 +985,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
-        self.data_item_has_new_data_event = Event.Event()
 
         self.__thread_pool = ThreadPool.ThreadPool()
         self.persistent_object_context = PersistentDataItemContext(persistent_storage_systems, ignore_older_files, log_migrations)
@@ -1007,8 +1006,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_changed_or_mutated_listeners = dict()
         self.__data_item_request_remove_data_item_listeners = dict()
         self.__data_item_references = dict()
-        self.__changed_data_queue_lock = threading.RLock()
-        self.__changed_data_queue = list()
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -1580,11 +1577,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def recompute_all(self):
         self.__thread_pool.run_all()
-        self.apply_changed_data()
 
     def recompute_one(self):
         self.__thread_pool.run_one()
-        self.apply_changed_data()
 
     def start_dispatcher(self):
         self.__thread_pool.start(16)
@@ -1606,11 +1601,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     if computation.begin_evaluate():
                         try:
                             while computation.needs_update:
-                                data_and_metadata = computation.evaluate_data()
-                                if data_and_metadata:
-                                    with self.__changed_data_queue_lock:
-                                        self.__changed_data_queue.append((buffered_data_source, data_and_metadata))
-                                    self.data_item_has_new_data_event.fire()
+                                with buffered_data_source._changes():
+                                    with buffered_data_source.data_ref() as data_ref:
+                                        data_and_metadata = computation.evaluate_data()
+                                        if data_and_metadata:
+                                            data_ref.data = data_and_metadata.data
+                                            buffered_data_source.update_metadata(data_and_metadata.metadata)
+                                            buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+                                            buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
                                 time.sleep(DocumentModel.computation_min_period)
                         except Exception as e:
                             computation.error_text = _("Unable to compute data")
@@ -1620,19 +1618,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
             self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
             computation_needs_update()
-
-    # must be called from current 'changes' thread
-    def apply_changed_data(self) -> None:
-        with self.__changed_data_queue_lock:
-            changed_data_queue = copy.copy(self.__changed_data_queue)
-            self.__changed_data_queue.clear()
-        for buffered_data_source, data_and_metadata in changed_data_queue:
-            with buffered_data_source._changes():
-                with buffered_data_source.data_ref() as data_ref:
-                    data_ref.data = data_and_metadata.data
-                    buffered_data_source.update_metadata(data_and_metadata.metadata)
-                    buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-                    buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
 
     def get_object_specifier(self, object, property_name: str=None):
         if isinstance(object, DataItem.DataItem):
