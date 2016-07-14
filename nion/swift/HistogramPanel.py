@@ -228,11 +228,11 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         column = CanvasItem.CanvasItemComposition()
         column.layout = CanvasItem.CanvasItemColumnLayout()
 
-        self.__graph_and_adornments = CanvasItem.CanvasItemComposition()
-        self.__graph_and_adornments.add_canvas_item(self.__simple_line_graph_canvas_item)
-        self.__graph_and_adornments.add_canvas_item(self.__adornments_canvas_item)
+        graph_and_adornments = CanvasItem.CanvasItemComposition()
+        graph_and_adornments.add_canvas_item(self.__simple_line_graph_canvas_item)
+        graph_and_adornments.add_canvas_item(self.__adornments_canvas_item)
 
-        column.add_canvas_item(self.__graph_and_adornments)
+        column.add_canvas_item(graph_and_adornments)
         column.add_canvas_item(self.__histogram_color_map_canvas_item)
 
         self.add_canvas_item(column)
@@ -353,7 +353,6 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
         # create a canvas widget for this panel and put a histogram canvas item in it.
         self.__histogram_canvas_item = HistogramCanvasItem(cursor_changed_fn)
-        self._histogram_canvas_item.color_map = 'ice'
         self.__histogram_canvas_item.on_set_display_limits = set_display_limits
 
         histogram_widget = ui.create_canvas_widget()
