@@ -1077,7 +1077,7 @@ def parse_hardware_aliases_config_file(config_path):
     if os.path.exists(config_path):
         logging.info("Parsing alias file {:s}".format(config_path))
         try:
-            config = configparser.SafeConfigParser()
+            config = configparser.ConfigParser()
             config.read(config_path)
             for section in config.sections():
                 device = config.get(section, "device")
