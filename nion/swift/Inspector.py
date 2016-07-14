@@ -919,8 +919,12 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size,
         def new_display_calibrated_values_binding():
             return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # calculate values from rectangle type graphic
-        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        if len(image_size) == 3:
+            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
+        else:
+            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1,  image_size[1])
+            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
         position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
         position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
         graphic_position_x_line_edit.bind_text(position_x_binding)
@@ -986,9 +990,14 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, 
         def new_display_calibrated_values_binding():
             return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # configure the bindings
-        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-        l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        if len(image_size) == 3:
+            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
+            l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
+        else:
+            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+            l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
         start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
         start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
         end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
