@@ -22,7 +22,7 @@ def interpolate_colors(array: typing.List[int], x: int) -> typing.List[int]:
             interp_color = numpy.rint(start_marker + ((stop_marker - start_marker) * interp_amount))
             out_array.append(interp_color)
     out_array[-1] = array[-1]
-    return numpy.array(out_array)
+    return numpy.array(out_array).astype(int)
 
 lookup_arrays = {
     'magma':   [[0, 0, 0],
@@ -55,11 +55,11 @@ def generate_lookup_array_hsv() -> numpy.array:
     for lookup_value in range(256):
         color_values = [x * 255 for x in colorsys.hsv_to_rgb(lookup_value / 300, 1.0, 1.0)]
         result_array.append(color_values)
-    return result_array
+    return numpy.array(result_array).astype(int)
 
 color_maps = {}
-color_maps['magma'] = numpy.array(generate_lookup_array('magma'))
-color_maps['ice'] = numpy.array(generate_lookup_array('ice'))
-color_maps['plasma'] = numpy.array(generate_lookup_array('plasma'))
-color_maps['viridis'] = numpy.array(generate_lookup_array('viridis'))
-color_maps['hsv'] = numpy.array(generate_lookup_array_hsv())
+color_maps['magma'] = generate_lookup_array('magma')
+color_maps['ice'] = generate_lookup_array('ice')
+color_maps['plasma'] = generate_lookup_array('plasma')
+color_maps['viridis'] = generate_lookup_array('viridis')
+color_maps['hsv'] = generate_lookup_array_hsv()

@@ -200,8 +200,7 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
         if color_map is not None:
             index = 0
             for stop in color_map:
-                stop_ints = stop.astype(int)
-                color_map_gradient.add_color_stop(index * (1 / (len(color_map) - 1)), "#{2:02X}{1:02X}{0:02X}".format(*stop_ints))
+                color_map_gradient.add_color_stop(index * (1 / (len(color_map) - 1)), "#{2:02X}{1:02X}{0:02X}".format(*stop))
                 index += 1
         else:
             color_map_gradient.add_color_stop(0.0, '#000')
