@@ -351,50 +351,57 @@ class TestInspectorClass(unittest.TestCase):
         raise Exception()
 
     def test_rectangle_dimensions_show_calibrated_units(self):
-        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))
+        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))  # z, y, x
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.add_graphic(Graphics.RectangleGraphic())
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=0.5))
-        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm", scale=0.5))
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=0.5))  # y
+        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm", scale=2.0))  # x
         Inspector.make_rectangle_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                                 display_specifier.buffered_data_source.dimensional_shape,
                                                 display_specifier.display.graphics[0])
-        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")
-        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "128.00 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "256.0 mm")  # x
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")  # y
+        self.assertEqual(graphic_widget.children[1].children[0].children[1].text, "512.0 mm")  # width
+        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "128.00 mm")  # height
 
     def test_line_dimensions_show_calibrated_units(self):
-        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))
+        data_item = DataItem.DataItem(numpy.full((37, 100, 100), 0, dtype=numpy.uint32))  # z, y, x
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.display.add_graphic(Graphics.LineGraphic())
+        line_graphic = Graphics.LineGraphic()
+        line_graphic.start = 0.2, 0.2
+        line_graphic.end = 0.8, 0.8
+        display_specifier.display.add_graphic(line_graphic)
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm",
-                                                                                                      scale=0.5))
+                                                                                                      scale=0.5))  # y
         display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm",
-                                                                                                      scale=0.5))
+                                                                                                      scale=2.0))  # x
         Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                            display_specifier.buffered_data_source.dimensional_shape,
                                            display_specifier.display.graphics[0])
-        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "0.00 mm")
-        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "128.00 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "40.0 mm")  # x0
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "10.00 mm")  # y0
+        self.assertEqual(graphic_widget.children[1].children[0].children[1].text, "160.0 mm")  # x1
+        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "40.00 mm")  # y1
 
     def test_point_dimensions_show_calibrated_units(self):
-        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))
+        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))  # z, y, x
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.add_graphic(Graphics.PointGraphic())
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm",
-                                                                                                      scale=0.5))
+                                                                                                      scale=0.5))  # y
         display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm",
-                                                                                                      scale=0.5))
+                                                                                                      scale=2.0))  # x
         Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                             display_specifier.buffered_data_source.dimensional_shape,
                                             display_specifier.display.graphics[0])
-        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")
-        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "64.00 mm")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "256.0 mm")  # x
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")  # y
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

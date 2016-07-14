@@ -920,8 +920,8 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size,
             return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # calculate values from rectangle type graphic
         if len(image_size) == 3:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
+            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
+            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
         else:
             x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1,  image_size[1])
             y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
@@ -991,9 +991,9 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, 
             return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # configure the bindings
         if len(image_size) == 3:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
-            l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
+            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
+            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+            l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
         else:
             x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
             y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
