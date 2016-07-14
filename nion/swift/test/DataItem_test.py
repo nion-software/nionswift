@@ -466,6 +466,7 @@ class TestDataItemClass(unittest.TestCase):
             inverted2_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted2_data_item)
             document_model.recompute_all()
             self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
+            document_model.recompute_all()
             self.assertFalse(inverted2_display_specifier.buffered_data_source.computation.needs_update)
             with display_specifier.buffered_data_source.data_ref() as data_ref:
                 data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
