@@ -167,15 +167,15 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__data = None
 
     @property
-    def data(self):
+    def color_map_data(self) -> numpy.ndarray:
         """Return the data."""
         return self.__data
 
-    @data.setter
-    def data(self, data):
+    @color_map_data.setter
+    def color_map_data(self, data: numpy.ndarray) -> None:
         """Set the data and mark the canvas item for updating.
 
-        Data should be a numpy array with a range from 0,1.
+        Data should be an ndarray of shape (256, 3) with type uint8
         """
         self.__data = data
         self.update()
@@ -196,11 +196,10 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
         drawing_context.close_path()
         drawing_context.fill_style = "#F00"
         color_map_gradient = drawing_context.create_linear_gradient(canvas_width, 4, 0, 0, canvas_width, 4)
-        color_map = ColorMaps.color_maps.get(self.__data)
-        if color_map is not None:
+        if self.__data is not None:
             index = 0
-            for stop in color_map:
-                color_map_gradient.add_color_stop(index * (1 / (len(color_map) - 1)), "#{2:02X}{1:02X}{0:02X}".format(*stop))
+            for stop in self.__data:
+                color_map_gradient.add_color_stop(index * (1 / (len(self.__data) - 1)), "#{2:02X}{1:02X}{0:02X}".format(*stop))
                 index += 1
         else:
             color_map_gradient.add_color_stop(0.0, '#000')
@@ -270,9 +269,6 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         # make sure the adornments get updated
         self.__adornments_canvas_item.update()
 
-    def _set_color_map_data(self, color_map_id):
-        self.color_map = color_map_id
-
     @property
     def histogram_data(self):
         return self.__simple_line_graph_canvas_item.data
@@ -282,12 +278,12 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         self.__simple_line_graph_canvas_item.data = histogram_data
 
     @property
-    def color_map(self) -> str:
+    def color_map_data(self) -> numpy.ndarray:
         return self.__histogram_color_map_canvas_item.data
 
-    @color_map.setter
-    def color_map(self, color_map_id: str) -> None:
-        self.__histogram_color_map_canvas_item.data = color_map_id
+    @color_map_data.setter
+    def color_map_data(self, color_map_data: numpy.ndarray) -> None:
+        self.__histogram_color_map_canvas_item.color_map_data = color_map_data
 
     def __set_display_limits(self, display_limits):
         self.__adornments_canvas_item.display_limits = display_limits
@@ -338,7 +334,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, display_stream, histogram_data_future_stream, color_map_stream, cursor_changed_fn):
+    def __init__(self, ui, display_stream, histogram_data_future_stream, color_map_data_stream, cursor_changed_fn):
         super().__init__(ui.create_column_widget(properties={"min-height": 80, "max-height": 84}))
 
         self.__histogram_data_future_stream = histogram_data_future_stream
@@ -372,12 +368,12 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__histogram_data_stream_listener = histogram_data_future_stream.value_stream.listen(handle_histogram_data_future)
         handle_histogram_data_future(self.__histogram_data_future_stream.value)
 
-        def handle_update_color_map(color_map_id):
-            self.__histogram_canvas_item.color_map = color_map_id
+        def handle_update_color_map(color_map_data):
+            self.__histogram_canvas_item.color_map_data = color_map_data
 
-        self.__color_map_stream = color_map_stream
-        self.__color_map_stream_listener = self.__color_map_stream.value_stream.listen(handle_update_color_map)
-        handle_update_color_map(self.__color_map_stream.value)
+        self.__color_map_data_stream = color_map_data_stream
+        self.__color_map_stream_listener = self.__color_map_data_stream.value_stream.listen(handle_update_color_map)
+        handle_update_color_map(self.__color_map_data_stream.value)
 
         self.content_widget.add(histogram_widget)
 
@@ -515,7 +511,7 @@ class HistogramPanel(Panel.Panel):
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
         display_data_and_calibration_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, region_stream), calculate_region_data)
         histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_range_stream), calculate_future_histogram_data)
-        color_map_stream = DisplayPropertyStream(display_stream, "color_map")
+        color_map_data_stream = DisplayPropertyStream(display_stream, "color_map_data")
         if debounce:
             histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05)
         if sample:
@@ -534,7 +530,7 @@ class HistogramPanel(Panel.Panel):
 
                 document_controller.cursor_changed([_('Intensity: ') + str(adjusted_x)])
 
-        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, color_map_stream, cursor_changed_fn)
+        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, color_map_data_stream, cursor_changed_fn)
 
         def calculate_statistics(display_data_and_metadata, display_data_range, region):
             data = display_data_and_metadata.data if display_data_and_metadata else None
@@ -688,9 +684,14 @@ class DisplayPropertyStream:
     def __display_changed(self, display):
         def display_mutated():
             new_value = getattr(display, self.__property_name)
-            if new_value != self.__value:
-                self.__value = new_value
-                self.value_stream.fire(self.__value)
+            try:
+                if new_value != self.__value:
+                    self.__value = new_value
+                    self.value_stream.fire(self.__value)
+            except ValueError:
+                if numpy.array_equal(new_value, self.__value):
+                    self.__value = new_value
+                    self.value_stream.fire(self.__value)
         if self.__display_mutated_event_listener:
             self.__display_mutated_event_listener.close()
             self.__display_mutated_event_listener = None

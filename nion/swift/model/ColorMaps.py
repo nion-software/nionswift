@@ -22,7 +22,7 @@ def interpolate_colors(array: typing.List[int], x: int) -> typing.List[int]:
             interp_color = numpy.rint(start_marker + ((stop_marker - start_marker) * interp_amount))
             out_array.append(interp_color)
     out_array[-1] = array[-1]
-    return numpy.array(out_array).astype(int)
+    return numpy.array(out_array).astype(numpy.uint8)
 
 lookup_arrays = {
     'magma':   [[0, 0, 0],

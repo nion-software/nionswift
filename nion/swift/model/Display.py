@@ -143,7 +143,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
-        self.define_property("color_map", changed=self.__color_map_changed)
+        self.define_property("color_map_id", changed=self.__color_map_id_changed)
         self.__lookup = None
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__graphic_changed_listeners = list()
@@ -377,13 +377,21 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__property_changed(property_name, value)
         self.display_type_changed_event.fire()
 
-    def __color_map_changed(self, property_name, value):
+    def __color_map_id_changed(self, property_name, value):
         self.__property_changed(property_name, value)
         if value:
             lookup_table_options = ColorMaps.color_maps
             self.__lookup = lookup_table_options.get(value)
         else:
             self.__lookup = None
+        self.__property_changed("color_map_data", self.__lookup)
+
+    @property
+    def color_map_data(self) -> numpy.ndarray:
+        """
+        Should return an numpy array with shape (256, 3) of data type uint8
+        """
+        return self.__lookup
 
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called

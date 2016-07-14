@@ -582,8 +582,8 @@ def make_color_map_chooser(ui, display):
     color_map_options = ((_("Default"), None), (_("Magma"), "magma"), (_("HSV"), "hsv"), (_("Viridis"), "viridis"), (_("Plasma"), "plasma"), (_("Ice"), "ice"))
     color_map_reverse_map = {None: 0, "magma": 1, "hsv": 2, "viridis": 3, "plasma": 4, "ice": 5}
     color_map_chooser = ui.create_combo_box_widget(items=color_map_options, item_getter=operator.itemgetter(0))
-    color_map_chooser.on_current_item_changed = lambda item: setattr(display, "color_map", item[1])
-    color_map_chooser.current_item = color_map_options[color_map_reverse_map.get(display.color_map, 0)]
+    color_map_chooser.on_current_item_changed = lambda item: setattr(display, "color_map_id", item[1])
+    color_map_chooser.current_item = color_map_options[color_map_reverse_map.get(display.color_map_id, 0)]
     color_map_row.add(ui.create_label_widget(_("Color Map:"), properties={"width": 120}))
     color_map_row.add(color_map_chooser)
     color_map_row.add_stretch()
