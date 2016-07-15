@@ -10,6 +10,7 @@ import numbers
 import os.path
 import shutil
 import threading
+import time
 import uuid
 import weakref
 
@@ -991,9 +992,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
-        self.data_item_has_new_data_event = Event.Event()
 
         self.__thread_pool = ThreadPool.ThreadPool()
+        self.__computation_thread_pool = ThreadPool.ThreadPool()
         self.persistent_object_context = PersistentDataItemContext(persistent_storage_systems, ignore_older_files, log_migrations)
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.persistent_object_context._set_persistent_storage_for_object(self, self.__library_storage)
@@ -1016,6 +1017,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_queue_lock = threading.RLock()
         self.__computation_queue = list()  # type: List[ComputationQueueItem]
         self.__computation_immediate = False
+        self.__computation_queue_closing = False
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -1100,6 +1102,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     computation_queue_item.finish_event.set()
                     computation_queue_item.finish_event = None
             self.__computation_queue.clear()
+            self.__computation_queue_closing = True
 
         # close hardware source related stuff
         self.__hardware_source_added_event_listener.close()
@@ -1126,6 +1129,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_channel_stop_listeners = None
 
         self.__thread_pool.close()
+        self.__computation_thread_pool.close()
         for data_item in self.data_items:
             data_item.about_to_be_removed()
             data_item.close()
@@ -1598,55 +1602,42 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def dispatch_task(self, task, description=None):
         self.__thread_pool.queue_fn(task, description)
 
+    def dispatch_task2(self, task, description=None):
+        self.__computation_thread_pool.queue_fn(task, description)
+
     def recompute_all(self):
-        self.__computation_immediate = True
-        try:
-            self.__thread_pool.run_all()
-        finally:
-            self.__computation_immediate = False
+        self.__computation_thread_pool.run_all()
 
     def recompute_one(self):
-        self.__computation_immediate = True
-        try:
-            self.__thread_pool.run_one()
-        finally:
-            self.__computation_immediate = False
+        self.__computation_thread_pool.run_one()
 
     def start_dispatcher(self):
         self.__thread_pool.start()
-
-    def __finish_computation(self, finish_event):
-        if self.__computation_immediate:
-            self.apply_changed_data()
-        else:
-            self.__computation_queue_lock.release()
-            finish_event.wait()
-            self.__computation_queue_lock.acquire()
+        self.__computation_thread_pool.start(1)
 
     def __recompute(self):
+        computation_queue_item = None
         with self.__computation_queue_lock:
-            while len(self.__computation_queue) > 0:
-                computation_queue_item = self.__computation_queue[0]
-                finish_event = computation_queue_item.finish_event
-                if finish_event:
-                    self.__finish_computation(finish_event)
-                    return
-                computation = computation_queue_item.computation
-                data_and_metadata = None
-                if computation.begin_evaluate():
-                    try:
-                        if computation.needs_update:
-                            data_and_metadata = computation.evaluate_data()
-                    except Exception as e:
-                        computation.error_text = _("Unable to compute data")
-                    finally:
-                        computation.end_evaluate()
-                if data_and_metadata:
-                    computation_queue_item.data_and_metadata = data_and_metadata
-                    computation_queue_item.finish_event = threading.Event()
-                    self.data_item_has_new_data_event.fire()
-                else:
-                    self.__computation_queue.pop(0)
+            if len(self.__computation_queue) > 0:
+                computation_queue_item = self.__computation_queue.pop(0)
+        buffered_data_source = computation_queue_item.buffered_data_source
+        computation = computation_queue_item.computation
+        if computation:
+            data_and_metadata = None
+            try:
+                if computation.needs_update:
+                    data_and_metadata = computation.evaluate_data()
+                    throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
+                    time.sleep(max(throttle_time, 0.0))
+            except Exception as e:
+                computation.error_text = _("Unable to compute data")
+            if data_and_metadata:
+                with buffered_data_source._changes():
+                    with buffered_data_source.data_ref() as data_ref:
+                        data_ref.data = data_and_metadata.data
+                        buffered_data_source.update_metadata(data_and_metadata.metadata)
+                        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+                        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
 
     def computation_changed(self, buffered_data_source, computation):
         existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
@@ -1658,39 +1649,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             def computation_needs_update():
                 with self.__computation_queue_lock:
                     for computation_queue_item in self.__computation_queue:
-                        if computation_queue_item.buffered_data_source == buffered_data_source and not computation_queue_item.finish_event:
+                        if computation_queue_item.buffered_data_source == buffered_data_source:
                             computation_queue_item.computation = computation
                             return
-                    computation_queue_item = ComputationQueueItem(buffered_data_source=buffered_data_source, computation=computation, data_and_metadata=None)
+                    computation_queue_item = ComputationQueueItem(buffered_data_source=buffered_data_source, computation=computation)
                     self.__computation_queue.append(computation_queue_item)
-                    self.dispatch_task(self.__recompute)
+                self.dispatch_task2(self.__recompute)
 
             computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
             self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
             computation_needs_update()
-
-    # must be called from current 'changes' thread
-    def apply_changed_data(self) -> None:
-        if self.__computation_queue_lock.acquire(blocking=False):
-            try:
-                while len(self.__computation_queue) > 0:
-                    computation_queue_item = self.__computation_queue[0]
-                    if computation_queue_item.data_and_metadata:
-                        self.__computation_queue.pop(0)
-                        buffered_data_source = computation_queue_item.buffered_data_source
-                        data_and_metadata = computation_queue_item.data_and_metadata
-                        with buffered_data_source._changes():
-                            with buffered_data_source.data_ref() as data_ref:
-                                data_ref.data = data_and_metadata.data
-                                buffered_data_source.update_metadata(data_and_metadata.metadata)
-                                buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-                                buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
-                        continue
-                    break
-            finally:
-                self.__computation_queue_lock.release()
-        else:
-            self.data_item_has_new_data_event.fire()
 
     def get_object_specifier(self, object, property_name: str=None):
         if isinstance(object, DataItem.DataItem):

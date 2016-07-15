@@ -11,6 +11,7 @@
 import ast
 import functools
 import threading
+import time
 import weakref
 
 # third party libraries
@@ -329,6 +330,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__evaluate_lock = threading.RLock()
         self.__evaluating = False
         self.__data_and_metadata = None
+        self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
         self.needs_update_event = Event.Event()
         self.cascade_delete_event = Event.Event()
@@ -479,6 +481,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         try:
             data = data_and_metadata.data
             self.evaluate_error = None
+            self.last_evaluate_data_time = time.perf_counter()
             return DataAndMetadata.DataAndMetadata(lambda: data,
                                                    data_and_metadata.data_shape_and_dtype,
                                                    data_and_metadata.intensity_calibration,
