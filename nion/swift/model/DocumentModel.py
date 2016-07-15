@@ -1095,6 +1095,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def close(self):
         # stop computations
         with self.__computation_queue_lock:
+            for computation_queue_item in self.__computation_queue:
+                if computation_queue_item.finish_event:
+                    computation_queue_item.finish_event.set()
+                    computation_queue_item.finish_event = None
             self.__computation_queue.clear()
 
         # close hardware source related stuff
