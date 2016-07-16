@@ -164,7 +164,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
-        self.__request_remove_listener = None
         self.__data = None
         self.__data_lock = threading.RLock()
         self.__change_thread = None
