@@ -418,6 +418,56 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(display.graphics), 0)
             self.assertNotIn(target_data_item, document_model.data_items)
 
+    # TODO: Fix test_delete_graphic_with_sibling_and_data_item_dependent_on_both_also_cascade_deletes_target
+    @unittest.expectedFailure
+    def test_delete_data_item_with_source_region_also_cascade_deletes_target(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            intermediate_data_item = document_model.get_pick_region_new(source_data_item)
+            intermediate_display = intermediate_data_item.maybe_data_source.displays[0]
+            interval_region = Graphics.IntervalGraphic()
+            intermediate_display.add_graphic(interval_region)
+            target_data_item = document_model.get_invert_new(source_data_item)
+            target_computation = target_data_item.maybe_data_source.computation
+            target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I", cascade_delete=True)
+            self.assertIn(source_data_item, document_model.data_items)
+            self.assertIn(intermediate_data_item, document_model.data_items)
+            self.assertIn(target_data_item, document_model.data_items)
+            document_model.remove_data_item(intermediate_data_item)  # this will cascade delete target
+            self.assertIn(source_data_item, document_model.data_items)
+            self.assertNotIn(intermediate_data_item, document_model.data_items)
+            self.assertNotIn(target_data_item, document_model.data_items)
+
+    # TODO: Fix test_delete_graphic_with_sibling_and_data_item_dependent_on_both_also_cascade_deletes_target
+    @unittest.expectedFailure
+    def test_delete_graphic_with_sibling_and_data_item_dependent_on_both_also_cascade_deletes_target(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            intermediate_data_item = document_model.get_pick_region_new(source_data_item)
+            intermediate_display = intermediate_data_item.maybe_data_source.displays[0]
+            interval_region1 = Graphics.IntervalGraphic()
+            intermediate_display.add_graphic(interval_region1)
+            interval_region2 = Graphics.IntervalGraphic()
+            intermediate_display.add_graphic(interval_region2)
+            target_data_item = document_model.get_invert_new(source_data_item)
+            target_computation = target_data_item.maybe_data_source.computation
+            target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I", cascade_delete=True)
+            target_computation.create_object("interval2", document_model.get_object_specifier(interval_region2), label="I", cascade_delete=True)
+            self.assertIn(source_data_item, document_model.data_items)
+            self.assertIn(intermediate_data_item, document_model.data_items)
+            self.assertIn(target_data_item, document_model.data_items)
+            intermediate_display.remove_graphic(interval_region2)  # this will cascade delete target and then interval_region1
+            self.assertIn(source_data_item, document_model.data_items)
+            self.assertIn(intermediate_data_item, document_model.data_items)
+            self.assertNotIn(target_data_item, document_model.data_items)
+            self.assertEqual(len(intermediate_display.graphics), 0)
+
     def test_crop_new_works_with_no_rectangle_graphic(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
