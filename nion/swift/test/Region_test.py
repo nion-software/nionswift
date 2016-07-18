@@ -113,6 +113,8 @@ class TestRegionClass(unittest.TestCase):
         line_graphic = Graphics.LineGraphic()
         line_graphic.start = (0.25, 0.25)
         line_graphic.end = (0.75, 0.75)
+        spot_graphic = Graphics.SpotGraphic()
+        spot_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
         ellipse_graphic = Graphics.EllipseGraphic()
         ellipse_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
         rect_graphic = Graphics.RectangleGraphic()
@@ -121,6 +123,7 @@ class TestRegionClass(unittest.TestCase):
         point_graphic.position = (0.25, 0.25)
         data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((255, 255), 1, dtype=numpy.int32))
         Symbolic.region_mask(data, line_graphic)
+        Symbolic.region_mask(data, spot_graphic)
         Symbolic.region_mask(data, ellipse_graphic)
         Symbolic.region_mask(data, rect_graphic)
         Symbolic.region_mask(data, point_graphic)
@@ -138,6 +141,29 @@ class TestRegionClass(unittest.TestCase):
         self.assertEqual(mask.data[300, 250], 1)  # center right
         self.assertEqual(mask.data[250, 300], 1)  # center bottom
         self.assertEqual(mask.data[200, 250], 1)  # center left
+
+    def test_region_mask_spot(self):
+        spot_graphic = Graphics.SpotGraphic()
+        spot_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
+        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
+        mask = Symbolic.region_mask(data, spot_graphic)
+        self.assertEqual(mask.data[200, 200], 0)  # top left
+        self.assertEqual(mask.data[200, 300], 0)  # bottom left
+        self.assertEqual(mask.data[300, 300], 0)  # bottom right
+        self.assertEqual(mask.data[300, 200], 0)  # bottom left
+        self.assertEqual(mask.data[250, 200], 1)  # center top
+        self.assertEqual(mask.data[300, 250], 1)  # center right
+        self.assertEqual(mask.data[250, 300], 1)  # center bottom
+        self.assertEqual(mask.data[200, 250], 1)  # center left
+
+        self.assertEqual(mask.data[800, 800], 0)  # top left
+        self.assertEqual(mask.data[800, 700], 0)  # bottom left
+        self.assertEqual(mask.data[700, 700], 0)  # bottom right
+        self.assertEqual(mask.data[700, 800], 0)  # bottom left
+        self.assertEqual(mask.data[750, 800], 1)  # center top
+        self.assertEqual(mask.data[700, 750], 1)  # center right
+        self.assertEqual(mask.data[750, 700], 1)  # center bottom
+        self.assertEqual(mask.data[800, 750], 1)  # center left
 
     def test_region_mask_rect(self):
         rect_graphic = Graphics.RectangleGraphic()

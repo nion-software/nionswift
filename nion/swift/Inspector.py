@@ -1225,6 +1225,9 @@ class GraphicsInspectorSection(InspectorSection):
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
             make_interval_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+        elif isinstance(graphic, Graphics.SpotGraphic):
+            graphic_type_label.text = _("Spot")
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
