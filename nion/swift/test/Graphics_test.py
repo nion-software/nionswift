@@ -96,6 +96,25 @@ class TestGraphicsClass(unittest.TestCase):
         point_graphic.label = "Test"
         self.assertEqual(point_graphic.test(mapping, get_font_metrics, (250 - 18 - 6, 250), move_only=True)[0], "all")
 
+    def test_spot_test(self):
+        mapping = TestGraphicsClass.Mapping((1000, 1000))
+        spot_graphic = Graphics.SpotGraphic()
+        spot_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
+
+        def get_font_metrics(font, text):
+            FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+            return FontMetrics(width=(len(text) * 7.0), height=18, ascent=15, descent=3, leading=0)
+
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (200, 200), move_only=False), ("top-left", True))
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (300, 200), move_only=False), ("bottom-left", True))
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (300, 300), move_only=False), ("bottom-right", True))
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (200, 300), move_only=False), ("top-right", True))
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (800, 800), move_only=False), ("inverted-top-left", True))
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (700, 800), move_only=False), ("inverted-bottom-left", True))
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (700, 700), move_only=False), ("inverted-bottom-right", True))
+        self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (800, 700), move_only=False), ("inverted-top-right", True))
+        self.assertIsNone(spot_graphic.test(mapping, get_font_metrics, (0, 0), move_only=False)[0])
+
     def assertAlmostEqualPoint(self, p1, p2, e=0.00001):
         if not(Geometry.distance(p1, p2) < e):
             logging.debug("%s != %s", p1, p2)

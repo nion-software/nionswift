@@ -114,7 +114,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             widget_mapping = ImageCanvasItemMapping(self.__dimensional_shape, (0, 0), self.canvas_size)
             with drawing_context.saver():
                 for graphic_index, graphic in enumerate(self.__graphics):
-                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic)):
+                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
                         try:
                             graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
                         except Exception as e:
@@ -468,7 +468,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             part_specs = list()
             specific_part_spec = None
             for graphic_index, graphic in enumerate(graphics):
-                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic)):
+                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic)):
                     already_selected = graphic_index in selection_indexes
                     move_only = not already_selected or multiple_items_selected
                     try:
@@ -480,7 +480,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         traceback.print_stack()
                         continue
                     if part:
-                        part_spec = graphic_index, graphic, already_selected, "all" if move_only else part
+                        part_spec = graphic_index, graphic, already_selected, "all" if move_only and not part.startswith("inverted") else part
                         part_specs.append(part_spec)
                         if specific:
                             specific_part_spec = part_spec
@@ -620,6 +620,27 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+        elif self.delegate.tool_mode == "spot":
+            widget_mapping = self.__get_mouse_mapping()
+            pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
+            graphic = self.delegate.create_spot(pos)
+            self.delegate.add_index_to_selection(self.__graphics.index(graphic))
+            if graphic:
+                # setup drag
+                start_drag_pos = Geometry.IntPoint(y=y, x=x)
+                selection_indexes = self.__graphic_selection.indexes
+                assert len(selection_indexes) == 1
+                self.graphic_drag_item_was_selected = True
+                # keep track of general drag information
+                self.__graphic_drag_start_pos = start_drag_pos
+                self.__graphic_drag_changed = False
+                # keep track of info for the specific item that was clicked
+                self.__graphic_drag_item = graphic
+                self.__graphic_drag_part = "bottom-right"
+                # keep track of drag information for each item in the set
+                self.__graphic_drag_indexes = selection_indexes
+                self.__graphic_drag_items.append(graphic)
+                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
         elif self.delegate.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
@@ -694,6 +715,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         elif self.delegate.tool_mode == "point":
             self.cursor_shape = "cross"
         elif self.delegate.tool_mode == "line-profile":
+            self.cursor_shape = "cross"
+        elif self.delegate.tool_mode == "spot":
             self.cursor_shape = "cross"
         elif self.delegate.tool_mode == "hand":
             self.cursor_shape = "hand"

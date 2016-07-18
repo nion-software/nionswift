@@ -15,11 +15,16 @@ from nion.utils import Persistence
 _ = gettext.gettext
 
 
+def rotate_180_around_center(point, center):
+    return 2 * center[0] - point[0], 2 * center[1] - point[1]
+
+
 def adjust_rectangle_like(mapping, original, current, part, modifiers, constraints):
     # NOTE: all sizes/points are assumed to be in image coordinates
     o = mapping.map_point_widget_to_image(original)
     p = mapping.map_point_widget_to_image(current)
-    delta = (p[0] - o[0], p[1] - o[1])
+    delta = (p[0] - o[0], p[1] - o[1]) if not part[0].startswith("inverted") else (o[0] - p[0], o[1] - p[1])
+    part_name = part[0] if not part[0].startswith("inverted") else part[0][9:]
     old_origin = mapping.map_point_image_norm_to_image(part[1][0])
     old_size = mapping.map_point_image_norm_to_image(part[1][1])
     old_top = old_origin[0]
@@ -42,7 +47,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
     max_abs_delta_v = min(old_center[0], mapping.data_shape[0] - old_center[0])
     max_abs_delta_h = min(old_center[1], mapping.data_shape[1] - old_center[1])
     new_bounds = (old_origin, old_size)
-    if part[0] == "top-left" and not "shape" in constraints:  # top left
+    if part_name == "top-left" and not "shape" in constraints:  # top left
         new_top_left = old_top + delta[0], old_left + delta[1]
         if modifiers.alt or "position" in constraints:
             if modifiers.shift:
@@ -85,7 +90,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
                 if "bounds" in constraints:
                     new_top_left = min(max(new_top_left[0], 0.0), mapping.data_shape[0]), min(max(new_top_left[1], 0.0), mapping.data_shape[1])
             new_bounds = new_top_left, (old_bottom - new_top_left[0], old_right - new_top_left[1])
-    elif part[0] == "top-right" and not "shape" in constraints:  # top right
+    elif part_name == "top-right" and not "shape" in constraints:  # top right
         new_top_right = old_top + delta[0], old_right + delta[1]
         if modifiers.alt or "position" in constraints:
             if modifiers.shift:
@@ -128,7 +133,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
                 if "bounds" in constraints:
                     new_top_right = min(max(new_top_right[0], 0.0), mapping.data_shape[0]), min(max(new_top_right[1], 0.0), mapping.data_shape[1])
             new_bounds = (new_top_right[0], old_left), (old_bottom - new_top_right[0], new_top_right[1] - old_left)
-    elif part[0] == "bottom-right" and not "shape" in constraints:  # bottom right
+    elif part_name == "bottom-right" and not "shape" in constraints:  # bottom right
         new_bottom_right = old_bottom + delta[0], old_right + delta[1]
         if modifiers.alt or "position" in constraints:
             if modifiers.shift:
@@ -171,7 +176,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
                 if "bounds" in constraints:
                     new_bottom_right = min(max(new_bottom_right[0], 0.0), mapping.data_shape[0]), min(max(new_bottom_right[1], 0.0), mapping.data_shape[1])
             new_bounds = (old_top, old_left), (new_bottom_right[0] - old_top, new_bottom_right[1] - old_left)
-    elif part[0] == "bottom-left" and not "shape" in constraints:  # bottom left
+    elif part_name == "bottom-left" and not "shape" in constraints:  # bottom left
         new_bottom_left = old_bottom + delta[0], old_left + delta[1]
         if modifiers.alt or "position" in constraints:
             if modifiers.shift:
@@ -214,7 +219,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
                 if "bounds" in constraints:
                     new_bottom_left = min(max(new_bottom_left[0], 0.0), mapping.data_shape[0]), min(max(new_bottom_left[1], 0.0), mapping.data_shape[1])
             new_bounds = (old_top, new_bottom_left[1]), (new_bottom_left[0] - old_top, old_right - new_bottom_left[1])
-    elif (part[0] == "all" or "shape" in constraints) and not "position" in constraints:
+    elif (part_name == "all" or "shape" in constraints) and not "position" in constraints:
         if modifiers.shift:
             if delta[0] > delta[1]:
                 origin = old_top + delta[0], old_left
@@ -352,6 +357,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
                     ctx.line_to(x, y)
             ctx.close_path()
             ctx.stroke()
+            ctx.fill()
 
     def draw_marker(self, ctx, p):
         with ctx.saver():
@@ -1159,6 +1165,221 @@ class ChannelGraphic(Graphic):
         return None
 
 
+class SpotGraphic(Graphic):
+    def __init__(self):
+        super().__init__("spot-graphic")
+        self.title = _("Spot")
+        self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
+
+    # accessors
+
+    def __validate_bounds(self, value):
+        # normalize
+        if value[1][0] < 0:  # height is negative
+            value = ((value[0][0] + value[1][0], value[0][1]), (-value[1][0], value[1][1]))
+        if value[1][1] < 0:  # width is negative
+            value = ((value[0][0], value[0][1] + value[1][1]), (value[1][0], -value[1][1]))
+        return (value[0][0], value[0][1]), (value[1][0], value[1][1])
+
+    def __bounds_changed(self, name, value):
+        self._property_changed(name, value)
+        self._property_changed("center", self.center)
+        self._property_changed("size", self.size)
+
+    # dependent property center
+    @property
+    def center(self):
+        return self.bounds[0][0] + self.size[0] * 0.5, self.bounds[0][1] + self.size[1] * 0.5
+
+    @center.setter
+    def center(self, center):
+        self.bounds = ((center[0] - self.size[0] * 0.5, center[1] - self.size[1] * 0.5), self.size)
+
+    # dependent property size
+    @property
+    def size(self):
+        return self.bounds[1]
+
+    @size.setter
+    def size(self, size):
+        # keep center the same
+        old_origin = self.bounds[0]
+        old_size = self.bounds[1]
+        origin = old_origin[0] - (size[0] - old_size[0]) * 0.5, old_origin[1] - (size[1] - old_size[1]) * 0.5
+        self.bounds = (origin, size)
+
+    @property
+    def _bounds(self):  # useful for testing
+        center = self.center
+        size = self.size
+        return Geometry.FloatRect(origin=(center[0] - size[0] * 0.5, center[1] - size[1] * 0.5), size=size)
+
+    @_bounds.setter
+    def _bounds(self, bounds):
+        self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
+        self.size = bounds[1]
+
+    def get_mask(self, data_shape: typing.Tuple[int]):
+        mask = numpy.zeros(data_shape)
+        bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
+                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
+        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+
+        rotated_origin = rotate_180_around_center(self.bounds[0], (0.5, 0.5))
+        bounds_int = ((int(data_shape[0] * rotated_origin[0]), int(data_shape[1] * rotated_origin[1])),
+                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
+
+        a, b = bounds_int[0][0] - bounds_int[1][0] * 0.5, bounds_int[0][1] - bounds_int[1][1] * 0.5
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        mask_eq2 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+
+        mask[mask_eq1] = 1
+        mask[mask_eq2] = 1
+        return mask
+
+    # test point hit
+    def test(self, mapping, get_font_metrics_fn, test_point, move_only):
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        top_left = origin
+        top_right = origin[0], origin[1] + size[1]
+        bottom_right = origin[0] + size[0], origin[1] + size[1]
+        bottom_left = origin[0] + size[0], origin[1]
+        # top left
+        if self.test_point(origin, test_point, 4):
+            return "top-left", True
+        # top right
+        if self.test_point(top_right, test_point, 4):
+            return "top-right", True
+        # bottom right
+        if self.test_point(bottom_right, test_point, 4):
+            return "bottom-right", True
+        # bottom left
+        if self.test_point(bottom_left, test_point, 4):
+            return "bottom-left", True
+        rotated_center = rotate_180_around_center(origin, center)
+        if self.test_point((rotated_center[0] - size[0], rotated_center[1] - size[1]), test_point, 4):
+            return "inverted-bottom-right", True
+        if self.test_point((rotated_center[0] - size[0], rotated_center[1]), test_point, 4):
+            return "inverted-bottom-left", True
+        if self.test_point((rotated_center[0], rotated_center[1] - size[1]), test_point, 4):
+            return "inverted-top-right", True
+        if self.test_point((rotated_center[0], rotated_center[1]), test_point, 4):
+            return "inverted-top-left", True
+        # top line
+        if self.test_line(top_left, top_right, test_point, 4):
+            return "all", True
+        # bottom line
+        if self.test_line(bottom_left, bottom_right, test_point, 4):
+            return "all", True
+        # left line
+        if self.test_line(top_left, bottom_left, test_point, 4):
+            return "all", True
+        # right line
+        if self.test_line(top_right, bottom_right, test_point, 4):
+            return "all", True
+        # center
+        if self.test_inside_bounds((origin, size), test_point, 4):
+            return "all", True
+
+        if self.test_inside_bounds(((rotated_center[0] - size[0], rotated_center[1] - size[1]), (size[0], size[1])), test_point, 4):
+            return "inverted-all", True
+
+        # label
+        if self.test_label(get_font_metrics_fn, mapping, test_point):
+            return "all", True
+        # didn't find anything
+        return None, None
+
+    def begin_drag(self):
+        return (self.bounds,)
+
+    def end_drag(self, part_data):
+        pass
+
+    # rectangle
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers, self._constraints)
+
+    def nudge(self, mapping, delta):
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        original = (origin[0] + size[0] * 0.5, origin[1] + size[1] * 0.5)
+        current = (original[0] + delta[0], original[1] + delta[1])
+        self.adjust_part(mapping, original, current, ("all",) + self.begin_drag(), NullModifiers())
+
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+        # origin is top left
+        origin = mapping.map_point_image_norm_to_widget(self.bounds[0])
+        size = mapping.map_size_image_norm_to_widget(self.bounds[1])
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        with ctx.saver():
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            cx0 = origin[1] + size[1] * 0.5
+            cy0 = origin[0] + size[0] * 0.5
+            self.draw_ellipse(ctx, cx0, cy0, size[1], size[0])
+            ctx.stroke_style = self.color
+            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            cx1 = 2 * center[1] - cx0
+            cy1 = 2 * center[0] - cy0
+            self.draw_ellipse(ctx, cx1, cy1, size[1], size[0])
+        if is_selected:
+            self.draw_marker(ctx, rotate_180_around_center(origin, center))  # bottom right
+            self.draw_marker(ctx, rotate_180_around_center((origin[0] + size[0], origin[1]), center))  # top right
+            self.draw_marker(ctx, rotate_180_around_center((origin[0] + size[0], origin[1] + size[1]), center))  # top left
+            self.draw_marker(ctx, rotate_180_around_center((origin[0], origin[1] + size[1]), center))  # bottom left
+
+            self.draw_marker(ctx, origin)
+            self.draw_marker(ctx, (origin[0] + size[0], origin[1]))
+            self.draw_marker(ctx, (origin[0] + size[0], origin[1] + size[1]))
+            self.draw_marker(ctx, (origin[0], origin[1] + size[1]))
+            # draw center marker
+            mark_size = 8
+            if size[0] > mark_size:
+                mid_x0 = origin[1] + 0.5 * size[1]
+                mid_y0 = origin[0] + 0.5 * size[0]
+                mid_y1, mid_x1 = rotate_180_around_center((mid_y0, mid_x0), center)
+                with ctx.saver():
+                    ctx.begin_path()
+                    ctx.move_to(mid_x0 - 0.5 * mark_size, mid_y0)
+                    ctx.line_to(mid_x0 + 0.5 * mark_size, mid_y0)
+                    ctx.stroke_style = self.color
+                    ctx.stroke()
+                    ctx.begin_path()
+                    ctx.move_to(mid_x1 - 0.5 * mark_size, mid_y1)
+                    ctx.line_to(mid_x1 + 0.5 * mark_size, mid_y1)
+                    ctx.stroke_style = self.color
+                    ctx.stroke()
+            if size[1] > mark_size:
+                mid_x0 = origin[1] + 0.5 * size[1]
+                mid_y0 = origin[0] + 0.5 * size[0]
+                mid_y1, mid_x1 = rotate_180_around_center((mid_y0, mid_x0), center)
+                with ctx.saver():
+                    ctx.begin_path()
+                    ctx.move_to(mid_x0, mid_y0 - 0.5 * mark_size)
+                    ctx.line_to(mid_x0, mid_y0 + 0.5 * mark_size)
+                    ctx.stroke_style = self.color
+                    ctx.stroke()
+                    ctx.begin_path()
+                    ctx.move_to(mid_x1, mid_y1 - 0.5 * mark_size)
+                    ctx.line_to(mid_x1, mid_y1 + 0.5 * mark_size)
+                    ctx.stroke_style = self.color
+                    ctx.stroke()
+        self.draw_label(ctx, get_font_metrics_fn, mapping)
+
+    def label_position(self, mapping, font_metrics, padding):
+        bounds = Geometry.FloatRect.make(self.bounds)
+        p = Geometry.FloatPoint.make(mapping.map_point_image_norm_to_widget(Geometry.FloatPoint(bounds.top, bounds.center.x)))
+        return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
+
+
 def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
@@ -1168,6 +1389,7 @@ def factory(lookup_id):
         "point-graphic": PointGraphic,
         "interval-graphic": IntervalGraphic,
         "channel-graphic": ChannelGraphic,
+        "spot-graphic": SpotGraphic
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else None
