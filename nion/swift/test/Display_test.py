@@ -251,7 +251,7 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.color_map_id = None
             self.assertEqual(display_specifier.display.color_map_id, None)
-            self.assertIsNone(display_specifier.display.color_map_data)
+            self.assertIsNotNone(display_specifier.display.color_map_data)
 
     def test_setting_color_map_id_to_valid_value_works(self):
         document_model = DocumentModel.DocumentModel()
@@ -271,7 +271,7 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.color_map_id = 'elephant'
             self.assertEqual(display_specifier.display.color_map_id, 'elephant')
-            self.assertIsNone(display_specifier.display.color_map_data)
+            self.assertIsNotNone(display_specifier.display.color_map_data)
 
 
 if __name__ == '__main__':
