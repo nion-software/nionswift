@@ -37,13 +37,7 @@ def region_by_uuid(context, region_uuid):
 
 def region_mask(data_and_metadata, region):
     data_shape = data_and_metadata.data_shape[-2:]
-    mask = numpy.zeros(data_shape)
-    if isinstance(region, Graphics.RectangleTypeGraphic):
-        bounds = region.bounds
-        bounds_int = ((int(data_shape[0] * bounds[0][0]), int(data_shape[1] * bounds[0][1])),
-            (int(data_shape[0] * bounds[1][0]), int(data_shape[1] * bounds[1][1])))
-        mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0],
-            bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1]] = 1
+    mask = region.get_mask(data_shape)
     return DataAndMetadata.DataAndMetadata.from_data(mask)
 
 

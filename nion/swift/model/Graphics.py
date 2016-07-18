@@ -4,6 +4,7 @@ import math
 
 # third party libraries
 import numpy  # for arange
+import typing
 
 # local libraries
 from nion.utils import Event
@@ -294,6 +295,9 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
             constraints.add("bounds")
         return constraints
 
+    def get_mask(self, data_shape: typing.Tuple[int]):
+        return numpy.zeros(data_shape)
+
     # test whether points are close
     def test_point(self, p1, p2, radius):
         return math.sqrt(pow(p1[0] - p2[0], 2) + pow(p1[1] - p2[1], 2)) < radius
@@ -452,6 +456,14 @@ class RectangleTypeGraphic(Graphic):
         self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
         self.size = bounds[1]
 
+    def get_mask(self, data_shape: typing.Tuple[int]):
+        mask = numpy.zeros(data_shape)
+        bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
+                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
+        mask[bounds_int[0][0]:bounds_int[0][0] + bounds_int[1][0] + 1,
+             bounds_int[0][1]:bounds_int[0][1] + bounds_int[1][1] + 1] = 1
+        return mask
+
     # test point hit
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
         # first convert to widget coordinates since test distances
@@ -570,6 +582,16 @@ class RectangleGraphic(RectangleTypeGraphic):
 class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self):
         super().__init__("ellipse-graphic", _("Ellipse"))
+
+    def get_mask(self, data_shape: typing.Tuple[int]):
+        mask = numpy.zeros(data_shape)
+        bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
+                      (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
+        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        mask_eq = x*x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y*y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1
+        mask[mask_eq] = 1
+        return mask
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         # origin is top left

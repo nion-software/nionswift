@@ -11,9 +11,11 @@ import unittest
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Symbolic
 
 
 class TestRegionClass(unittest.TestCase):
@@ -106,6 +108,50 @@ class TestRegionClass(unittest.TestCase):
             self.assertFalse(point_region._closed)
             document_model.remove_data_item(data_item)
             self.assertTrue(point_region._closed)
+
+    def test_region_mask_with_different_types_of_graphics(self):
+        line_graphic = Graphics.LineGraphic()
+        line_graphic.start = (0.25, 0.25)
+        line_graphic.end = (0.75, 0.75)
+        ellipse_graphic = Graphics.EllipseGraphic()
+        ellipse_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
+        rect_graphic = Graphics.RectangleGraphic()
+        rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
+        point_graphic = Graphics.PointGraphic()
+        point_graphic.position = (0.25, 0.25)
+        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((255, 255), 1, dtype=numpy.int32))
+        Symbolic.region_mask(data, line_graphic)
+        Symbolic.region_mask(data, ellipse_graphic)
+        Symbolic.region_mask(data, rect_graphic)
+        Symbolic.region_mask(data, point_graphic)
+
+    def test_region_mask_ellipse(self):
+        ellipse_graphic = Graphics.EllipseGraphic()
+        ellipse_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
+        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
+        mask = Symbolic.region_mask(data, ellipse_graphic)
+        self.assertEqual(mask.data[200, 200], 0)  # top left
+        self.assertEqual(mask.data[200, 300], 0)  # bottom left
+        self.assertEqual(mask.data[300, 300], 0)  # bottom right
+        self.assertEqual(mask.data[300, 200], 0)  # bottom left
+        self.assertEqual(mask.data[250, 200], 1)  # center top
+        self.assertEqual(mask.data[300, 250], 1)  # center right
+        self.assertEqual(mask.data[250, 300], 1)  # center bottom
+        self.assertEqual(mask.data[200, 250], 1)  # center left
+
+    def test_region_mask_rect(self):
+        rect_graphic = Graphics.RectangleGraphic()
+        rect_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
+        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
+        mask = Symbolic.region_mask(data, rect_graphic)
+        self.assertEqual(mask.data[200, 200], 1)  # top left
+        self.assertEqual(mask.data[200, 300], 1)  # bottom left
+        self.assertEqual(mask.data[300, 300], 1)  # bottom right
+        self.assertEqual(mask.data[300, 200], 1)  # bottom left
+        self.assertEqual(mask.data[250, 200], 1)  # center top
+        self.assertEqual(mask.data[300, 250], 1)  # center right
+        self.assertEqual(mask.data[250, 300], 1)  # center bottom
+        self.assertEqual(mask.data[200, 250], 1)  # center left
 
 
 if __name__ == '__main__':
