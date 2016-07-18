@@ -24,27 +24,33 @@ def interpolate_colors(array: typing.List[int], x: int) -> typing.List[int]:
     out_array[-1] = array[-1]
     return numpy.array(out_array).astype(numpy.uint8)
 
+def generate_lookup_array_grayscale():
+    out_list = []
+    for i in range(256):
+        out_list.append([i, i, i])
+    return numpy.array(out_list)
+
 lookup_arrays = {
-    'magma':   [[0, 0, 0],
-                [127, 0, 127],
-                [96, 96, 255],
-                [64, 192, 255],
-                [223, 255, 255]],
-    'viridis': [[32, 32, 64],
-                [160, 160, 64],
-                [208, 208, 0],
-                [144, 255, 32],
-                [0, 255, 255]],
-    'plasma':  [[127, 0, 0],
-                [127, 0, 127],
-                [127, 127, 255],
-                [127, 255, 255],
-                [195, 255, 255]],
-    'ice':     [[0, 0, 0],
-                [127, 0, 0],
-                [255, 127, 0],
-                [255, 255, 127],
-                [255, 255, 255]]
+    'magma':     [[0, 0, 0],
+                  [127, 0, 127],
+                  [96, 96, 255],
+                  [64, 192, 255],
+                  [223, 255, 255]],
+    'viridis':   [[32, 32, 64],
+                  [160, 160, 64],
+                  [208, 208, 0],
+                  [144, 255, 32],
+                  [0, 255, 255]],
+    'plasma':    [[127, 0, 0],
+                  [127, 0, 127],
+                  [127, 127, 255],
+                  [127, 255, 255],
+                  [195, 255, 255]],
+    'ice':       [[0, 0, 0],
+                  [127, 0, 0],
+                  [255, 127, 0],
+                  [255, 255, 127],
+                  [255, 255, 255]]
 }
 
 def generate_lookup_array(color_map_id: str) -> numpy.array:
@@ -63,3 +69,4 @@ color_maps['ice'] = generate_lookup_array('ice')
 color_maps['plasma'] = generate_lookup_array('plasma')
 color_maps['viridis'] = generate_lookup_array('viridis')
 color_maps['hsv'] = generate_lookup_array_hsv()
+color_maps['grayscale'] = generate_lookup_array_grayscale()

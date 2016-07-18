@@ -202,11 +202,8 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
                 for stop in self.__color_map_data:
                     color_map_gradient.add_color_stop(index * (1 / (len(self.__color_map_data) - 1)), "#{2:02X}{1:02X}{0:02X}".format(*stop))
                     index += 1
-            else:
-                color_map_gradient.add_color_stop(0.0, '#000')
-                color_map_gradient.add_color_stop(1.0, '#FFF')
-            drawing_context.fill_style = color_map_gradient
-            drawing_context.fill()
+                    drawing_context.fill_style = color_map_gradient
+                    drawing_context.fill()
 
 
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):

@@ -391,7 +391,10 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         """
         Should return an numpy array with shape (256, 3) of data type uint8
         """
-        return self.__lookup
+        if self.data_and_calibration is None:
+            return None
+        else:
+            return self.__lookup if self.__lookup is not None else ColorMaps.color_maps.get("grayscale")
 
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called
