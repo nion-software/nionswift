@@ -4,6 +4,7 @@ import io
 import json
 import os
 import pathlib
+import uuid
 import zipfile
 
 # types
@@ -170,7 +171,9 @@ class ImportExportManager(metaclass=Utility.Singleton):
 # when this method returns, the data item has not been added to a document. therefore, the
 # data is still loaded into memory, but with a data ref count of zero.
 def create_data_item_from_data_element(data_element, data_file_path=None):
-    data_item = DataItem.DataItem()
+    uuid_str = data_element.get("uuid")
+    uuid_ = uuid.UUID(uuid_str) if uuid_str else None
+    data_item = DataItem.DataItem(item_uuid=uuid_)
     update_data_item_from_data_element(data_item, data_element, data_file_path)
     return data_item
 

@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import unittest
+import uuid
 
 # third party libraries
 import numpy
@@ -93,6 +94,16 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertEqual(len(data_item.metadata["description"]["time_zone"]["dst"]), 3)
         match = datetime.datetime(year=2015, month=6, day=10, hour=9, minute=31, second=52, microsecond=780511)
         self.assertEqual(data_item.created_local, match)
+
+    def test_data_element_with_uuid_assigns_uuid_to_data_item(self):
+        data_element = dict()
+        data_element["version"] = 1
+        data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
+        data_element_uuid = uuid.uuid4()
+        data_element["uuid"] = str(data_element_uuid)
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertEqual(data_item.uuid, data_element_uuid)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -419,6 +419,7 @@ class DataItemsInContainerBinding(AbstractDataItemsBinding):
     def data_item_inserted(self, container, data_item, before_index, is_moving):
         """ Insert the data item. Called from the container. """
         with self._update_mutex:
+            assert not data_item in self.__master_data_items
             self.__master_data_items.insert(before_index, data_item)
 
             # thread safe

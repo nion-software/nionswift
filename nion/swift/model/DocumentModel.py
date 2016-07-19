@@ -1498,17 +1498,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             else:
                 sample_paths = []
             for sample_path in sorted(sample_paths):
-                def source_file_path_in_document(sample_path_):
-                    for member_data_item in self.data_items:
-                        if member_data_item.source_file_path and os.path.normpath(member_data_item.source_file_path) == sample_path_:
-                            return True
-                    return False
-                if not source_file_path_in_document(sample_path):
-                    data_items = handler.read_data_items(None, "ndata1", sample_path)
-                    for data_item in data_items:
-                        #__, file_name = os.path.split(sample_path)
-                        #title, __ = os.path.splitext(file_name)
-                        #data_item.title = title
+                data_items = handler.read_data_items(None, "ndata1", sample_path)
+                for data_item in data_items:
+                    if not self.get_data_item_by_uuid(data_item.uuid):
                         self.append_data_item(data_item)
                         data_group.append_data_item(data_item)
         else:
