@@ -185,25 +185,15 @@ class ColorMapCanvasItem(CanvasItem.AbstractCanvasItem):
         """Repaint the canvas item. This will occur on a thread."""
 
         # canvas size
-        canvas_width = self.canvas_size[1]
-        canvas_height = self.canvas_size[0]
+        canvas_width = self.canvas_size.width
+        canvas_height = self.canvas_size.height
 
         with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.move_to(0, 0)
-            drawing_context.line_to(canvas_width, 0)
-            drawing_context.line_to(canvas_width, canvas_height)
-            drawing_context.line_to(0, canvas_height)
-            drawing_context.close_path()
-            drawing_context.fill_style = "#F00"
-            color_map_gradient = drawing_context.create_linear_gradient(canvas_width, canvas_height, 0, 0, canvas_width, canvas_height)
             if self.__color_map_data is not None:
-                index = 0
-                for stop in self.__color_map_data:
-                    color_map_gradient.add_color_stop(index * (1 / (len(self.__color_map_data) - 1)), "#{2:02X}{1:02X}{0:02X}".format(*stop))
-                    index += 1
-                    drawing_context.fill_style = color_map_gradient
-                    drawing_context.fill()
+                rgba_image = numpy.empty((4,) + self.__color_map_data.shape[:-1], dtype=numpy.uint32)
+                Image.get_rgb_view(rgba_image)[:] = self.__color_map_data[numpy.newaxis, :, :]  # scalar data assigned to each component of rgb view
+                Image.get_alpha_view(rgba_image)[:] = 255
+                drawing_context.draw_image(rgba_image, 0, 0, canvas_width, canvas_height)
 
 
 class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
