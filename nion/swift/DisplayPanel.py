@@ -828,6 +828,19 @@ class DataItemDataSourceDisplay:
             return region
         return None
 
+    def create_wedge(self, angle):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        display = display_specifier.display
+        if display:
+            display.graphic_selection.clear()
+            region = Graphics.WedgeGraphic()
+            region.end_angle = angle
+            region.start_angle = angle + math.pi
+            display.add_graphic(region)
+            display.graphic_selection.set(display.graphics.index(region))
+            return region
+        return None
+
 
 class DataItemDisplayTypeMonitor:
     """Monitor a data item for changes to the display type.

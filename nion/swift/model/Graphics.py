@@ -7,6 +7,7 @@ import numpy  # for arange
 import typing
 
 # local libraries
+from nion.swift import ImageCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -17,6 +18,49 @@ _ = gettext.gettext
 
 def rotate_180_around_center(point, center):
     return 2 * center[0] - point[0], 2 * center[1] - point[1]
+
+
+def angle_between(n, a, b):
+    if a > b:
+        return b < n < a
+    if a < b:
+        return math.pi * 2 > n > b or 0 < n < a
+    return False
+
+
+def angle_diff(start_angle, end_angle):
+    if end_angle > start_angle and end_angle - start_angle >= math.pi / 2:
+        return (math.pi * 2 - end_angle + start_angle + math.pi * 2000) % (math.pi * 2)
+    return (start_angle - end_angle + math.pi * 2000) % (math.pi * 2)
+
+
+def get_length_for_angle(angle: float, bounds: typing.Tuple[float, float]):
+    top_right = math.atan2(bounds[1], bounds[0])
+    top_left = math.pi - math.atan2(bounds[1], bounds[0])
+    bottom_left = math.pi + math.atan2(bounds[1], bounds[0])
+    bottom_right = 2 * math.pi - math.atan2(bounds[1], bounds[0])
+    if bottom_right <= angle <= math.pi * 2 or top_right >= angle:
+        return (bounds[0] / 2) / math.cos(angle)
+    if top_right <= angle <= top_left:
+        return (bounds[1] / 2) / math.sin(angle)
+    if top_left <= angle <= bottom_left:
+        return -(bounds[0] / 2) / math.cos(angle)
+    if bottom_left <= angle <= bottom_right:
+        return -(bounds[1] / 2) / math.sin(angle)
+
+
+def get_corners(bounds):
+    top_right = math.atan2(bounds[0], bounds[1])
+    top_left = math.pi - math.atan2(bounds[0], bounds[1])
+    bottom_left = math.pi + math.atan2(bounds[0], bounds[1])
+    bottom_right = 2 * math.pi - math.atan2(bounds[0], bounds[1])
+    return [top_left, bottom_left, top_right, bottom_right]
+
+
+def get_slope_eq(x, y, angle):
+    if (1/2) * math.pi < angle < math.pi  * (3/2):
+        return y >= numpy.tan(-angle) * x
+    return y <= numpy.tan(-angle) * x
 
 
 def adjust_rectangle_like(mapping, original, current, part, modifiers, constraints):
@@ -1380,6 +1424,178 @@ class SpotGraphic(Graphic):
         return p + Geometry.FloatPoint(-font_metrics.height * 0.5 - padding * 2, 0.0)
 
 
+class WedgeGraphic(Graphic):
+    def __init__(self):
+        super().__init__("wedge-graphic")
+        self.title = _("Wedge")
+
+        def validate_angles(value: typing.Tuple[float, float]) -> typing.Tuple[typing.Tuple[float], typing.Tuple[float]]:
+            start_angle = float(value[0])
+            end_angle =  float(value[1])
+            return start_angle, end_angle
+
+        self.__first_drag = True
+        self.__inverted_drag = False
+        self.define_property("angle_interval", (0.0, math.pi), validate=validate_angles, changed=self._property_changed)
+
+    @property
+    def start_angle(self) -> float:
+        return self.angle_interval[0]
+
+    @start_angle.setter
+    def start_angle(self, value: float) -> None:
+        self.angle_interval = (value, self.angle_interval[1])
+
+    @property
+    def end_angle(self) -> float:
+        return self.angle_interval[1]
+
+    @end_angle.setter
+    def end_angle(self, value: float) -> None:
+        self.angle_interval = (self.angle_interval[0], value)
+
+    @property
+    def __start_angle_internal(self) -> float:
+        return self.start_angle + (math.pi * 2) if self.start_angle < 0 else self.start_angle
+
+    @__start_angle_internal.setter
+    def __start_angle_internal(self, value: float) -> None:
+        if value < math.pi:
+            self.start_angle = value
+        else:
+            self.start_angle = value - 2 * math.pi
+
+    @property
+    def __end_angle_internal(self) -> float:
+        return self.end_angle + (math.pi * 2) if self.end_angle < 0 else self.end_angle
+
+    @__end_angle_internal.setter
+    def __end_angle_internal(self, value: float) -> None:
+        if value < math.pi:
+            self.end_angle = value
+        else:
+            self.end_angle = value - 2 * math.pi
+
+    # test is required for Graphic interface
+    def test(self, mapping: ImageCanvasItem.ImageCanvasItemMapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        length = 10000  # safe line length
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        start_line_endpoint = (center[0] + length * math.cos(self.__start_angle_internal + math.pi / 2), center[1] + length * math.sin(self.__start_angle_internal + math.pi / 2))
+        end_line_endpoint = (center[0] + length * math.cos(self.__end_angle_internal + math.pi / 2), center[1] + length * math.sin(self.__end_angle_internal + math.pi / 2))
+        start_angle_inverted = (self.__start_angle_internal + math.pi) % (math.pi * 2)
+        end_angle_inverted = (self.__end_angle_internal + math.pi) % (math.pi * 2)
+        start_line_endpoint_inverted = (center[0] + length * math.cos(start_angle_inverted + math.pi / 2),
+                                        center[1] + length * math.sin(start_angle_inverted + math.pi / 2))
+        end_line_endpoint_inverted = (center[0] + length * math.cos(end_angle_inverted + math.pi / 2),
+                                      center[1] + length * math.sin(end_angle_inverted + math.pi / 2))
+        angle_from_origin = math.pi - math.atan2(center[0] - test_point[0], center[1] - test_point[1])
+        if self.test_line(center, start_line_endpoint, test_point, 4):
+            return "start-angle", True
+        if self.test_line(center, end_line_endpoint, test_point, 4):
+            return "end-angle", True
+        if self.test_line(center, start_line_endpoint_inverted, test_point, 4):
+            return "inverted-start-angle", True
+        if self.test_line(center, end_line_endpoint_inverted, test_point, 4):
+            return "inverted-end-angle", True
+        if angle_between(angle_from_origin, self.__end_angle_internal, self.__start_angle_internal):
+            return "all", True
+        if angle_between(angle_from_origin, end_angle_inverted, start_angle_inverted):
+            return "inverted-all", True
+
+        # didn't find anything
+        return None, None
+
+    def begin_drag(self):
+        return self.__start_angle_internal, self.__end_angle_internal
+
+    def end_drag(self, part_data):
+        self.__first_drag = False
+
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        start_angle_original = part[1]
+        end_angle_original = part[2]
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        o_angle = math.pi - math.atan2(center[0] - original[0], center[1] - original[1])
+        c_angle = math.pi - math.atan2(center[0] - current[0], center[1] - current[1])
+        d_angle = angle_diff(o_angle, c_angle)
+        if d_angle > math.pi:
+            d_angle = -(math.pi * 2 - d_angle)
+        inverted = self.__inverted_drag
+        constraints = self._constraints
+        if (part[0] == "end-angle" and not inverted) or (part[0] == "inverted-end-angle" and inverted):
+            self.__end_angle_internal = c_angle
+        elif (part[0] == "start-angle" and not inverted) or (part[0] == "inverted-start-angle" and inverted):
+            self.__start_angle_internal = c_angle
+        elif part[0] == "all" or part[0] == "inverted-all":
+            dtheta = o_angle - c_angle
+            self.__start_angle_internal = start_angle_original - dtheta
+            self.__end_angle_internal = end_angle_original - dtheta
+        elif (part[0] == "inverted-end-angle" and not inverted) or (part[0] == "end-angle" and inverted):
+            self.__end_angle_internal = (c_angle + math.pi) % (math.pi * 2)
+        elif (part[0] == "inverted-start-angle" and not inverted) or (part[0] == "start-angle" and inverted):
+            self.__start_angle_internal = (c_angle + math.pi) % (math.pi * 2)
+
+        diff = angle_diff(self.__end_angle_internal, self.__start_angle_internal)
+        if diff > math.pi or diff < 0:
+            if part[0].endswith("end-angle"):
+                self.__end_angle_internal = self.__start_angle_internal
+            else:
+                self.__start_angle_internal = self.__end_angle_internal
+            self.__inverted_drag = not self.__inverted_drag
+        return None, None
+
+    def get_mask(self, data_shape: typing.Tuple[int]):
+        mask1 = numpy.zeros(data_shape)
+        mask2 = numpy.zeros(data_shape)
+        bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
+        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        mask1[get_slope_eq(x, y, self.__start_angle_internal)] = 1
+        mask1[get_slope_eq(x, y, self.__end_angle_internal)] = 0
+        mask1[int(bounds_int[1][0] / 2), int(bounds_int[1][0] / 2)] = 1
+        mask2[get_slope_eq(x, y, (self.__start_angle_internal + math.pi) % (math.pi * 2))] = 1
+        mask2[get_slope_eq(x, y, (self.__end_angle_internal + math.pi) % (math.pi * 2))] = 0
+        return numpy.logical_or(mask1, mask2)
+
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        size = mapping.map_size_image_norm_to_widget((1.0, 1.0))
+        start_length = get_length_for_angle(self.__start_angle_internal, (size[1], size[0]))
+        end_length = get_length_for_angle(self.__end_angle_internal, (size[1], size[0]))
+        with ctx.saver():
+            for start_angle, end_angle in ((self.__start_angle_internal, self.__end_angle_internal), ((self.__start_angle_internal + math.pi) % (math.pi * 2), (self.__end_angle_internal + math.pi) % (math.pi * 2))):
+                ctx.begin_path()
+                end_line_endpoint = (center[1] + end_length * math.sin(end_angle + math.pi / 2),center[0] + end_length * math.cos(end_angle + math.pi / 2))
+                start_line_endpoint = (center[1] + start_length * math.sin(start_angle + math.pi / 2), center[0] + start_length * math.cos(start_angle + math.pi / 2))
+                ctx.move_to(*end_line_endpoint)
+                ctx.line_to(center[1], center[0])
+                ctx.line_to(*start_line_endpoint)
+                corners_to_connect = sorted([x for x in get_corners(size) if angle_between(x, end_angle, start_angle)])
+                if len(corners_to_connect) == 2 and corners_to_connect[1] - corners_to_connect[0] > math.pi:
+                    temp = corners_to_connect[0]
+                    corners_to_connect[0] = corners_to_connect[1]
+                    corners_to_connect[1] = temp
+                for corner_angle in corners_to_connect:
+                    corner_length = get_length_for_angle(corner_angle, (size[1], size[0]))
+                    corner_endpoint = (center[1] + corner_length * math.sin(corner_angle + math.pi / 2), center[0] + corner_length * math.cos(corner_angle + math.pi / 2))
+                    ctx.line_to(*corner_endpoint)
+                ctx.line_to(*end_line_endpoint)
+                ctx.line_width = 1
+                ctx.stroke_style = self.color
+                ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+                ctx.fill()
+                ctx.stroke()
+        if is_selected:
+            self.draw_marker(ctx, center)
+        self.draw_label(ctx, get_font_metrics_fn, mapping)
+
+    def label_position(self, mapping, font_metrics, padding):
+        p1 = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        return Geometry.FloatPoint(y=p1.y, x=p1.x)
+
+
 def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
@@ -1389,7 +1605,8 @@ def factory(lookup_id):
         "point-graphic": PointGraphic,
         "interval-graphic": IntervalGraphic,
         "channel-graphic": ChannelGraphic,
-        "spot-graphic": SpotGraphic
+        "spot-graphic": SpotGraphic,
+        "wedge-graphic": WedgeGraphic
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else None

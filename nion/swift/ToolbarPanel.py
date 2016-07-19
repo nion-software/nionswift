@@ -76,6 +76,10 @@ class ToolbarPanel(Panel.Panel):
         spot_tool_button.size = icon_size
         spot_tool_button.tool_tip = _("Spot tool for making spots on radial images")
 
+        wedge_tool_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/wedge_icon.png")), border_color=border_color)
+        wedge_tool_button.size = icon_size
+        wedge_tool_button.tool_tip = _("Angle tool for specifying arcs on radial images")
+
         tool_palette_grid_canvas_item.add_canvas_item(pointer_tool_button, Geometry.IntPoint(x=0, y=0))
         tool_palette_grid_canvas_item.add_canvas_item(hand_tool_button, Geometry.IntPoint(x=0, y=1))
         tool_palette_grid_canvas_item.add_canvas_item(line_tool_button, Geometry.IntPoint(x=1, y=0))
@@ -85,9 +89,10 @@ class ToolbarPanel(Panel.Panel):
         tool_palette_grid_canvas_item.add_canvas_item(line_profile_tool_button, Geometry.IntPoint(x=3, y=0))
         tool_palette_grid_canvas_item.add_canvas_item(interval_tool_button, Geometry.IntPoint(x=3, y=1))
         tool_palette_grid_canvas_item.add_canvas_item(spot_tool_button, Geometry.IntPoint(x=4, y=0))
+        tool_palette_grid_canvas_item.add_canvas_item(wedge_tool_button, Geometry.IntPoint(x=4, y=1))
 
-        modes = "pointer", "hand", "line", "rectangle", "ellipse", "point", "line-profile", "interval", "spot"
-        self.__tool_button_group = CanvasItem.RadioButtonGroup([pointer_tool_button, hand_tool_button, line_tool_button, rectangle_tool_button, ellipse_tool_button, point_tool_button, line_profile_tool_button, interval_tool_button, spot_tool_button])
+        modes = "pointer", "hand", "line", "rectangle", "ellipse", "point", "line-profile", "interval", "spot", "wedge"
+        self.__tool_button_group = CanvasItem.RadioButtonGroup([pointer_tool_button, hand_tool_button, line_tool_button, rectangle_tool_button, ellipse_tool_button, point_tool_button, line_profile_tool_button, interval_tool_button, spot_tool_button, wedge_tool_button])
         def tool_mode_changed(tool_mode):
             self.__tool_button_group.current_index = modes.index(tool_mode)
         self.__tool_mode_changed_event_listener = document_controller.tool_mode_changed_event.listen(tool_mode_changed)
