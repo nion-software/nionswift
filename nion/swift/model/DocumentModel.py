@@ -1084,7 +1084,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         computation.bind(self)
                     except Exception as e:
                         print(str(e))
-            data_item.connect_data_items(self.get_data_item_by_uuid)
+            data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
         # # initialize data item references
         data_item_references_dict = self._get_persistent_property_value("data_item_references")
         for key, data_item_uuid in data_item_references_dict.items():
@@ -1093,7 +1093,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key, data_item))
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
-            data_group.connect_data_items(self.get_data_item_by_uuid)
+            data_group.connect_data_items(data_items, self.get_data_item_by_uuid)
 
     def close(self):
         # stop computations

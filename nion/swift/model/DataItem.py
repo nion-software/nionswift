@@ -821,14 +821,10 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
             data_item_copy.append_data_source(data_source.snapshot())
         return data_item_copy
 
-    def connect_data_items(self, lookup_data_item):
+    def connect_data_items(self, data_items, lookup_data_item):
         for data_item_uuid in self.data_item_uuids:
             data_item = lookup_data_item(data_item_uuid)
-            if data_item is None:
-                import logging
-                logging.debug("data_item not found %s", data_item_uuid)
-            else:
-                assert data_item is not None
+            if data_item in data_items:
                 self.__data_items.append(data_item)
         self.__get_data_item_by_uuid = lookup_data_item
 
