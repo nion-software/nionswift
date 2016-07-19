@@ -513,6 +513,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     graphic = graphics[index]
                     self.__graphic_drag_items.append(graphic)
                     self.__graphic_part_data[index] = graphic.begin_drag()
+            else:
+                self.__start_drag_pos = (y, x)
+                self.__last_drag_pos = (y, x)
+                self.__is_dragging = True
             if not self.__graphic_drag_items and not modifiers.shift:
                 self.delegate.clear_selection()
         elif self.delegate.tool_mode == "line":
@@ -684,7 +688,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if self.delegate.image_mouse_position_changed(image_position, modifiers):
             return True
         if self.delegate.tool_mode == "pointer":
-            self.cursor_shape = "arrow"
+            self.cursor_shape = "arrow" if not self.__is_dragging else "hand"
         elif self.delegate.tool_mode == "line":
             self.cursor_shape = "cross"
         elif self.delegate.tool_mode == "rectangle":
