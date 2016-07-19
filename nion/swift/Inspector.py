@@ -1123,6 +1123,29 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_s
         graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 1))
         graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 0))
 
+def make_wedge_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+    # create the ui
+    graphic_center_start_angle_row = ui.create_row_widget()
+    graphic_center_start_angle_row.add_spacing(20)
+    graphic_center_start_angle_row.add(ui.create_label_widget(_("Start Angle"), properties={"width": 60}))
+    graphic_center_start_angle_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_start_angle_row.add(graphic_center_start_angle_line_edit)
+    graphic_center_start_angle_row.add_stretch()
+    graphic_center_end_angle_row = ui.create_row_widget()
+    graphic_center_end_angle_row.add_spacing(20)
+    graphic_center_end_angle_row.add(ui.create_label_widget(_("End Angle"), properties={"width": 60}))
+    graphic_center_angle_measure_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_center_end_angle_row.add(graphic_center_angle_measure_line_edit)
+    graphic_center_end_angle_row.add_stretch()
+    graphic_widget.add(graphic_center_start_angle_row)
+    graphic_widget.add_spacing(4)
+    graphic_widget.add(graphic_center_end_angle_row)
+    # graphic_widget.add_stretch()
+    # graphic_widget.add_spacing(4)
+
+    graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 0, RadianToDegreeStringConverter()))
+    graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 1, RadianToDegreeStringConverter()))
+
 
 def make_interval_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
     def new_display_calibrated_values_binding():
@@ -1228,6 +1251,9 @@ class GraphicsInspectorSection(InspectorSection):
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
             make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+        elif isinstance(graphic, Graphics.WedgeGraphic):
+            graphic_type_label.text = _("Wedge")
+            make_wedge_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
