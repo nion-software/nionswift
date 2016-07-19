@@ -16,6 +16,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
+from nion.swift.model import Utility
 from nion.ui import TestUI
 
 
@@ -272,6 +273,17 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier.display.color_map_id = 'elephant'
             self.assertEqual(display_specifier.display.color_map_id, 'elephant')
             self.assertIsNotNone(display_specifier.display.color_map_data)
+
+    def test_auto_display_limits_on_various_value_types_write_to_clean_json(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            dtypes = (numpy.float32, numpy.float64, numpy.complex64, numpy.complex128, numpy.int16, numpy.uint16, numpy.int32, numpy.uint32)
+            for dtype in dtypes:
+                data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
+                document_model.append_data_item(data_item)
+                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                display_specifier.display.auto_display_limits()
+                Utility.clean_dict(data_item.properties)
 
 
 if __name__ == '__main__':

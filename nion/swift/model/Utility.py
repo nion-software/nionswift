@@ -125,6 +125,14 @@ def clean_item(i):
         return float(i)
     elif itype == numpy.float64:
         return float(i)
+    elif itype == numpy.int16:
+        return int(i)
+    elif itype == numpy.uint16:
+        return int(i)
+    elif itype == numpy.int32:
+        return int(i)
+    elif itype == numpy.uint32:
+        return int(i)
     elif itype == float:
         return i
     elif itype == str:
@@ -156,6 +164,14 @@ def clean_item_no_list(i):
         return float(i)
     elif itype == numpy.float64:
         return float(i)
+    elif itype == numpy.int16:
+        return int(i)
+    elif itype == numpy.uint16:
+        return int(i)
+    elif itype == numpy.int32:
+        return int(i)
+    elif itype == numpy.uint32:
+        return int(i)
     elif itype == float:
         return i
     elif itype == str:
