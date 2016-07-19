@@ -843,6 +843,7 @@ class LineProfileGraphic(LineTypeGraphic):
         super().__init__("line-profile-graphic", _("Line Profile"))
         self.define_property("width", 1.0, changed=self._property_changed, validate=lambda value: float(value))
         self.define_property("interval_descriptors", list(), changed=self._property_changed)
+        self.end_arrow_enabled = True
         # self.interval_descriptors = [{"interval": (0.1, 0.3), "color": "#F00"}, {"interval": (0.7, 0.74), "color": "#0F0"}]
 
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
