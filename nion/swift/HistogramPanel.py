@@ -336,7 +336,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                     upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
                     display.display_limits = (lower_display_limit, upper_display_limit)
                 else:
-                    display.display_limits = None
+                    display.auto_display_limits()
 
         # create a canvas widget for this panel and put a histogram canvas item in it.
         self.__histogram_canvas_item = HistogramCanvasItem(cursor_changed_fn)

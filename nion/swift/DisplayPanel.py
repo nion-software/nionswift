@@ -696,7 +696,7 @@ class DataItemDataSourceDisplay:
     def enter_key_pressed(self):
         if self.__display_type == "image":
             display = DataItem.DisplaySpecifier.from_data_item(self.__data_item).display
-            display.display_limits = display.data_range
+            display.auto_display_limits()
             return True
         return False
 
