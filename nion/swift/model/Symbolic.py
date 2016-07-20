@@ -12,6 +12,8 @@ import ast
 import functools
 import threading
 import time
+import typing
+import uuid
 import weakref
 
 # third party libraries
@@ -39,6 +41,28 @@ def region_mask(data_and_metadata, region):
     data_shape = data_and_metadata.data_shape[-2:]
     mask = region.get_mask(data_shape)
     return DataAndMetadata.DataAndMetadata.from_data(mask)
+
+
+class ComputationVariableType:
+    """Defines a type of a computation variable beyond the built-in types."""
+    def __init__(self, type_id: str, label: str, object_type):
+        self.type_id = type_id
+        self.label = label
+        self.object_type = object_type
+        self.object_remove_event = Event.Event()
+        self.__objects = dict()  # type: typing.Dict[uuid.UUID, typing.Any]
+
+    def get_object_by_uuid(self, object_uuid: uuid.UUID):
+        return self.__objects.get(object_uuid)
+
+    def register_object(self, object):
+        assert object.uuid not in self.__objects
+        self.__objects[object.uuid] = object
+
+    def unregister_object(self, object):
+        assert object.uuid in self.__objects
+        del self.__objects[object.uuid]
+        self.object_remove_event.fire(object)
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
@@ -213,6 +237,17 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 specifier.pop("uuid", None)
                 specifier.pop("property", None)
                 self.specifier = specifier
+            elif value_type in ComputationVariable.get_extension_types():
+                self.value_type = None
+                self.control_type = None
+                self.value_default = None
+                self.value_min = None
+                self.value_max = None
+                specifier = self.specifier or {"version": 1}
+                specifier["type"] = value_type
+                specifier.pop("uuid", None)
+                specifier.pop("property", None)
+                self.specifier = specifier
             self.variable_type_changed_event.fire()
 
     @property
@@ -238,6 +273,72 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     @property
     def has_range(self):
         return self.value_type is not None and self.value_min is not None and self.value_max is not None
+
+    # handle extension types
+
+    extension_types = list()  # type: typing.List[ComputationVariableType]
+
+    @classmethod
+    def get_extension_type_items(cls):
+        """Return a list of type_id / label tuples."""
+        type_items = list()
+        for computation_variable_type in ComputationVariable.extension_types:
+            type_items.append((computation_variable_type.type_id, computation_variable_type.label))
+        return type_items
+
+    @classmethod
+    def get_extension_types(cls):
+        """Return a list of type_ids."""
+        return [computation_variable_type.type_id for computation_variable_type in ComputationVariable.extension_types]
+
+    @classmethod
+    def get_extension_object_specifier(cls, object):
+        for computation_variable_type in ComputationVariable.extension_types:
+            if isinstance(object, computation_variable_type.object_type):
+                return {"version": 1, "type": computation_variable_type.type_id, "uuid": str(object.uuid)}
+        return None
+
+    @classmethod
+    def resolve_extension_object_specifier(cls, specifier: dict):
+        if specifier.get("version") == 1:
+            specifier_type = specifier["type"]
+            for computation_variable_type in ComputationVariable.extension_types:
+                if computation_variable_type.type_id == specifier_type:
+                    specifier_uuid_str = specifier.get("uuid")
+                    object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                    object = computation_variable_type.get_object_by_uuid(object_uuid)
+                    class BoundObject:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            self.deleted_event = Event.Event()
+                            def remove_object(object):
+                                if self.__object == object:
+                                    self.deleted_event.fire()
+                            def property_changed(property_name_being_changed, value):
+                                self.changed_event.fire()
+                            self.__remove_object_listener = computation_variable_type.object_remove_event.listen(remove_object)
+                            self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
+                        def close(self):
+                            self.__property_changed_listener.close()
+                            self.__property_changed_listener = None
+                            self.__remove_object_listener.close()
+                            self.__remove_object_listener = None
+                        @property
+                        def value(self):
+                            return self.__object
+                    if object:
+                        return BoundObject(object)
+        return None
+
+    @classmethod
+    def register_computation_variable_type(cls, computation_variable_type: ComputationVariableType) -> None:
+        ComputationVariable.extension_types.append(computation_variable_type)
+
+    @classmethod
+    def unregister_computation_variable_type(cls, computation_variable_type: ComputationVariableType) -> None:
+        ComputationVariable.extension_types.remove(computation_variable_type)
+
 
 
 def variable_factory(lookup_id):
@@ -518,7 +619,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_changed_event_listeners[variable.uuid].close()
         del self.__variable_changed_event_listeners[variable.uuid]
         if variable.uuid in self.__bound_items:
-            self.__bound_items[variable.uuid].close()
+            bound_item = self.__bound_items[variable.uuid]
+            if bound_item:
+                bound_item.close()
             del self.__bound_items[variable.uuid]
         if variable.uuid in self.__bound_item_changed_event_listeners:
             self.__bound_item_changed_event_listeners[variable.uuid].close()

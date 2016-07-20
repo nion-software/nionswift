@@ -67,6 +67,10 @@ class PropertyConnection(Connection):
             self.__target_property_changed_listener = None
         super().close()
 
+    @property
+    def _target(self):
+        return self.__target
+
     def __set_target_from_source(self, value):
         if not self.__suppress:
             self.__suppress = True

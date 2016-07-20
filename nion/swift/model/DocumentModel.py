@@ -1334,6 +1334,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                 source_data_item_set.add(source_data_item)
                                 self.__add_dependency(source_data_item, data_item)
 
+    def rebind_computations(self):
+        """Call this to rebind all computations.
+
+        This is helpful when extending the computation type system.
+        After new objcts have been loaded, call this so that existing
+        computations can find the new objects during startup.
+        """
+        for data_item in self.data_items:
+            for data_source in data_item.data_sources:
+                if data_source.computation:
+                    data_source.computation.unbind()
+                    data_source.computation.bind(self)
+
     # TODO: evaluate if buffered_data_source_set is needed
     @property
     def buffered_data_source_set(self):
@@ -1661,7 +1674,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
         elif isinstance(object, Graphics.Graphic):
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
-        return None
+        return Symbolic.ComputationVariable.get_extension_object_specifier(object)
 
     def resolve_object_specifier(self, specifier: dict):
         document_model = self
@@ -1784,7 +1797,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                             return self.__object
                                     if region:
                                         return BoundRegion(display, region)
-        return None
+        return Symbolic.ComputationVariable.resolve_extension_object_specifier(specifier)
 
     class DataItemReference:
         def __init__(self, document_model: "DocumentModel", key: str, data_item: DataItem.DataItem=None):

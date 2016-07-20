@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import copy
 import functools
@@ -197,7 +194,6 @@ class ComputationModel(object):
 class ComputationPanelSection:
 
     def __init__(self, ui, variable, on_remove, queue_task_fn):
-
         section_widget = ui.create_column_widget()
         section_title_row = ui.create_row_widget()
 
@@ -225,6 +221,7 @@ class ComputationPanelSection:
             name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
 
             type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("data", _("Data")), ("display_data", _("Display Data")), ("region", _("Region"))]
+            type_items.extend(Symbolic.ComputationVariable.get_extension_type_items())
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
             remove_button = ui.create_push_button_widget(_("X"))
@@ -358,12 +355,6 @@ class ComputationPanelSection:
 
             return column
 
-        def make_data_item_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
-            return make_specifier_row(ui, variable, "data_item", on_change_type_fn, on_remove_fn)
-
-        def make_region_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
-            return make_specifier_row(ui, variable, "region", on_change_type_fn, on_remove_fn)
-
         def make_empty_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
             column = ui.create_column_widget()
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
@@ -396,9 +387,11 @@ class ComputationPanelSection:
             elif variable_type == "real":
                 stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
             elif variable_type in ("data_item", "data", "display_data"):
-                stack.add(make_data_item_row(ui, variable, change_type, on_remove))
+                stack.add(make_specifier_row(ui, variable, "data_item", change_type, on_remove))
             elif variable_type == "region":
-                stack.add(make_region_row(ui, variable, change_type, on_remove))
+                stack.add(make_specifier_row(ui, variable, "region", change_type, on_remove))
+            elif variable_type in Symbolic.ComputationVariable.get_extension_types():
+                stack.add(make_specifier_row(ui, variable, variable_type, change_type, on_remove))
             else:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))
 

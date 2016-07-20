@@ -568,6 +568,37 @@ class HistogramPanel(Panel.Panel):
         self.widget = column
 
 
+class TargetDataItemStream:
+
+    def __init__(self, document_controller):
+        # outgoing messages
+        self.value_stream = Event.Event()
+        # cached values
+        self.__value = None
+        # listen for selected data item changes
+        self.__selected_data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
+        # manually send the first data item changed message to set things up.
+        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        # disconnect data item binding
+        self.__selected_data_item_changed(None)
+        self.__selected_data_item_changed_event_listener.close()
+        self.__selected_data_item_changed_event_listener = None
+
+    @property
+    def value(self):
+        return self.__value
+
+    def __selected_data_item_changed(self, data_item):
+        if data_item != self.__value:
+            self.value_stream.fire(data_item)
+            self.__value = data_item
+
+
 class TargetDisplayStream:
 
     def __init__(self, document_controller):
