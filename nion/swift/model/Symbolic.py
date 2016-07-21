@@ -454,6 +454,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__parse_expression(self.expression)
         self.variable_inserted_event.fire(count, variable)
         self.computation_mutated_event.fire()
+        self.__needs_parse = True
+        self.needs_update = True
+        self.needs_update_event.fire()
 
     def remove_variable(self, variable: ComputationVariable) -> None:
         self.__unbind_variable(variable)

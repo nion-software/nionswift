@@ -446,6 +446,27 @@ class TestSymbolicClass(unittest.TestCase):
                 data_item.maybe_data_source.displays[0].graphics[0].size = 0.53, 0.43
             self.assertTrue(needs_update_ref[0])
 
+    def test_computation_within_document_model_fires_needs_update_event_when_variable_or_object_added(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.random.randn(64, 64)
+            data_item = DataItem.DataItem(data)
+            region = Graphics.RectangleGraphic()
+            region.center = 0.41, 0.51
+            region.size = 0.52, 0.42
+            data_item.maybe_data_source.displays[0].add_graphic(region)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation("a+n")
+            needs_update_ref = [False]
+            def needs_update():
+                needs_update_ref[0] = True
+            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
+            self.assertTrue(needs_update_ref[0])
+            needs_update_ref[0] = False
+            computation.create_variable("x", value_type="integral", value=5)
+            self.assertTrue(needs_update_ref[0])
+
     def test_computation_handles_data_lookups(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
