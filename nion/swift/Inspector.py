@@ -1128,7 +1128,7 @@ def make_interval_type_inspector(ui, graphic_widget, display_specifier, image_si
     def new_display_calibrated_values_binding():
         return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
     # configure the bindings
-    converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+    converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, -1, image_size[-1])
     start_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "start"), new_display_calibrated_values_binding(), converter)
     end_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "end"), new_display_calibrated_values_binding(), converter)
     # create the ui

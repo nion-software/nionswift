@@ -403,6 +403,42 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "256.0 mm")  # x
         self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")  # y
 
+    def test_interval_dimensions_show_calibrated_units_on_single_spectrum(self):
+        data_item = DataItem.DataItem(numpy.full((100, ), 0, dtype=numpy.uint32))  # time, energy
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        interval_graphic = Graphics.IntervalGraphic()
+        interval_graphic.start = 0.2
+        interval_graphic.end = 0.4
+        display_specifier.display.add_graphic(interval_graphic)
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="eV",
+                                                                                                      scale=2.0))  # energy
+        Inspector.make_interval_type_inspector(self.app.ui, graphic_widget, display_specifier,
+                                            display_specifier.buffered_data_source.dimensional_shape,
+                                            display_specifier.display.graphics[0])
+        self.assertEqual("40.0 eV", graphic_widget.children[0].children[1].text)  # energy
+        self.assertEqual("80.0 eV", graphic_widget.children[1].children[1].text)  # energy
+
+    def test_interval_dimensions_show_calibrated_units_on_sequence_of_spectra(self):
+        data_item = DataItem.DataItem(numpy.full((3, 100), 0, dtype=numpy.uint32))  # time, energy
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        interval_graphic = Graphics.IntervalGraphic()
+        interval_graphic.start = 0.2
+        interval_graphic.end = 0.4
+        display_specifier.display.add_graphic(interval_graphic)
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.display_calibrated_values = True
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="s",
+                                                                                                      scale=1.0))  # time
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="eV",
+                                                                                                      scale=2.0))  # energy
+        Inspector.make_interval_type_inspector(self.app.ui, graphic_widget, display_specifier,
+                                            display_specifier.buffered_data_source.dimensional_shape,
+                                            display_specifier.display.graphics[0])
+        self.assertEqual("40.0 eV", graphic_widget.children[0].children[1].text)  # energy
+        self.assertEqual("80.0 eV", graphic_widget.children[1].children[1].text)  # energy
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()
