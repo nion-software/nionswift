@@ -970,6 +970,74 @@ class QtPushButtonWidget(QtWidget):
             self.on_clicked()
 
 
+class QtRadioButtonWidget(QtWidget):
+
+    def __init__(self, proxy, text, properties):
+        super(QtRadioButtonWidget, self).__init__(proxy, "radiobutton", properties)
+        self.on_clicked = None
+        self.text = text
+        self.icon = None
+        self.proxy.RadioButton_connect(self.widget, self)
+
+    def close(self):
+        self.on_clicked = None
+        super(QtRadioButtonWidget, self).close()
+
+    def __get_text(self):
+        return self.__text
+    def __set_text(self, text):
+        self.__text = self.proxy.encode_text(text)
+        self.proxy.RadioButton_setText(self.widget, self.__text)
+    text = property(__get_text, __set_text)
+
+    def __get_icon(self):
+        return self.__icon
+    def __set_icon(self, rgba_image):
+        self.__icon = rgba_image
+        self.__width = rgba_image.shape[1] if rgba_image is not None else 0
+        self.__height = rgba_image.shape[0] if rgba_image is not None else 0
+        rgba_data = self.proxy.encode_data(rgba_image)
+        self.proxy.RadioButton_setIcon(self.widget, self.__width, self.__height, rgba_data)
+    # bgra
+    icon = property(__get_icon, __set_icon)
+
+    @property
+    def checked(self):
+        return self.proxy.RadioButton_getChecked(self.widget)
+
+    @checked.setter
+    def checked(self, value):
+        self.proxy.RadioButton_setChecked(self.widget, value)
+
+    def clicked(self):
+        if self.on_clicked:
+            self.on_clicked()
+
+
+class QtButtonGroup:
+
+    def __init__(self, proxy):
+        self.proxy = proxy
+        self.py_button_group = self.proxy.ButtonGroup_create()
+        self.proxy.ButtonGroup_connect(self.py_button_group, self)
+        self.on_button_clicked = None
+
+    def close(self):
+        self.proxy.ButtonGroup_destroy(self.py_button_group)
+        self.proxy = None
+        self.on_button_clicked = None
+
+    def add_button(self, radio_button, button_id):
+        self.proxy.ButtonGroup_addButton(self.py_button_group, radio_button.widget, button_id)
+
+    def remove_button(self, radio_button):
+        self.proxy.ButtonGroup_removeButton(self.py_button_group, radio_button.widget)
+
+    def clicked(self, button_id):
+        if self.on_button_clicked:
+            self.on_button_clicked(button_id)
+
+
 class QtCheckBoxWidget(QtWidget):
 
     def __init__(self, proxy, text, properties):
@@ -2223,6 +2291,9 @@ class QtUserInterface(object):
     def create_list_model_controller(self, keys):
         return QtListModelController(self.proxy, keys)
 
+    def create_button_group(self):
+        return QtButtonGroup(self.proxy)
+
     # window elements
 
     def create_document_window(self, title=None):
@@ -2256,6 +2327,9 @@ class QtUserInterface(object):
 
     def create_push_button_widget(self, text=None, properties=None):
         return QtPushButtonWidget(self.proxy, text, properties)
+
+    def create_radio_button_widget(self, text=None, properties=None):
+        return QtRadioButtonWidget(self.proxy, text, properties)
 
     def create_check_box_widget(self, text=None, properties=None):
         return QtCheckBoxWidget(self.proxy, text, properties)

@@ -406,15 +406,20 @@ class UserInterface:
         line_edit_widget.text = text
         return line_edit_widget
 
-    def create_check_box_widget(self, text=None):
-        check_box_widget = CheckBoxWidget(self.__ui)
-        check_box_widget.text = text
-        return check_box_widget
-
     def create_push_button_widget(self, text=None):
         push_button_widget = PushButtonWidget(self.__ui)
         push_button_widget.text = text
         return push_button_widget
+
+    def create_radio_button_widget(self, text=None):
+        radio_button_widget = RadioButtonWidget(self.__ui)
+        radio_button_widget.text = text
+        return radio_button_widget
+
+    def create_check_box_widget(self, text=None):
+        check_box_widget = CheckBoxWidget(self.__ui)
+        check_box_widget.text = text
+        return check_box_widget
 
     def create_slider_widget(self):
         raise NotImplemented()
