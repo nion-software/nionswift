@@ -58,7 +58,7 @@ def get_corners(bounds):
 
 
 def get_slope_eq(x, y, angle):
-    if (1/2) * math.pi < angle < math.pi  * (3/2):
+    if (1/2) * math.pi < angle <= math.pi  * (3/2):
         return y >= numpy.tan(-angle) * x
     return y <= numpy.tan(-angle) * x
 
