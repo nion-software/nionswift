@@ -548,12 +548,16 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                 px = c * data_info.data.shape[-1]
                 return plot_rect.width * (px - data_left) / (data_right - data_left)
 
+            canvas_width = self.canvas_size.width
+            canvas_height = self.canvas_size.height
+
             for region in self.regions:
                 left_channel, right_channel = region.channels
                 region_selected = region.selected
                 index = region.index
                 level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
                 with drawing_context.saver():
+                    drawing_context.clip_rect(0, 0, canvas_width, canvas_height)
                     if region.style == "tag":
                         if calibrated_data_range != 0.0:
                             channel = (left_channel + right_channel) / 2
