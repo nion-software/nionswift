@@ -485,6 +485,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if key.is_delete:
             self.delegate.delete_key_pressed()
             return True
+        if key.is_enter_or_return:
+            self.delegate.enter_key_pressed()
+            return True
         if key.is_arrow:
             mapping = self.__get_mouse_mapping()
             amount = 10.0 if key.modifiers.shift else 1.0
