@@ -58,7 +58,7 @@ def get_corners(bounds):
 
 
 def get_slope_eq(x, y, angle):
-    if (1/2) * math.pi < angle < math.pi  * (3/2):
+    if (1/2) * math.pi < angle <= math.pi  * (3/2):
         return y >= numpy.tan(-angle) * x
     return y <= numpy.tan(-angle) * x
 
@@ -1348,7 +1348,10 @@ class SpotGraphic(Graphic):
 
     # rectangle
     def adjust_part(self, mapping, original, current, part, modifiers):
-        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers, self._constraints)
+        constraints = self._constraints
+        if part[0] not in ("all", "inverted-all"):
+            constraints = constraints.union({"position"})
+        self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers, constraints)
 
     def nudge(self, mapping, delta):
         origin = mapping.map_point_image_norm_to_widget(self.bounds[0])

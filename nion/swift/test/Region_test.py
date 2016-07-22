@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import contextlib
 import copy
 import logging
+import math
 import unittest
 
 # third party libraries
@@ -121,6 +122,7 @@ class TestRegionClass(unittest.TestCase):
         rect_graphic.bounds = (0.25, 0.25), (0.5, 0.5)
         point_graphic = Graphics.PointGraphic()
         point_graphic.position = (0.25, 0.25)
+        wedge_graphic = Graphics.WedgeGraphic()
         data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((255, 255), 1, dtype=numpy.int32))
         Symbolic.region_mask(data, line_graphic)
         Symbolic.region_mask(data, spot_graphic)
@@ -179,6 +181,15 @@ class TestRegionClass(unittest.TestCase):
         self.assertEqual(mask.data[250, 300], 1)  # center bottom
         self.assertEqual(mask.data[200, 250], 1)  # center left
 
+    def test_region_mask_wedge(self):
+        rect_graphic = Graphics.WedgeGraphic()
+        rect_graphic.angle_interval = -math.pi / 2, 0
+        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
+        mask = Symbolic.region_mask(data, rect_graphic)
+        self.assertTrue(mask.data[600, 600])  # bottom right
+        self.assertFalse(mask.data[600, 400])  # top right
+        self.assertTrue(mask.data[400, 400])  # top left
+        self.assertFalse(mask.data[400, 600])  # bottom left
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
