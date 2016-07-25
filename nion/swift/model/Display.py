@@ -10,6 +10,7 @@ import gettext
 import numbers
 import operator
 import threading
+import typing
 
 # third party libraries
 import numpy
@@ -218,6 +219,38 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             self.display_limits = display_limit_low, display_limit_high
         else:
             self.display_limits = self.data_range
+
+    def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
+        left = None
+        right = None
+        for interval in intervals:
+            left = min(left, interval[0]) if left is not None else interval[0]
+            right = max(right, interval[1]) if right is not None else interval[1]
+        left = left if left is not None else 0.0
+        right = right if right is not None else 1.0
+        extra = (right - left) * 0.5
+        self.left_channel = int(max(0.0, left - extra) * data_and_metadata.data_shape[-1])
+        self.right_channel = int(min(1.0, right + extra) * data_and_metadata.data_shape[-1])
+        data_min = numpy.amin(data_and_metadata.data[..., self.left_channel:self.right_channel])
+        data_max = numpy.amax(data_and_metadata.data[..., self.left_channel:self.right_channel])
+        if data_min > 0 and data_max > 0:
+            self.y_min = 0.0
+            self.y_max = data_max * 1.2
+        elif data_min < 0 and data_max < 0:
+            self.y_min = data_min * 1.2
+            self.y_max = 0.0
+        else:
+            self.y_min = data_min * 1.2
+            self.y_max = data_max * 1.2
+
+    def view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
+        all_graphics = self.graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
+        intervals = list()
+        for graphic in graphics:
+            if isinstance(graphic, Graphics.IntervalGraphic):
+                intervals.append(graphic.interval)
+        self.view_to_intervals(data_and_metadata, intervals)
 
     @property
     def preview_2d(self):

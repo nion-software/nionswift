@@ -658,31 +658,8 @@ class DataItemDataSourceDisplay:
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
         if display and self.__display_type == "line_plot":
-            all_graphics = display.graphics
-            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
-            left = None
-            right = None
-            for graphic in graphics:
-                if isinstance(graphic, Graphics.IntervalGraphic):
-                    left = min(left, graphic.start) if left is not None else graphic.start
-                    right = max(right, graphic.end) if right is not None else graphic.end
-            left = left if left is not None else 0.0
-            right = right if right is not None else 1.0
-            extra = (right - left) * 0.5
             data_and_metadata = display_specifier.buffered_data_source.data_and_calibration
-            display.left_channel = int(max(0.0, left - extra) * data_and_metadata.data_shape[-1])
-            display.right_channel = int(min(1.0, right + extra) * data_and_metadata.data_shape[-1])
-            data_min = numpy.amin(data_and_metadata.data[..., display.left_channel:display.right_channel])
-            data_max = numpy.amax(data_and_metadata.data[..., display.left_channel:display.right_channel])
-            if data_min > 0 and data_max > 0:
-                display.y_min = 0.0
-                display.y_max = data_max * 1.2
-            elif data_min < 0 and data_max < 0:
-                display.y_min = data_min * 1.2
-                display.y_max = 0.0
-            else:
-                display.y_min = data_min * 1.2
-                display.y_max = data_max * 1.2
+            display.view_to_selected_graphics(data_and_metadata)
 
     def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
