@@ -1645,6 +1645,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
                         buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
 
+    def recompute_immediate(self, data_item: DataItem.DataItem) -> None:
+        # this can be called on the UI thread; but it can also take time. use sparingly.
+        # need the data to make connect_explorer_interval work; so do this here. ugh.
+        buffered_data_source = data_item.maybe_data_source
+        data_and_metadata = buffered_data_source.computation.evaluate_data()
+        if data_and_metadata:
+            with buffered_data_source._changes():
+                with buffered_data_source.data_ref() as data_ref:
+                    data_ref.data = data_and_metadata.data
+                    buffered_data_source.update_metadata(data_and_metadata.metadata)
+                    buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
+                    buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+
     def computation_changed(self, buffered_data_source, computation):
         existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
         if existing_computation_changed_listener:
