@@ -26,6 +26,13 @@ from nion.utils import Geometry
 _ = gettext.gettext
 
 
+def nice_label(value: float, precision: int) -> str:
+    if math.trunc(math.log10(abs(value) + numpy.nextafter(0,1))) > 4:
+        return (u"{0:0." + u"{0:d}".format(precision) + "e}").format(value)
+    else:
+        return (u"{0:0." + u"{0:d}".format(precision) + "f}").format(value)
+
+
 class LineGraphDataInfo(object):
     """Cache data, statistics about the data, and other information about a line graph.
 
@@ -165,7 +172,7 @@ class LineGraphDataInfo(object):
         for tick_value in y_properties.y_tick_values:
             data_tick = tick_value
             tick_value = math.pow(10.0, tick_value) if self.data_style == "log" else tick_value
-            label = (u"{0:0." + u"{0:d}".format(y_properties.y_tick_precision) + "f}").format(tick_value)
+            label = nice_label(tick_value, y_properties.y_tick_precision)
             # data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
             if calibrated_data_range != 0.0:
                 y_tick = plot_height - plot_height * (data_tick - calibrated_data_min) / calibrated_data_range
@@ -247,7 +254,7 @@ class LineGraphDataInfo(object):
         x_ticks = list()
         if drawn_data_width > 0.0:
             for tick_value in x_properties.x_tick_values:
-                label = (u"{0:0." + u"{0:d}".format(x_properties.x_tick_precision) + "f}").format(tick_value)
+                label = nice_label(tick_value, x_properties.x_tick_precision)
                 data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
                 x_tick = plot_width * (data_tick - x_properties.drawn_left_channel) / drawn_data_width
                 if x_tick >= 0 and x_tick <= plot_width:
@@ -849,11 +856,9 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
             max_width = 0
             y_range = y_properties.calibrated_data_max - y_properties.calibrated_data_min
-            label = (u"{0:0." + u"{0:d}".format(y_properties.y_tick_precision) + "f}").format(
-                y_properties.calibrated_data_max + y_range * 5)
+            label = nice_label(y_properties.calibrated_data_max + y_range * 5, y_properties.y_tick_precision)
             max_width = max(max_width, get_font_metrics_fn(font, label).width)
-            label = (u"{0:0." + u"{0:d}".format(y_properties.y_tick_precision) + "f}").format(
-                y_properties.calibrated_data_min - y_range * 5)
+            label = nice_label(y_properties.calibrated_data_min - y_range * 5, y_properties.y_tick_precision)
             max_width = max(max_width, get_font_metrics_fn(font, label).width)
 
             self.sizing.minimum_width = max_width
