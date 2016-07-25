@@ -4,6 +4,7 @@ import functools
 import gettext
 import json
 import logging
+import math
 import os.path
 import random
 import threading
@@ -281,6 +282,8 @@ class DocumentController:
         self.processing_menu.add_menu_item(_("Add Point Graphic"), lambda: self.add_point_graphic())
         self.processing_menu.add_menu_item(_("Add Interval Graphic"), lambda: self.add_interval_graphic())
         self.processing_menu.add_menu_item(_("Add Channel Graphic"), lambda: self.add_channel_graphic())
+        self.processing_menu.add_menu_item(_("Add Spot Graphic"), lambda: self.add_spot_graphic())
+        self.processing_menu.add_menu_item(_("Add Angle Graphic"), lambda: self.add_angle_graphic())
         self.processing_menu.add_separator()
 
         self.processing_menu.add_menu_item(_("Snapshot"), lambda: self.processing_snapshot(), key_sequence="Ctrl+S")
@@ -866,6 +869,29 @@ class DocumentController:
             display = display_specifier.display
             graphic = Graphics.ChannelGraphic()
             graphic.position = 0.5
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
+            return graphic
+        return None
+
+    def add_spot_graphic(self):
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            graphic = Graphics.SpotGraphic()
+            graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
+            return graphic
+        return None
+
+    def add_angle_graphic(self):
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            graphic = Graphics.WedgeGraphic()
+            graphic.start_angle = 0
+            graphic.end_angle = (3/4) * math.pi
             display.add_graphic(graphic)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
