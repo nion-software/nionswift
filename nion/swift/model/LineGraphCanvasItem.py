@@ -33,7 +33,7 @@ def nice_label(value: float, precision: int) -> str:
         return (u"{0:0." + u"{0:d}".format(precision) + "f}").format(value)
 
 
-class LineGraphDataInfo(object):
+class LineGraphDataInfo:
     """Cache data, statistics about the data, and other information about a line graph.
 
     Some operations such as calculating statistics or even calculating optimal tick positions
@@ -43,7 +43,7 @@ class LineGraphDataInfo(object):
     This object is read-only.
     """
 
-    def __init__(self, data_fn=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None, data_style=None):
+    def __init__(self, data_fn=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None, data_style=None, legend_labels=None):
         # these items are considered to be input items
         self.__data_fn = data_fn
         self.__uncalibrated_data = None
@@ -55,6 +55,7 @@ class LineGraphDataInfo(object):
         self.spatial_calibration = spatial_calibration
         self.intensity_calibration = intensity_calibration
         self.data_style = data_style if data_style else "linear"
+        self.legend_labels = legend_labels
         # these items are considered to be output items
         self.__x_axis_valid = False
         self.__y_axis_valid = False
@@ -939,3 +940,63 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
                 drawing_context.rotate(+math.pi*0.5)
                 drawing_context.translate(-x, -y)
                 drawing_context.restore()
+
+
+class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
+    """Canvas item to draw the line plot background and grid lines."""
+
+    def __init__(self, get_font_metrics_fn):
+        super().__init__()
+        self.__drawing_context = None
+        self.__needs_update = True
+        self.__data_info = None
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.font_size = 12
+
+    @property
+    def data_info(self):
+        return self.__data_info
+
+    @data_info.setter
+    def data_info(self, value):
+        self.__data_info = value
+        self.__needs_update = True
+
+    def _repaint(self, drawing_context):
+        # draw the data, if any
+        data_info = self.data_info
+        legend_labels = self.data_info.legend_labels if data_info else None
+        if data_info and legend_labels and len(legend_labels) > 0:
+            plot_rect = self.canvas_bounds
+            plot_width = int(plot_rect[1][1]) - 1
+            plot_origin_x = int(plot_rect[0][1])
+            plot_origin_y = int(plot_rect[0][0])
+
+            legend_width = 0
+            line_height = self.font_size + 4
+            base_y = plot_origin_y + line_height * 1.5 - 4
+            font = "{0:d}px".format(self.font_size)
+            border = 4
+
+            colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
+            for index, legend_label in enumerate(legend_labels):
+                with drawing_context.saver():
+                    drawing_context.font = font
+                    drawing_context.text_align = "right"
+                    drawing_context.text_baseline = "bottom"
+                    drawing_context.fill_style = "#000"
+                    legend_width = max(legend_width, self.__get_font_metrics_fn(font, legend_label).width)
+                    drawing_context.fill_text(legend_label, plot_origin_x + plot_width - 10 - line_height, base_y)
+
+                    drawing_context.begin_path()
+                    drawing_context.rect(plot_origin_x + plot_width - 10 - line_height + 3, base_y - line_height + 3 + 4, line_height - 6, line_height - 6)
+                    drawing_context.fill_style = colors[index]
+                    drawing_context.fill()
+
+                    base_y += line_height
+
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(plot_origin_x + plot_width - 10 - line_height - legend_width - border, plot_origin_y + line_height * 0.5 - border, legend_width + border * 2 + line_height, len(legend_labels) * line_height + border * 2)
+                drawing_context.fill_style = "rgba(192, 192, 192, 0.50)"
+                drawing_context.fill()

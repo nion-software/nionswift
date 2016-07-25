@@ -141,6 +141,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_property("y_style", "linear", changed=self.__property_changed)
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
+        self.define_property("legend_labels", changed=self.__property_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)

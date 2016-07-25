@@ -86,10 +86,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_regions_canvas_item = LineGraphCanvasItem.LineGraphRegionsCanvasItem()
+        self.__line_graph_legend_canvas_item = LineGraphCanvasItem.LineGraphLegendCanvasItem(get_font_metrics_fn)
         self.__line_graph_frame_canvas_item = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_background_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_stack)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_regions_canvas_item)
+        self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
 
         self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
@@ -151,6 +153,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__y_style = None
         self.__left_channel = None
         self.__right_channel = None
+        self.__legend_labels = None
         self.__display_calibrated_values = False
 
         self.__graphics = list()
@@ -173,6 +176,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__y_style = display_properties["y_style"]
             self.__left_channel = display_properties["left_channel"]
             self.__right_channel = display_properties["right_channel"]
+            self.__legend_labels = display_properties["legend_labels"]
             self.__display_calibrated_values = display_calibrated_values
             if self.__display_frame_rate_id:
                 frame_index = data_and_calibration.metadata.get("hardware_source", dict()).get("frame_index", 0)
@@ -187,6 +191,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__y_style = None
             self.__left_channel = None
             self.__right_channel = None
+            self.__legend_labels = None
             self.__display_calibrated_values = False
             self.__line_graph_regions_canvas_item.regions = list()
             self.__line_graph_regions_canvas_item.update()
@@ -254,6 +259,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             y_style = self.__y_style
             left_channel = self.__left_channel
             right_channel = self.__right_channel
+            legend_labels = self.__legend_labels
             display_calibrated_values = self.__display_calibrated_values
 
             if data_and_calibration and data_and_calibration.dimensional_shape is not None and len(data_and_calibration.dimensional_shape) > 0:
@@ -281,7 +287,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
                 if not numpy.array_equal(self.__last_data_info_data, scalar_data) or self.__last_data_info != (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style):
                     data_info = LineGraphCanvasItem.LineGraphDataInfo(get_data, y_min, y_max, left_channel, right_channel,
-                                                                      dimensional_calibration, intensity_calibration, y_style)
+                                                                      dimensional_calibration, intensity_calibration, y_style, legend_labels)
                     self.__update_data_info(data_info)
                     self.__last_data_info = (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style)
                     self.__last_data_info_data = numpy.copy(scalar_data)
@@ -364,6 +370,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_background_canvas_item.data_info = data_info
         self.__line_graph_regions_canvas_item.data_info = data_info
         self.__line_graph_frame_canvas_item.data_info = data_info
+        self.__line_graph_legend_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_label_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_label_canvas_item.size_to_content()
         self.__line_graph_vertical_axis_scale_canvas_item.data_info = data_info
