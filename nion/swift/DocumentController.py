@@ -294,6 +294,7 @@ class DocumentController:
         self.processing_menu.add_menu_item(_("Inverse FFT"), lambda: self.__processing_new(self.document_model.get_ifft_new), key_sequence="Ctrl+Shift+F")
         self.processing_menu.add_menu_item(_("Auto Correlate"), lambda: self.__processing_new(self.document_model.get_auto_correlate_new))
         self.processing_menu.add_menu_item(_("Cross Correlate"), lambda: self.processing_cross_correlate_new())
+        self.processing_menu.add_menu_item(_("Fourier Filter"), lambda: self.processing_fourier_filter_new())
         self.processing_menu.add_separator()
 
         self.processing_menu.add_menu_item(_("Sobel Filter"), lambda: self.__processing_new(self.document_model.get_sobel_new))
@@ -946,6 +947,18 @@ class DocumentController:
                     crop_graphic = graphic
         return crop_graphic
 
+    def __get_mask_graphics(self, display_specifier):
+        mask_graphics = list()
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
+            display = display_specifier.display
+            current_index = display.graphic_selection.current_index
+            if current_index is not None:
+                graphic = display.graphics[current_index]
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic)):
+                    mask_graphics.append(graphic)
+        return mask_graphics
+
     def processing_fft(self):
         return DataItem.DisplaySpecifier.from_data_item(self.__processing_new(self.document_model.get_fft_new))
 
@@ -1052,6 +1065,17 @@ class DocumentController:
                 new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 self.display_data_item(new_display_specifier)
                 return data_item
+        return None
+
+    def processing_fourier_filter_new(self):
+        display_specifier = self.selected_display_specifier
+        mask_graphics = self.__get_mask_graphics(display_specifier)
+        mask_graphic = mask_graphics[0] if len(mask_graphics) > 0 else None
+        data_item = self.document_model.get_fourier_filter_new(display_specifier.data_item, None, mask_graphic)
+        if data_item:
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.display_data_item(new_display_specifier)
+            return data_item
         return None
 
     def __processing_new(self, fn):

@@ -2109,6 +2109,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             display.add_graphic(rect_region)
                         regions.append((region.name, rect_region, region_params.get("label")))
                         region_map[region.name] = rect_region
+                    elif region.type == "spot":
+                        if region.region:
+                            spot_region = region.region
+                        else:
+                            spot_region = Graphics.SpotGraphic()
+                            spot_region.center = 0.25, 0.75
+                            spot_region.size = 0.1, 0.1
+                            for k, v in region_params.items():
+                                setattr(spot_region, k, v)
+                            display.add_graphic(spot_region)
+                        regions.append((region.name, spot_region, region_params.get("label")))
+                        region_map[region.name] = spot_region
                     elif region.type == "interval":
                         if region.region:
                             interval_region = region.region
@@ -2272,3 +2284,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         connection = DocumentModel.make_connection("interval_list", src="data_source", dst="line_region")
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region])
         return self.__get_processing_new("line_profile({src}, line_region.vector, line_region.width)", [src], [], _("Line Profile"), "line-profile", connections=[connection])
+
+    def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, filter_region: Graphics.Graphic=None) -> DataItem.DataItem:
+        requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)  # TODO: be an FFT
+        in_region = DocumentModel.make_region("region", "spot", filter_region)
+        src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
+        return self.__get_processing_new("ifft(src.data * region_mask(src.data, region))", [src], [], _("Filter"), "filter")
