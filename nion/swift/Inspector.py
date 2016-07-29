@@ -27,6 +27,7 @@ from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Observable
 from nion.utils import PublishSubscribe
+from nion.utils import Stream
 
 _ = gettext.gettext
 
@@ -379,22 +380,23 @@ class SessionInspectorSection(InspectorSection):
         self.__property_changed_listener = None
 
 
-class CalibrationPublisherToObservable(Observable.Observable):
+class CalibrationStreamToObservable(Observable.Observable):
     """Provides observable calibration object.
 
     Clients can get/set/observer offset, scale, and unit properties.
 
-    Pass in a publisher that publishes DataAndCalibrations and a setter function. A typical publisher
-    might be data_and_calibration_publisher.select(lambda x: x.dimensional_calibrations[0]).cached().
+    Pass in a calibration stream and a setter function.
+
     The function setter will take a calibration argument. A typical function setter might be
     data_source.set_dimensional_calibration(0, calibration).
     """
 
-    def __init__(self, publisher, setter_fn):
-        super(CalibrationPublisherToObservable, self).__init__()
+    def __init__(self, calibration_stream, setter_fn):
+        super().__init__()
+        self.__calibration_stream = calibration_stream
         self.__cached_value = Calibration.Calibration()
         self.__setter_fn = setter_fn
-        def handle_next_calibration(calibration):
+        def update_calibration(calibration):
             if self.__cached_value is not None:
                 if calibration.offset != self.__cached_value.offset:
                     self.notify_set_property("offset", calibration.offset)
@@ -403,11 +405,13 @@ class CalibrationPublisherToObservable(Observable.Observable):
                 if calibration.units != self.__cached_value.units:
                     self.notify_set_property("units", calibration.units)
             self.__cached_value = calibration
-        subscriber = PublishSubscribe.Subscriber(handle_next_calibration)
-        self.__subscription = publisher.subscribex(subscriber)
+        self.__listener = calibration_stream.value_stream.listen(update_calibration)
+        update_calibration(calibration_stream.value)
 
     def close(self):
-        self.__subscription.close()
+        self.__calibration_stream = None
+        self.__listener.close()
+        self.__listener = None
         self.__cached_value = None
         self.__setter_fn = None
 
@@ -454,17 +458,15 @@ class CalibrationsInspectorSection(InspectorSection):
     def __init__(self, ui, data_item, buffered_data_source, display):
         super(CalibrationsInspectorSection, self).__init__(ui, "calibrations", _("Calibrations"))
         # get a data_and_calibration publisher
-        data_and_calibration_publisher = buffered_data_source.get_data_and_calibration_publisher()
+        dimensional_calibrations_stream = Stream.PropertyStream(buffered_data_source, "dimensional_calibrations")
+        intensity_calibration_stream = Stream.PropertyStream(buffered_data_source, "intensity_calibration")
         # configure the bindings to dimension calibrations
         self.__calibrations = list()
         for index in range(len(buffered_data_source.dimensional_calibrations)):
-            # select the indexed dimensional calibration and then cache the latest value
-            def select_dimensional_calibration(index, data_and_calibration):
-                # note that arguments are reversed from typical usage so that functools.partial works correctly
-                return data_and_calibration.get_dimensional_calibration(index)
-            calibration_publisher = data_and_calibration_publisher.select(functools.partial(select_dimensional_calibration, index)).cache()
+            # select the indexed dimensional calibration and form a new stream
+            dimensional_calibration_stream = Stream.MapStream(dimensional_calibrations_stream, operator.itemgetter(index))
             # then convert it to an observable so that we can bind to offset/scale/units and add it to calibrations list
-            self.__calibrations.append(CalibrationPublisherToObservable(calibration_publisher, functools.partial(buffered_data_source.set_dimensional_calibration, index)))
+            self.__calibrations.append(CalibrationStreamToObservable(dimensional_calibration_stream, functools.partial(buffered_data_source.set_dimensional_calibration, index)))
         # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -473,8 +475,7 @@ class CalibrationsInspectorSection(InspectorSection):
             list_widget.insert_item(spatial_calibration, index)
         self.add_widget_to_content(list_widget)
         # create the intensity row
-        calibration_publisher = data_and_calibration_publisher.select(operator.attrgetter("intensity_calibration")).cache()
-        intensity_calibration = CalibrationPublisherToObservable(calibration_publisher, buffered_data_source.set_intensity_calibration)
+        intensity_calibration = CalibrationStreamToObservable(intensity_calibration_stream, buffered_data_source.set_intensity_calibration)
         if intensity_calibration is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})

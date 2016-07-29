@@ -157,7 +157,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.define_property("data_shape", data_shape)
         self.define_property("data_dtype", data_dtype, converter=DtypeToStringConverter())
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
-        self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__metadata_property_changed)
+        self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("source_data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
@@ -292,6 +292,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     @property
     def _data_item(self):
         return self.__get_dependent_data_item()
+
+    def __dimensional_calibrations_changed(self, name, value):
+        self.__property_changed(name, self.dimensional_calibrations)  # don't send out the CalibrationList object
+        self.__metadata_changed()
 
     def __metadata_property_changed(self, name, value):
         self.__property_changed(name, value)
