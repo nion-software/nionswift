@@ -59,13 +59,6 @@ class CalibrationList(object):
 
     Data sources should support deep copy. They are never shared (i.e. they only occur once in the model).
 
-    *Primary Functionality*
-
-    Data sources provide a get_data_and_calibration_publisher method to return a publisher of
-    DataAndMetadata objects.
-
-    *Secondary Functionality*
-
     When data sources is about to be closed, they will receive this message.
 
     closed()
@@ -173,8 +166,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
-        self.__publisher = PublishSubscribe.Publisher()
-        self.__publisher.on_subscribe = self.__notify_next_data_and_calibration_after_subscribe
         self.__computation_mutated_event_listener = None  # incoming to know when the computation changes internally
         self.__computation_cascade_delete_event_listener = None
         self.computation_changed_or_mutated_event = Event.Event()  # outgoing message
@@ -198,8 +189,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         if self.__computation_mutated_event_listener:
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
-        self.__publisher.close()
-        self.__publisher = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -312,15 +301,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         """Grab the data_and_calibration from the data item and pass it to subscribers."""
         with self._changes():
             self.__change_changed = True
-
-    def __notify_next_data_and_calibration_after_subscribe(self, subscriber):
-        data_and_calibration = self.data_and_calibration
-        data_and_calibration.timestamp = self.data_modified if self.data_modified else self.created
-        self.__publisher.notify_next_value(data_and_calibration, subscriber)
-
-    def get_data_and_calibration_publisher(self):
-        """Return the data and calibration publisher. This is a required method for data sources."""
-        return self.__publisher
 
     def set_data_source(self, data_source):
         self.set_item("data_source", data_source)
@@ -589,6 +569,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             self.__change_count += 1
 
     def _end_changes(self):
+        changed = False
         with self.__change_count_lock:
             if self.__change_count == 1:
                 self.__change_thread = None
@@ -602,9 +583,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 self.__change_changed = False
         # if the change count is now zero, it means that we're ready
         # to pass on the next value.
-        if change_count == 0 and changed and self.__publisher:  # check for publisher helps closing issues during tests
+        if change_count == 0 and changed:
             data_and_calibration = self.data_and_calibration
-            self.__publisher.notify_next_value(data_and_calibration)
             self.data_and_metadata_changed_event.fire()
             for display in self.displays:
                 display.update_data(data_and_calibration)
@@ -741,7 +721,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         self.__request_remove_listeners = list()
         self.__request_remove_region_listeners = list()
         self.__computation_changed_or_mutated_event_listeners = list()
-        self.__subscriptions = list()
+        self.__data_and_metadata_changed_event_listeners = list()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
@@ -788,11 +768,11 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         for data_source in self.data_sources:
             self.__disconnect_data_source(0, data_source)
             data_source.close()
-        for subscription in self.__subscriptions:
-            subscription.close()
+        for listener in self.__data_and_metadata_changed_event_listeners:
+            listener.close()
+        self.__data_and_metadata_changed_event_listeners = list()
         for connection in copy.copy(self.connections):
             connection.close()
-        self.__subscriptions = list()
         self.__get_data_item_by_uuid = None
         assert self._about_to_be_removed
         assert not self._closed
@@ -1131,12 +1111,10 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         # so load data here to keep the books straight when the transaction state is exited.
         if self.__in_transaction_state:
             data_source.increment_data_ref_count()
-        def next_value(data_and_calibration):
+        def data_and_metadata_changed():
             if not self._is_reading:
                 self.data_item_content_changed_event.fire(set([DATA]))
-        subscriber = PublishSubscribe.Subscriber(next_value)
-        publisher = data_source.get_data_and_calibration_publisher()
-        self.__subscriptions.insert(before_index, publisher.subscribex(subscriber))
+        self.__data_and_metadata_changed_event_listeners.insert(before_index, data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed))
         self.notify_data_item_content_changed(set([DATA]))
         # the document model watches for new data sources via observing.
         # send this message to make data_sources observable.
@@ -1148,9 +1126,8 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         data_source.close()
 
     def __disconnect_data_source(self, index, data_source):
-        subscription = self.__subscriptions[index]
-        del self.__subscriptions[index]
-        subscription.close()
+        self.__data_and_metadata_changed_event_listeners[index].close()
+        del self.__data_and_metadata_changed_event_listeners[index]
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
         self.__request_remove_listeners[index].close()

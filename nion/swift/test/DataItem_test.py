@@ -985,26 +985,6 @@ class TestDataItemClass(unittest.TestCase):
                 data_ref.master_data = numpy.zeros((2, 2))
             self.assertGreater(data_item.modified, modified)
 
-    def test_data_item_with_connected_crop_region_should_not_update_modification_when_subscribed_to(self):
-        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item)
-            DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_cropped = document_model.get_invert_new(data_item)
-            document_model.recompute_all()
-            data_item._set_modified(modified)
-            data_item_cropped._set_modified(modified)
-            self.assertEqual(document_model.data_items[0].modified, modified)
-            self.assertEqual(document_model.data_items[1].modified, modified)
-            def handle_next(x): pass
-            data_item.data_sources[0].get_data_and_calibration_publisher().subscribex(PublishSubscribe.Subscriber(handle_next))
-            document_model.recompute_all()
-            self.assertEqual(document_model.data_items[0].modified, modified)
-            self.assertEqual(document_model.data_items[1].modified, modified)
-
     def test_data_item_in_transaction_does_not_write_until_end_of_transaction(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
