@@ -175,6 +175,21 @@ class TestImageCanvasItemClass(unittest.TestCase):
             header_height = Panel.HeaderCanvasItem().header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
 
+    def test_move_with_pointer_defaults_to_drag(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            header_height = Panel.HeaderCanvasItem().header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+            display_panel.display_canvas_item.simulate_press((100, 125))
+            display_panel.display_canvas_item.simulate_move((100, 125))
+            display_panel.display_canvas_item.simulate_move((200, 125))
+            display_panel.display_canvas_item.simulate_release((200, 125))
+            self.assertEqual(display_panel.display_canvas_item.scroll_area_canvas_item.visible_rect[0][0], -100)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
