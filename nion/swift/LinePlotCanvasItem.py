@@ -1,7 +1,3 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import collections
 import copy
@@ -45,7 +41,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     Callers are expected to pass in a font metrics function and a delegate.
 
     They are expected to call the following functions to update the display:
-        update_display_state
+        update_line_plot_display_state
         update_regions
 
     The delegate is expected to handle the following events:
@@ -147,7 +143,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__last_data_info = None
         self.__last_data_info_data = None
-        self.__data_and_calibration = None
+        self.__data_fn = None
+        self.__data_shape = None
+        self.__dimensional_calibration = None
+        self.__intensity_calibration = None
         self.__y_min = None
         self.__y_max = None
         self.__y_style = None
@@ -167,36 +166,25 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # call super
         super(LinePlotCanvasItem, self).close()
 
-    def update_line_plot_display_state(self, data_and_calibration, display_properties, display_calibrated_values):
+    def update_line_plot_display_state(self, data_fn, data_shape, intensity_calibration: Calibration.Calibration, dimensional_calibration: Calibration.Calibration, metadata: dict, display_properties, display_calibrated_values) -> None:
         """ Update the display state. """
-        if data_and_calibration:
-            self.__data_and_calibration = data_and_calibration
-            self.__y_min = display_properties["y_min"]
-            self.__y_max = display_properties["y_max"]
-            self.__y_style = display_properties["y_style"]
-            self.__left_channel = display_properties["left_channel"]
-            self.__right_channel = display_properties["right_channel"]
-            self.__legend_labels = display_properties["legend_labels"]
-            self.__display_calibrated_values = display_calibrated_values
-            if self.__display_frame_rate_id:
-                frame_index = data_and_calibration.metadata.get("hardware_source", dict()).get("frame_index", 0)
-                if frame_index != self.__display_frame_rate_last_index:
-                    Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                    self.__display_frame_rate_last_index = frame_index
-                Utility.fps_tick("update_"+self.__display_frame_rate_id)
-        else:
-            self.__data_and_calibration = None
-            self.__y_min = None
-            self.__y_max = None
-            self.__y_style = None
-            self.__left_channel = None
-            self.__right_channel = None
-            self.__legend_labels = None
-            self.__display_calibrated_values = False
-            self.__line_graph_regions_canvas_item.regions = list()
-            self.__line_graph_regions_canvas_item.update()
-            data_info = LineGraphCanvasItem.LineGraphDataInfo()
-            self.__update_data_info(data_info)
+        self.__data_fn = data_fn
+        self.__data_shape = data_shape
+        self.__dimensional_calibration = dimensional_calibration
+        self.__intensity_calibration = intensity_calibration
+        self.__y_min = display_properties["y_min"]
+        self.__y_max = display_properties["y_max"]
+        self.__y_style = display_properties["y_style"]
+        self.__left_channel = display_properties["left_channel"]
+        self.__right_channel = display_properties["right_channel"]
+        self.__legend_labels = display_properties["legend_labels"]
+        self.__display_calibrated_values = display_calibrated_values
+        if self.__display_frame_rate_id:
+            frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+            if frame_index != self.__display_frame_rate_last_index:
+                Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                self.__display_frame_rate_last_index = frame_index
+            Utility.fps_tick("update_"+self.__display_frame_rate_id)
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
@@ -248,8 +236,11 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__line_graph_regions_canvas_item.update()
 
     def prepare_display(self):
-        if self.__data_and_calibration:
-            data_and_calibration = self.__data_and_calibration
+        if self.__data_shape:
+            data_fn = self.__data_fn
+            data_shape = self.__data_shape
+            dimensional_calibration = self.__dimensional_calibration
+            intensity_calibration = self.__intensity_calibration
             y_min = self.__y_min
             y_max = self.__y_max
             y_style = self.__y_style
@@ -258,19 +249,17 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             legend_labels = self.__legend_labels
             display_calibrated_values = self.__display_calibrated_values
 
-            if data_and_calibration and data_and_calibration.dimensional_shape is not None and len(data_and_calibration.dimensional_shape) > 0:
-                # make sure we have the correct data
-                # assert data_and_calibration.is_data_1d
+            if data_shape is not None and len(data_shape) > 0:
 
                 # update the line graph data
                 left_channel = left_channel if left_channel is not None else 0
-                right_channel = right_channel if right_channel is not None else data_and_calibration.dimensional_shape[-1]
+                right_channel = right_channel if right_channel is not None else data_shape[-1]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = data_and_calibration.dimensional_calibrations[-1] if display_calibrated_values else None
-                intensity_calibration = data_and_calibration.intensity_calibration if display_calibrated_values else None
+                dimensional_calibration = dimensional_calibration if display_calibrated_values else None
+                intensity_calibration = intensity_calibration if display_calibrated_values else None
 
                 # this can be done here -- it is always in a thread (paint)
-                scalar_data = data_and_calibration.data
+                scalar_data = data_fn()
                 # make sure complex becomes scalar
                 scalar_data = Image.scalar_from_array(scalar_data)
                 assert scalar_data is not None
@@ -412,7 +401,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if super(LinePlotCanvasItem, self).mouse_position_changed(x, y, modifiers):
             return True
         if self.delegate.tool_mode == "pointer":
-            if self.__data_and_calibration:
+            if self.__data_shape is not None:
                 pos = Geometry.IntPoint(x=x, y=y)
                 if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
                     if modifiers.control:
@@ -442,7 +431,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def mouse_pressed(self, x, y, modifiers):
         if super(LinePlotCanvasItem, self).mouse_pressed(x, y, modifiers):
             return True
-        if not self.__data_and_calibration:
+        if self.__data_shape is None:
             return False
         pos = Geometry.IntPoint(x=x, y=y)
         self.delegate.begin_mouse_tracking()
@@ -458,8 +447,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 return True
         if self.delegate.tool_mode == "interval":
             if self.__line_graph_regions_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_regions_canvas_item)):
-                data_size = self.__get_dimensional_shape()
-                if data_size and len(data_size) > 0:
+                data_shape = self.__data_shape
+                if data_shape and len(data_shape) > 0:
                     widget_mapping = self.__get_mouse_mapping()
                     x = widget_mapping.map_point_widget_to_channel_norm(pos)
                     region = Graphics.IntervalGraphic()
@@ -508,20 +497,19 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return False
 
     def __get_mouse_mapping(self):
-        data_size = self.__get_dimensional_shape()
         plot_origin = self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
         x_properties = self.__data_info.x_properties
         left_channel = x_properties.drawn_left_channel
         right_channel = x_properties.drawn_right_channel
-        return LinePlotCanvasItemMapping(data_size, plot_rect, left_channel, right_channel)
+        return LinePlotCanvasItemMapping(self.__data_shape, plot_rect, left_channel, right_channel)
 
     def begin_tracking_regions(self, pos, modifiers):
         # keep track of general drag information
         self.__graphic_drag_start_pos = Geometry.IntPoint.make(pos)
         self.__graphic_drag_changed = False
-        data_size = self.__get_dimensional_shape()
-        if self.__data_and_calibration and data_size and len(data_size) > 0:
+        data_shape = self.__data_shape
+        if data_shape is not None and len(data_shape) > 0:
             self.__tracking_selections = True
             graphics = self.__graphics
             selection_indexes = self.__graphic_selection.indexes
@@ -667,7 +655,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if not self.__graphic_drag_items and not modifiers.shift:
             self.delegate.clear_selection()
         if self.__tracking_selections:
-            if self.__data_and_calibration:
+            if self.__data_shape is not None:
                 graphics = self.__graphics
                 for index in self.__graphic_drag_indexes:
                     graphic = graphics[index]
@@ -695,20 +683,13 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__tracking_selections = False
         self.prepare_display()
 
-    def __get_dimensional_shape(self):
-        data_and_calibration = self.__data_and_calibration
-        dimensional_shape = data_and_calibration.dimensional_shape if data_and_calibration else None
-        if not dimensional_shape:
-            return None
-        return dimensional_shape
-
     def __update_cursor_info(self):
         if not self.delegate:  # allow display to work without delegate
             return
         if self.__mouse_in and self.__last_mouse:
-            data_size = self.__get_dimensional_shape()
+            data_shape = self.__data_shape
             pos_1d = None
-            if data_size and self.line_graph_canvas_item:
+            if data_shape and self.line_graph_canvas_item:
                 last_mouse = self.map_to_canvas_item(self.__last_mouse, self.line_graph_canvas_item)
-                pos_1d = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_size)
+                pos_1d = self.line_graph_canvas_item.map_mouse_to_position(last_mouse, data_shape)
             self.delegate.cursor_changed(pos_1d)

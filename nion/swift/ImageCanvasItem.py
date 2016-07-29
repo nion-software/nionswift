@@ -3,9 +3,6 @@ import copy
 import logging
 import math
 
-# third party libraries
-import numpy
-
 # local libraries
 from nion.data import Calibration
 from nion.swift.model import Graphics
@@ -131,14 +128,14 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
 
     Callers should set the image_canvas_origin and image_canvas_size properties.
 
-    Callers should also call set_data_and_calibration when the data changes.
+    Callers should also call set_data_info when the data changes.
     """
 
     def __init__(self):
         super(InfoOverlayCanvasItem, self).__init__()
         self.__image_canvas_size = None  # this will be updated by the container
         self.__image_canvas_origin = None  # this will be updated by the container
-        self.__dimensional_shape = None
+        self.__data_shape = None
         self.__dimensional_calibration = None
         self.__info_text = None
 
@@ -162,24 +159,15 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__image_canvas_origin = value
             self.update()
 
-    def set_data_and_calibration(self, data_and_calibration):
+    def set_data_info(self, data_shape, dimensional_calibration: Calibration.Calibration, metadata: dict) -> None:
         needs_update = False
-        dimensional_shape = data_and_calibration.dimensional_shape if data_and_calibration else None
-        if self.__dimensional_shape is None or dimensional_shape != self.__dimensional_shape:
-            self.__dimensional_shape = dimensional_shape
+        if self.__data_shape is None or data_shape != self.__data_shape:
+            self.__data_shape = data_shape
             needs_update = True
-        dimensional_calibrations = data_and_calibration.dimensional_calibrations if data_and_calibration else None
-        if dimensional_calibrations is None or len(dimensional_calibrations) == 0:
-            dimensional_calibration = Calibration.Calibration()
-        elif len(dimensional_calibrations) == 1:
-            dimensional_calibration = dimensional_calibrations[0]
-        else:
-            dimensional_calibration = dimensional_calibrations[1]
         if self.__dimensional_calibration is None or dimensional_calibration != self.__dimensional_calibration:
             self.__dimensional_calibration = dimensional_calibration
             needs_update = True
         info_items = list()
-        metadata = data_and_calibration.metadata if data_and_calibration else dict()
         hardware_source_metadata = metadata.get("hardware_source", dict())
         voltage = hardware_source_metadata.get("autostem", dict()).get("high_tension_v", 0)
         if voltage:
@@ -208,10 +196,10 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             origin = (canvas_height - 30, 20)
             scale_marker_width = 120
             scale_marker_height = 6
-            dimensional_shape = self.__dimensional_shape
-            widget_mapping = ImageCanvasItemMapping(dimensional_shape, image_canvas_origin, image_canvas_size)
-            if dimensional_shape[0] > 1.0 and dimensional_shape[1] > 0.0:
-                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / dimensional_shape[0]
+            data_shape = self.__data_shape
+            widget_mapping = ImageCanvasItemMapping(data_shape, image_canvas_origin, image_canvas_size)
+            if data_shape[0] > 1.0 and data_shape[1] > 0.0:
+                screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / data_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
                     calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
@@ -242,7 +230,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     Callers are expected to pass in a delegate.
 
     They are expected to call the following functions to update the display:
-        update_display_state
+        update_image_display_state
         update_regions
 
     The delegate is expected to handle the following events:
@@ -296,7 +284,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__info_overlay_canvas_item)
 
-        self.__data_and_calibration = None
+        self.__data_fn = None
+        self.__data_shape = None
         self.__graphics = list()
         self.__graphic_selection = set()
 
@@ -319,26 +308,19 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
-    def update_image_display_state(self, data_and_calibration):
+    def update_image_display_state(self, data_fn, data_shape, dimension_calibration, metadata):
         # first take care of listeners and update the __display field
         # next get rid of data associated with canvas items
-        if data_and_calibration:
-            self.__data_and_calibration = data_and_calibration
-            # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-            self.__info_overlay_canvas_item.set_data_and_calibration(self.__data_and_calibration)
-            if self.__display_frame_rate_id:
-                frame_index = self.__data_and_calibration.metadata.get("hardware_source", dict()).get("frame_index", 0)
-                if frame_index != self.__display_frame_rate_last_index:
-                    Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                    self.__display_frame_rate_last_index = frame_index
-                Utility.fps_tick("update_"+self.__display_frame_rate_id)
-        else:
-            self.__data_and_calibration = None
-            self.__graphics = list()
-            self.__graphic_selection = set()
-            self.__bitmap_canvas_item.rgba_bitmap_data = None
-            self.__graphics_canvas_item.update_graphics(None, None, None)
-            self.__info_overlay_canvas_item.set_data_and_calibration(None)
+        self.__data_fn = data_fn
+        self.__data_shape = data_shape
+        # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
+        self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
+        if self.__display_frame_rate_id:
+            frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+            if frame_index != self.__display_frame_rate_last_index:
+                Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                self.__display_frame_rate_last_index = frame_index
+            Utility.fps_tick("update_"+self.__display_frame_rate_id)
         # update the cursor info
         self.__update_cursor_info()
         # layout. this makes sure that the info overlay gets updated too.
@@ -352,16 +334,16 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__graphics_canvas_item.update_graphics(data_shape, self.__graphics, self.__graphic_selection)
 
     def __update_image_canvas_zoom(self, new_image_zoom):
-        if self.__data_and_calibration:
+        if self.__data_shape is not None:
             self.__image_canvas_mode = "custom"
             self.__last_image_zoom = new_image_zoom
             self.__update_image_canvas_size()
 
     # update the image canvas position by the widget delta amount
     def __update_image_canvas_position(self, widget_delta):
-        if self.__data_and_calibration:
+        if self.__data_shape is not None:
             # create a widget mapping to get from image norm to widget coordinates and back
-            widget_mapping = ImageCanvasItemMapping(self.__data_and_calibration.dimensional_shape, (0, 0), self.__composite_canvas_item.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(self.__data_shape, (0, 0), self.__composite_canvas_item.canvas_size)
             # figure out what composite canvas point lies at the center of the scroll area.
             last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
             # determine what new point will lie at the center of the scroll area by adding delta
@@ -379,13 +361,13 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     # update the image canvas origin and size
     def __scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, trigger_update):
-        if not self.__data_and_calibration:
+        if not self.__data_shape is not None:
             self.__last_image_norm_center = (0.5, 0.5)
             self.__last_image_zoom = 1.0
             self.__info_overlay_canvas_item.image_canvas_origin = None
             self.__info_overlay_canvas_item.image_canvas_size = None
             return
-        dimensional_shape = self.__data_and_calibration.dimensional_shape
+        dimensional_shape = self.__data_shape
         if self.__image_canvas_mode == "fill":
             dimensional_shape = dimensional_shape
             scale_h = float(dimensional_shape[1]) / scroll_area_canvas_size[1]
@@ -410,7 +392,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_update)
         else:
             c = self.__last_image_norm_center
-            dimensional_shape = dimensional_shape
             image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
             canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
             # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
@@ -455,7 +436,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def mouse_pressed(self, x, y, modifiers):
         if super().mouse_pressed(x, y, modifiers):
             return True
-        if not self.__data_and_calibration:
+        if self.__data_shape is None:
             return False
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
         if self.delegate.image_mouse_pressed(image_position, modifiers):
@@ -683,7 +664,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
         if self.delegate.image_mouse_released(image_position, modifiers):
             return True
-        if self.__data_and_calibration:
+        if self.__data_shape is not None:
             graphics = self.__graphics
             for index in self.__graphic_drag_indexes:
                 graphic = graphics[index]
@@ -793,7 +774,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if key.is_enter_or_return:
             self.delegate.enter_key_pressed()
             return True
-        if self.__data_and_calibration:
+        if self.__data_shape is not None:
             if self.__graphic_selection.has_selection:
                 if key.is_arrow:
                     widget_mapping = self.__get_mouse_mapping()
@@ -856,18 +837,12 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 return True
         return False
 
-    def __get_image_size(self):
-        if self.__data_and_calibration:
-            return self.__data_and_calibration.dimensional_shape
-        return None
-
     def __get_mouse_mapping(self):
-        image_size = self.__get_image_size()
-        return ImageCanvasItemMapping(image_size, self.__composite_canvas_item.canvas_origin, self.__composite_canvas_item.canvas_size)
+        return ImageCanvasItemMapping(self.__data_shape, self.__composite_canvas_item.canvas_origin, self.__composite_canvas_item.canvas_size)
 
     # map from widget coordinates to image coordinates
     def map_widget_to_image(self, p):
-        image_size = self.__get_image_size()
+        image_size = self.__data_shape
         transformed_image_rect = self.__get_mouse_mapping().canvas_rect
         if transformed_image_rect and image_size:
             if transformed_image_rect[1][0] != 0.0:
@@ -883,7 +858,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     # map from image normalized coordinates to image coordinates
     def map_image_norm_to_image(self, p):
-        image_size = self.__get_image_size()
+        image_size = self.__data_shape
         if image_size:
             return p[0] * image_size[0], p[1] * image_size[1]
         return None
@@ -891,7 +866,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def __update_cursor_info(self):
         if not self.delegate:  # allow display to work without delegate
             return
-        image_size = self.__get_image_size()
+        image_size = self.__data_shape
         if self.__mouse_in and self.__last_mouse:
             pos_2d = None
             if image_size and len(image_size) > 1:
@@ -940,10 +915,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
     def prepare_display(self):
-        data_and_calibration = self.__data_and_calibration
-        if data_and_calibration:
+        if self.__data_shape is not None:
             # configure the bitmap canvas item
-            self.__bitmap_canvas_item.set_rgba_bitmap_data_fn(data_and_calibration.data_fn, trigger_update=False)
+            self.__bitmap_canvas_item.set_rgba_bitmap_data_fn(self.__data_fn, trigger_update=False)
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")

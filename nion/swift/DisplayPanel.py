@@ -9,12 +9,9 @@ import uuid
 import weakref
 
 # third party libraries
-import numpy
 
 # local libraries
 from nion.data import Calibration
-from nion.data import Core
-from nion.data import DataAndMetadata
 from nion.swift import DataPanel
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
@@ -611,20 +608,23 @@ class DataItemDataSourceDisplay:
         display = buffered_data_source.displays[0]
         data_and_calibration = display.data_and_calibration
         dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
-        intensity_calibration = copy.deepcopy(data_and_calibration.intensity_calibration)
         metadata = data_and_calibration.metadata
         if display_type == "image":
-            data_shape_and_dtype = (display.preview_2d_shape, numpy.uint32)
-            timestamp = data_and_calibration.timestamp
-            preview_data_and_calibration = DataAndMetadata.DataAndMetadata(lambda: display.preview_2d,
-                                                                           data_shape_and_dtype, intensity_calibration,
-                                                                           dimensional_calibrations, metadata,
-                                                                           timestamp)
-            display_canvas_item.update_image_display_state(preview_data_and_calibration)
+            if len(dimensional_calibrations) == 0:
+                dimensional_calibration = Calibration.Calibration()
+            elif len(dimensional_calibrations) == 1:
+                dimensional_calibration = dimensional_calibrations[0]
+            else:
+                dimensional_calibration = dimensional_calibrations[1]
+            display_canvas_item.update_image_display_state(lambda: display.preview_2d, display.preview_2d_shape, dimensional_calibration, metadata)
         elif display_type == "line_plot":
-            display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style,
-                "left_channel": display.left_channel, "right_channel": display.right_channel, "legend_labels": display.legend_labels}
-            display_canvas_item.update_line_plot_display_state(data_and_calibration, display_properties, display.display_calibrated_values)
+            display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style, "left_channel": display.left_channel,
+                "right_channel": display.right_channel, "legend_labels": display.legend_labels}
+            dimensional_shape = data_and_calibration.dimensional_shape
+            dimensional_calibration = dimensional_calibrations[-1] if len(dimensional_calibrations) > 0 else Calibration.Calibration()
+            intensity_calibration = copy.deepcopy(data_and_calibration.intensity_calibration)
+            display_canvas_item.update_line_plot_display_state(lambda: data_and_calibration.data, dimensional_shape, intensity_calibration,
+                                                               dimensional_calibration, metadata, display_properties, display.display_calibrated_values)
 
     def __update_display(self, buffered_data_source):
         self.update_display(self.__display_type, self.__display_canvas_item, buffered_data_source)
