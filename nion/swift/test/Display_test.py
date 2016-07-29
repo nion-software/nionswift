@@ -230,6 +230,20 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_specifier.display.display_data.shape, (16, 16))
             self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
 
+    def test_image_with_no_data_displays_gracefully(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.buffered_data_source.set_data_and_calibration(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_specifier.display.display_type = "image"
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+
     def test_line_plot_with_no_data_displays_gracefully(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

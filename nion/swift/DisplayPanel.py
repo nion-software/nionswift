@@ -566,21 +566,22 @@ class DataItemDataSourceDisplay:
         else:
             raise Exception("Display type not found " + str(self.__display_type))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
-        if display:
+        if buffered_data_source and display:
             def display_graphic_selection_changed(graphic_selection):
                 # this message comes from the display when the graphic selection changes
                 display_calibrated_values = display.display_calibrated_values
-                data_and_calibration = display.data_and_calibration
+                dimensional_shape = buffered_data_source.dimensional_shape
+                dimensional_calibrations = buffered_data_source.dimensional_calibrations
                 graphics = display.graphics
-                self.__display_canvas_item.update_regions(data_and_calibration, graphic_selection, graphics, display_calibrated_values)
+                self.__display_canvas_item.update_regions(dimensional_shape, dimensional_calibrations, graphic_selection, graphics, display_calibrated_values)
 
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # update the display canvas, etc.
                 # thread safe
-                data_and_calibration = display.data_and_calibration
-                self.__update_display(data_and_calibration, display)
+                self.__update_display(buffered_data_source)
                 display_graphic_selection_changed(display.graphic_selection)
 
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
@@ -604,24 +605,29 @@ class DataItemDataSourceDisplay:
     def display_canvas_item(self):
         return self.__display_canvas_item
 
-    def __update_display(self, data_and_calibration, display):
-        assert display is not None
-        if self.__display_type == "image":
+    @classmethod
+    def update_display(cls, display_type, display_canvas_item, buffered_data_source):
+        assert buffered_data_source is not None
+        display = buffered_data_source.displays[0]
+        data_and_calibration = display.data_and_calibration
+        dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
+        intensity_calibration = copy.deepcopy(data_and_calibration.intensity_calibration)
+        metadata = data_and_calibration.metadata
+        if display_type == "image":
             data_shape_and_dtype = (display.preview_2d_shape, numpy.uint32)
-            intensity_calibration = data_and_calibration.intensity_calibration
-            dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
-            metadata = data_and_calibration.metadata
             timestamp = data_and_calibration.timestamp
             preview_data_and_calibration = DataAndMetadata.DataAndMetadata(lambda: display.preview_2d,
                                                                            data_shape_and_dtype, intensity_calibration,
                                                                            dimensional_calibrations, metadata,
                                                                            timestamp)
-            self.__display_canvas_item.update_display_state(preview_data_and_calibration)
-        elif self.__display_type == "line_plot":
+            display_canvas_item.update_image_display_state(preview_data_and_calibration)
+        elif display_type == "line_plot":
             display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style,
                 "left_channel": display.left_channel, "right_channel": display.right_channel, "legend_labels": display.legend_labels}
-            self.__display_canvas_item.update_display_state(data_and_calibration, display_properties,
-                                                            display.display_calibrated_values)
+            display_canvas_item.update_line_plot_display_state(data_and_calibration, display_properties, display.display_calibrated_values)
+
+    def __update_display(self, buffered_data_source):
+        self.update_display(self.__display_type, self.__display_canvas_item, buffered_data_source)
 
     def add_index_to_selection(self, index):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)

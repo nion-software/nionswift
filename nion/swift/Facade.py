@@ -32,6 +32,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.swift import Application as ApplicationModule
+from nion.swift import DisplayPanel as DisplayPanelModule
 from nion.swift import Panel as PanelModule
 from nion.swift import Workspace
 from nion.ui import CanvasItem as CanvasItemModule
@@ -714,31 +715,9 @@ class DataItem:
 
         try:
             display_canvas_item.update_layout(viewbox.origin, viewbox.size)
-
-            display = buffered_data_source.displays[0]
             display_type = "line_plot" if buffered_data_source.is_data_1d else "image"
-            data_and_calibration = buffered_data_source.data_and_calibration
-
-            if display_type == "image":
-                data_shape_and_dtype = (display.preview_2d_shape, numpy.uint32)
-                intensity_calibration = data_and_calibration.intensity_calibration
-                dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
-                metadata = data_and_calibration.metadata
-                timestamp = data_and_calibration.timestamp
-                preview_data_and_calibration = DataAndMetadata.DataAndMetadata(lambda: display.preview_2d,
-                                                                               data_shape_and_dtype,
-                                                                               intensity_calibration,
-                                                                               dimensional_calibrations, metadata,
-                                                                               timestamp)
-                display_canvas_item.update_display_state(preview_data_and_calibration)
-            elif display_type == "line_plot":
-                display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style,
-                    "left_channel": display.left_channel, "right_channel": display.right_channel}
-                display_canvas_item.update_display_state(data_and_calibration, display_properties,
-                                                         display.display_calibrated_values)
-
+            DisplayPanelModule.DataItemDataSourceDisplay.update_display(display_type, display_canvas_item, buffered_data_source)
             dc = DrawingContext.DrawingContext()
-
             display_canvas_item._repaint(dc)
         except Exception as e:
             import traceback

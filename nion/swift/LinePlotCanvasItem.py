@@ -45,8 +45,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     Callers are expected to pass in a font metrics function and a delegate.
 
     They are expected to call the following functions to update the display:
-        update_display_state(data_and_calibration, display_properties, display_calibrated_values)
-        update_regions(data_and_calibration, graphic_selection, graphics, display_calibrated_values)
+        update_display_state
+        update_regions
 
     The delegate is expected to handle the following events:
         add_index_to_selection(index)
@@ -167,7 +167,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # call super
         super(LinePlotCanvasItem, self).close()
 
-    def update_display_state(self, data_and_calibration, display_properties, display_calibrated_values):
+    def update_line_plot_display_state(self, data_and_calibration, display_properties, display_calibrated_values):
         """ Update the display state. """
         if data_and_calibration:
             self.__data_and_calibration = data_and_calibration
@@ -202,19 +202,15 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # finally, trigger the paint thread (if there still is one) to update
         self.update()
 
-    def update_regions(self, data_and_calibration, graphic_selection, graphics, display_calibrated_values):
+    def update_regions(self, data_shape, dimensional_calibrations, graphic_selection, graphics, display_calibrated_values):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
 
-        if data_and_calibration.dimensional_shape is None or len(data_and_calibration.dimensional_shape) == 0:
+        if data_shape is None or len(data_shape) == 0:
             return
 
-        data_length = data_and_calibration.dimensional_shape[-1]
-        dimensional_calibration = data_and_calibration.dimensional_calibrations[-1] if display_calibrated_values else Calibration.Calibration()
-        calibrated_data_left = dimensional_calibration.convert_to_calibrated_value(0)
-        calibrated_data_right = dimensional_calibration.convert_to_calibrated_value(data_length)
-        calibrated_data_left, calibrated_data_right = min(calibrated_data_left, calibrated_data_right), max(calibrated_data_left, calibrated_data_right)
-        graph_left, graph_right, ticks, division, precision = Geometry.make_pretty_range(calibrated_data_left, calibrated_data_right)
+        data_length = data_shape[-1]
+        dimensional_calibration = dimensional_calibrations[-1] if display_calibrated_values else Calibration.Calibration()
 
         def convert_to_calibrated_value_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_length), samples=data_length, include_units=False))

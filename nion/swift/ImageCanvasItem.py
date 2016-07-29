@@ -7,6 +7,7 @@ import math
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
@@ -138,7 +139,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__image_canvas_size = None  # this will be updated by the container
         self.__image_canvas_origin = None  # this will be updated by the container
         self.__dimensional_shape = None
-        self.__dimensional_calibrations = None
+        self.__dimensional_calibration = None
         self.__info_text = None
 
     @property
@@ -168,8 +169,14 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__dimensional_shape = dimensional_shape
             needs_update = True
         dimensional_calibrations = data_and_calibration.dimensional_calibrations if data_and_calibration else None
-        if self.__dimensional_calibrations is None or dimensional_calibrations != self.__dimensional_calibrations:
-            self.__dimensional_calibrations = dimensional_calibrations
+        if dimensional_calibrations is None or len(dimensional_calibrations) == 0:
+            dimensional_calibration = Calibration.Calibration()
+        elif len(dimensional_calibrations) == 1:
+            dimensional_calibration = dimensional_calibrations[0]
+        else:
+            dimensional_calibration = dimensional_calibrations[1]
+        if self.__dimensional_calibration is None or dimensional_calibration != self.__dimensional_calibration:
+            self.__dimensional_calibration = dimensional_calibration
             needs_update = True
         info_items = list()
         metadata = data_and_calibration.metadata if data_and_calibration else dict()
@@ -196,8 +203,8 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         canvas_height = canvas_size[0]
         image_canvas_size = self.image_canvas_size
         image_canvas_origin = self.image_canvas_origin
-        calibrations = self.__dimensional_calibrations
-        if calibrations is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
+        dimensional_calibration = self.__dimensional_calibration
+        if dimensional_calibration is not None and image_canvas_origin is not None and image_canvas_size is not None:  # display scale marker?
             origin = (canvas_height - 30, 20)
             scale_marker_width = 120
             scale_marker_height = 6
@@ -207,9 +214,9 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                 screen_pixel_per_image_pixel = widget_mapping.map_size_image_norm_to_widget((1, 1))[0] / dimensional_shape[0]
                 if screen_pixel_per_image_pixel > 0:
                     scale_marker_image_width = scale_marker_width / screen_pixel_per_image_pixel
-                    calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * calibrations[1].scale, True)
+                    calibrated_scale_marker_width = Geometry.make_pretty2(scale_marker_image_width * dimensional_calibration.scale, True)
                     # update the scale marker width
-                    scale_marker_image_width = calibrated_scale_marker_width / calibrations[1].scale
+                    scale_marker_image_width = calibrated_scale_marker_width / dimensional_calibration.scale
                     scale_marker_width = scale_marker_image_width * screen_pixel_per_image_pixel
                     with drawing_context.saver():
                         drawing_context.begin_path()
@@ -225,7 +232,7 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                         drawing_context.font = "normal 14px serif"
                         drawing_context.text_baseline = "bottom"
                         drawing_context.fill_style = "#FFF"
-                        drawing_context.fill_text(calibrations[1].convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
+                        drawing_context.fill_text(dimensional_calibration.convert_to_calibrated_size_str(scale_marker_image_width), origin[1], origin[0] - scale_marker_height - 4)
                         drawing_context.fill_text(self.__info_text, origin[1], origin[0] - scale_marker_height - 4 - 20)
 
 
@@ -235,8 +242,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     Callers are expected to pass in a delegate.
 
     They are expected to call the following functions to update the display:
-        update_display_state(data_and_calibration)
-        update_regions(data_and_calibration, graphic_selection, graphics, display_calibrated_values)
+        update_display_state
+        update_regions
 
     The delegate is expected to handle the following events:
         add_index_to_selection(index)
@@ -312,7 +319,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
-    def update_display_state(self, data_and_calibration):
+    def update_image_display_state(self, data_and_calibration):
         # first take care of listeners and update the __display field
         # next get rid of data associated with canvas items
         if data_and_calibration:
@@ -339,10 +346,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # trigger updates
         self.__bitmap_canvas_item.update()
 
-    def update_regions(self, data_and_calibration, graphic_selection, graphics, display_calibrated_values):
+    def update_regions(self, data_shape, dimensional_calibrations, graphic_selection, graphics, display_calibrated_values):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_graphics(data_and_calibration.dimensional_shape, self.__graphics, self.__graphic_selection)
+        self.__graphics_canvas_item.update_graphics(data_shape, self.__graphics, self.__graphic_selection)
 
     def __update_image_canvas_zoom(self, new_image_zoom):
         if self.__data_and_calibration:
@@ -412,7 +419,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
             self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_update)
         # the image will be drawn centered within the canvas size
-        if dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
+        if dimensional_shape and len(dimensional_shape) >= 2 and dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
             #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
             #logging.debug("image_canvas_origin %s", image_canvas_origin)
             #logging.debug("image_canvas_size %s", image_canvas_size)
@@ -935,10 +942,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def prepare_display(self):
         data_and_calibration = self.__data_and_calibration
         if data_and_calibration:
-            # grab the data item too
-            assert data_and_calibration.is_data_2d
-            assert data_and_calibration.data_dtype == numpy.uint32
-            # grab the bitmap image
+            # configure the bitmap canvas item
             self.__bitmap_canvas_item.set_rgba_bitmap_data_fn(data_and_calibration.data_fn, trigger_update=False)
 
     def set_fit_mode(self):
