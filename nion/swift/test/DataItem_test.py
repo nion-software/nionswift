@@ -22,7 +22,6 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
-from nion.utils import PublishSubscribe
 
 
 class TestDataItemClass(unittest.TestCase):

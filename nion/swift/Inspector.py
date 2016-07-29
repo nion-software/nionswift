@@ -26,7 +26,6 @@ from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Observable
-from nion.utils import PublishSubscribe
 from nion.utils import Stream
 
 _ = gettext.gettext
