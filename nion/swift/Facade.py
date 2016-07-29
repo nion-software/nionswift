@@ -1427,7 +1427,7 @@ class Library:
 
         Scriptable: Yes
         """
-        data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
+        data_shape_and_dtype = Image.dimensional_shape_from_data(data), data.dtype
         intensity_calibration = CalibrationModule.Calibration()
         dimensional_calibrations = list()
         for _ in data_shape_and_dtype[0]:
@@ -1834,7 +1834,7 @@ class API_1:
 
         Scriptable: Yes
         """
-        data_shape_and_dtype = Image.spatial_shape_from_data(data), data.dtype
+        data_shape_and_dtype = Image.dimensional_shape_from_data(data), data.dtype
         if intensity_calibration is None:
             intensity_calibration = CalibrationModule.Calibration()
         if dimensional_calibrations is None:

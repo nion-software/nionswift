@@ -175,7 +175,12 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.request_remove_data_item_because_computation_removed_event = Event.Event()
         self.request_remove_region_because_data_item_removed_event = Event.Event()
         if data is not None:
-            self.__set_data(data)
+            with self._changes():
+                self.__set_data(data)
+                dimensional_calibrations = list()
+                for index in range(len(Image.dimensional_shape_from_data(data))):
+                    dimensional_calibrations.append(Calibration.Calibration())
+                self.set_dimensional_calibrations(dimensional_calibrations)
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
         self._about_to_be_removed = False
@@ -215,23 +220,24 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         return deepcopy
 
     def deepcopy_from(self, buffered_data_source, memo):
-        super(BufferedDataSource, self).deepcopy_from(buffered_data_source, memo)
-        # calibrations
-        self.set_intensity_calibration(buffered_data_source.intensity_calibration)
-        self.set_dimensional_calibrations(buffered_data_source.dimensional_calibrations)
-        # metadata
-        self.set_metadata(buffered_data_source.metadata)
-        self.created = buffered_data_source.created
-        # displays
-        for display in self.displays:
-            self.remove_display(display)
-        for display in buffered_data_source.displays:
-            self.add_display(copy.deepcopy(display))
-        # data
-        if buffered_data_source.has_data:
-            self.__set_data(numpy.copy(buffered_data_source.data))
-        else:
-            self.__set_data(None)
+        with self._changes():
+            super(BufferedDataSource, self).deepcopy_from(buffered_data_source, memo)
+            # calibrations
+            self.set_intensity_calibration(buffered_data_source.intensity_calibration)
+            self.set_dimensional_calibrations(buffered_data_source.dimensional_calibrations)
+            # metadata
+            self.set_metadata(buffered_data_source.metadata)
+            self.created = buffered_data_source.created
+            # displays
+            for display in self.displays:
+                self.remove_display(display)
+            for display in buffered_data_source.displays:
+                self.add_display(copy.deepcopy(display))
+            # data
+            if buffered_data_source.has_data:
+                self.__set_data(numpy.copy(buffered_data_source.data))
+            else:
+                self.__set_data(None)
 
     def snapshot(self):
         """
@@ -251,9 +257,19 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         return buffered_data_source_copy
 
     def read_from_dict(self, properties):
-        for display in self.displays:
-            self.remove_display(display)
-        super(BufferedDataSource, self).read_from_dict(properties)
+        with self._changes():
+            for display in self.displays:
+                self.remove_display(display)
+            super(BufferedDataSource, self).read_from_dict(properties)
+            if self.dimensional_shape is not None:
+                while len(self.dimensional_shape) > len(self.dimensional_calibrations):
+                    dimensional_calibrations = self.dimensional_calibrations
+                    dimensional_calibrations.append(Calibration.Calibration())
+                    self.set_dimensional_calibrations(dimensional_calibrations)
+                while len(self.dimensional_shape) < len(self.dimensional_calibrations):
+                    dimensional_calibrations = self.dimensional_calibrations
+                    dimensional_calibrations.pop(-1)
+
 
     def finish_reading(self):
         # display properties need to be updated after storage_cache is initialized.
@@ -420,7 +436,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 
     def __insert_display(self, name, before_index, display):
         # listen
-        display.update_data(self.data_and_calibration)
+        with self._changes():
+            self.__change_changed = True
 
     def __remove_display(self, name, index, display):
         display.about_to_be_removed()

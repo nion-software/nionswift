@@ -1617,7 +1617,7 @@ class TestStorageClass(unittest.TestCase):
         src_data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
         src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
         src_data_source_dict["data_shape"] = (8, 8, 8)
-        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+        src_data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
         src_data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
         src_data_item_dict["data_sources"] = [src_data_source_dict]
         dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
