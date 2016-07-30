@@ -2289,4 +2289,4 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)  # TODO: be an FFT
         in_region = DocumentModel.make_region("region", "spot", filter_region)
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("ifft(src.data * region_mask(src.data, region))", [src], [], _("Filter"), "filter")
+        return self.__get_processing_new("real(ifft(fourier_mask(src.data, region_mask(src.data, region))))", [src], [], _("Filter"), "filter")
