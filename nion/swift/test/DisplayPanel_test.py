@@ -1235,6 +1235,20 @@ class TestDisplayPanelClass(unittest.TestCase):
         display_canvas_item.mouse_pressed(10, 10, CanvasItem.KeyboardModifiers())
         display_canvas_item.mouse_released(10, 10, CanvasItem.KeyboardModifiers())
 
+    def test_display_2d_update_with_no_data(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+        document_model.append_data_item(data_item1)
+        data_item = document_model.get_crop_new(data_item1)
+        data_item.maybe_data_source.displays[0].display_type = "line_plot"
+        display_panel.set_displayed_data_item(data_item)
+        header_height = Panel.HeaderCanvasItem().header_height
+        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+        document_controller.periodic()
+
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
         # panels; nor should it affect the focus functionality

@@ -68,7 +68,7 @@ class MetadataModel(object):
         if buffered_data_source:
             metadata = buffered_data_source.metadata
             if self.__metadata != metadata:
-                self.__metadata = metadata
+                self.__metadata = metadata if metadata is not None else dict()
                 self.metadata_changed_event.fire(self.__metadata)
 
     # not thread safe
@@ -81,7 +81,6 @@ class MetadataModel(object):
             # update the expression text
             buffered_data_source = self.__display_specifier.buffered_data_source
             if buffered_data_source:
-                metadata = buffered_data_source.metadata
                 def metadata_changed():
                     self.__metadata_changed(buffered_data_source)
                 self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(metadata_changed)

@@ -201,10 +201,6 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         return self.__processors[processor_id] if self.__processors else None
 
     @property
-    def data_and_calibration(self):
-        return self.__data_and_calibration
-
-    @property
     def data_for_processor(self):
         return self.display_data
 
@@ -427,7 +423,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         """
         Should return an numpy array with shape (256, 3) of data type uint8
         """
-        if self.data_and_calibration is None:
+        if self.preview_2d_shape is None:  # is there display data?
             return None
         else:
             return self.__lookup if self.__lookup is not None else ColorMaps.color_maps.get("grayscale")

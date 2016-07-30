@@ -12,6 +12,7 @@ import weakref
 
 # local libraries
 from nion.data import Calibration
+from nion.data import Image
 from nion.swift import DataPanel
 from nion.swift import Panel
 from nion.swift import ImageCanvasItem
@@ -605,26 +606,27 @@ class DataItemDataSourceDisplay:
     @classmethod
     def update_display(cls, display_type, display_canvas_item, buffered_data_source):
         assert buffered_data_source is not None
-        display = buffered_data_source.displays[0]
-        data_and_calibration = display.data_and_calibration
-        dimensional_calibrations = copy.deepcopy(data_and_calibration.dimensional_calibrations)
-        metadata = data_and_calibration.metadata
-        if display_type == "image":
-            if len(dimensional_calibrations) == 0:
-                dimensional_calibration = Calibration.Calibration()
-            elif len(dimensional_calibrations) == 1:
-                dimensional_calibration = dimensional_calibrations[0]
-            else:
-                dimensional_calibration = dimensional_calibrations[1]
-            display_canvas_item.update_image_display_state(lambda: display.preview_2d, display.preview_2d_shape, dimensional_calibration, metadata)
-        elif display_type == "line_plot":
-            display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style, "left_channel": display.left_channel,
-                "right_channel": display.right_channel, "legend_labels": display.legend_labels}
-            dimensional_shape = data_and_calibration.dimensional_shape
-            dimensional_calibration = dimensional_calibrations[-1] if len(dimensional_calibrations) > 0 else Calibration.Calibration()
-            intensity_calibration = copy.deepcopy(data_and_calibration.intensity_calibration)
-            display_canvas_item.update_line_plot_display_state(lambda: data_and_calibration.data, dimensional_shape, intensity_calibration,
-                                                               dimensional_calibration, metadata, display_properties, display.display_calibrated_values)
+        data_and_metadata = buffered_data_source.data_and_metadata
+        if data_and_metadata:
+            display = buffered_data_source.displays[0]
+            dimensional_calibrations = data_and_metadata.dimensional_calibrations
+            metadata = data_and_metadata.metadata
+            if display_type == "image":
+                if len(dimensional_calibrations) == 0:
+                    dimensional_calibration = Calibration.Calibration()
+                elif len(dimensional_calibrations) == 1:
+                    dimensional_calibration = dimensional_calibrations[0]
+                else:
+                    dimensional_calibration = dimensional_calibrations[1]
+                display_canvas_item.update_image_display_state(lambda: display.preview_2d, display.preview_2d_shape, dimensional_calibration, metadata)
+            elif display_type == "line_plot":
+                display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style, "left_channel": display.left_channel,
+                    "right_channel": display.right_channel, "legend_labels": display.legend_labels}
+                dimensional_shape = data_and_metadata.dimensional_shape
+                dimensional_calibration = dimensional_calibrations[-1] if len(dimensional_calibrations) > 0 else Calibration.Calibration()
+                intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
+                display_canvas_item.update_line_plot_display_state(lambda: display.display_data, dimensional_shape, intensity_calibration,
+                                                                   dimensional_calibration, metadata, display_properties, display.display_calibrated_values)
 
     def __update_display(self, buffered_data_source):
         self.update_display(self.__display_type, self.__display_canvas_item, buffered_data_source)
@@ -717,13 +719,7 @@ class DataItemDataSourceDisplay:
         return False
 
     def cursor_changed(self, pos):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        data_and_calibration = display.data_and_calibration if display else None
-        display_calibrated_values = display.display_calibrated_values if display else False
-        if data_and_calibration and data_and_calibration.is_data_3d and pos is not None:
-            pos = (display.slice_center, ) + pos
-        self.__delegate.cursor_changed(data_and_calibration, display_calibrated_values, pos)
+        self.__delegate.cursor_changed(self.__data_item, pos)
 
     def update_display_properties(self, display_properties):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -859,19 +855,23 @@ class DataItemDisplayTypeMonitor:
             self.__display_changed_event_listener = None
         self.__data_item = data_item
         display_type = None
-        display = DataItem.DisplaySpecifier.from_data_item(self.__data_item).display
-        if display:
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        buffered_data_source = display_specifier.buffered_data_source
+        display = display_specifier.display
+        if buffered_data_source and display:
             def get_display_type():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # thread safe
                 display_type = display.display_type
                 if not display_type in ("line_plot", "image"):
-                    data_and_calibration = display.data_and_calibration
-                    if data_and_calibration:
-                        if data_and_calibration.is_data_1d:
-                            display_type = "line_plot"
-                        elif data_and_calibration.is_data_2d or data_and_calibration.is_data_3d:
-                            display_type = "image"
+                    data_shape_and_dtype = buffered_data_source.data_shape_and_dtype
+                    is_data_1d = Image.is_shape_and_dtype_1d(*data_shape_and_dtype) if data_shape_and_dtype else False
+                    is_data_2d = Image.is_shape_and_dtype_2d(*data_shape_and_dtype) if data_shape_and_dtype else False
+                    is_data_3d = Image.is_shape_and_dtype_3d(*data_shape_and_dtype) if data_shape_and_dtype else False
+                    if is_data_1d:
+                        display_type = "line_plot"
+                    elif is_data_2d or is_data_3d:
+                        display_type = "image"
                 return display_type
 
             def display_changed():
@@ -1056,7 +1056,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                         return True
                     return False
 
-                def cursor_changed(self, data_and_calibration, display_calibrated_values, pos):
+                def cursor_changed(self, data_item, pos):
+                    display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+                    buffered_data_source = display_specifier.buffered_data_source
+                    display = display_specifier.display
+                    data_and_calibration = buffered_data_source.data_and_calibration if display else None
+                    display_calibrated_values = display.display_calibrated_values if display else False
+                    if data_and_calibration and data_and_calibration.is_data_3d and pos is not None:
+                        pos = (display.slice_center, ) + pos
                     position_text = ""
                     value_text = ""
                     if data_and_calibration and pos is not None:
@@ -1065,7 +1072,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                         display_panel_content.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
                     else:
                         display_panel_content.document_controller.cursor_changed(None)
-
 
                 def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
                     document_controller = display_panel_content.document_controller

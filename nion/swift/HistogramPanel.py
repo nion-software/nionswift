@@ -492,6 +492,7 @@ class HistogramPanel(Panel.Panel):
             return Stream.FutureValue(calculate_histogram_data, data_and_metadata, display_range)
 
         display_stream = TargetDisplayStream(document_controller)
+        buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller)
         region_stream = TargetRegionStream(display_stream)
         display_data_and_calibration_stream = DisplayPropertyStream(display_stream, 'display_data_and_calibration')
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
@@ -509,9 +510,8 @@ class HistogramPanel(Panel.Panel):
                 document_controller.cursor_changed(None)
             if display_stream and display_stream.value and canvas_x:
                 display_range = display_stream.value.display_range
-                intensity_calibration = display_stream.value.data_and_calibration.intensity_calibration
-
                 if display_range is not None:  # can be None with empty data
+                    intensity_calibration = buffered_data_source_stream.value.intensity_calibration
                     adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
                     calibration = intensity_calibration if display_calibrated_values_stream.value else Calibration.Calibration()
                     adjusted_x = calibration.convert_to_calibrated_value_str(adjusted_x)
@@ -597,6 +597,39 @@ class TargetDataItemStream:
         if data_item != self.__value:
             self.value_stream.fire(data_item)
             self.__value = data_item
+
+
+class TargetBufferedDataSourceStream:
+
+    def __init__(self, document_controller):
+        # outgoing messages
+        self.value_stream = Event.Event()
+        # cached values
+        self.__value = None
+        # listen for selected data item changes
+        self.__selected_data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
+        # manually send the first data item changed message to set things up.
+        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        # disconnect data item binding
+        self.__selected_data_item_changed(None)
+        self.__selected_data_item_changed_event_listener.close()
+        self.__selected_data_item_changed_event_listener = None
+
+    @property
+    def value(self):
+        return self.__value
+
+    def __selected_data_item_changed(self, data_item):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source != self.__value:
+            self.value_stream.fire(buffered_data_source)
+            self.__value = buffered_data_source
 
 
 class TargetDisplayStream:
