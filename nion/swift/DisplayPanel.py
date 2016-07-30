@@ -101,13 +101,13 @@ def get_calibrated_value_text(value: float, intensity_calibration) -> str:
         return str(value)
 
 
-def get_value_and_position_text(data_and_calibration, display_calibrated_values: bool, pos) -> (str, str):
+def get_value_and_position_text(data_and_metadata, display_calibrated_values: bool, pos) -> (str, str):
     position_text = ""
     value_text = ""
-    data_shape = data_and_calibration.data_shape
+    data_shape = data_and_metadata.data_shape
     if display_calibrated_values:
-        dimensional_calibrations = data_and_calibration.dimensional_calibrations
-        intensity_calibration = data_and_calibration.intensity_calibration
+        dimensional_calibrations = data_and_metadata.dimensional_calibrations
+        intensity_calibration = data_and_metadata.intensity_calibration
     else:
         dimensional_calibrations = [Calibration.Calibration() for i in range(0, len(pos))]
         intensity_calibration = Calibration.Calibration()
@@ -118,7 +118,7 @@ def get_value_and_position_text(data_and_calibration, display_calibrated_values:
             position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
                 dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
                 dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
-            value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
+            value_text = get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
     if len(pos) == 2:
         # 2d image
         # make sure the position is within the bounds of the image
@@ -127,7 +127,7 @@ def get_value_and_position_text(data_and_calibration, display_calibrated_values:
                 position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
                 full_pos = [0, ] * len(data_shape)
                 full_pos[-1] = pos[-1]
-                value_text = get_calibrated_value_text(data_and_calibration.get_data_value(full_pos), intensity_calibration)
+                value_text = get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
         else:
             if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
                 is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
@@ -144,7 +144,7 @@ def get_value_and_position_text(data_and_calibration, display_calibrated_values:
                 else:
                     position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
                         dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
-                value_text = get_calibrated_value_text(data_and_calibration.get_data_value(pos), intensity_calibration)
+                value_text = get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
     if len(pos) == 1:
         # 1d plot
         # make sure the position is within the bounds of the line plot
@@ -152,7 +152,7 @@ def get_value_and_position_text(data_and_calibration, display_calibrated_values:
             position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
             full_pos = [0, ] * len(data_shape)
             full_pos[-1] = pos[0]
-            value_text = get_calibrated_value_text(data_and_calibration.get_data_value(full_pos), intensity_calibration)
+            value_text = get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
     return position_text, value_text
 
 
@@ -666,7 +666,7 @@ class DataItemDataSourceDisplay:
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display = display_specifier.display
         if display and self.__display_type == "line_plot":
-            data_and_metadata = display_specifier.buffered_data_source.data_and_calibration
+            data_and_metadata = display_specifier.buffered_data_source.data_and_metadata
             display.view_to_selected_graphics(data_and_metadata)
 
     def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
@@ -1060,14 +1060,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                     buffered_data_source = display_specifier.buffered_data_source
                     display = display_specifier.display
-                    data_and_calibration = buffered_data_source.data_and_calibration if display else None
+                    data_and_metadata = buffered_data_source.data_and_metadata if display else None
                     display_calibrated_values = display.display_calibrated_values if display else False
-                    if data_and_calibration and data_and_calibration.is_data_3d and pos is not None:
+                    if data_and_metadata and data_and_metadata.is_data_3d and pos is not None:
                         pos = (display.slice_center, ) + pos
                     position_text = ""
                     value_text = ""
-                    if data_and_calibration and pos is not None:
-                        position_text, value_text = get_value_and_position_text(data_and_calibration, display_calibrated_values, pos)
+                    if data_and_metadata and pos is not None:
+                        position_text, value_text = get_value_and_position_text(data_and_metadata, display_calibrated_values, pos)
                     if position_text and value_text:
                         display_panel_content.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
                     else:

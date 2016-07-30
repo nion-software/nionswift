@@ -842,10 +842,10 @@ class TestSymbolicClass(unittest.TestCase):
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_calibration, line_region.vector, 1.0).data))
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_metadata, line_region.vector, 1.0).data))
             line_region.start = 0.25, 0.20
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_calibration, line_region.vector, 1.0).data))
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_metadata, line_region.vector, 1.0).data))
 
     def test_changing_variable_name_has_no_effect_on_computation(self):
         document_model = DocumentModel.DocumentModel()

@@ -494,11 +494,11 @@ class HistogramPanel(Panel.Panel):
         display_stream = TargetDisplayStream(document_controller)
         buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller)
         region_stream = TargetRegionStream(display_stream)
-        display_data_and_calibration_stream = DisplayPropertyStream(display_stream, 'display_data_and_calibration')
+        display_data_and_metadata_stream = DisplayPropertyStream(display_stream, 'display_data_and_calibration')
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
         display_calibrated_values_stream = DisplayPropertyStream(display_stream, 'display_calibrated_values')
-        display_data_and_calibration_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, region_stream), calculate_region_data)
-        histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_range_stream), calculate_future_histogram_data)
+        display_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data)
+        histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_range_stream), calculate_future_histogram_data)
         color_map_data_stream = DisplayPropertyStream(display_stream, "color_map_data")
         if debounce:
             histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05)
@@ -549,7 +549,7 @@ class HistogramPanel(Panel.Panel):
             return Stream.FutureValue(calculate_statistics, display_data_and_metadata, display_data_range, region, display_calibrated_values)
 
         display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
-        statistics_future_stream = Stream.CombineLatestStream((display_data_and_calibration_stream, display_data_range_stream, region_stream, display_calibrated_values_stream), calculate_future_statistics)
+        statistics_future_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_data_range_stream, region_stream, display_calibrated_values_stream), calculate_future_statistics)
         if debounce:
             statistics_future_stream = Stream.DebounceStream(statistics_future_stream, 0.05)
         if sample:

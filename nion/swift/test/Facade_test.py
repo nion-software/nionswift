@@ -57,9 +57,9 @@ class TestFacadeClass(unittest.TestCase):
             data_and_metadata =  api.create_data_and_metadata(data3)
             data_item3_ref = library.create_data_item_from_data_and_metadata(data_and_metadata, "three")
             self.assertEqual(library.data_item_count, 4)
-            self.assertTrue(numpy.array_equal(document_model.data_items[1].maybe_data_source.data_and_calibration.data, data1))
-            self.assertTrue(numpy.array_equal(document_model.data_items[2].maybe_data_source.data_and_calibration.data, data2))
-            self.assertTrue(numpy.array_equal(document_model.data_items[3].maybe_data_source.data_and_calibration.data, data3))
+            self.assertTrue(numpy.array_equal(document_model.data_items[1].maybe_data_source.data_and_metadata.data, data1))
+            self.assertTrue(numpy.array_equal(document_model.data_items[2].maybe_data_source.data_and_metadata.data, data2))
+            self.assertTrue(numpy.array_equal(document_model.data_items[3].maybe_data_source.data_and_metadata.data, data3))
 
     def test_data_item_data_methods(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()

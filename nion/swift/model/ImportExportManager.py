@@ -63,7 +63,7 @@ class ImportExportHandler(object):
     def read_data_elements(self, ui, extension, file_path):
         return None
 
-    def can_write(self, data_and_calibration, extension):
+    def can_write(self, data_and_metadata, extension):
         return False
 
     def write(self, ui, data_item, path, extension):
@@ -117,10 +117,10 @@ class ImportExportManager(metaclass=Utility.Singleton):
     def get_writers_for_data_item(self, data_item):
         writers = []
         if len(data_item.data_sources) > 0:
-            data_and_calibration = data_item.data_sources[0].data_and_calibration
+            data_and_metadata = data_item.data_sources[0].data_and_calibration
             for io_handler in self.__io_handlers:
                 for extension in io_handler.extensions:
-                    if io_handler.can_write(data_and_calibration, extension.lower()):
+                    if io_handler.can_write(data_and_metadata, extension.lower()):
                         writers.append(io_handler)
         return writers
 
@@ -345,8 +345,8 @@ class StandardImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_and_calibration, extension):
-        return len(data_and_calibration.dimensional_shape) == 2
+    def can_write(self, data_and_metadata, extension):
+        return len(data_and_metadata.dimensional_shape) == 2
 
     def write(self, ui, data_item, path, extension):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -395,7 +395,7 @@ class NDataImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_and_calibration, extension):
+    def can_write(self, data_and_metadata, extension):
         return True
 
     def write(self, ui, data_item, path, extension):
@@ -446,7 +446,7 @@ class NumPyImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_and_calibration, extension: str) -> bool:
+    def can_write(self, data_and_metadata, extension: str) -> bool:
         return True
 
     def write(self, ui, data_item: DataItem.DataItem, path_str: str, extension: str) -> None:

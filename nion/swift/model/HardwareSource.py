@@ -176,9 +176,6 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
             f()
 
 
-# ChannelData = collections.namedtuple("ChannelData", ["channel_id", "index", "name", "data_and_calibration", "state", "sub_area", "processors"])
-
-
 class AcquisitionTask:
     """Basic acquisition task carries out acquisition repeatedly during an acquisition loop, keeping track of state.
 
@@ -682,13 +679,13 @@ class HardwareSource:
             channel_id = data_element.get("channel_id")
             # find channel_index for channel_id
             channel_index = next((data_channel.index for data_channel in self.__data_channels if data_channel.channel_id == channel_id), 0)
-            data_and_calibration = convert_data_element_to_data_and_metadata(data_element)
+            data_and_metadata = convert_data_element_to_data_and_metadata(data_element)
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete" and is_stopping:
                 channel_state = "marked"
             sub_area = data_element.get("sub_area")
             data_channel = self.__data_channels[channel_index]
-            data_channel.update(data_and_calibration, channel_state, sub_area, view_id, not is_continuous)
+            data_channel.update(data_and_metadata, channel_state, sub_area, view_id, not is_continuous)
             data_channels.append(data_channel)
         # update channel buffers with processors
         for data_channel in self.__data_channels:

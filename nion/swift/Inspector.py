@@ -456,7 +456,7 @@ class CalibrationsInspectorSection(InspectorSection):
 
     def __init__(self, ui, data_item, buffered_data_source, display):
         super(CalibrationsInspectorSection, self).__init__(ui, "calibrations", _("Calibrations"))
-        # get a data_and_calibration publisher
+        # get streams
         dimensional_calibrations_stream = Stream.PropertyStream(buffered_data_source, "dimensional_calibrations")
         intensity_calibration_stream = Stream.PropertyStream(buffered_data_source, "intensity_calibration")
         # configure the bindings to dimension calibrations

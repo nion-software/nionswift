@@ -777,16 +777,16 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.periodic()
         document_model.recompute_all()
         modified = document_model.data_items[1].modified
-        value = document_model.data_items[1].data_sources[0].data_and_calibration.data[0]
-        acq_value = document_model.data_items[0].data_sources[0].data_and_calibration.data[0]
+        value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
+        acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
         self.assertEqual(acq_value, 1.0)
         self.assertEqual(value, -acq_value)
         self.__acquire_one(document_controller, hardware_source)
         document_controller.periodic()
         document_model.recompute_all()
         self.assertNotEqual(modified, document_model.data_items[1].modified)
-        value = document_model.data_items[1].data_sources[0].data_and_calibration.data[0]
-        acq_value = document_model.data_items[0].data_sources[0].data_and_calibration.data[0]
+        value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
+        acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
         self.assertEqual(acq_value, 2.0)
         self.assertEqual(value, -acq_value)
         document_controller.close()
@@ -804,9 +804,9 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller.periodic()
         document_model.recompute_all()
         self.assertEqual(len(document_model.data_items), 3)
-        value = document_model.data_items[1].data_sources[0].data_and_calibration.data[0]
-        acq_value0 = document_model.data_items[0].data_sources[0].data_and_calibration.data[0]
-        acq_value2 = document_model.data_items[2].data_sources[0].data_and_calibration.data[0]
+        value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
+        acq_value0 = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
+        acq_value2 = document_model.data_items[2].data_sources[0].data_and_metadata.data[0]
         self.assertEqual(acq_value0, 2.0)
         self.assertEqual(acq_value2, 1.0)
         self.assertEqual(value, -acq_value0)

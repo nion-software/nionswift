@@ -58,13 +58,13 @@ class TestInfoPanelClass(unittest.TestCase):
 
     def test_cursor_over_1d_multiple_data_displays_without_exception(self):
         data_item = DataItem.DataItem(numpy.zeros((4, 1000)))
-        p, v = DisplayPanel.get_value_and_position_text(data_item.maybe_data_source.data_and_calibration, False, (500,))
+        p, v = DisplayPanel.get_value_and_position_text(data_item.maybe_data_source.data_and_metadata, False, (500,))
         self.assertEqual(p, "500.0")
         self.assertEqual(v, "0")
 
     def test_cursor_over_1d_image_without_exception(self):
         data_item = DataItem.DataItem(numpy.zeros((50,)))
-        p, v = DisplayPanel.get_value_and_position_text(data_item.maybe_data_source.data_and_calibration, False, (0.5, 25))
+        p, v = DisplayPanel.get_value_and_position_text(data_item.maybe_data_source.data_and_metadata, False, (0.5, 25))
         self.assertEqual(p, "25.0")
         self.assertEqual(v, "0")
 

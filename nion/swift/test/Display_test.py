@@ -237,7 +237,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.set_data_and_calibration(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_specifier.buffered_data_source.set_data_and_metadata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
             display_specifier.display.display_type = "image"
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
@@ -251,7 +251,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.set_data_and_calibration(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_specifier.buffered_data_source.set_data_and_metadata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
             display_specifier.display.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)

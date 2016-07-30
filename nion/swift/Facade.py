@@ -519,7 +519,7 @@ class DataItem:
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.data_and_calibration.data
+        return self.__data_item.maybe_data_source.data_and_metadata.data
 
     def set_data(self, data: numpy.ndarray) -> None:
         """Set the data.
@@ -606,7 +606,7 @@ class DataItem:
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.data_and_calibration
+        return self.__data_item.maybe_data_source.data_and_metadata
 
     def set_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         """Set the data and metadata.
@@ -617,7 +617,7 @@ class DataItem:
 
         Scriptable: Yes
         """
-        self.__data_item.maybe_data_source.set_data_and_calibration(data_and_metadata)
+        self.__data_item.maybe_data_source.set_data_and_metadata(data_and_metadata)
 
     @property
     def regions(self) -> List[Region]:
@@ -1888,7 +1888,7 @@ class API_1:
                 return io_handler_delegate.can_write_data_and_metadata(data_and_metadata, extension)
 
             def write(self, ui, data_item, file_path, extension):
-                data_and_metadata = data_item.maybe_data_source.data_and_calibration
+                data_and_metadata = data_item.maybe_data_source.data_and_metadata
                 data = data_and_metadata.data
                 if data is not None:
                     io_handler_delegate.write_data_and_metadata(data_and_metadata, file_path, extension)
