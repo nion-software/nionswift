@@ -688,7 +688,6 @@ class DataItem:
         from nion.ui import DrawingContext
 
         import collections
-        import copy
 
         display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
 
@@ -1434,9 +1433,7 @@ class Library:
             dimensional_calibrations.append(CalibrationModule.Calibration())
         metadata = dict()
         timestamp = datetime.datetime.utcnow()
-        data_and_metadata = DataAndMetadata.DataAndMetadata(lambda: data, data_shape_and_dtype,
-                                                               intensity_calibration, dimensional_calibrations,
-                                                               metadata, timestamp)
+        data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
         return self.create_data_item_from_data_and_metadata(data_and_metadata, title)
 
     def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: str=None) -> DataItem:
@@ -1844,8 +1841,7 @@ class API_1:
         if metadata is None:
             metadata = dict()
         timestamp = timestamp if timestamp else datetime.datetime.utcnow()
-        return DataAndMetadata.DataAndMetadata(lambda: data, data_shape_and_dtype, intensity_calibration,
-                                                  dimensional_calibrations, metadata, timestamp)
+        return DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
     def create_data_and_metadata_from_data(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None, dimensional_calibrations: List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.

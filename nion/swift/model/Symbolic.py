@@ -17,12 +17,10 @@ import uuid
 import weakref
 
 # third party libraries
-import numpy
 
 # local libraries
 from nion.data import Context
 from nion.data import DataAndMetadata
-from nion.swift.model import Graphics
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
@@ -575,17 +573,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return self.__data_and_metadata
 
     def evaluate_data(self) -> DataAndMetadata.DataAndMetadata:
-        data_and_metadata = self.evaluate()
         try:
-            data = data_and_metadata.data
+            data_and_metadata = self.evaluate()
             self.evaluate_error = None
             self.last_evaluate_data_time = time.perf_counter()
-            return DataAndMetadata.DataAndMetadata(lambda: data,
-                                                   data_and_metadata.data_shape_and_dtype,
-                                                   data_and_metadata.intensity_calibration,
-                                                   data_and_metadata.dimensional_calibrations,
-                                                   data_and_metadata.metadata,
-                                                   data_and_metadata.timestamp)
+            return DataAndMetadata.DataAndMetadata.from_data(data_and_metadata.data,
+                                                             data_and_metadata.intensity_calibration,
+                                                             data_and_metadata.dimensional_calibrations,
+                                                             data_and_metadata.metadata,
+                                                             data_and_metadata.timestamp)
         except Exception as e:
             self.evaluate_error = str(e)
 

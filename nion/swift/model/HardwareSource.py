@@ -1040,8 +1040,7 @@ def convert_data_element_to_data_and_metadata(data_element):
         hardware_source_metadata = metadata.setdefault("hardware_source", dict())
         hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
     timestamp = datetime.datetime.utcnow()
-    return DataAndMetadata.DataAndMetadata(lambda: data.copy(), data_shape_and_dtype, intensity_calibration,
-                                           dimensional_calibrations, metadata, timestamp)
+    return DataAndMetadata.DataAndMetadata.from_data(data.copy(), intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
 
 def parse_hardware_aliases_config_file(config_path):
