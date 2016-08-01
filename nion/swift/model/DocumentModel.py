@@ -214,7 +214,7 @@ class DataItemPersistentStorage(object):
                     del storage_dict[name]
         self.update_properties()
 
-    def update_data(self, data_shape, data_dtype, data=None):
+    def update_data(self, data):
         if not self.write_delayed:
             file_datetime = self.data_item.created_local
             if data is not None:
@@ -953,7 +953,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
     def rewrite_data_item_data(self, buffered_data_source):
         persistent_storage = self._get_persistent_storage_for_object(buffered_data_source)
-        persistent_storage.update_data(buffered_data_source.data_shape, buffered_data_source.data_dtype, data=buffered_data_source.data)
+        persistent_storage.update_data(buffered_data_source.data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
@@ -1636,14 +1636,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 computation.error_text = _("Unable to compute data")
             if data_and_metadata:
-                with buffered_data_source._changes():
-                    with buffered_data_source.data_ref() as data_ref:
-                        data_ref.data = data_and_metadata.data
-                        buffered_data_source.update_metadata(data_and_metadata.metadata)
-                        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-                        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+                # wrap the 'set' in a data ref so that data gets unloaded correctly.
+                with buffered_data_source.data_ref() as data_ref:
+                    buffered_data_source.set_data_and_metadata(data_and_metadata)
 
     def recompute_immediate(self, data_item: DataItem.DataItem) -> None:
         # this can be called on the UI thread; but it can also take time. use sparingly.

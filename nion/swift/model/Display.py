@@ -280,16 +280,22 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             with self.__display_data_lock:
                 if self.__display_data is None:
                     if self.__data_and_calibration:
-                        data = self.__data_and_calibration.data
-                        if Image.is_data_1d(data):
-                            display_data = Image.scalar_from_array(data)
-                        elif Image.is_data_2d(data):
-                            display_data = Image.scalar_from_array(data)
-                        elif Image.is_data_3d(data):
-                            display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
-                        else:
-                            display_data = None
-                        self.__display_data = display_data
+                        # be sure to leave the data loaded state the same as when started
+                        was_data_valid = self.__data_and_calibration.is_data_valid
+                        try:
+                            data = self.__data_and_calibration.data
+                            if Image.is_data_1d(data):
+                                display_data = Image.scalar_from_array(data)
+                            elif Image.is_data_2d(data):
+                                display_data = Image.scalar_from_array(data)
+                            elif Image.is_data_3d(data):
+                                display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
+                            else:
+                                display_data = None
+                            self.__display_data = display_data
+                        finally:
+                            if not was_data_valid:
+                                self.__data_and_calibration.unload_data()
                 return self.__display_data
         except Exception as e:
             import traceback
@@ -301,31 +307,23 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def display_data_and_calibration(self):
         """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA."""
         if self.__data_and_calibration:
+            data_shape_and_dtype = self.__data_and_calibration.data_shape_and_dtype
+            data_shape_and_dtype = (data_shape_and_dtype[0], numpy.float64) if data_shape_and_dtype[1] in (numpy.complex64, numpy.complex128) else data_shape_and_dtype
+            intensity_calibration = self.__data_and_calibration.intensity_calibration
+            dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations
+            metadata = self.__data_and_calibration.metadata
+            timestamp = self.__data_and_calibration.timestamp
             if self.__data_and_calibration.is_data_1d:
-                data_shape_and_dtype = self.__data_and_calibration.data_shape_and_dtype
-                intensity_calibration = self.__data_and_calibration.intensity_calibration
-                dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations
-                metadata = self.__data_and_calibration.metadata
-                timestamp = self.__data_and_calibration.timestamp
                 return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
                                                        intensity_calibration, dimensional_calibrations, metadata,
                                                        timestamp)
             elif self.__data_and_calibration.is_data_2d:
-                data_shape_and_dtype = self.__data_and_calibration.data_shape_and_dtype
-                intensity_calibration = self.__data_and_calibration.intensity_calibration
-                dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations
-                metadata = self.__data_and_calibration.metadata
-                timestamp = self.__data_and_calibration.timestamp
                 return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
                                                        intensity_calibration, dimensional_calibrations, metadata,
                                                        timestamp)
             elif self.__data_and_calibration.is_data_3d:
-                data_shape, data_dtype = self.__data_and_calibration.data_shape_and_dtype
-                data_shape_and_dtype = data_shape[1:], data_dtype
-                intensity_calibration = self.__data_and_calibration.intensity_calibration
-                dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations[1:]
-                metadata = self.__data_and_calibration.metadata
-                timestamp = self.__data_and_calibration.timestamp
+                data_shape_and_dtype = data_shape_and_dtype[0][1:], data_shape_and_dtype[1]
+                dimensional_calibrations = dimensional_calibrations[1:]
                 return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
                                                        intensity_calibration, dimensional_calibrations, metadata,
                                                        timestamp)
@@ -333,6 +331,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     @property
     def preview_2d_shape(self):
+        if not self.__data_and_calibration:
+            return None
         if self.__data_and_calibration.is_data_2d:
             return self.__data_and_calibration.dimensional_shape
         elif self.__data_and_calibration.is_data_3d:

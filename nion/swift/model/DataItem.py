@@ -35,7 +35,7 @@ _ = gettext.gettext
 UNTITLED_STR = _("Untitled")
 
 
-class CalibrationList(object):
+class CalibrationList:
 
     def __init__(self, calibrations=None):
         self.list = list() if calibrations is None else copy.deepcopy(calibrations)
@@ -148,8 +148,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         data_dtype = data.dtype if data is not None else None
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
-        self.define_property("data_shape", data_shape)
-        self.define_property("data_dtype", data_dtype, converter=DtypeToStringConverter())
+        self.define_property("data_shape", data_shape, hidden=True)
+        self.define_property("data_dtype", data_dtype, hidden=True, converter=DtypeToStringConverter())
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
@@ -158,8 +158,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
-        self.__data = None
-        self.__data_lock = threading.RLock()
+        self.__data_and_metadata = None
+        self.__data_and_metadata_lock = threading.RLock()
         self.__change_thread = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
@@ -176,11 +176,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.request_remove_region_because_data_item_removed_event = Event.Event()
         if data is not None:
             with self._changes():
-                self.__set_data(data)
                 dimensional_calibrations = list()
                 for index in range(len(Image.dimensional_shape_from_data(data))):
                     dimensional_calibrations.append(Calibration.Calibration())
-                self.set_dimensional_calibrations(dimensional_calibrations)
+                self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, dimensional_calibrations=dimensional_calibrations))
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
         self._about_to_be_removed = False
@@ -195,6 +194,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         if self.__computation_mutated_event_listener:
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
+        self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -222,22 +222,23 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     def deepcopy_from(self, buffered_data_source, memo):
         with self._changes():
             super(BufferedDataSource, self).deepcopy_from(buffered_data_source, memo)
-            # calibrations
-            self.set_intensity_calibration(buffered_data_source.intensity_calibration)
-            self.set_dimensional_calibrations(buffered_data_source.dimensional_calibrations)
-            # metadata
-            self.set_metadata(buffered_data_source.metadata)
-            self.created = buffered_data_source.created
+            # data and metadata
+            data_and_metadata = buffered_data_source.data_and_metadata
+            if data_and_metadata:
+                data = data_and_metadata.data
+                intensity_calibration = data_and_metadata.intensity_calibration
+                dimensional_calibrations = data_and_metadata.dimensional_calibrations
+                metadata = data_and_metadata.metadata
+                timestamp = data_and_metadata.timestamp
+                new_data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(numpy.copy(data), intensity_calibration, dimensional_calibrations, metadata, timestamp)
+            else:
+                new_data_and_metadata = None
+            self.set_data_and_metadata(new_data_and_metadata)
             # displays
             for display in self.displays:
                 self.remove_display(display)
             for display in buffered_data_source.displays:
                 self.add_display(copy.deepcopy(display))
-            # data
-            if buffered_data_source.has_data:
-                self.__set_data(numpy.copy(buffered_data_source.data))
-            else:
-                self.__set_data(None)
 
     def snapshot(self):
         """
@@ -246,14 +247,9 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             applied or "burned in".
         """
         buffered_data_source_copy = BufferedDataSource()
-        buffered_data_source_copy.set_intensity_calibration(self.intensity_calibration)
-        buffered_data_source_copy.set_dimensional_calibrations(self.dimensional_calibrations)
-        buffered_data_source_copy.set_metadata(self.metadata)
-        buffered_data_source_copy.created = self.created
+        buffered_data_source_copy.set_data_and_metadata(self.data_and_calibration)
         for display in self.displays:
             buffered_data_source_copy.add_display(copy.deepcopy(display))
-        if self.has_data:
-            buffered_data_source_copy.__set_data(numpy.copy(self.data))
         return buffered_data_source_copy
 
     def read_from_dict(self, properties):
@@ -261,15 +257,23 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             for display in self.displays:
                 self.remove_display(display)
             super(BufferedDataSource, self).read_from_dict(properties)
-            if self.dimensional_shape is not None:
-                while len(self.dimensional_shape) > len(self.dimensional_calibrations):
-                    dimensional_calibrations = self.dimensional_calibrations
-                    dimensional_calibrations.append(Calibration.Calibration())
-                    self.set_dimensional_calibrations(dimensional_calibrations)
-                while len(self.dimensional_shape) < len(self.dimensional_calibrations):
-                    dimensional_calibrations = self.dimensional_calibrations
-                    dimensional_calibrations.pop(-1)
-
+            data_shape = self._get_persistent_property_value("data_shape", None)
+            data_dtype = DtypeToStringConverter().convert_back(self._get_persistent_property_value("data_dtype", None))
+            if data_shape is not None and data_dtype is not None:
+                data_shape_and_dtype = data_shape, data_dtype
+                intensity_calibration = self._get_persistent_property_value("intensity_calibration")
+                dimensional_calibration_list = self._get_persistent_property_value("dimensional_calibrations")
+                dimensional_calibrations = dimensional_calibration_list.list if dimensional_calibration_list else None
+                if dimensional_calibrations is not None:
+                    dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
+                    while len(dimensional_shape) > len(dimensional_calibrations):
+                        dimensional_calibrations.append(Calibration.Calibration())
+                    while len(dimensional_shape) < len(dimensional_calibrations):
+                        dimensional_calibrations.pop(-1)
+                metadata = self._get_persistent_property_value("metadata")
+                timestamp = self._get_persistent_property_value("created")
+                data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+                self.__set_data_metadata(data_metadata)
 
     def finish_reading(self):
         # display properties need to be updated after storage_cache is initialized.
@@ -308,19 +312,12 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.__metadata_changed()
 
     def __metadata_changed(self):
-        self.__notify_next_data_and_calibration()
+        with self._changes():
+            self.__change_changed = True
         self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
         self.notify_set_property(name, value)
-
-    def __notify_next_data_and_calibration(self):
-        """Grab the data_and_calibration from the data item and pass it to subscribers."""
-        with self._changes():
-            self.__change_changed = True
-
-    def set_data_source(self, data_source):
-        self.set_item("data_source", data_source)
 
     def set_computation(self, computation):
         self.set_item("computation", computation)
@@ -346,60 +343,101 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 
     @property
     def data_and_calibration(self):
-        data_fn = lambda: self.data
-        data_shape_and_dtype = self.data_shape_and_dtype
-        intensity_calibration = self.intensity_calibration
-        dimensional_calibrations = self.dimensional_calibrations
-        metadata = self.metadata
-        created = self.created
-        return DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration,
-                                               dimensional_calibrations, metadata, created)
+        return self.data_and_metadata
 
     def set_data_and_calibration(self, data_and_calibration):
+        self.set_data_and_metadata(data_and_calibration)
+
+    @property
+    def data_and_metadata(self):
+        return self.__data_and_metadata
+
+    def __load_data(self):
+        if self.persistent_object_context:
+            return self.persistent_object_context.load_data(self)
+        return None
+
+    def __set_data_metadata(self, data_metadata):
+        new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_metadata.data_shape_and_dtype, data_metadata.intensity_calibration, data_metadata.dimensional_calibrations, data_metadata.metadata, data_metadata.timestamp)
+        self.__data_and_metadata = new_data_and_metadata
+
+    def set_data_and_metadata(self, data_and_metadata, data_modified=None):
+        """Sets the underlying data and data-metadata to the data_and_metadata.
+
+        Note: this does not make a copy of the data.
+        """
         with self._changes():
-            self.__set_data(data_and_calibration.data)
-            self.set_intensity_calibration(data_and_calibration.intensity_calibration)
-            self.set_dimensional_calibrations(data_and_calibration.dimensional_calibrations)
-            self.set_metadata(data_and_calibration.metadata)
-            self.created = data_and_calibration.timestamp
+            if data_and_metadata:
+                data = data_and_metadata.data
+                data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
+                intensity_calibration = data_and_metadata.intensity_calibration
+                dimensional_calibrations = data_and_metadata.dimensional_calibrations
+                metadata = data_and_metadata.metadata
+                timestamp = data_and_metadata.timestamp
+                new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+            else:
+                new_data_and_metadata = None
+            self.__data_and_metadata = new_data_and_metadata
+            if self.__data_and_metadata:
+                self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
+                self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(self.__data_and_metadata.data_dtype))
+                self._set_persistent_property_value("intensity_calibration", self.__data_and_metadata.intensity_calibration)
+                self._set_persistent_property_value("dimensional_calibrations", CalibrationList(self.__data_and_metadata.dimensional_calibrations))
+                self._set_persistent_property_value("metadata", self.__data_and_metadata.metadata)
+                # self._set_persistent_property_value("created", self.__data_and_metadata.timestamp)
+            self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+            if self.__data_and_metadata is not None:
+                if self.persistent_object_context:
+                    self.persistent_object_context.rewrite_data_item_data(self)
+            self.__change_changed = True
 
     @property
     def data_shape_and_dtype(self) -> typing.Tuple[typing.Iterable[int], numpy.dtype]:
-        if self.has_data:
-            return self.data_shape, self.data_dtype
-        return None
+        return self.__data_and_metadata.data_shape_and_dtype if self.__data_and_metadata else None
 
     @property
     def dimensional_shape(self):
-        if self.has_data:
-            return Image.dimensional_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
-        return None
+        return self.__data_and_metadata.dimensional_shape if self.__data_and_metadata else None
 
     @property
     def intensity_calibration(self):
-        if self.has_data:
-            return copy.deepcopy(self._get_persistent_property_value("intensity_calibration"))
-        return None
+        return copy.deepcopy(self.__data_and_metadata.intensity_calibration) if self.__data_and_metadata else None
 
     @property
     def dimensional_calibrations(self):
-        try:
-            if self.has_data:
-                return copy.deepcopy(self._get_persistent_property_value("dimensional_calibrations").list)
-            return list()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
+        return copy.deepcopy(self.__data_and_metadata.dimensional_calibrations) if self.__data_and_metadata else None
 
-    def set_intensity_calibration(self, calibration):
+    @property
+    def metadata(self):
+        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else None
+
+    def set_intensity_calibration(self, intensity_calibration):
         """ Set the intensity calibration. """
-        self._set_persistent_property_value("intensity_calibration", calibration)
+        with self._changes():
+            data_and_metadata = self.data_and_metadata
+            data_fn = data_and_metadata.data_fn
+            data = data_and_metadata.data_if_loaded
+            data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
+            dimensional_calibrations = data_and_metadata.dimensional_calibrations
+            metadata = data_and_metadata.metadata
+            timestamp = data_and_metadata.timestamp
+            self.__data_and_metadata = DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+            self._set_persistent_property_value("intensity_calibration", intensity_calibration)
+            self.__change_changed = True
 
     def set_dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
-        self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
+        with self._changes():
+            data_and_metadata = self.data_and_metadata
+            data_fn = data_and_metadata.data_fn
+            data = data_and_metadata.data_if_loaded
+            data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
+            intensity_calibration = data_and_metadata.intensity_calibration
+            metadata = data_and_metadata.metadata
+            timestamp = data_and_metadata.timestamp
+            self.__data_and_metadata = DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+            self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
+            self.__change_changed = True
 
     def set_dimensional_calibration(self, dimension, calibration):
         dimensional_calibrations = self.dimensional_calibrations
@@ -408,21 +446,18 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         dimensional_calibrations[dimension] = calibration
         self.set_dimensional_calibrations(dimensional_calibrations)
 
-    def __sync_dimensional_calibrations(self, ndim):
-        dimensional_calibrations = self.dimensional_calibrations
-        if len(dimensional_calibrations) != ndim:
-            while len(dimensional_calibrations) < ndim:
-                dimensional_calibrations.append(Calibration.Calibration())
-            while len(dimensional_calibrations) > ndim:
-                dimensional_calibrations.remove(dimensional_calibrations[-1])
-            self.set_dimensional_calibrations(dimensional_calibrations)
-
-    @property
-    def metadata(self):
-        return copy.deepcopy(self._get_persistent_property_value("metadata"))
-
     def set_metadata(self, metadata):
-        self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
+        with self._changes():
+            data_and_metadata = self.data_and_metadata
+            data_fn = data_and_metadata.data_fn
+            data = data_and_metadata.data_if_loaded
+            data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
+            intensity_calibration = data_and_metadata.intensity_calibration
+            dimensional_calibrations = data_and_metadata.dimensional_calibrations
+            timestamp = data_and_metadata.timestamp
+            self.__data_and_metadata = DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+            self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
+            self.__change_changed = True
 
     def update_metadata(self, additional_metadata):
         metadata = self.metadata
@@ -454,63 +489,47 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         return self.data_shape is not None and self.data_dtype is not None
 
     def __get_data(self):
-        with self.__data_lock:
-            return self.__data
+        return self.__data_and_metadata.data if self.__data_and_metadata else None
 
     def __set_data(self, data, data_modified=None):
-        with self._changes():
-            assert (data.shape is not None) if data is not None else True  # cheap way to ensure data is an ndarray
-            with self.__data_lock:
-                self.__data = data
-                self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
-                self.data_shape = data.shape if data is not None else None
-                self.data_dtype = data.dtype if data is not None else None
-                dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(self.data_shape, self.data_dtype)
-                self.__sync_dimensional_calibrations(len(dimensional_shape) if dimensional_shape is not None else 0)
-            # tell the persistent object context about it
-            if self.__data is not None:
-                if self.persistent_object_context:
-                    self.persistent_object_context.rewrite_data_item_data(self)
-            self.__notify_next_data_and_calibration()
-
-    def __load_data(self):
-        # load data from persistent object context if data is not already loaded
-        if self.has_data and self.__data is None:
-            if self.persistent_object_context:
-                #logging.debug("loading %s", self)
-                self.__data = self.persistent_object_context.load_data(self)
-
-    def __unload_data(self):
-        # unload data if possible.
-        # data cannot be unloaded if there is no persistent object context.
-        if self.persistent_object_context:
-            self.__data = None
-            #logging.debug("unloading %s", self)
+        dimensional_shape = Image.dimensional_shape_from_data(data)
+        data_and_metadata = self.data_and_metadata
+        intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
+        dimensional_calibrations = copy.deepcopy(data_and_metadata.dimensional_calibrations) if data_and_metadata else None
+        if data_and_metadata:
+            while len(dimensional_calibrations) < len(dimensional_shape):
+                dimensional_calibrations.append(Calibration.Calibration())
+            while len(dimensional_calibrations) > len(dimensional_shape):
+                dimensional_calibrations.pop(-1)
+        metadata = data_and_metadata.metadata if data_and_metadata else None
+        timestamp = data_and_metadata.timestamp if data_and_metadata else None
+        self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp), data_modified)
 
     def increment_data_ref_count(self):
         with self.__data_ref_count_mutex:
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
-            if initial_count == 0:
-                self.__load_data()
+            if initial_count == 0 and self.__data_and_metadata:
+                self.__data_and_metadata.load_data()
         return initial_count+1
 
     def decrement_data_ref_count(self):
         with self.__data_ref_count_mutex:
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
-            if final_count == 0:
-                self.__unload_data()
+            if final_count == 0 and self.__data_and_metadata:
+                if self.persistent_object_context:
+                    self.__data_and_metadata.unload_data()
         return final_count
 
     # used for testing
     @property
-    def is_data_loaded(self):
-        return self.has_data and self.__data is not None
+    def is_data_loaded(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_valid
 
     @property
-    def has_data(self):
-        return self.data_shape is not None and self.data_dtype is not None
+    def has_data(self) -> bool:
+        return self.__data_and_metadata is not None
 
     # grab a data reference as a context manager. the object
     # returned defines data and data properties. reading data
@@ -538,7 +557,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             @property
             def master_data(self):
                 return get_data(self.__data_item)
-            @data.setter
+            @master_data.setter
             def master_data(self, value):
                 set_data(self.__data_item, value)
             def master_data_updated(self):
@@ -612,93 +631,86 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             self.__change_changed = True
 
     @property
-    def is_data_1d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_1d(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def data_shape(self):
+        return self.__data_and_metadata.data_shape if self.__data_and_metadata else None
 
     @property
-    def is_data_2d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_2d(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def data_dtype(self):
+        return self.__data_and_metadata.data_dtype if self.__data_and_metadata else None
 
     @property
-    def is_data_3d(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_3d(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def is_data_1d(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_1d
 
     @property
-    def is_data_rgb(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def is_data_2d(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_2d
 
     @property
-    def is_data_rgba(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_rgba(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def is_data_3d(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_3d
 
     @property
-    def is_data_rgb_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return (Image.is_shape_and_dtype_rgb(*data_shape_and_dtype) or Image.is_shape_and_dtype_rgba(*data_shape_and_dtype)) if data_shape_and_dtype else False
+    def is_data_rgb(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_rgb
 
     @property
-    def is_data_scalar_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_scalar_type(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def is_data_rgba(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_rgba
 
     @property
-    def is_data_complex_type(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_complex_type(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def is_data_rgb_type(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_rgb_type
 
     @property
-    def is_data_bool(self):
-        data_shape_and_dtype = self.data_shape_and_dtype
-        return Image.is_shape_and_dtype_bool(*data_shape_and_dtype) if data_shape_and_dtype else False
+    def is_data_scalar_type(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_scalar_type
+
+    @property
+    def is_data_complex_type(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_complex_type
+
+    @property
+    def is_data_bool(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_bool
 
     def get_data_value(self, pos):
-        data = self.data
-        if self.is_data_1d:
-            if data is not None:
-                return data[int(pos[0])]
-        elif self.is_data_2d:
-            if data is not None:
-                return data[int(pos[0]), int(pos[1])]
-        elif self.is_data_3d:
-            if data is not None:
-                return data[int(pos[0]), int(pos[1]), int(pos[2])]
-        return None
+        return self.__data_and_metadata.get_data_value(pos) if self.__data_and_metadata else None
 
     @property
     def size_and_data_format_as_string(self):
-        dimensional_shape = self.dimensional_shape
-        data_dtype = self.data_dtype
-        if dimensional_shape is not None and data_dtype is not None:
-            spatial_shape_str = " x ".join([str(d) for d in dimensional_shape])
-            if len(dimensional_shape) == 1:
-                spatial_shape_str += " x 1"
-            dtype_names = {
-                numpy.int8: _("Integer (8-bit)"),
-                numpy.int16: _("Integer (16-bit)"),
-                numpy.int32: _("Integer (32-bit)"),
-                numpy.int64: _("Integer (64-bit)"),
-                numpy.uint8: _("Unsigned Integer (8-bit)"),
-                numpy.uint16: _("Unsigned Integer (16-bit)"),
-                numpy.uint32: _("Unsigned Integer (32-bit)"),
-                numpy.uint64: _("Unsigned Integer (64-bit)"),
-                numpy.float32: _("Real (32-bit)"),
-                numpy.float64: _("Real (64-bit)"),
-                numpy.complex64: _("Complex (2 x 32-bit)"),
-                numpy.complex128: _("Complex (2 x 64-bit)"),
-            }
-            if self.is_data_rgb_type:
-                data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
-            else:
-                if not self.data_dtype.type in dtype_names:
-                    logging.debug("Unknown dtype %s", self.data_dtype.type)
-                data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
-            return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
-        return _("No Data")
+        try:
+            dimensional_shape = self.dimensional_shape
+            data_dtype = self.data_dtype
+            if dimensional_shape is not None and data_dtype is not None:
+                spatial_shape_str = " x ".join([str(d) for d in dimensional_shape])
+                if len(dimensional_shape) == 1:
+                    spatial_shape_str += " x 1"
+                dtype_names = {
+                    numpy.int8: _("Integer (8-bit)"),
+                    numpy.int16: _("Integer (16-bit)"),
+                    numpy.int32: _("Integer (32-bit)"),
+                    numpy.int64: _("Integer (64-bit)"),
+                    numpy.uint8: _("Unsigned Integer (8-bit)"),
+                    numpy.uint16: _("Unsigned Integer (16-bit)"),
+                    numpy.uint32: _("Unsigned Integer (32-bit)"),
+                    numpy.uint64: _("Unsigned Integer (64-bit)"),
+                    numpy.float32: _("Real (32-bit)"),
+                    numpy.float64: _("Real (64-bit)"),
+                    numpy.complex64: _("Complex (2 x 32-bit)"),
+                    numpy.complex128: _("Complex (2 x 64-bit)"),
+                }
+                if self.is_data_rgb_type:
+                    data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
+                else:
+                    if not self.data_dtype.type in dtype_names:
+                        logging.debug("Unknown dtype %s", self.data_dtype.type)
+                    data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
+                return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
+            return _("No Data")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391

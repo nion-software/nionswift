@@ -343,7 +343,7 @@ class TestProcessingClass(unittest.TestCase):
                     src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
                     self.assertEqual(src_data_item, source_data_item)
                     self.assertIsNone(data_ref.data)
-                    self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations, [])
+                    self.assertIsNone(display_specifier.buffered_data_source.dimensional_calibrations)
 
 
     def test_processing_on_none(self):

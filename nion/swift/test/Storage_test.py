@@ -2589,7 +2589,7 @@ class TestStorageClass(unittest.TestCase):
             data_shape = computed_data_item.maybe_data_source.data_shape
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            read_computation = document_model.data_items[1].maybe_data_source.computation
+            computed_data_item = document_model.data_items[1]
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.data += 1.5
             document_model.recompute_all()
