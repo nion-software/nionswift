@@ -117,10 +117,10 @@ class ImportExportManager(metaclass=Utility.Singleton):
     def get_writers_for_data_item(self, data_item):
         writers = []
         if len(data_item.data_sources) > 0:
-            data_and_metadata = data_item.data_sources[0].data_and_calibration
+            data_metadata = data_item.data_sources[0].data_metadata
             for io_handler in self.__io_handlers:
                 for extension in io_handler.extensions:
-                    if io_handler.can_write(data_and_metadata, extension.lower()):
+                    if io_handler.can_write(data_metadata, extension.lower()):
                         writers.append(io_handler)
         return writers
 
@@ -152,7 +152,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
             extension = extension[1:]  # remove the leading "."
             extension = extension.lower()
             buffered_data_source = data_item.maybe_data_source
-            if extension in writer.extensions and buffered_data_source and writer.can_write(buffered_data_source.data_and_calibration, extension):
+            if extension in writer.extensions and buffered_data_source and writer.can_write(buffered_data_source.data_metadata, extension):
                 writer.write(ui, data_item, path, extension)
 
     def write_data_items(self, ui, data_item, path):
@@ -162,7 +162,7 @@ class ImportExportManager(metaclass=Utility.Singleton):
             extension = extension.lower()
             for io_handler in self.__io_handlers:
                 buffered_data_source = data_item.maybe_data_source
-                if extension in io_handler.extensions and buffered_data_source and io_handler.can_write(buffered_data_source.data_and_calibration, extension):
+                if extension in io_handler.extensions and buffered_data_source and io_handler.can_write(buffered_data_source.data_metadata, extension):
                     io_handler.write(ui, data_item, path, extension)
 
 

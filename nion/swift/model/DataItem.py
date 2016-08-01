@@ -247,7 +247,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             applied or "burned in".
         """
         buffered_data_source_copy = BufferedDataSource()
-        buffered_data_source_copy.set_data_and_metadata(self.data_and_calibration)
+        buffered_data_source_copy.set_data_and_metadata(self.data_and_metadata)
         for display in self.displays:
             buffered_data_source_copy.add_display(copy.deepcopy(display))
         return buffered_data_source_copy
@@ -281,7 +281,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         # effect of invalidating cached values, they need to occur while is_reading
         # is still true. call super after these two.
         for display in self.displays:
-            display.update_data(self.data_and_calibration)
+            display.update_data(self.data_and_metadata)
         super(BufferedDataSource, self).finish_reading()
 
     def set_data_item_manager(self, data_item_manager):
@@ -342,11 +342,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.__metadata_changed()
 
     @property
-    def data_and_calibration(self):
-        return self.data_and_metadata
-
-    def set_data_and_calibration(self, data_and_calibration):
-        self.set_data_and_metadata(data_and_calibration)
+    def data_metadata(self):
+        return self.__data_and_metadata.data_metadata
 
     @property
     def data_and_metadata(self):
@@ -621,10 +618,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         # if the change count is now zero, it means that we're ready
         # to pass on the next value.
         if change_count == 0 and changed:
-            data_and_calibration = self.data_and_calibration
+            data_and_metadata = self.data_and_metadata
             self.data_and_metadata_changed_event.fire()
             for display in self.displays:
-                display.update_data(data_and_calibration)
+                display.update_data(data_and_metadata)
 
     def r_value_changed(self):
         with self._changes():

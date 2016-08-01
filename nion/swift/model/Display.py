@@ -149,7 +149,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__lookup = None
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__graphic_changed_listeners = list()
-        self.__data_and_calibration = None  # the most recent data to be displayed. should have immediate data available.
+        self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
         self.__display_data = None
         self.__display_data_lock = threading.RLock()
         self.__preview = None
@@ -206,7 +206,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
-        if self.__data_and_calibration.is_data_complex_type:
+        if self.__data_and_metadata.is_data_complex_type:
             data = self.display_data
             samples, fraction = 200, 0.1
             sorted_data = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples)))
@@ -275,23 +275,23 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         try:
             with self.__display_data_lock:
                 if self.__display_data is None:
-                    if self.__data_and_calibration:
+                    if self.__data_and_metadata:
                         # be sure to leave the data loaded state the same as when started
-                        was_data_valid = self.__data_and_calibration.is_data_valid
+                        was_data_valid = self.__data_and_metadata.is_data_valid
                         try:
-                            data = self.__data_and_calibration.data
+                            data = self.__data_and_metadata.data
                             if Image.is_data_1d(data):
                                 display_data = Image.scalar_from_array(data)
                             elif Image.is_data_2d(data):
                                 display_data = Image.scalar_from_array(data)
                             elif Image.is_data_3d(data):
-                                display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_calibration, self.slice_center, self.slice_width).data)
+                                display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_metadata, self.slice_center, self.slice_width).data)
                             else:
                                 display_data = None
                             self.__display_data = display_data
                         finally:
                             if not was_data_valid:
-                                self.__data_and_calibration.unload_data()
+                                self.__data_and_metadata.unload_data()
                 return self.__display_data
         except Exception as e:
             import traceback
@@ -302,22 +302,22 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     @property
     def display_data_and_calibration(self):
         """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA."""
-        if self.__data_and_calibration:
-            data_shape_and_dtype = self.__data_and_calibration.data_shape_and_dtype
+        if self.__data_and_metadata:
+            data_shape_and_dtype = self.__data_and_metadata.data_shape_and_dtype
             data_shape_and_dtype = (data_shape_and_dtype[0], numpy.float64) if data_shape_and_dtype[1] in (numpy.complex64, numpy.complex128) else data_shape_and_dtype
-            intensity_calibration = self.__data_and_calibration.intensity_calibration
-            dimensional_calibrations = self.__data_and_calibration.dimensional_calibrations
-            metadata = self.__data_and_calibration.metadata
-            timestamp = self.__data_and_calibration.timestamp
-            if self.__data_and_calibration.is_data_1d:
+            intensity_calibration = self.__data_and_metadata.intensity_calibration
+            dimensional_calibrations = self.__data_and_metadata.dimensional_calibrations
+            metadata = self.__data_and_metadata.metadata
+            timestamp = self.__data_and_metadata.timestamp
+            if self.__data_and_metadata.is_data_1d:
                 return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
                                                        intensity_calibration, dimensional_calibrations, metadata,
                                                        timestamp)
-            elif self.__data_and_calibration.is_data_2d:
+            elif self.__data_and_metadata.is_data_2d:
                 return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
                                                        intensity_calibration, dimensional_calibrations, metadata,
                                                        timestamp)
-            elif self.__data_and_calibration.is_data_3d:
+            elif self.__data_and_metadata.is_data_3d:
                 data_shape_and_dtype = data_shape_and_dtype[0][1:], data_shape_and_dtype[1]
                 dimensional_calibrations = dimensional_calibrations[1:]
                 return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
@@ -327,14 +327,14 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     @property
     def preview_2d_shape(self):
-        if not self.__data_and_calibration:
+        if not self.__data_and_metadata:
             return None
-        if self.__data_and_calibration.is_data_2d:
-            return self.__data_and_calibration.dimensional_shape
-        elif self.__data_and_calibration.is_data_3d:
-            return self.__data_and_calibration.dimensional_shape[1:]
-        elif self.__data_and_calibration.is_data_1d:
-            return [1, ] + list(self.__data_and_calibration.dimensional_shape)
+        if self.__data_and_metadata.is_data_2d:
+            return self.__data_and_metadata.dimensional_shape
+        elif self.__data_and_metadata.is_data_3d:
+            return self.__data_and_metadata.dimensional_shape[1:]
+        elif self.__data_and_metadata.is_data_1d:
+            return [1, ] + list(self.__data_and_metadata.dimensional_shape)
         else:
             return None
 
@@ -356,8 +356,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.notify_set_property("display_range", self.display_range)
 
     def __validate_slice_center_for_width(self, value, slice_width):
-        if self.__data_and_calibration and self.__data_and_calibration.dimensional_shape is not None:
-            depth = self.__data_and_calibration.dimensional_shape[0]
+        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
+            depth = self.__data_and_metadata.dimensional_shape[0]
             mn = max(int(slice_width * 0.5), 0)
             mx = min(int(depth - slice_width * 0.5), depth - 1)
             return min(max(int(value), mn), mx)
@@ -367,8 +367,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         return self.__validate_slice_center_for_width(value, self.slice_width)
 
     def __validate_slice_width(self, value):
-        if self.__data_and_calibration and self.__data_and_calibration.dimensional_shape is not None:
-            depth = self.__data_and_calibration.dimensional_shape[0]
+        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
+            depth = self.__data_and_metadata.dimensional_shape[0]
             slice_center = self.slice_center
             mn = 1
             mx = max(min(slice_center, depth - slice_center) * 2, 1)
@@ -377,8 +377,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     @property
     def slice_interval(self):
-        if self.__data_and_calibration and self.__data_and_calibration.dimensional_shape is not None:
-            depth = self.__data_and_calibration.dimensional_shape[0]
+        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
+            depth = self.__data_and_metadata.dimensional_shape[0]
             if depth > 0:
                 slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
                 slice_interval_end = slice_interval_start + self.slice_width
@@ -388,8 +388,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     @slice_interval.setter
     def slice_interval(self, slice_interval):
-        if self.__data_and_calibration.dimensional_shape is not None:
-            depth = self.__data_and_calibration.dimensional_shape[0]
+        if self.__data_and_metadata.dimensional_shape is not None:
+            depth = self.__data_and_metadata.dimensional_shape[0]
             if depth > 0:
                 slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
                 slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
@@ -437,11 +437,11 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
         display_data = self.display_data
-        is_data_complex_type = self.__data_and_calibration.is_data_complex_type if self.__data_and_calibration else False
+        is_data_complex_type = self.__data_and_metadata.is_data_complex_type if self.__data_and_metadata else False
         data_range = self.get_cached_value("data_range")
         data_sample = self.get_cached_value("data_sample")
         if display_data is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
-            self.__calculate_data_stats_for_data(display_data, self.__data_and_calibration.data_shape, self.__data_and_calibration.data_dtype)
+            self.__calculate_data_stats_for_data(display_data, self.__data_and_metadata.data_shape, self.__data_and_metadata.data_dtype)
 
     def __calculate_data_stats_for_data(self, display_data, data_shape, data_dtype):
         if display_data is not None and display_data.size:
@@ -483,7 +483,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def __get_display_range(self, data_range, data_sample):
         if self.display_limits is not None:
             return self.display_limits
-        if self.__data_and_calibration and self.__data_and_calibration.is_data_complex_type:
+        if self.__data_and_metadata and self.__data_and_metadata.is_data_complex_type:
             if data_sample is not None:
                 data_sample_10 = data_sample[int(len(data_sample) * 0.1)]
                 display_limit_low = numpy.log(data_sample_10) if data_sample_10 > 0.0 else data_range[0]
@@ -503,10 +503,10 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     # message sent from buffered_data_source when data changes.
     # thread safe
-    def update_data(self, data_and_calibration):
-        old_data_shape = self.__data_and_calibration.data_shape if self.__data_and_calibration else None
-        self.__data_and_calibration = data_and_calibration
-        new_data_shape = self.__data_and_calibration.data_shape if self.__data_and_calibration else None
+    def update_data(self, data_and_metadata):
+        old_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
+        self.__data_and_metadata = data_and_metadata
+        new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
         self.__clear_cached_data()
         if old_data_shape != new_data_shape:
             slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
