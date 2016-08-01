@@ -28,6 +28,7 @@ from nion.ui import CanvasItem
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
+from nion.utils import Promise
 
 _ = gettext.gettext
 
@@ -300,30 +301,28 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             raise
 
     @property
-    def display_data_and_calibration(self):
-        """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA."""
+    def display_data_and_metadata(self):
+        """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA.
+
+        Accessing display data may involve computation, so this method should not be used on UI thread.
+        """
         if self.__data_and_metadata:
-            data_shape_and_dtype = self.__data_and_metadata.data_shape_and_dtype
-            data_shape_and_dtype = (data_shape_and_dtype[0], numpy.float64) if data_shape_and_dtype[1] in (numpy.complex64, numpy.complex128) else data_shape_and_dtype
             intensity_calibration = self.__data_and_metadata.intensity_calibration
             dimensional_calibrations = self.__data_and_metadata.dimensional_calibrations
             metadata = self.__data_and_metadata.metadata
             timestamp = self.__data_and_metadata.timestamp
             if self.__data_and_metadata.is_data_1d:
-                return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
-                                                       intensity_calibration, dimensional_calibrations, metadata,
-                                                       timestamp)
+                return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
             elif self.__data_and_metadata.is_data_2d:
-                return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
-                                                       intensity_calibration, dimensional_calibrations, metadata,
-                                                       timestamp)
+                return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
             elif self.__data_and_metadata.is_data_3d:
-                data_shape_and_dtype = data_shape_and_dtype[0][1:], data_shape_and_dtype[1]
                 dimensional_calibrations = dimensional_calibrations[1:]
-                return DataAndMetadata.DataAndMetadata(lambda: self.display_data, data_shape_and_dtype,
-                                                       intensity_calibration, dimensional_calibrations, metadata,
-                                                       timestamp)
+                return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
         return None
+
+    @property
+    def display_data_and_metadata_promise(self) -> Promise.Promise[DataAndMetadata.DataAndMetadata]:
+        return Promise.Promise(lambda: self.display_data_and_metadata)
 
     @property
     def preview_2d_shape(self):

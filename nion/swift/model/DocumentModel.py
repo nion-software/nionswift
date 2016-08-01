@@ -1739,7 +1739,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         return self.__data_item.maybe_data_source.data_and_metadata
                     @property
                     def display_data(self):
-                        return self.__data_item.maybe_data_source.displays[0].display_data_and_calibration
+                        return self.__data_item.maybe_data_source.displays[0].display_data_and_metadata
                     @property
                     def data_item(self):
                         return self.__data_item
@@ -1766,7 +1766,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                     @property
                     def value(self):
-                        return self.__buffered_data_source.displays[0].display_data_and_calibration
+                        return self.__buffered_data_source.displays[0].display_data_and_metadata
                     def close(self):
                         self.__display_changed_event_listener.close()
                         self.__display_changed_event_listener = None

@@ -20,6 +20,7 @@ from nion.ui import DrawingContext
 from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Model
+from nion.utils import Promise
 from nion.utils import Stream
 
 _ = gettext.gettext
@@ -447,27 +448,31 @@ class HistogramPanel(Panel.Panel):
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
-        def calculate_region_data(data_and_metadata, region):
-            if region is not None and data_and_metadata is not None:
-                if data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
-                    interval = region.interval
-                    if 0 <= interval[0] < 1 and 0 < interval[1] <= 1:
-                        start, end = int(interval[0] * data_and_metadata.data_shape[0]), int(interval[1] * data_and_metadata.data_shape[0])
-                        if end - start >= 1:
-                            cropped_data_and_metadata = Core.function_crop_interval(data_and_metadata, interval)
-                            if cropped_data_and_metadata:
-                                return cropped_data_and_metadata
-                elif data_and_metadata.is_data_2d and isinstance(region, Graphics.RectangleTypeGraphic):
-                    cropped_data_and_metadata = Core.function_crop(data_and_metadata, region.bounds)
-                    if cropped_data_and_metadata:
-                        return cropped_data_and_metadata
-            return data_and_metadata
+        def calculate_region_data(display_data_and_metadata_promise, region):
+            def provide_data():
+                display_data_and_metadata = display_data_and_metadata_promise.value if display_data_and_metadata_promise else None
+                if region is not None and display_data_and_metadata is not None:
+                    if display_data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
+                        interval = region.interval
+                        if 0 <= interval[0] < 1 and 0 < interval[1] <= 1:
+                            start, end = int(interval[0] * display_data_and_metadata.data_shape[0]), int(interval[1] * display_data_and_metadata.data_shape[0])
+                            if end - start >= 1:
+                                cropped_data_and_metadata = Core.function_crop_interval(display_data_and_metadata, interval)
+                                if cropped_data_and_metadata:
+                                    return cropped_data_and_metadata
+                    elif display_data_and_metadata.is_data_2d and isinstance(region, Graphics.RectangleTypeGraphic):
+                        cropped_data_and_metadata = Core.function_crop(display_data_and_metadata, region.bounds)
+                        if cropped_data_and_metadata:
+                            return cropped_data_and_metadata
+                return display_data_and_metadata
+            return Promise.Promise(provide_data)
 
-        def calculate_histogram_data(data_and_metadata, display_range):
+        def calculate_histogram_data(display_data_and_metadata_promise, display_range):
             bins = 320
             subsample = 0  # hard coded subsample size
             subsample_fraction = None  # fraction of total pixels
             subsample_min = 1024  # minimum subsample size
+            data_and_metadata = display_data_and_metadata_promise.value if display_data_and_metadata_promise else None
             data = data_and_metadata.data if data_and_metadata else None
             if data is not None:
                 total_pixels = numpy.product(data.shape)
@@ -488,13 +493,13 @@ class HistogramPanel(Panel.Panel):
                 return histogram_data
             return None
 
-        def calculate_future_histogram_data(data_and_metadata, display_range):
-            return Stream.FutureValue(calculate_histogram_data, data_and_metadata, display_range)
+        def calculate_future_histogram_data(display_data_and_metadata_promise, display_range):
+            return Stream.FutureValue(calculate_histogram_data, display_data_and_metadata_promise, display_range)
 
         display_stream = TargetDisplayStream(document_controller)
         buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller)
         region_stream = TargetRegionStream(display_stream)
-        display_data_and_metadata_stream = DisplayPropertyStream(display_stream, 'display_data_and_calibration')
+        display_data_and_metadata_stream = DisplayPropertyStream(display_stream, 'display_data_and_metadata_promise')
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
         display_calibrated_values_stream = DisplayPropertyStream(display_stream, 'display_calibrated_values')
         display_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data)
@@ -521,7 +526,8 @@ class HistogramPanel(Panel.Panel):
 
         self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, color_map_data_stream, cursor_changed_fn)
 
-        def calculate_statistics(display_data_and_metadata, display_data_range, region, display_calibrated_values):
+        def calculate_statistics(display_data_and_metadata_promise, display_data_range, region, display_calibrated_values):
+            display_data_and_metadata = display_data_and_metadata_promise.value if display_data_and_metadata_promise else None
             data = display_data_and_metadata.data if display_data_and_metadata else None
             data_range = display_data_range
             if data is not None and data.size > 0:
@@ -545,8 +551,8 @@ class HistogramPanel(Panel.Panel):
                 return { "mean": mean_str, "std": std_str, "min": data_min_str, "max": data_max_str, "rms": rms_str, "sum": sum_data_str }
             return dict()
 
-        def calculate_future_statistics(display_data_and_metadata, display_data_range, region, display_calibrated_values):
-            return Stream.FutureValue(calculate_statistics, display_data_and_metadata, display_data_range, region, display_calibrated_values)
+        def calculate_future_statistics(display_data_and_metadata_promise, display_data_range, region, display_calibrated_values):
+            return Stream.FutureValue(calculate_statistics, display_data_and_metadata_promise, display_data_range, region, display_calibrated_values)
 
         display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
         statistics_future_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_data_range_stream, region_stream, display_calibrated_values_stream), calculate_future_statistics)
