@@ -275,24 +275,17 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def display_data(self):
         try:
             with self.__display_data_lock:
-                if self.__display_data is None:
-                    if self.__data_and_metadata:
-                        # be sure to leave the data loaded state the same as when started
-                        was_data_valid = self.__data_and_metadata.is_data_valid
-                        try:
-                            data = self.__data_and_metadata.data
-                            if Image.is_data_1d(data):
-                                display_data = Image.scalar_from_array(data)
-                            elif Image.is_data_2d(data):
-                                display_data = Image.scalar_from_array(data)
-                            elif Image.is_data_3d(data):
-                                display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_metadata, self.slice_center, self.slice_width).data)
-                            else:
-                                display_data = None
-                            self.__display_data = display_data
-                        finally:
-                            if not was_data_valid:
-                                self.__data_and_metadata.unload_data()
+                if self.__display_data is None and self.__data_and_metadata is not None:
+                    data = self.__data_and_metadata.data
+                    if Image.is_data_1d(data):
+                        display_data = Image.scalar_from_array(data)
+                    elif Image.is_data_2d(data):
+                        display_data = Image.scalar_from_array(data)
+                    elif Image.is_data_3d(data):
+                        display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_metadata, self.slice_center, self.slice_width).data)
+                    else:
+                        display_data = None
+                    self.__display_data = display_data
                 return self.__display_data
         except Exception as e:
             import traceback

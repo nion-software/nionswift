@@ -179,7 +179,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 dimensional_calibrations = list()
                 for index in range(len(Image.dimensional_shape_from_data(data))):
                     dimensional_calibrations.append(Calibration.Calibration())
-                self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, dimensional_calibrations=dimensional_calibrations))
+                self.__set_data_metadata_direct(DataAndMetadata.DataAndMetadata.from_data(data, dimensional_calibrations=dimensional_calibrations))
+                self.__change_changed = True
         if create_display:
             self.add_display(Display.Display())  # always have one display, for now
         self._about_to_be_removed = False
@@ -272,8 +273,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                         dimensional_calibrations.pop(-1)
                 metadata = self._get_persistent_property_value("metadata")
                 timestamp = self._get_persistent_property_value("created")
-                data_metadata = DataAndMetadata.DataMetadata(data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
-                self.__set_data_metadata(data_metadata)
+                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+                with self.__data_ref_count_mutex:
+                    self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
+                self.__data_and_metadata.unloadable = self.persistent_object_context is not None
 
     def finish_reading(self):
         # display properties need to be updated after storage_cache is initialized.
@@ -283,6 +286,11 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         for display in self.displays:
             display.update_data(self.data_and_metadata)
         super(BufferedDataSource, self).finish_reading()
+
+    def persistent_object_context_changed(self):
+        super().persistent_object_context_changed()
+        if self.__data_and_metadata:
+            self.__data_and_metadata.unloadable = self.persistent_object_context is not None
 
     def set_data_item_manager(self, data_item_manager):
         with self.__data_item_manager_lock:
@@ -354,9 +362,18 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             return self.persistent_object_context.load_data(self)
         return None
 
-    def __set_data_metadata(self, data_metadata):
-        new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_metadata.data_shape_and_dtype, data_metadata.intensity_calibration, data_metadata.dimensional_calibrations, data_metadata.metadata, data_metadata.timestamp)
-        self.__data_and_metadata = new_data_and_metadata
+    def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
+        self.__data_and_metadata = data_and_metadata
+        if self.__data_and_metadata:
+            with self.__data_ref_count_mutex:
+                self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
+        if self.__data_and_metadata:
+            self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
+            self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(self.__data_and_metadata.data_dtype))
+            self._set_persistent_property_value("intensity_calibration", self.__data_and_metadata.intensity_calibration)
+            self._set_persistent_property_value("dimensional_calibrations", CalibrationList(self.__data_and_metadata.dimensional_calibrations))
+            self._set_persistent_property_value("metadata", self.__data_and_metadata.metadata)
+        self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
 
     def set_data_and_metadata(self, data_and_metadata, data_modified=None):
         """Sets the underlying data and data-metadata to the data_and_metadata.
@@ -374,18 +391,11 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
             else:
                 new_data_and_metadata = None
-            self.__data_and_metadata = new_data_and_metadata
-            if self.__data_and_metadata:
-                self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
-                self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(self.__data_and_metadata.data_dtype))
-                self._set_persistent_property_value("intensity_calibration", self.__data_and_metadata.intensity_calibration)
-                self._set_persistent_property_value("dimensional_calibrations", CalibrationList(self.__data_and_metadata.dimensional_calibrations))
-                self._set_persistent_property_value("metadata", self.__data_and_metadata.metadata)
-                # self._set_persistent_property_value("created", self.__data_and_metadata.timestamp)
-            self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+            self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
                 if self.persistent_object_context:
                     self.persistent_object_context.rewrite_data_item_data(self)
+                    self.__data_and_metadata.unloadable = True
             self.__change_changed = True
 
     @property
@@ -411,28 +421,14 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     def set_intensity_calibration(self, intensity_calibration):
         """ Set the intensity calibration. """
         with self._changes():
-            data_and_metadata = self.data_and_metadata
-            data_fn = data_and_metadata.data_fn
-            data = data_and_metadata.data_if_loaded
-            data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
-            dimensional_calibrations = data_and_metadata.dimensional_calibrations
-            metadata = data_and_metadata.metadata
-            timestamp = data_and_metadata.timestamp
-            self.__data_and_metadata = DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+            self.__data_and_metadata._set_intensity_calibration(intensity_calibration)
             self._set_persistent_property_value("intensity_calibration", intensity_calibration)
             self.__change_changed = True
 
     def set_dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
         with self._changes():
-            data_and_metadata = self.data_and_metadata
-            data_fn = data_and_metadata.data_fn
-            data = data_and_metadata.data_if_loaded
-            data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
-            intensity_calibration = data_and_metadata.intensity_calibration
-            metadata = data_and_metadata.metadata
-            timestamp = data_and_metadata.timestamp
-            self.__data_and_metadata = DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+            self.__data_and_metadata._set_dimensional_calibrations(dimensional_calibrations)
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
             self.__change_changed = True
 
@@ -445,14 +441,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 
     def set_metadata(self, metadata):
         with self._changes():
-            data_and_metadata = self.data_and_metadata
-            data_fn = data_and_metadata.data_fn
-            data = data_and_metadata.data_if_loaded
-            data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
-            intensity_calibration = data_and_metadata.intensity_calibration
-            dimensional_calibrations = data_and_metadata.dimensional_calibrations
-            timestamp = data_and_metadata.timestamp
-            self.__data_and_metadata = DataAndMetadata.DataAndMetadata(data_fn, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+            self.__data_and_metadata._set_metadata(metadata)
             self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
             self.__change_changed = True
 
@@ -507,16 +496,16 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             initial_count = self.__data_ref_count
             self.__data_ref_count += 1
             if initial_count == 0 and self.__data_and_metadata:
-                self.__data_and_metadata.load_data()
+                self.__data_and_metadata.increment_data_ref_count()
         return initial_count+1
 
     def decrement_data_ref_count(self):
         with self.__data_ref_count_mutex:
+            assert self.__data_ref_count > 0
             self.__data_ref_count -= 1
             final_count = self.__data_ref_count
             if final_count == 0 and self.__data_and_metadata:
-                if self.persistent_object_context:
-                    self.__data_and_metadata.unload_data()
+                self.__data_and_metadata.decrement_data_ref_count()
         return final_count
 
     # used for testing

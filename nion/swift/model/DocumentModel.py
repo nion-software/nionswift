@@ -1640,9 +1640,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 traceback.print_exc()
                 computation.error_text = _("Unable to compute data")
             if data_and_metadata:
-                # wrap the 'set' in a data ref so that data gets unloaded correctly.
-                with buffered_data_source.data_ref() as data_ref:
-                    buffered_data_source.set_data_and_metadata(data_and_metadata)
+                buffered_data_source.set_data_and_metadata(data_and_metadata)
 
     def recompute_immediate(self, data_item: DataItem.DataItem) -> None:
         # this can be called on the UI thread; but it can also take time. use sparingly.
