@@ -28,7 +28,7 @@ class TestConnectionClass(unittest.TestCase):
         # setup document model
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
+            data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)
@@ -47,7 +47,7 @@ class TestConnectionClass(unittest.TestCase):
         # setup document model
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
+            data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)
@@ -67,7 +67,7 @@ class TestConnectionClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            data_item_3d = DataItem.DataItem(numpy.zeros((32, 8, 8), numpy.uint32))
+            data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
             document_model.append_data_item(data_item_1d)

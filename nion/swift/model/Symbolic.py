@@ -36,8 +36,8 @@ def region_by_uuid(context, region_uuid):
 
 
 def region_mask(data_and_metadata, region):
-    data_shape = data_and_metadata.data_shape[-2:]
-    mask = region.get_mask(data_shape)
+    dimensional_shape = data_and_metadata.dimensional_shape[0:2]  # signal_index
+    mask = region.get_mask(dimensional_shape)
     return DataAndMetadata.DataAndMetadata.from_data(mask)
 
 

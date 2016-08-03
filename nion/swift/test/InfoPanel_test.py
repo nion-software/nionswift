@@ -72,12 +72,31 @@ class TestInfoPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((4, 10, 10)))
+        data_item = DataItem.DataItem(numpy.zeros((10, 10, 4)))
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
         header_height = Panel.HeaderCanvasItem().header_height
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
+        display_panel.display_canvas_item.mouse_exited()
+        document_controller.close()
+
+    def test_cursor_over_3d_data_displays_correct_ordering_of_indices(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item = DataItem.DataItem(numpy.ones((100, 100, 20)))
+        document_model.append_data_item(data_item)
+        display_panel.set_displayed_data_item(data_item)
+        header_height = Panel.HeaderCanvasItem().header_height
+        info_panel = document_controller.find_dock_widget("info-panel").panel
+        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+        display_panel.display_canvas_item.mouse_entered()
+        display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
+        document_controller.periodic()
+        self.assertAlmostEqual(info_panel.label_row_1.text, "Position: 0.0, 50.0, 50.0")
+        self.assertAlmostEqual(info_panel.label_row_2.text, "Value: 1")
+        self.assertAlmostEqual(info_panel.label_row_3.text, None)
         display_panel.display_canvas_item.mouse_exited()
         document_controller.close()

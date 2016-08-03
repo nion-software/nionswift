@@ -2274,7 +2274,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
         out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
         src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("sum({src} * region_mask({src}, region)[newaxis, ...], tuple(range(1, len(data_shape({src})))))", [src], [], _("Pick Sum"), "pick-mask-sum", out_regions=[out_region], connections=[connection])
+        return self.__get_processing_new("sum_region({src}, region_mask({src}, region))", [src], [], _("Pick Sum"), "pick-mask-sum", out_regions=[out_region], connections=[connection])
 
     def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
         in_region = DocumentModel.make_region("line_region", "line", line_region, {"label": _("Line Profile")})

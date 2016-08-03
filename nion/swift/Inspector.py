@@ -730,7 +730,7 @@ class SliceInspectorSection(InspectorSection):
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
         slice_center_line_edit_widget = self.ui.create_line_edit_widget()
         slice_center_slider_widget = self.ui.create_slider_widget()
-        slice_center_slider_widget.maximum = buffered_data_source.dimensional_shape[0] - 1
+        slice_center_slider_widget.maximum = buffered_data_source.dimensional_shape[-1] - 1  # signal_index
         slice_center_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_center"))
         slice_center_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_center", converter=Converter.IntegerToStringConverter()))
         slice_center_row_widget.add(slice_center_label_widget)
@@ -744,7 +744,7 @@ class SliceInspectorSection(InspectorSection):
         slice_width_label_widget = self.ui.create_label_widget(_("Width"))
         slice_width_line_edit_widget = self.ui.create_line_edit_widget()
         slice_width_slider_widget = self.ui.create_slider_widget()
-        slice_width_slider_widget.maximum = buffered_data_source.dimensional_shape[0] - 1
+        slice_width_slider_widget.maximum = buffered_data_source.dimensional_shape[-1] - 1  # signal_index
         slice_width_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_width"))
         slice_width_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_width", converter=Converter.IntegerToStringConverter()))
         slice_width_row_widget.add(slice_width_label_widget)
@@ -757,6 +757,12 @@ class SliceInspectorSection(InspectorSection):
         self.add_widget_to_content(slice_center_row_widget)
         self.add_widget_to_content(slice_width_row_widget)
         self.finish_widget_content()
+
+        # for testing
+        self._slice_center_slider_widget = slice_center_slider_widget
+        self._slice_width_slider_widget = slice_width_slider_widget
+        self._slice_center_line_edit_widget = slice_center_line_edit_widget
+        self._slice_width_line_edit_widget = slice_width_line_edit_widget
 
 
 class RadianToDegreeStringConverter(object):
@@ -939,12 +945,9 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size,
         def new_display_calibrated_values_binding():
             return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # calculate values from rectangle type graphic
-        if len(image_size) == 3:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        else:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1,  image_size[1])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        # signal_index
+        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
         position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
         position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
         graphic_position_x_line_edit.bind_text(position_x_binding)
@@ -1010,14 +1013,10 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, 
         def new_display_calibrated_values_binding():
             return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # configure the bindings
-        if len(image_size) == 3:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-            l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        else:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-            l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        # signal_index
+        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
         start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
         start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
         end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
@@ -1099,16 +1098,11 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_s
     if len(image_size) > 1:
         def new_display_calibrated_values_binding():
             return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
-        if len(image_size) == 3:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-            width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 2, image_size[2])
-            height_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        else:
-            x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-            y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-            width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-            height_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        # signal_index
+        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
+        width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
+        height_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
         center_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
         center_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
         size_width_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)

@@ -309,7 +309,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             elif self.__data_and_metadata.is_data_2d:
                 return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
             elif self.__data_and_metadata.is_data_3d:
-                dimensional_calibrations = dimensional_calibrations[1:]
+                dimensional_calibrations = dimensional_calibrations[0:2]  # signal_index
                 return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
         return None
 
@@ -324,7 +324,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         if self.__data_and_metadata.is_data_2d:
             return self.__data_and_metadata.dimensional_shape
         elif self.__data_and_metadata.is_data_3d:
-            return self.__data_and_metadata.dimensional_shape[1:]
+            return self.__data_and_metadata.dimensional_shape[0:2]  # signal_index
         elif self.__data_and_metadata.is_data_1d:
             return [1, ] + list(self.__data_and_metadata.dimensional_shape)
         else:
@@ -349,7 +349,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     def __validate_slice_center_for_width(self, value, slice_width):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[0]
+            depth = self.__data_and_metadata.dimensional_shape[-1]
             mn = max(int(slice_width * 0.5), 0)
             mx = min(int(depth - slice_width * 0.5), depth - 1)
             return min(max(int(value), mn), mx)
@@ -360,7 +360,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     def __validate_slice_width(self, value):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[0]
+            depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
             slice_center = self.slice_center
             mn = 1
             mx = max(min(slice_center, depth - slice_center) * 2, 1)
@@ -370,7 +370,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     @property
     def slice_interval(self):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[0]
+            depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
                 slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
                 slice_interval_end = slice_interval_start + self.slice_width
@@ -381,7 +381,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     @slice_interval.setter
     def slice_interval(self, slice_interval):
         if self.__data_and_metadata.dimensional_shape is not None:
-            depth = self.__data_and_metadata.dimensional_shape[0]
+            depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
                 slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
                 slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)

@@ -314,7 +314,7 @@ class TestStorageClass(unittest.TestCase):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((8, 4, 4), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.zeros((4, 4, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             display_specifier.display.slice_center = 5
@@ -1969,7 +1969,7 @@ class TestStorageClass(unittest.TestCase):
             data1 = computation.evaluate_data().data
             self.assertIsNone(computation.error_text)
             self.assertFalse(numpy.array_equal(data0, data1))
-            self.assertTrue(numpy.array_equal(data1, data[:, 0, 0]))
+            self.assertTrue(numpy.array_equal(data1, data[0, 0, :]))
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 

@@ -179,13 +179,13 @@ class TestSymbolicClass(unittest.TestCase):
     def test_slice_sum_sums_correct_slices(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            d = numpy.random.randn(16, 4, 4)
+            d = numpy.random.randn(4, 4, 16)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("slice_sum(a, 4, 6)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             data = computation.evaluate().data
-            assert numpy.array_equal(data, numpy.sum(d[1:7, ...], 0))
+            assert numpy.array_equal(data, numpy.sum(d[..., 1:7], -1))
 
     def test_reshape_1d_to_2d_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()

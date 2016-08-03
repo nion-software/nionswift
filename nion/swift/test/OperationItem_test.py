@@ -114,7 +114,7 @@ class TestProcessingClass(unittest.TestCase):
 
     # test processing against 2d data. doesn't test for correctness of the processing.
     def test_processing_3d(self):
-        data_item_real = DataItem.DataItem(numpy.zeros((256,16,16), numpy.double))
+        data_item_real = DataItem.DataItem(numpy.zeros((16,16,256), numpy.double))
         self.document_model.append_data_item(data_item_real)
 
         processing_list = []
@@ -272,11 +272,11 @@ class TestProcessingClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_real_0w)
         data_item_real_0h = DataItem.DataItem(numpy.zeros((0,256), numpy.double))
         self.document_model.append_data_item(data_item_real_0h)
-        data_item_real_0z = DataItem.DataItem(numpy.zeros((0, 8, 8), numpy.double))
+        data_item_real_0z = DataItem.DataItem(numpy.zeros((8, 8, 0), numpy.double))
         self.document_model.append_data_item(data_item_real_0z)
-        data_item_real_0z0w = DataItem.DataItem(numpy.zeros((16,0,256), numpy.double))
+        data_item_real_0z0w = DataItem.DataItem(numpy.zeros((0,256,16), numpy.double))
         self.document_model.append_data_item(data_item_real_0z0w)
-        data_item_real_0z0h = DataItem.DataItem(numpy.zeros((16,256,0), numpy.double))
+        data_item_real_0z0h = DataItem.DataItem(numpy.zeros((256,0,16), numpy.double))
         self.document_model.append_data_item(data_item_real_0z0h)
 
         data_item_complex_0l = DataItem.DataItem(numpy.zeros((0), numpy.double))
@@ -285,11 +285,11 @@ class TestProcessingClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_complex_0w)
         data_item_complex_0h = DataItem.DataItem(numpy.zeros((0,256), numpy.double))
         self.document_model.append_data_item(data_item_complex_0h)
-        data_item_complex_0z = DataItem.DataItem(numpy.zeros((0, 8, 8), numpy.double))
+        data_item_complex_0z = DataItem.DataItem(numpy.zeros((8, 8, 0), numpy.double))
         self.document_model.append_data_item(data_item_complex_0z)
-        data_item_complex_0z0w = DataItem.DataItem(numpy.zeros((16,0,256), numpy.double))
+        data_item_complex_0z0w = DataItem.DataItem(numpy.zeros((0,256,16), numpy.double))
         self.document_model.append_data_item(data_item_complex_0z0w)
-        data_item_complex_0z0h = DataItem.DataItem(numpy.zeros((16,256,0), numpy.double))
+        data_item_complex_0z0h = DataItem.DataItem(numpy.zeros((256,0,16), numpy.double))
         self.document_model.append_data_item(data_item_complex_0z0h)
 
         data_item_rgb_0w = DataItem.DataItem(numpy.zeros((256,0, 3), numpy.uint8))
@@ -735,7 +735,7 @@ class TestProcessingClass(unittest.TestCase):
         # the bug was that slice processing returned the wrong number of dimensions
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((16, 32, 32), numpy.float))
+            data_item = DataItem.DataItem(numpy.zeros((32, 32, 16), numpy.float))
             document_model.append_data_item(data_item)
             slice_data_item = document_model.get_slice_sum_new(data_item)
             document_model.recompute_all()

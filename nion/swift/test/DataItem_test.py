@@ -904,27 +904,27 @@ class TestDataItemClass(unittest.TestCase):
     def test_statistics_calculated_on_slice_data(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.abs(numpy.random.randn(8, 2, 2) * 100).astype(numpy.uint32))
+            data_item = DataItem.DataItem(numpy.abs(numpy.random.randn(2, 2, 8) * 100).astype(numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.get_processor("statistics").recompute_data(None)
             stats = display_specifier.display.get_processed_data("statistics")
-            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[0:1]))
+            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[..., 0:1]))
             display_specifier.display.slice_center = 3
             display_specifier.display.slice_width = 3
             display_specifier.display.get_processor("statistics").recompute_data(None)
             stats = display_specifier.display.get_processed_data("statistics")
-            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[2:5]))
+            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[..., 2:5]))
             display_specifier.display.slice_center = 4
             display_specifier.display.slice_width = 4
             display_specifier.display.get_processor("statistics").recompute_data(None)
             stats = display_specifier.display.get_processed_data("statistics")
-            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[2:6]))
+            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[..., 2:6]))
 
     def test_histogram_calculated_on_slice_data(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(((numpy.random.randn(8, 20, 20) * 100) ** 2).astype(numpy.uint32))
+            data_item = DataItem.DataItem(((numpy.random.randn(20, 20, 8) * 100) ** 2).astype(numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.get_processor("histogram").recompute_data(None)

@@ -1,7 +1,3 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import contextlib
 import copy
@@ -11,6 +7,7 @@ import unittest
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
@@ -69,6 +66,26 @@ class TestDisplayClass(unittest.TestCase):
         display = display_specifier.display
         self.assertIsNotNone(display.display_data)
 
+    def test_preview_2d_shape_of_3d_data_set_has_correct_dimensions(self):
+        data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), numpy.float64))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        self.assertEqual(display_specifier.display.preview_2d_shape, (16, 16))
+
+    def test_display_data_of_3d_data_set_has_correct_shape_and_calibrations(self):
+        intensity_calibration = Calibration.Calibration(units="I")
+        dim0_calibration = Calibration.Calibration(units="A")
+        dim1_calibration = Calibration.Calibration(units="B")
+        dim2_calibration = Calibration.Calibration(units="C")
+        data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), numpy.float64))
+        data_item.maybe_data_source.set_intensity_calibration(intensity_calibration)
+        data_item.maybe_data_source.set_dimensional_calibrations([dim0_calibration, dim1_calibration, dim2_calibration])
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_data_and_metadata = display_specifier.display.display_data_and_metadata
+        self.assertEqual(display_data_and_metadata.dimensional_shape, (16, 16))
+        self.assertEqual(display_data_and_metadata.intensity_calibration, intensity_calibration)
+        self.assertEqual(display_data_and_metadata.dimensional_calibrations[0], dim0_calibration)
+        self.assertEqual(display_data_and_metadata.dimensional_calibrations[1], dim1_calibration)
+
     def test_changing_data_updates_display_range(self):
         irow, icol = numpy.ogrid[0:16, 0:16]
         data_item = DataItem.DataItem(icol, numpy.uint32)
@@ -111,7 +128,7 @@ class TestDisplayClass(unittest.TestCase):
         self.assertIsNotNone(display_specifier.display.data_range)
 
     def test_data_item_setting_slice_width_validates_when_invalid(self):
-        data_item = DataItem.DataItem(numpy.ones((16, 16, 16), numpy.float64))
+        data_item = DataItem.DataItem(numpy.ones((4, 4, 16), numpy.float64))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.slice_center = 8
         display_specifier.display.slice_width = 0
@@ -122,7 +139,7 @@ class TestDisplayClass(unittest.TestCase):
         self.assertEqual(display_specifier.display.slice_width, 16)
 
     def test_data_item_setting_slice_center_validates_when_invalid(self):
-        data_item = DataItem.DataItem(numpy.ones((16, 16, 16), numpy.float64))
+        data_item = DataItem.DataItem(numpy.ones((4, 4, 16), numpy.float64))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.slice_center = 8
         display_specifier.display.slice_width = 8
@@ -145,30 +162,44 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            d = numpy.random.randn(12, 8, 8)
+            d = numpy.random.randn(4, 4, 12)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             map = {"a": document_model.get_object_specifier(data_item, "data")}
-            data_item2 = document_controller.processing_computation("a[0:8,:,:]", map)
+            data_item2 = document_controller.processing_computation("a[:,:,0:8]", map)
             document_model.recompute_all()
-            assert numpy.array_equal(data_item2.maybe_data_source.data, d[0:8,:,:])
+            assert numpy.array_equal(data_item2.maybe_data_source.data, d[:, :, 0:8])
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item2)
             display_specifier.display.slice_center = 6
             display_specifier.display.slice_width = 4
             self.assertEqual(display_specifier.display.slice_center, 6)
             self.assertEqual(display_specifier.display.slice_width, 4)
-            display_specifier.buffered_data_source.computation.expression = "a[0:4, :, :]"
+            display_specifier.buffered_data_source.computation.expression = "a[:, :, 0:4]"
             document_model.recompute_all()
             self.assertEqual(display_specifier.display.slice_center, 3)
             self.assertEqual(display_specifier.display.slice_width, 2)
+
+    def test_setting_slice_interval_scales_to_correct_dimension(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(4, 4, 100)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.slice_interval = 0.4, 0.6
+            # there is some rounding sloppiness... let it go for now
+            self.assertTrue(39 <= int(d.shape[2] * display_specifier.display.slice_interval[0]) <= 41)
+            self.assertTrue(display_specifier.display.slice_center == 50)
+            self.assertTrue(19 <= display_specifier.display.slice_width <= 21)
 
     def test_changing_slice_width_updates_data_range(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            d = numpy.zeros((4, 8, 8), numpy.uint32)
+            d = numpy.zeros((8, 8, 4), numpy.uint32)
             for i in range(4):
-                d[i] = i
+                d[..., i] = i
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -212,7 +243,7 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            d = numpy.ones((8, 16, 16), numpy.float64)
+            d = numpy.ones((16, 16, 8), numpy.float64)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -223,7 +254,7 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            d = numpy.ones((8, 16, 16), numpy.complex128)
+            d = numpy.ones((16, 16, 8), numpy.complex128)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)

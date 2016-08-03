@@ -29,10 +29,10 @@ class TestImageCanvasItemClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_mapping_widget_to_image_on_3d_data_uses_last_two_dimensions(self):
+    def test_mapping_widget_to_image_on_3d_data_uses_first_two_dimensions(self):
         canvas_size = Geometry.FloatSize(100, 100)
         canvas_origin = Geometry.FloatPoint(0, 0)
-        dimensional_size = (256, 16, 16)
+        dimensional_size = (16, 16, 256)
         widget_mapping = ImageCanvasItem.ImageCanvasItemMapping(dimensional_size, canvas_origin, canvas_size)
         # image_norm_to_widget
         image_norm_point = Geometry.FloatPoint(0.5, 0.5)

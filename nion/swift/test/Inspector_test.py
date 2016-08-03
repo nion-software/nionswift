@@ -1,17 +1,13 @@
 # futures
 from __future__ import absolute_import
 
-# standard libraries
 import contextlib
 import locale
 import logging
 import math
 import unittest
 
-# third party libraries
 import numpy
-
-# local libraries
 from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
@@ -206,7 +202,7 @@ class TestInspectorClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((16, 32, 32)))
+        data_item = DataItem.DataItem(numpy.zeros((32, 32, 16)))
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
         document_controller.selected_display_panel = None
@@ -218,6 +214,19 @@ class TestInspectorClass(unittest.TestCase):
         document_controller.periodic()
         self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
         document_controller.close()
+
+    def test_slice_inspector_section_uses_correct_dimension(self):
+        data_item = DataItem.DataItem(numpy.zeros((4, 4, 32), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display_specifier.display.slice_center = 16
+        display_specifier.display.slice_width = 4
+        slice_inspector_section = Inspector.SliceInspectorSection(self.app.ui, data_item, display_specifier.buffered_data_source, display_specifier.display)
+        self.assertEqual(slice_inspector_section._slice_center_slider_widget.value, 16)
+        self.assertEqual(slice_inspector_section._slice_center_slider_widget.maximum, 31)
+        self.assertEqual(slice_inspector_section._slice_width_slider_widget.value, 4)
+        self.assertEqual(slice_inspector_section._slice_width_slider_widget.maximum, 31)
+        self.assertEqual(slice_inspector_section._slice_center_line_edit_widget.text, "16")
+        self.assertEqual(slice_inspector_section._slice_width_line_edit_widget.text, "4")
 
     def test_inspector_handles_deleted_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -351,13 +360,13 @@ class TestInspectorClass(unittest.TestCase):
         raise Exception()
 
     def test_rectangle_dimensions_show_calibrated_units(self):
-        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))  # z, y, x
+        data_item = DataItem.DataItem(numpy.full((256, 256, 37), 0, dtype=numpy.uint32))  # z, y, x
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.add_graphic(Graphics.RectangleGraphic())
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=0.5))  # y
-        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm", scale=2.0))  # x
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
         Inspector.make_rectangle_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                                 display_specifier.buffered_data_source.dimensional_shape,
                                                 display_specifier.display.graphics[0])
@@ -367,7 +376,7 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "128.00 mm")  # height
 
     def test_line_dimensions_show_calibrated_units(self):
-        data_item = DataItem.DataItem(numpy.full((37, 100, 100), 0, dtype=numpy.uint32))  # z, y, x
+        data_item = DataItem.DataItem(numpy.full((100, 100, 37), 0, dtype=numpy.uint32))  # z, y, x
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         line_graphic = Graphics.LineGraphic()
         line_graphic.start = 0.2, 0.2
@@ -375,10 +384,8 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.display.add_graphic(line_graphic)
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm",
-                                                                                                      scale=0.5))  # y
-        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm",
-                                                                                                      scale=2.0))  # x
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
         Inspector.make_line_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                            display_specifier.buffered_data_source.dimensional_shape,
                                            display_specifier.display.graphics[0])
@@ -388,15 +395,13 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "40.00 mm")  # y1
 
     def test_point_dimensions_show_calibrated_units(self):
-        data_item = DataItem.DataItem(numpy.full((37, 256, 256), 0, dtype=numpy.uint32))  # z, y, x
+        data_item = DataItem.DataItem(numpy.full((256, 256, 37), 0, dtype=numpy.uint32))  # z, y, x
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.display.add_graphic(Graphics.PointGraphic())
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm",
-                                                                                                      scale=0.5))  # y
-        display_specifier.buffered_data_source.set_dimensional_calibration(2, Calibration.Calibration(units="mm",
-                                                                                                      scale=2.0))  # x
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm", scale=0.5))  # y
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm", scale=2.0))  # x
         Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                             display_specifier.buffered_data_source.dimensional_shape,
                                             display_specifier.display.graphics[0])
@@ -412,8 +417,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.display.add_graphic(interval_graphic)
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="eV",
-                                                                                                      scale=2.0))  # energy
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="eV", scale=2.0))  # energy
         Inspector.make_interval_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                             display_specifier.buffered_data_source.dimensional_shape,
                                             display_specifier.display.graphics[0])
@@ -429,10 +433,8 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.display.add_graphic(interval_graphic)
         graphic_widget = self.app.ui.create_column_widget()
         display_specifier.display.display_calibrated_values = True
-        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="s",
-                                                                                                      scale=1.0))  # time
-        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="eV",
-                                                                                                      scale=2.0))  # energy
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="s", scale=1.0))  # time
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="eV", scale=2.0))  # energy
         Inspector.make_interval_type_inspector(self.app.ui, graphic_widget, display_specifier,
                                             display_specifier.buffered_data_source.dimensional_shape,
                                             display_specifier.display.graphics[0])

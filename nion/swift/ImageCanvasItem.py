@@ -11,10 +11,10 @@ from nion.ui import CanvasItem
 from nion.utils import Geometry
 
 
-class ImageCanvasItemMapping(object):
+class ImageCanvasItemMapping:
 
     def __init__(self, data_shape, canvas_origin, canvas_size):
-        self.data_shape = data_shape[-2:]  # use the last two dimensions
+        self.data_shape = data_shape[0:2]  # signal_index
         # double check dimensions are not zero
         if self.data_shape:
             for d in self.data_shape:

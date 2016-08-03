@@ -1063,7 +1063,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     data_and_metadata = buffered_data_source.data_and_metadata if display else None
                     display_calibrated_values = display.display_calibrated_values if display else False
                     if data_and_metadata and data_and_metadata.is_data_3d and pos is not None:
-                        pos = (display.slice_center, ) + pos
+                        pos = pos + (display.slice_center, )  # signal_index
                     position_text = ""
                     value_text = ""
                     if data_and_metadata and pos is not None:
