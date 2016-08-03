@@ -326,6 +326,30 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(display_specifier.display.slice_center, 5)
             self.assertEqual(display_specifier.display.slice_width, 3)
 
+    def test_reload_data_item_validates_display_slice_and_has_valid_data_and_stats(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data = numpy.zeros((4, 4, 8), numpy.uint32)
+            data[..., 7] = 1
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+            display_specifier.display.slice_center = 5
+            display_specifier.display.slice_width = 1
+            self.assertEqual(display_specifier.display.data_range, (0, 0))
+        # make the slice_center be out of bounds
+        memory_persistent_storage_system.properties[str(data_item.uuid)]["data_sources"][0]["displays"][0]["slice_center"] = 20
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
+            self.assertEqual(display_specifier.display.slice_center, 7)
+            self.assertEqual(display_specifier.display.slice_width, 1)
+            with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
+                self.assertIsNotNone(data_ref.data)
+            self.assertEqual(display_specifier.display.data_range, (1, 1))
+
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")

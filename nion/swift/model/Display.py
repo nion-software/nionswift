@@ -367,6 +367,14 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             return min(max(value, mn), mx)
         return value if self._is_reading else 1
 
+    def validate(self):
+        slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
+        if slice_center != self.slice_center:
+            old_slice_width = self.slice_width
+            self.slice_width = 1
+            self.slice_center = self.slice_center
+            self.slice_width = old_slice_width
+
     @property
     def slice_interval(self):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
@@ -394,7 +402,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         if not self._is_reading:
             self.remove_cached_value("data_range")
             self.remove_cached_value("data_sample")
-        self.__validate_data_stats()
+        if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
+            self.__validate_data_stats()
         self.notify_set_property("slice_interval", self.slice_interval)
 
     def __display_type_changed(self, property_name, value):
@@ -501,12 +510,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
         self.__clear_cached_data()
         if old_data_shape != new_data_shape:
-            slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
-            if slice_center != self.slice_center:
-                old_slice_width = self.slice_width
-                self.slice_width = 1
-                self.slice_center = self.slice_center
-                self.slice_width = old_slice_width
+            self.validate()
         if not self._is_reading:
             self.remove_cached_value("data_range")
             self.remove_cached_value("data_sample")

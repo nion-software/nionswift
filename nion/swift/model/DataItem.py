@@ -277,6 +277,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 with self.__data_ref_count_mutex:
                     self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
                 self.__data_and_metadata.unloadable = self.persistent_object_context is not None
+            for display in self.displays:
+                display.validate()  # do this here to avoid having changes happen outside of _changes
 
     def finish_reading(self):
         # display properties need to be updated after storage_cache is initialized.
