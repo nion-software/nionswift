@@ -102,5 +102,15 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.display_specifier.display.graphic_selection.set(0)
         self.histogram_panel._histogram_widget._recompute()
 
+    def test_histogram_statistics_on_slice(self):
+        data = numpy.multiply(numpy.abs(numpy.random.randn(2, 2, 20)), 100).astype(numpy.uint32)
+        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
+            data_ref.master_data = data
+        self.display_specifier.display.slice_center = 15
+        self.display_specifier.display.slice_width = 2
+        self.assertAlmostEqual(float(self.histogram_panel._statistics_widget._statistics_future_stream.value.value["mean"]), numpy.average(numpy.sum(data[..., 14:16], -1)))
+        self.assertAlmostEqual(float(self.histogram_panel._statistics_widget._statistics_future_stream.value.value["min"]), numpy.amin(numpy.sum(data[..., 14:16], -1)))
+        self.assertAlmostEqual(float(self.histogram_panel._statistics_widget._statistics_future_stream.value.value["max"]), numpy.amax(numpy.sum(data[..., 14:16], -1)))
+
 if __name__ == '__main__':
     unittest.main()

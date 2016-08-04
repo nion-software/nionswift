@@ -434,6 +434,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__clear_cached_data()
         self.notify_set_property(property_name, value)
         self.display_changed_event.fire()
+        if property_name in ("slice_center", "slice_width"):
+            self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
@@ -515,6 +517,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             self.remove_cached_value("data_range")
             self.remove_cached_value("data_sample")
             self.__validate_data_stats()
+        self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
         self.display_changed_event.fire()
 
     def __clear_cached_data(self):

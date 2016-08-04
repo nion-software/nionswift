@@ -435,6 +435,10 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
         self.__statistics_future_stream = None
         super().close()
 
+    @property
+    def _statistics_future_stream(self):
+        return self.__statistics_future_stream
+
     def _recompute(self):
         pass
 
@@ -730,7 +734,7 @@ class DisplayPropertyStream:
         self.__display_stream = display_stream
         # initialize
         self.__property_name = property_name
-        self.__display_mutated_event_listener = None
+        self.__property_changed_event_listener = None
         self.__value = None
         # listen for display changes
         self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
@@ -750,22 +754,23 @@ class DisplayPropertyStream:
         return self.__value
 
     def __display_changed(self, display):
-        def display_mutated():
-            new_value = getattr(display, self.__property_name)
-            if isinstance(new_value, numpy.ndarray) or isinstance(self.__value, numpy.ndarray):
-                if not numpy.array_equal(new_value, self.__value):
-                    self.__value = new_value
-                    self.value_stream.fire(self.__value)
-            else:
-                if new_value != self.__value:
-                    self.__value = new_value
-                    self.value_stream.fire(self.__value)
-        if self.__display_mutated_event_listener:
-            self.__display_mutated_event_listener.close()
-            self.__display_mutated_event_listener = None
+        def property_changed(key, value):
+            if key == self.__property_name:
+                new_value = getattr(display, self.__property_name)
+                if isinstance(new_value, numpy.ndarray) or isinstance(self.__value, numpy.ndarray):
+                    if not numpy.array_equal(new_value, self.__value):
+                        self.__value = new_value
+                        self.value_stream.fire(self.__value)
+                else:
+                    if new_value != self.__value:
+                        self.__value = new_value
+                        self.value_stream.fire(self.__value)
+        if self.__property_changed_event_listener:
+            self.__property_changed_event_listener.close()
+            self.__property_changed_event_listener = None
         if display:
-            self.__display_mutated_event_listener = display.display_changed_event.listen(display_mutated)
-            display_mutated()
+            self.__property_changed_event_listener = display.property_changed_event.listen(property_changed)
+            property_changed(self.__property_name, getattr(display, self.__property_name))
         else:
             self.__value = None
             self.value_stream.fire(None)
