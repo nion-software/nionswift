@@ -1135,7 +1135,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             root_canvas_item = self.canvas_item.root_container
-            thumbnail_data = display_specifier.display.get_processed_data("thumbnail")
+            thumbnail_data = display_specifier.display.thumbnail_data
             on_begin_drag = self.on_begin_drag
             if callable(on_begin_drag):
                 on_begin_drag(root_canvas_item.canvas_widget, mime_data, thumbnail_data)

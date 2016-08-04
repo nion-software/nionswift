@@ -25,32 +25,6 @@ class TestDisplayClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_changing_display_limits_clears_histogram_data_cache(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display = display_specifier.display
-        self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-        display.get_processor("histogram").recompute_data(None)
-        display.get_processed_data("histogram")
-        self.assertFalse(display.is_cached_value_dirty("histogram_data"))
-        display.display_limits = (0.25, 0.75)
-        self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-
-    def test_changing_display_limits_clears_histogram_data_cache_before_reporting_display_change(self):
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display = display_specifier.display
-        self.assertTrue(display.is_cached_value_dirty("histogram_data"))
-        display.get_processor("histogram").recompute_data(None)
-        display.get_processed_data("histogram")
-        self.assertFalse(display.is_cached_value_dirty("histogram_data"))
-        dirty_ref = [False]
-        def display_changed():
-            dirty_ref[0] = display.is_cached_value_dirty("histogram_data")
-        with contextlib.closing(display.display_changed_event.listen(display_changed)):
-            display.display_limits = (0.25, 0.75)
-            self.assertTrue(dirty_ref[0])
-
     def test_setting_inverted_display_limits_reverses_them(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)

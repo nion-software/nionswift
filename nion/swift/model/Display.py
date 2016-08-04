@@ -155,10 +155,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__display_data_lock = threading.RLock()
         self.__preview = None
         self.__preview_lock = threading.RLock()
-        self.__processors = dict()
-        self.__processors["statistics"] = StatisticsDataItemProcessor(self)
-        self.__processors["thumbnail"] = ThumbnailDataItemProcessor(self)
-        self.__processors["histogram"] = HistogramDataItemProcessor(self)
+        self.__thumbnail_processor = ThumbnailDataItemProcessor(self)
         self.graphic_selection = GraphicSelection()
         def graphic_selection_changed():
             # relay the message
@@ -175,9 +172,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self._closed = False
 
     def close(self):
-        for processor in self.__processors.values():
-            processor.close()
-        self.__processors = None
+        self.__thumbnail_processor.close()
+        self.__thumbnail_processor = None
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
@@ -196,10 +192,13 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
-    def get_processor(self, processor_id):
-        # check for case where we might already be closed. not pretty.
-        # TODO: get_processor should never be called after close
-        return self.__processors[processor_id] if self.__processors else None
+    @property
+    def thumbnail_processor(self):
+        return self.__thumbnail_processor
+
+    @property
+    def thumbnail_data(self):
+        return self.__thumbnail_processor.get_cached_data() if self.__thumbnail_processor else None
 
     @property
     def data_for_processor(self):
@@ -329,10 +328,6 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             return [1, ] + list(self.__data_and_metadata.dimensional_shape)
         else:
             return None
-
-    def get_processed_data(self, processor_id):
-        processor = self.get_processor(processor_id)
-        return processor.get_cached_data() if processor else None
 
     @property
     def selected_graphics(self):
@@ -527,8 +522,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             self.__preview = None
         # clear the processor caches
         if not self._is_reading:
-            for processor in self.__processors.values():
-                processor.mark_data_dirty()
+            self.__thumbnail_processor.mark_data_dirty()
 
     def __insert_graphic(self, name, before_index, item):
         graphic_changed_listener = item.graphic_changed_event.listen(functools.partial(self.graphic_changed, item))
@@ -576,8 +570,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def notify_set_property(self, key, value):
         super(Display, self).notify_set_property(key, value)
         if not self._is_reading:
-            for processor in self.__processors.values():
-                processor.item_property_changed(key, value)
+            self.__thumbnail_processor.item_property_changed(key, value)
 
     # called from processors
     def processor_needs_recompute(self, processor):
@@ -586,61 +579,6 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     # called from processors
     def processor_data_updated(self, processor):
         self.display_processor_data_updated_event.fire(processor)
-
-
-class StatisticsDataItemProcessor(DataItemProcessor.DataItemProcessor):
-
-    def __init__(self, buffered_data_source):
-        super(StatisticsDataItemProcessor, self).__init__(buffered_data_source, "statistics_data_2")
-
-    def get_calculated_data(self, ui, data):
-        #logging.debug("Calculating statistics %s", self)
-        mean = numpy.mean(data)
-        std = numpy.std(data)
-        rms = numpy.sqrt(numpy.mean(numpy.absolute(data)**2))
-        sum = mean * functools.reduce(operator.mul, Image.dimensional_shape_from_shape_and_dtype(data.shape, data.dtype))
-        data_range = self.item.data_range
-        data_min, data_max = data_range if data_range is not None else (None, None)
-        return { "mean": mean, "std": std, "min": data_min, "max": data_max, "rms": rms, "sum": sum }
-
-    def get_default_data(self):
-        return { }
-
-
-class HistogramDataItemProcessor(DataItemProcessor.DataItemProcessor):
-
-    def __init__(self, display):
-        super(HistogramDataItemProcessor, self).__init__(display, "histogram_data")
-        self.bins = 320
-        self.subsample = None  # hard coded subsample size
-        self.subsample_fraction = None  # fraction of total pixels
-        self.subsample_min = 1024  # minimum subsample size
-
-    def item_property_changed(self, key, value):
-        """ Called directly from data item. """
-        super(HistogramDataItemProcessor, self).item_property_changed(key, value)
-        if key == "display_limits" or key == "slice_interval":
-            self._set_cached_value_dirty()
-
-    def get_calculated_data(self, ui, data):
-        subsample = self.subsample
-        total_pixels = numpy.product(data.shape)
-        if not subsample and self.subsample_fraction:
-            subsample = min(max(total_pixels * self.subsample_fraction, self.subsample_min), total_pixels)
-        if subsample:
-            factor = total_pixels / subsample
-            data_sample = numpy.random.choice(data.reshape(numpy.product(data.shape)), subsample)
-        else:
-            factor = 1.0
-            data_sample = numpy.copy(data)
-        display_range = self.item.display_range  # may be None
-        if display_range is None or data_sample is None:
-            return None
-        histogram_data = factor * numpy.histogram(data_sample, range=display_range, bins=self.bins)[0]
-        histogram_max = numpy.max(histogram_data)  # assumes that histogram_data is int
-        if histogram_max > 0:
-            histogram_data = histogram_data / float(histogram_max)
-        return histogram_data
 
 
 class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):

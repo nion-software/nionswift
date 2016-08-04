@@ -38,7 +38,7 @@ class AbstractDataItemThumbnailSource(metaclass=abc.ABCMeta):
 
     def _update_thumbnail(self, data_item: DataItem.DataItem) -> None:
         display = data_item.primary_display_specifier.display if data_item else None
-        self._set_thumbnail_data(display.get_processed_data("thumbnail") if display else None)
+        self._set_thumbnail_data(display.thumbnail_data if display else None)
         if callable(self.on_rgba_bitmap_data_changed):
             self.on_rgba_bitmap_data_changed(data_item, self.__thumbnail_data)
 
@@ -76,7 +76,7 @@ class DataItemReferenceThumbnailSource(AbstractDataItemThumbnailSource):
                 def data_item_content_changed(changes):
                     data_item = self.__data_item
                     display = data_item.primary_display_specifier.display if data_item else None
-                    display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
+                    display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
                     self._update_thumbnail(data_item)
                 self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
             else:
@@ -213,7 +213,7 @@ class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
                 if display_specifier.data_item is not None:
                     mime_data = ui.create_mime_data()
                     mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
-                    thumbnail_data = display_specifier.display.get_processed_data("thumbnail")
+                    thumbnail_data = display_specifier.display.thumbnail_data
                     on_drag(mime_data, Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), (size.width, size.height))), x, y)
 
         def data_item_drop(data_item_uuid):

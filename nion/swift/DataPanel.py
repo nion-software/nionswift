@@ -81,11 +81,11 @@ class DisplayItem(object):
         if display:
 
             def display_processor_needs_recompute(processor):
-                if processor == display.get_processor("thumbnail"):
+                if processor == display.thumbnail_processor:
                     self.needs_recompute_event.fire()
 
             def display_processor_data_updated(processor):
-                if processor == display.get_processor("thumbnail"):
+                if processor == display.thumbnail_processor:
                     self.needs_update_event.fire()
 
             self.__display_processor_needs_recompute_event_listener = display.display_processor_needs_recompute_event.listen(display_processor_needs_recompute)
@@ -109,13 +109,13 @@ class DisplayItem(object):
     def recompute(self, dispatch_task, ui):
         display = self.__data_item.primary_display_specifier.display
         if display:
-            display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
+            display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
 
     def get_thumbnail(self, dispatch_task, ui):
         display = self.__data_item.primary_display_specifier.display
         if display:
-            display.get_processor("thumbnail").recompute_if_necessary(dispatch_task, ui)
-            return display.get_processed_data("thumbnail")
+            display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
+            return display.thumbnail_data
         return None
 
     @property
@@ -159,7 +159,7 @@ class DisplayItem(object):
         mime_data = self.get_mime_data(ui)
         display_specifier = data_item.primary_display_specifier
         display = display_specifier.display
-        thumbnail_data = display.get_processed_data("thumbnail") if display else None
+        thumbnail_data = display.thumbnail_data if display else None
         return mime_data, thumbnail_data
 
 

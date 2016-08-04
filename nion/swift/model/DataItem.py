@@ -1344,14 +1344,14 @@ class BufferedDataSourceSpecifier(object):
         return cls(data_item, buffered_data_source)
 
 
-class DisplaySpecifier(object):
+class DisplaySpecifier:
     """Specify a Display contained within a DataItem.
 
     If display is not None, then data_item is not None.
     If buffered_data_source is not None, then data_item is not None.
     """
 
-    def __init__(self, data_item=None, buffered_data_source=None, display=None):
+    def __init__(self, data_item: DataItem=None, buffered_data_source: BufferedDataSource=None, display: Display.Display=None):
         self.data_item = data_item
         self.buffered_data_source = buffered_data_source
         self.display = display

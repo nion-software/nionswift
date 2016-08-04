@@ -212,8 +212,8 @@ class TestDataItemClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         self.assertTrue(display.is_cached_value_dirty("thumbnail_data"))
-        display.get_processor("thumbnail").recompute_data(self.app.ui)
-        self.assertIsNotNone(display.get_processed_data("thumbnail"))
+        display.thumbnail_processor.recompute_data(self.app.ui)
+        self.assertIsNotNone(display.thumbnail_data)
         self.assertFalse(display.is_cached_value_dirty("thumbnail_data"))
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.zeros((8, 8), numpy.uint32)
@@ -223,8 +223,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((1, 300), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        display.get_processor("thumbnail").recompute_data(self.app.ui)
-        thumbnail_data = display.get_processed_data("thumbnail")
+        display.thumbnail_processor.recompute_data(self.app.ui)
+        thumbnail_data = display.thumbnail_data
         self.assertTrue(functools.reduce(lambda x, y: x * y, thumbnail_data.shape) > 0)
 
     def test_thumbnail_2d_handles_nan_data(self):
@@ -233,8 +233,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(data)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        display.get_processor("thumbnail").recompute_data(self.app.ui)
-        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+        display.thumbnail_processor.recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.thumbnail_data)
 
     def test_thumbnail_2d_handles_inf_data(self):
         data = numpy.zeros((16, 16), numpy.float)
@@ -242,15 +242,15 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(data)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        display.get_processor("thumbnail").recompute_data(self.app.ui)
-        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+        display.thumbnail_processor.recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.thumbnail_data)
 
     def test_thumbnail_1d(self):
         data_item = DataItem.DataItem(numpy.zeros((256), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        display.get_processor("thumbnail").recompute_data(self.app.ui)
-        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+        display.thumbnail_processor.recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.thumbnail_data)
 
     def test_thumbnail_1d_handles_nan_data(self):
         data = numpy.zeros((256), numpy.float)
@@ -258,8 +258,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(data)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        display.get_processor("thumbnail").recompute_data(self.app.ui)
-        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+        display.thumbnail_processor.recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.thumbnail_data)
 
     def test_thumbnail_1d_handles_inf_data(self):
         data = numpy.zeros((256), numpy.float)
@@ -267,8 +267,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(data)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        display.get_processor("thumbnail").recompute_data(self.app.ui)
-        self.assertIsNotNone(display_specifier.display.get_processed_data("thumbnail"))
+        display.thumbnail_processor.recompute_data(self.app.ui)
+        self.assertIsNotNone(display_specifier.display.thumbnail_data)
 
     def test_thumbnail_marked_dirty_when_source_data_changed(self):
         document_model = DocumentModel.DocumentModel()
@@ -280,8 +280,8 @@ class TestDataItemClass(unittest.TestCase):
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
             document_model.recompute_all()
             data_item_inverted_display = inverted_display_specifier.display
-            data_item_inverted_display.get_processor("thumbnail").recompute_data(self.app.ui)
-            data_item_inverted_display.get_processed_data("thumbnail")
+            data_item_inverted_display.thumbnail_processor.recompute_data(self.app.ui)
+            data_item_inverted_display.thumbnail_data
             # here the data should be computed and the thumbnail should not be dirty
             self.assertFalse(data_item_inverted_display.is_cached_value_dirty("thumbnail_data"))
             # now the source data changes and the inverted data needs computing.
@@ -811,19 +811,6 @@ class TestDataItemClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -3.0)
 
-    def test_recomputing_data_does_not_notify_listeners_of_stale_data_unless_it_is_really_stale(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertTrue(display_specifier.display.is_cached_value_dirty("statistics_data"))
-            document_model.recompute_all()
-            display_specifier.display.get_processor("statistics").recompute_data(None)
-            self.assertFalse(display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-            document_model.recompute_all()
-            self.assertFalse(display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-
     def test_recomputing_data_after_cached_data_is_called_gives_correct_result(self):
         # verify that this works, the more fundamental test is in test_reloading_stale_data_should_still_be_stale
         document_model = DocumentModel.DocumentModel()
@@ -844,95 +831,6 @@ class TestDataItemClass(unittest.TestCase):
             # recompute and verify the data values are valid
             document_model.recompute_all()
             self.assertAlmostEqual(inverted_display_specifier.buffered_data_source.data[0, 0], -3.0)
-
-    def test_statistics_marked_dirty_when_data_changed(self):
-        data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.uint32))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.assertTrue(display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-        display_specifier.display.get_processor("statistics").recompute_data(None)
-        self.assertIsNotNone(display_specifier.display.get_processed_data("statistics"))
-        self.assertFalse(display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-        with display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = data_ref.master_data + 1.0
-        self.assertTrue(display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-
-    def test_statistics_marked_dirty_when_source_data_changed(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_inverted = document_model.get_invert_new(data_item)
-            inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
-            inverted_display_specifier.display.get_processor("statistics").recompute_data(None)
-            inverted_display_specifier.display.get_processed_data("statistics")
-            # here the data should be computed and the statistics should not be dirty
-            self.assertFalse(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-            # now the source data changes and the inverted data needs computing.
-            # the statistics should also be dirty.
-            with display_specifier.buffered_data_source.data_ref() as data_ref:
-                data_ref.master_data = data_ref.master_data + 1.0
-            document_model.recompute_all()
-            self.assertTrue(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-
-    def test_statistics_marked_dirty_when_source_data_recomputed(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.double))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item_inverted = document_model.get_invert_new(data_item)
-            inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
-            inverted_display_specifier.display.get_processor("statistics").recompute_data(None)
-            inverted_display_specifier.display.get_processed_data("statistics")
-            # here the data should be computed and the statistics should not be dirty
-            self.assertFalse(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-            # now the source data changes and the inverted data needs computing.
-            # the statistics should also be dirty.
-            with display_specifier.buffered_data_source.data_ref() as data_ref:
-                data_ref.master_data = data_ref.master_data + 2.0
-            document_model.recompute_all()
-            self.assertTrue(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-            # next recompute data, the statistics should be dirty now.
-            document_model.recompute_all()
-            self.assertTrue(inverted_display_specifier.display.is_cached_value_dirty("statistics_data_2"))
-            # get the new statistics and verify they are correct.
-            inverted_display_specifier.display.get_processor("statistics").recompute_data(None)
-            good_statistics = inverted_display_specifier.display.get_processed_data("statistics")
-            self.assertTrue(good_statistics["mean"] == -3.0)
-
-    def test_statistics_calculated_on_slice_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.abs(numpy.random.randn(2, 2, 8) * 100).astype(numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.display.get_processor("statistics").recompute_data(None)
-            stats = display_specifier.display.get_processed_data("statistics")
-            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[..., 0:1]))
-            display_specifier.display.slice_center = 3
-            display_specifier.display.slice_width = 3
-            display_specifier.display.get_processor("statistics").recompute_data(None)
-            stats = display_specifier.display.get_processed_data("statistics")
-            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[..., 2:5]))
-            display_specifier.display.slice_center = 4
-            display_specifier.display.slice_width = 4
-            display_specifier.display.get_processor("statistics").recompute_data(None)
-            stats = display_specifier.display.get_processed_data("statistics")
-            self.assertAlmostEqual(stats.get("sum"), numpy.sum(data_item.maybe_data_source.data[..., 2:6]))
-
-    def test_histogram_calculated_on_slice_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(((numpy.random.randn(20, 20, 8) * 100) ** 2).astype(numpy.uint32))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.display.get_processor("histogram").recompute_data(None)
-            histogram = display_specifier.display.get_processed_data("histogram")
-            display_specifier.display.slice_center = 4
-            display_specifier.display.slice_width = 4
-            display_specifier.display.get_processor("histogram").recompute_data(None)
-            histogram = display_specifier.display.get_processed_data("histogram")
 
     def test_modifying_data_item_modified_property_works(self):
         document_model = DocumentModel.DocumentModel()
