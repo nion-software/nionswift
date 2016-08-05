@@ -635,7 +635,7 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
         assert image is not None
-        assert image.ndim in (2,3)
+        assert Image.is_data_2d(image)
         image = Image.scalar_from_array(image)
         image_height = image.shape[0]
         image_width = image.shape[1]
@@ -645,22 +645,9 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
             scaled_height = max(1, scaled_height)
             scaled_width = max(1, scaled_width)
             thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-            if numpy.ndim(thumbnail_image) == 2:
-                if data_range is not None and (any([math.isnan(x) for x in data_range]) or any([math.isinf(x) for x in data_range])):
-                    return self.get_default_data()
-                else:
-                    return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-            elif numpy.ndim(thumbnail_image) == 3:
-                data = thumbnail_image
-                if thumbnail_image.shape[2] == 4:
-                    return data.view(numpy.uint32).reshape(data.shape[:-1])
-                elif thumbnail_image.shape[2] == 3:
-                    rgba = numpy.empty(data.shape[:-1] + (4,), numpy.uint8)
-                    rgba[:,:,0:3] = data
-                    rgba[:,:,3] = 255
-                    return rgba.view(numpy.uint32).reshape(rgba.shape[:-1])
-        else:
-            return self.get_default_data()
+            if data_range is None or not (any([math.isnan(x) for x in data_range]) or any([math.isinf(x) for x in data_range])):
+                return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
+        return self.get_default_data()
 
 
 def display_factory(lookup_id):
