@@ -5,10 +5,9 @@
 # standard libraries
 import copy
 import functools
-import math
 import gettext
+import math
 import numbers
-import operator
 import threading
 import typing
 
@@ -151,8 +150,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
-        self.__display_data = None
-        self.__display_data_lock = threading.RLock()
+        self.__display_data_and_metadata = None
+        self.__display_data_and_metadata_lock = threading.RLock()
         self.__preview = None
         self.__preview_lock = threading.RLock()
         self.__thumbnail_processor = ThumbnailDataItemProcessor(self)
@@ -271,46 +270,39 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             return self.__preview
 
     @property
-    def display_data(self):
-        try:
-            with self.__display_data_lock:
-                if self.__display_data is None and self.__data_and_metadata is not None:
-                    data = self.__data_and_metadata.data
-                    if Image.is_data_1d(data):
-                        display_data = Image.scalar_from_array(data)
-                    elif Image.is_data_2d(data):
-                        display_data = Image.scalar_from_array(data)
-                    elif Image.is_data_3d(data):
-                        display_data = Image.scalar_from_array(Core.function_slice_sum(self.__data_and_metadata, self.slice_center, self.slice_width).data)
-                    else:
-                        display_data = None
-                    self.__display_data = display_data
-                return self.__display_data
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
+    def display_data(self) -> numpy.ndarray:
+        display_data_and_metadata = self.display_data_and_metadata
+        return display_data_and_metadata.data if display_data_and_metadata else None
 
     @property
-    def display_data_and_metadata(self):
+    def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
         """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA.
 
         Accessing display data may involve computation, so this method should not be used on UI thread.
         """
-        if self.__data_and_metadata:
-            intensity_calibration = self.__data_and_metadata.intensity_calibration
-            dimensional_calibrations = self.__data_and_metadata.dimensional_calibrations
-            metadata = self.__data_and_metadata.metadata
-            timestamp = self.__data_and_metadata.timestamp
-            if self.__data_and_metadata.is_data_1d:
-                return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
-            elif self.__data_and_metadata.is_data_2d:
-                return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
-            elif self.__data_and_metadata.is_data_3d:
-                dimensional_calibrations = dimensional_calibrations[0:2]  # signal_index
-                return DataAndMetadata.DataAndMetadata.from_data(self.display_data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
-        return None
+        with self.__display_data_and_metadata_lock:
+            data_and_metadata = self.__data_and_metadata
+            if self.__display_data_and_metadata is None and data_and_metadata is not None:
+                intensity_calibration = data_and_metadata.intensity_calibration
+                dimensional_calibrations = data_and_metadata.dimensional_calibrations
+                metadata = data_and_metadata.metadata
+                timestamp = data_and_metadata.timestamp
+                if data_and_metadata.is_data_1d:
+                    display_data = Image.scalar_from_array(data_and_metadata.data)
+                    self.__display_data_and_metadata = DataAndMetadata.new_data_and_metadata(display_data, intensity_calibration, dimensional_calibrations,
+                                                                                             metadata, timestamp)
+                elif data_and_metadata.is_data_2d:
+                    display_data = Image.scalar_from_array(data_and_metadata.data)
+                    self.__display_data_and_metadata = DataAndMetadata.new_data_and_metadata(display_data, intensity_calibration, dimensional_calibrations,
+                                                                                             metadata, timestamp)
+                elif data_and_metadata.is_data_3d:
+                    display_data = Image.scalar_from_array(Core.function_slice_sum(data_and_metadata, self.slice_center, self.slice_width).data)
+                    dimensional_calibrations = dimensional_calibrations[0:2]  # signal_index
+                    self.__display_data_and_metadata = DataAndMetadata.new_data_and_metadata(display_data, intensity_calibration, dimensional_calibrations,
+                                                                                             metadata, timestamp)
+                else:
+                    self.__display_data_and_metadata = None
+            return self.__display_data_and_metadata
 
     @property
     def display_data_and_metadata_promise(self) -> Promise.Promise[DataAndMetadata.DataAndMetadata]:
@@ -320,12 +312,12 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def preview_2d_shape(self):
         if not self.__data_and_metadata:
             return None
-        if self.__data_and_metadata.is_data_2d:
+        if self.__data_and_metadata.is_data_1d:
+            return [1, ] + list(self.__data_and_metadata.dimensional_shape)
+        elif self.__data_and_metadata.is_data_2d:
             return self.__data_and_metadata.dimensional_shape
         elif self.__data_and_metadata.is_data_3d:
             return self.__data_and_metadata.dimensional_shape[0:2]  # signal_index
-        elif self.__data_and_metadata.is_data_1d:
-            return [1, ] + list(self.__data_and_metadata.dimensional_shape)
         else:
             return None
 
@@ -516,8 +508,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.display_changed_event.fire()
 
     def __clear_cached_data(self):
-        with self.__display_data_lock:
-            self.__display_data = None
+        with self.__display_data_and_metadata_lock:
+            self.__display_data_and_metadata = None
         with self.__preview_lock:
             self.__preview = None
         # clear the processor caches

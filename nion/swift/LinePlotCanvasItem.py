@@ -249,7 +249,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             legend_labels = self.__legend_labels
             display_calibrated_values = self.__display_calibrated_values
 
-            if data_shape is not None and len(data_shape) > 0:
+            # this can be done here -- it is always in a thread (paint)
+            scalar_data = data_fn()
+
+            if scalar_data is not None and data_shape is not None and len(data_shape) > 0:
 
                 # update the line graph data
                 left_channel = left_channel if left_channel is not None else 0
@@ -258,8 +261,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 dimensional_calibration = dimensional_calibration if display_calibrated_values else None
                 intensity_calibration = intensity_calibration if display_calibrated_values else None
 
-                # this can be done here -- it is always in a thread (paint)
-                scalar_data = data_fn()
                 # make sure complex becomes scalar
                 scalar_data = Image.scalar_from_array(scalar_data)
                 assert scalar_data is not None
