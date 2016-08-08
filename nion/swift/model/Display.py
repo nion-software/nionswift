@@ -8,13 +8,11 @@ import functools
 import gettext
 import math
 import numbers
+import operator
 import threading
 import typing
 
-# third party libraries
 import numpy
-
-# local libraries
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
@@ -146,6 +144,12 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
+
+        self.sequence_index = 0
+        self.reduction_type = "slice"
+        self.pick_indexes = 0, 0, 0
+        self.complex_display_type = "log-absolute"
+
         self.__lookup = None
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__graphic_changed_listeners = list()
@@ -274,52 +278,77 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         display_data_and_metadata = self.display_data_and_metadata
         return display_data_and_metadata.data if display_data_and_metadata else None
 
+    def __get_display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
+        with self.__display_data_and_metadata_lock:
+            data_and_metadata = self.__data_and_metadata
+            if self.__display_data_and_metadata is None and data_and_metadata is not None:
+                dimensional_shape = data_and_metadata.dimensional_shape
+                next_dimension = 0
+                if data_and_metadata.is_sequence:
+                    # next dimension is treated as a sequence index, which may be time or just a sequence index
+                    sequence_index = min(max(self.sequence_index, 0), dimensional_shape[next_dimension])
+                    data_and_metadata = DataAndMetadata.function_data_slice(data_and_metadata, [slice(sequence_index), Ellipsis])
+                    next_dimension += 1
+                if data_and_metadata and data_and_metadata.is_collection:
+                    collection_index_count = data_and_metadata.collection_index_count
+                    datum_index_count = data_and_metadata.datum_index_count
+                    # next dimensions are treated as collection indexes.
+                    if self.reduction_type == "slice" and collection_index_count in (1, 2) and datum_index_count == 1:
+                        data_and_metadata = Core.function_slice_sum(data_and_metadata, self.slice_center, self.slice_width)
+                    else:  # default, "pick"
+                        pick_slice = [slice(pick_index) for pick_index in self.pick_indexes][0:collection_index_count] + [Ellipsis, ]
+                        data_and_metadata = DataAndMetadata.function_data_slice(data_and_metadata, pick_slice)
+                    next_dimension += collection_index_count + datum_index_count
+                if data_and_metadata and data_and_metadata.is_data_complex_type:
+                    if self.complex_display_type == "real":
+                        data_and_metadata = Core.function_array(numpy.real, data_and_metadata)
+                    elif self.complex_display_type == "imaginary":
+                        data_and_metadata = Core.function_array(numpy.imag, data_and_metadata)
+                    elif self.complex_display_type == "absolute":
+                        data_and_metadata = Core.function_array(numpy.absolute, data_and_metadata)
+                    else:  # default, log-absolute
+                        def log_absolute(d):
+                            return numpy.log(numpy.abs(d).astype(numpy.float64) + numpy.nextafter(0,1))
+                        data_and_metadata = Core.function_array(log_absolute, data_and_metadata)
+                if data_and_metadata and functools.reduce(operator.mul, data_and_metadata.dimensional_shape) == 0:
+                    data_and_metadata = None
+                self.__display_data_and_metadata = data_and_metadata
+            return self.__display_data_and_metadata
+
+    def __get_display_dimensional_shape(self) -> typing.Tuple[int, ...]:
+        if not self.__data_and_metadata:
+            return None
+        data_and_metadata = self.__data_and_metadata
+        dimensional_shape = data_and_metadata.dimensional_shape
+        next_dimension = 0
+        if data_and_metadata.is_sequence:
+            next_dimension += 1
+        if data_and_metadata.is_collection:
+            collection_index_count = data_and_metadata.collection_index_count
+            datum_index_count = data_and_metadata.datum_index_count
+            # next dimensions are treated as collection indexes.
+            if self.reduction_type == "slice" and collection_index_count in (1, 2) and datum_index_count == 1:
+                return dimensional_shape[next_dimension:next_dimension + collection_index_count]
+            else:  # default, "pick"
+                return dimensional_shape[next_dimension + collection_index_count:next_dimension + collection_index_count + datum_index_count]
+        else:
+            return dimensional_shape[next_dimension:]
+
     @property
     def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
         """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA.
 
         Accessing display data may involve computation, so this method should not be used on UI thread.
         """
-        with self.__display_data_and_metadata_lock:
-            data_and_metadata = self.__data_and_metadata
-            if self.__display_data_and_metadata is None and data_and_metadata is not None:
-                intensity_calibration = data_and_metadata.intensity_calibration
-                dimensional_calibrations = data_and_metadata.dimensional_calibrations
-                metadata = data_and_metadata.metadata
-                timestamp = data_and_metadata.timestamp
-                if data_and_metadata.is_data_1d:
-                    display_data = Image.scalar_from_array(data_and_metadata.data)
-                    self.__display_data_and_metadata = DataAndMetadata.new_data_and_metadata(display_data, intensity_calibration, dimensional_calibrations,
-                                                                                             metadata, timestamp)
-                elif data_and_metadata.is_data_2d:
-                    display_data = Image.scalar_from_array(data_and_metadata.data)
-                    self.__display_data_and_metadata = DataAndMetadata.new_data_and_metadata(display_data, intensity_calibration, dimensional_calibrations,
-                                                                                             metadata, timestamp)
-                elif data_and_metadata.is_data_3d:
-                    display_data = Image.scalar_from_array(Core.function_slice_sum(data_and_metadata, self.slice_center, self.slice_width).data)
-                    dimensional_calibrations = dimensional_calibrations[0:2]  # signal_index
-                    self.__display_data_and_metadata = DataAndMetadata.new_data_and_metadata(display_data, intensity_calibration, dimensional_calibrations,
-                                                                                             metadata, timestamp)
-                else:
-                    self.__display_data_and_metadata = None
-            return self.__display_data_and_metadata
+        return self.__get_display_data_and_metadata()
+
+    @property
+    def preview_2d_shape(self):
+        return self.__get_display_dimensional_shape()
 
     @property
     def display_data_and_metadata_promise(self) -> Promise.Promise[DataAndMetadata.DataAndMetadata]:
         return Promise.Promise(lambda: self.display_data_and_metadata)
-
-    @property
-    def preview_2d_shape(self):
-        if not self.__data_and_metadata:
-            return None
-        if self.__data_and_metadata.is_data_1d:
-            return [1, ] + list(self.__data_and_metadata.dimensional_shape)
-        elif self.__data_and_metadata.is_data_2d:
-            return self.__data_and_metadata.dimensional_shape
-        elif self.__data_and_metadata.is_data_3d:
-            return self.__data_and_metadata.dimensional_shape[0:2]  # signal_index
-        else:
-            return None
 
     @property
     def selected_graphics(self):
