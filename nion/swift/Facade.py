@@ -519,7 +519,8 @@ class DataItem:
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.data_and_metadata.data
+        with self.__data_item.maybe_data_source.data_ref() as data_ref:
+            return data_ref.data
 
     def set_data(self, data: numpy.ndarray) -> None:
         """Set the data.

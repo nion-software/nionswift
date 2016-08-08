@@ -61,6 +61,17 @@ class TestFacadeClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(document_model.data_items[2].maybe_data_source.data_and_metadata.data, data2))
             self.assertTrue(numpy.array_equal(document_model.data_items[3].maybe_data_source.data_and_metadata.data, data3))
 
+    def test_data_on_empty_data_item_returns_none(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0", "~1.0")
+            library = api.library
+            data_item1_ref = library.create_data_item("one")
+            with library.data_ref_for_data_item(data_item1_ref) as data_ref:
+                self.assertIsNone(data_ref.data)
+
     def test_data_item_data_methods(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
