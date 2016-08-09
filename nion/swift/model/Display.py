@@ -209,9 +209,9 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         # auto set the display limits if not yet set and data is complex
         if self.__data_and_metadata.is_data_complex_type:
             data = self.display_data
-            samples, fraction = 200, 0.1
-            sorted_data = numpy.sort(numpy.abs(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples)))
-            display_limit_low = numpy.log(sorted_data[int(samples*fraction)].astype(numpy.float64) + numpy.nextafter(0,1))
+            samples, fraction = 200, 0.05
+            sorted_data = numpy.sort(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples))
+            display_limit_low = sorted_data[int(samples*fraction)]
             display_limit_high = self.data_range[1]
             self.display_limits = display_limit_low, display_limit_high
         else:

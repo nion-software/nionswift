@@ -304,6 +304,20 @@ class TestDisplayClass(unittest.TestCase):
                 display_specifier.display.auto_display_limits()
                 Utility.clean_dict(data_item.properties)
 
+    def test_auto_display_limits_on_complex_data_gives_reasonable_results(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.ones((16, 16), numpy.complex64)
+            re, im = numpy.meshgrid(numpy.linspace(-0.8, 2.1, 16), numpy.linspace(-1.4, 1.4, 16))
+            data[:, :] = re + 1j * im
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.auto_display_limits()
+            # the display limit should never be less than the display data minimum
+            self.assertLess(numpy.amin(display_specifier.display.display_data), display_specifier.display.display_limits[0])
+            self.assertAlmostEqual(numpy.amax(display_specifier.display.display_data), display_specifier.display.display_limits[1])
+
     def test_display_data_is_2d_for_2d_sequence(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
