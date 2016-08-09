@@ -717,6 +717,37 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.finish_widget_content()
 
 
+class SequenceInspectorSection(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement slice inspector.
+    """
+
+    def __init__(self, ui, data_item, buffered_data_source, display):
+        super().__init__(ui, "sequence", _("Sequence"))
+
+        sequence_index_row_widget = self.ui.create_row_widget()
+        sequence_index_label_widget = self.ui.create_label_widget(_("Index"))
+        sequence_index_line_edit_widget = self.ui.create_line_edit_widget()
+        sequence_index_slider_widget = self.ui.create_slider_widget()
+        sequence_index_slider_widget.maximum = buffered_data_source.dimensional_shape[0] - 1  # sequence_index
+        sequence_index_slider_widget.bind_value(Binding.PropertyBinding(display, "sequence_index"))
+        sequence_index_line_edit_widget.bind_text(Binding.PropertyBinding(display, "sequence_index", converter=Converter.IntegerToStringConverter()))
+        sequence_index_row_widget.add(sequence_index_label_widget)
+        sequence_index_row_widget.add_spacing(8)
+        sequence_index_row_widget.add(sequence_index_slider_widget)
+        sequence_index_row_widget.add_spacing(8)
+        sequence_index_row_widget.add(sequence_index_line_edit_widget)
+        sequence_index_row_widget.add_stretch()
+
+        self.add_widget_to_content(sequence_index_row_widget)
+        self.finish_widget_content()
+
+        # for testing
+        self._sequence_index_slider_widget = sequence_index_slider_widget
+        self._sequence_index_line_edit_widget = sequence_index_line_edit_widget
+
+
 class SliceInspectorSection(InspectorSection):
 
     """
@@ -1512,40 +1543,38 @@ class DataItemInspector(object):
 
         self.__focus_default = None
         self.__inspector_sections = list()
+        display_data_shape = display.preview_2d_shape if buffered_data_source else ()
+        display_data_shape = display_data_shape if display_data_shape is not None else ()
         if buffered_data_source and display.graphic_selection.has_selection:
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display, selected_only=True))
             def focus_default():
                 pass
             self.__focus_default = focus_default
-        elif buffered_data_source and (buffered_data_source.is_data_1d or display.display_type == "line_plot"):
+        elif buffered_data_source and (len(display_data_shape) == 1 or display.display_type == "line_plot"):
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            if buffered_data_source.is_sequence:
+                self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
+            if buffered_data_source.is_collection and display.reduce_type == "slice":
+                self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
             self.__focus_default = focus_default
-        elif buffered_data_source and (buffered_data_source.is_data_2d or display.display_type == "image"):
+        elif buffered_data_source and (len(display_data_shape) == 2 or display.display_type == "image"):
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
-            def focus_default():
-                self.__inspector_sections[0].info_title_label.focused = True
-                self.__inspector_sections[0].info_title_label.select_all()
-            self.__focus_default = focus_default
-        elif buffered_data_source and buffered_data_source.is_data_3d:
-            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
-            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+            if buffered_data_source.is_sequence:
+                self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
+            if buffered_data_source.is_collection and display.reduce_type == "slice":
+                self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True

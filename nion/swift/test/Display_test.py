@@ -304,6 +304,18 @@ class TestDisplayClass(unittest.TestCase):
                 display_specifier.display.auto_display_limits()
                 Utility.clean_dict(data_item.properties)
 
+    def test_display_data_is_2d_for_2d_sequence(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((4, 16, 16), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            self.assertEqual(display_specifier.display.display_data.shape, (16, 16))
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -150,6 +150,12 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
         self.define_property("data_shape", data_shape, hidden=True)
         self.define_property("data_dtype", data_dtype, hidden=True, converter=DtypeToStringConverter())
+        self.define_property("is_sequence", False, changed=self.__data_description_changed)
+        dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
+        collection_dimension_count = (2 if len(dimensional_shape) == 3 else 0) if dimensional_shape is not None else None
+        datum_dimension_count = len(dimensional_shape) - collection_dimension_count if dimensional_shape is not None else None
+        self.define_property("collection_dimension_count", collection_dimension_count, changed=self.__data_description_changed)
+        self.define_property("datum_dimension_count", datum_dimension_count, changed=self.__data_description_changed)
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
@@ -231,7 +237,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 dimensional_calibrations = data_and_metadata.dimensional_calibrations
                 metadata = data_and_metadata.metadata
                 timestamp = data_and_metadata.timestamp
-                new_data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(numpy.copy(data), intensity_calibration, dimensional_calibrations, metadata, timestamp)
+                data_descriptor = data_and_metadata.data_descriptor
+                new_data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(numpy.copy(data), intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor)
             else:
                 new_data_and_metadata = None
             self.set_data_and_metadata(new_data_and_metadata)
@@ -262,6 +269,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
             data_dtype = DtypeToStringConverter().convert_back(self._get_persistent_property_value("data_dtype", None))
             if data_shape is not None and data_dtype is not None:
                 data_shape_and_dtype = data_shape, data_dtype
+                dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
                 intensity_calibration = self._get_persistent_property_value("intensity_calibration")
                 dimensional_calibration_list = self._get_persistent_property_value("dimensional_calibrations")
                 dimensional_calibrations = dimensional_calibration_list.list if dimensional_calibration_list else None
@@ -273,7 +281,15 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                         dimensional_calibrations.pop(-1)
                 metadata = self._get_persistent_property_value("metadata")
                 timestamp = self._get_persistent_property_value("created")
-                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+                is_sequence = self._get_persistent_property_value("is_sequence", False)
+                collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
+                datum_dimension_count = self._get_persistent_property_value("datum_dimension_count")
+                if collection_dimension_count is None:
+                    collection_dimension_count = 2 if len(dimensional_shape) == 3 and not is_sequence else 0
+                if datum_dimension_count is None:
+                    datum_dimension_count = len(dimensional_shape) - collection_dimension_count - (1 if is_sequence else 0)
+                data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
+                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor=data_descriptor)
                 with self.__data_ref_count_mutex:
                     self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
                 self.__data_and_metadata.unloadable = self.persistent_object_context is not None
@@ -312,6 +328,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     @property
     def _data_item(self):
         return self.__get_dependent_data_item()
+
+    def __data_description_changed(self, name, value):
+        self.__property_changed(name, value)
+        self.__metadata_changed()
 
     def __dimensional_calibrations_changed(self, name, value):
         self.__property_changed(name, self.dimensional_calibrations)  # don't send out the CalibrationList object
@@ -372,6 +392,9 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         if self.__data_and_metadata:
             self._set_persistent_property_value("data_shape", self.__data_and_metadata.data_shape)
             self._set_persistent_property_value("data_dtype", DtypeToStringConverter().convert(self.__data_and_metadata.data_dtype))
+            self._set_persistent_property_value("is_sequence", self.__data_and_metadata.is_sequence)
+            self._set_persistent_property_value("collection_dimension_count", self.__data_and_metadata.collection_dimension_count)
+            self._set_persistent_property_value("datum_dimension_count", self.__data_and_metadata.datum_dimension_count)
             self._set_persistent_property_value("intensity_calibration", self.__data_and_metadata.intensity_calibration)
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(self.__data_and_metadata.dimensional_calibrations))
             self._set_persistent_property_value("metadata", self.__data_and_metadata.metadata)
@@ -390,7 +413,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 dimensional_calibrations = data_and_metadata.dimensional_calibrations
                 metadata = data_and_metadata.metadata
                 timestamp = data_and_metadata.timestamp
-                new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data)
+                data_descriptor = data_and_metadata.data_descriptor
+                new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data, data_descriptor)
             else:
                 new_data_and_metadata = None
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
@@ -407,6 +431,10 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
     @property
     def dimensional_shape(self):
         return self.__data_and_metadata.dimensional_shape if self.__data_and_metadata else None
+
+    @property
+    def is_collection(self):
+        return self.collection_dimension_count > 0 if self.collection_dimension_count is not None else False
 
     @property
     def intensity_calibration(self):

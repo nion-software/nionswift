@@ -234,6 +234,15 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             units = str(units) if units is not None else str()
             if scale != 0.0:
                 display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration(offset, scale, units))
+        if "is_sequence" in data_element:
+            is_sequence = data_element.get("is_sequence")
+            display_specifier.buffered_data_source.is_sequence = is_sequence
+        if "collection_dimension_count" in data_element:
+            collection_dimension_count = data_element.get("collection_dimension_count")
+            display_specifier.buffered_data_source.collection_dimension_count = collection_dimension_count
+        if "datum_dimension_count" in data_element:
+            datum_dimension_count = data_element.get("datum_dimension_count")
+            display_specifier.buffered_data_source.datum_dimension_count = datum_dimension_count
         # properties (general tags)
         if "properties" in data_element:
             buffered_data_source = data_item.maybe_data_source
@@ -309,6 +318,10 @@ def create_data_element_from_data_item(data_item, include_data=True):
         if intensity_calibration is not None:
             intensity_calibration_element = { "offset": intensity_calibration.offset, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
             data_element["intensity_calibration"] = intensity_calibration_element
+        if buffered_data_source.is_sequence:
+            data_element["is_sequence"] = buffered_data_source.is_sequence
+        data_element["collection_dimension_count"] = buffered_data_source.collection_dimension_count
+        data_element["datum_dimension_count"] = buffered_data_source.datum_dimension_count
         data_element["properties"] = dict(buffered_data_source.metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
