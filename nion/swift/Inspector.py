@@ -577,6 +577,7 @@ def make_display_type_chooser(ui, display):
     display_type_row.add_stretch()
     return display_type_row
 
+
 def make_color_map_chooser(ui, display):
     color_map_row = ui.create_row_widget()
     color_map_options = ((_("Default"), None), (_("Grayscale"), "grayscale"), (_("Magma"), "magma"), (_("HSV"), "hsv"), (_("Viridis"), "viridis"), (_("Plasma"), "plasma"), (_("Ice"), "ice"))
@@ -648,9 +649,6 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         # display type
         display_type_row = make_display_type_chooser(ui, display)
 
-        # color map
-        color_map_row = make_color_map_chooser(ui, display)
-
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
@@ -709,7 +707,6 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.style_row.add_stretch()
 
         self.add_widget_to_content(display_type_row)
-        self.add_widget_to_content(color_map_row)
         self.add_widget_to_content(self.display_limits_range_row)
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)
@@ -748,6 +745,40 @@ class SequenceInspectorSection(InspectorSection):
         self._sequence_index_line_edit_widget = sequence_index_line_edit_widget
 
 
+class CollectionIndexInspectorSection(InspectorSection):
+
+    """
+        Subclass InspectorSection to implement slice inspector.
+    """
+
+    def __init__(self, ui, buffered_data_source, display):
+        super().__init__(ui, "collection-index", _("Index"))
+
+        column_widget = self.ui.create_column_widget()
+        collection_index_base = 1 if buffered_data_source.is_sequence else 0
+        for index in range(buffered_data_source.collection_dimension_count):
+            index_row_widget = self.ui.create_row_widget()
+            index_label_widget = self.ui.create_label_widget("{}: {}".format(_("Index"), index))
+            index_line_edit_widget = self.ui.create_line_edit_widget()
+            index_slider_widget = self.ui.create_slider_widget()
+            index_slider_widget.maximum = buffered_data_source.dimensional_shape[collection_index_base + index]
+            index_slider_widget.bind_value(Binding.TuplePropertyBinding(display, "collection_index", index))
+            index_line_edit_widget.bind_text(Binding.TuplePropertyBinding(display, "collection_index", index, converter=Converter.IntegerToStringConverter()))
+            index_row_widget.add(index_label_widget)
+            index_row_widget.add_spacing(8)
+            index_row_widget.add(index_slider_widget)
+            index_row_widget.add_spacing(8)
+            index_row_widget.add(index_line_edit_widget)
+            index_row_widget.add_stretch()
+            column_widget.add(index_row_widget)
+
+        self.add_widget_to_content(column_widget)
+        self.finish_widget_content()
+
+        # for testing
+        self._column_widget = column_widget
+
+
 class SliceInspectorSection(InspectorSection):
 
     """
@@ -755,7 +786,7 @@ class SliceInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, data_item, buffered_data_source, display):
-        super(SliceInspectorSection, self).__init__(ui, "slice", _("Slice"))
+        super().__init__(ui, "slice", _("Slice"))
 
         slice_center_row_widget = self.ui.create_row_widget()
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
@@ -1558,8 +1589,11 @@ class DataItemInspector(object):
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_sequence:
                 self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
-            if buffered_data_source.is_collection and display.reduce_type == "slice":
-                self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+            if buffered_data_source.is_collection:
+                if buffered_data_source.collection_dimension_count in (1, 2) and buffered_data_source.datum_dimension_count == 1:
+                    self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+                else:  # default, pick
+                    self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
@@ -1573,8 +1607,11 @@ class DataItemInspector(object):
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_sequence:
                 self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
-            if buffered_data_source.is_collection and display.reduce_type == "slice":
-                self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+            if buffered_data_source.is_collection:
+                if buffered_data_source.collection_dimension_count in (1, 2) and buffered_data_source.datum_dimension_count == 1:
+                    self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+                else:  # default, pick
+                    self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
             self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True

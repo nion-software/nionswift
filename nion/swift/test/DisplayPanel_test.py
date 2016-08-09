@@ -1,7 +1,3 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import logging
 import unittest
@@ -11,9 +7,11 @@ import weakref
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
+from nion.swift import ImageCanvasItem
 from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import Display
@@ -1248,6 +1246,21 @@ class TestDisplayPanelClass(unittest.TestCase):
         header_height = Panel.HeaderCanvasItem().header_height
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         document_controller.periodic()
+
+    def test_display_2d_collection_with_2d_datum_displays_image(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item = DataItem.DataItem()
+        data_item.append_data_source(DataItem.BufferedDataSource())
+        data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+        document_model.append_data_item(data_item)
+        display_panel.set_displayed_data_item(data_item)
+        header_height = Panel.HeaderCanvasItem().header_height
+        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+        document_controller.periodic()
+        self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display

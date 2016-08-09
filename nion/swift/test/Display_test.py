@@ -315,6 +315,33 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
             self.assertEqual(display_specifier.display.display_data.shape, (16, 16))
             self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data.shape, (16, 16))
+
+    def test_display_data_is_2d_for_2d_collection_with_2d_datum(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            self.assertEqual(display_specifier.display.display_data.shape, (8, 8))
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data.shape, (8, 8))
+
+    def test_display_data_is_2d_for_sequence_of_2d_collection_with_2d_datum(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((3, 2, 2, 8, 8), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 2, 2))
+            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            self.assertEqual(display_specifier.display.display_data.shape, (8, 8))
+            self.assertEqual(display_specifier.display.display_data.dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data.shape, (8, 8))
 
 
 if __name__ == '__main__':

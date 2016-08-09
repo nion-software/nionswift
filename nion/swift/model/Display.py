@@ -133,7 +133,6 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         super(Display, self).__init__()
         self.__graphics = list()
         self.define_property("display_type", changed=self.__display_type_changed)
-        self.define_property("reduce_type", "slice", changed=self.__display_type_changed)
         self.define_property("complex_display_type", changed=self.__display_type_changed)
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
@@ -144,11 +143,10 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("legend_labels", changed=self.__property_changed)
         self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__sequence_index_changed)
+        self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__collection_index_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
-
-        self.pick_indexes = 0, 0, 0
 
         self.__lookup = None
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
@@ -293,11 +291,11 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
                     collection_dimension_count = data_and_metadata.collection_dimension_count
                     datum_dimension_count = data_and_metadata.datum_dimension_count
                     # next dimensions are treated as collection indexes.
-                    if self.reduce_type == "slice" and collection_dimension_count in (1, 2) and datum_dimension_count == 1:
+                    if collection_dimension_count in (1, 2) and datum_dimension_count == 1:
                         data_and_metadata = Core.function_slice_sum(data_and_metadata, self.slice_center, self.slice_width)
                     else:  # default, "pick"
-                        pick_slice = [slice(pick_index) for pick_index in self.pick_indexes][0:collection_dimension_count] + [Ellipsis, ]
-                        data_and_metadata = DataAndMetadata.function_data_slice(data_and_metadata, pick_slice)
+                        collection_slice = [collection_index for collection_index in self.collection_index][0:collection_dimension_count] + [Ellipsis, ]
+                        data_and_metadata = DataAndMetadata.function_data_slice(data_and_metadata, collection_slice)
                     next_dimension += collection_dimension_count + datum_dimension_count
                 if data_and_metadata and data_and_metadata.is_data_complex_type:
                     if self.complex_display_type == "real":
@@ -327,7 +325,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             collection_dimension_count = data_and_metadata.collection_dimension_count
             datum_dimension_count = data_and_metadata.datum_dimension_count
             # next dimensions are treated as collection indexes.
-            if self.reduce_type == "slice" and collection_dimension_count in (1, 2) and datum_dimension_count == 1:
+            if collection_dimension_count in (1, 2) and datum_dimension_count == 1:
                 return dimensional_shape[next_dimension:next_dimension + collection_dimension_count]
             else:  # default, "pick"
                 return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
@@ -368,6 +366,17 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             return max(min(int(value), self.__data_and_metadata.max_sequence_index), 0)
         return value if self._is_reading else 0
 
+    def __validate_collection_index(self, value: typing.Tuple[int, int, int]) -> typing.Tuple[int, int, int]:
+        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
+            dimensional_shape = self.__data_and_metadata.dimensional_shape
+            collection_base_index = 1 if self.__data_and_metadata.is_sequence else 0
+            collection_dimension_count = self.__data_and_metadata.collection_dimension_count
+            i0 = max(min(int(value[0]), dimensional_shape[collection_base_index + 0]), 0) if collection_dimension_count > 0 else 0
+            i1 = max(min(int(value[1]), dimensional_shape[collection_base_index + 1]), 0) if collection_dimension_count > 1 else 0
+            i2 = max(min(int(value[2]), dimensional_shape[collection_base_index + 2]), 0) if collection_dimension_count > 2 else 0
+            return i0, i1, i2
+        return value if self._is_reading else (0, 0, 0)
+
     def __validate_slice_center_for_width(self, value, slice_width):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
             depth = self.__data_and_metadata.dimensional_shape[-1]
@@ -404,6 +413,15 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
         self.notify_set_property("sequence_index", self.sequence_index)
+
+    def __collection_index_changed(self, name, value):
+        self.__property_changed(name, value)
+        if not self._is_reading:
+            self.remove_cached_value("data_range")
+            self.remove_cached_value("data_sample")
+        if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
+            self.__validate_data_stats()
+        self.notify_set_property("collection_index", self.collection_index)
 
     @property
     def slice_interval(self):
@@ -464,7 +482,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__clear_cached_data()
         self.notify_set_property(property_name, value)
         self.display_changed_event.fire()
-        if property_name in ("slice_center", "slice_width"):
+        if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index"):
             self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
 
     def __validate_data_stats(self):

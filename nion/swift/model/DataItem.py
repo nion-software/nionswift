@@ -286,8 +286,14 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 datum_dimension_count = self._get_persistent_property_value("datum_dimension_count")
                 if collection_dimension_count is None:
                     collection_dimension_count = 2 if len(dimensional_shape) == 3 and not is_sequence else 0
+                    # update collection_dimension_count, but in a way that sets the internal value but
+                    # doesn't trigger a write to disk or a change modification.
+                    self._get_persistent_property("collection_dimension_count").set_value(collection_dimension_count)
                 if datum_dimension_count is None:
                     datum_dimension_count = len(dimensional_shape) - collection_dimension_count - (1 if is_sequence else 0)
+                    # update collection_dimension_count, but in a way that sets the internal value but
+                    # doesn't trigger a write to disk or a change modification.
+                    self._get_persistent_property("datum_dimension_count").set_value(datum_dimension_count)
                 data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
                 self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor=data_descriptor)
                 with self.__data_ref_count_mutex:

@@ -3,6 +3,7 @@ import copy
 import functools
 import gettext
 import math
+import operator
 import random
 import string
 import uuid
@@ -862,15 +863,17 @@ class DataItemDisplayTypeMonitor:
             def get_display_type():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # thread safe
+                # TODO: handle consistently: if data is not valid, display_type should be cleared and not use whatever was assigned.
+                # the way it works now is that if the display_type is already set, then invalid data will have no effect and the
+                # display will happily be created with invalid data. the tests test for this behavior. ugh.
                 display_type = display.display_type
-                if not display_type in ("line_plot", "image"):
-                    data_shape_and_dtype = buffered_data_source.data_shape_and_dtype
-                    is_data_1d = Image.is_shape_and_dtype_1d(*data_shape_and_dtype) if data_shape_and_dtype else False
-                    is_data_2d = Image.is_shape_and_dtype_2d(*data_shape_and_dtype) if data_shape_and_dtype else False
-                    is_data_3d = Image.is_shape_and_dtype_3d(*data_shape_and_dtype) if data_shape_and_dtype else False
-                    if is_data_1d:
+                valid_data = functools.reduce(operator.mul, display.preview_2d_shape) > 0 if display.preview_2d_shape is not None else False
+                if valid_data and not display_type in ("line_plot", "image"):
+                    if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
+                        display_type = "image"
+                    elif buffered_data_source.datum_dimension_count == 1:
                         display_type = "line_plot"
-                    elif is_data_2d or is_data_3d:
+                    elif buffered_data_source.datum_dimension_count == 2:
                         display_type = "image"
                 return display_type
 
