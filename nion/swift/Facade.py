@@ -1018,6 +1018,10 @@ class HardwareSource:
     def __init__(self, hardware_source):
         self.__hardware_source = hardware_source
 
+    @property
+    def _hardware_source(self):
+        return self.__hardware_source
+
     def close(self) -> None:
         pass
 
