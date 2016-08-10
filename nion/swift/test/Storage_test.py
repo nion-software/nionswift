@@ -6,6 +6,7 @@ import gc
 import json
 import logging
 import os
+import pathlib
 import shutil
 import threading
 import unittest
@@ -18,7 +19,6 @@ import numpy
 from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
-from nion.swift import NDataHandler
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -2187,8 +2187,9 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_path = os.path.join(data_path, "File.ndata")
-            handler = NDataHandler.NDataHandler(file_path)
+            file_handler = DocumentModel.FilePersistentStorageSystem._file_handlers[0]
+            file_path = pathlib.PurePath(data_path, "File").with_suffix(file_handler.get_extension())
+            handler = file_handler(file_path)
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
@@ -2199,7 +2200,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.close()
 
             # verify
-            handler = NDataHandler.NDataHandler(file_path)
+            handler = DocumentModel.FilePersistentStorageSystem._file_handlers[0](file_path)
             with contextlib.closing(handler):
                 new_data_item_dict = handler.read_properties()
                 self.assertEqual(new_data_item_dict["uuid"], data_item_dict["uuid"])
@@ -2232,8 +2233,9 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_path = os.path.join(data_path, "File.ndata")
-            handler = NDataHandler.NDataHandler(file_path)
+            file_handler = DocumentModel.FilePersistentStorageSystem._file_handlers[0]
+            file_path = pathlib.PurePath(data_path, "File").with_suffix(file_handler.get_extension())
+            handler = file_handler(file_path)
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
@@ -2244,7 +2246,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.close()
 
             # verify
-            handler = NDataHandler.NDataHandler(file_path)
+            handler = DocumentModel.FilePersistentStorageSystem._file_handlers[0](file_path)
             with contextlib.closing(handler):
                 new_data_item_dict = handler.read_properties()
                 self.assertEqual(new_data_item_dict["uuid"], data_item_dict["uuid"])
@@ -2277,8 +2279,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_path = os.path.join(old_data_path, "File.ndata")
-            handler = NDataHandler.NDataHandler(file_path)
+            file_handler = DocumentModel.FilePersistentStorageSystem._file_handlers[0]
+            handler = file_handler(pathlib.PurePath(old_data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
@@ -2323,8 +2325,8 @@ class TestStorageClass(unittest.TestCase):
             data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
             data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
             data_item_dict["data_sources"] = [data_source_dict]
-            file_path = os.path.join(old_data_path, "File.ndata")
-            handler = NDataHandler.NDataHandler(file_path)
+            file_handler = DocumentModel.FilePersistentStorageSystem._file_handlers[0]
+            handler = file_handler(pathlib.PurePath(old_data_path, "File").with_suffix(file_handler.get_extension()))
             with contextlib.closing(handler):
                 handler.write_properties(data_item_dict, datetime.datetime.utcnow())
                 handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())

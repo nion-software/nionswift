@@ -354,7 +354,7 @@ def rewrite_zip(file_path, properties):
             write_zip_fp(fp, data, properties)
 
 
-class NDataHandler(object):
+class NDataHandler:
     """
         A handler object for ndata files.
 
@@ -373,7 +373,7 @@ class NDataHandler(object):
     """
 
     def __init__(self, file_path):
-        self.__file_path = file_path
+        self.__file_path = str(file_path)
         self.__lock = threading.RLock()
 
     def close(self):
@@ -411,6 +411,10 @@ class NDataHandler(object):
     @classmethod
     def make(cls, file_path):
         return cls(file_path + ".ndata")
+
+    @classmethod
+    def get_extension(self) -> str:
+        return ".ndata"
 
     def write_data(self, data, file_datetime):
         """

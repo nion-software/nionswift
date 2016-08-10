@@ -284,11 +284,13 @@ class MemoryPersistentStorageSystem(object):
 
 from nion.swift import NDataHandler
 
-class FilePersistentStorageSystem(object):
+class FilePersistentStorageSystem:
+
+    _file_handlers = [NDataHandler.NDataHandler]
 
     def __init__(self, directories):
         self.__directories = directories
-        self.__file_handlers = [NDataHandler.NDataHandler]
+        self.__file_handlers = FilePersistentStorageSystem._file_handlers
 
     def find_data_items(self):
         persistent_storage_handlers = list()
