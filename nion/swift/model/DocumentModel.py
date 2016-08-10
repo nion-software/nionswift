@@ -286,10 +286,11 @@ class MemoryStorageSystem:
 
 
 from nion.swift.model import NDataHandler
+from nion.swift.model import HDF5Handler
 
 class FileStorageSystem:
 
-    _file_handlers = [NDataHandler.NDataHandler]
+    _file_handlers = [NDataHandler.NDataHandler, HDF5Handler.HDF5Handler]
 
     def __init__(self, directories):
         self.__directories = directories
