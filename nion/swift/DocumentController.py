@@ -746,7 +746,9 @@ class DocumentController:
                 if result_display_panel:
                     result_display_panel.set_displayed_data_item(data_items[-1])
                     result_display_panel.request_focus()
-        self.receive_files(self.document_model, paths, completion_fn=import_complete)
+        def import_complete_on_thread(data_items):
+            self.queue_task(functools.partial(import_complete, data_items))
+        self.receive_files(self.document_model, paths, completion_fn=import_complete_on_thread)
 
     def export_file(self, data_item):
         # present a loadfile dialog to the user
