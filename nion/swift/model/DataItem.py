@@ -201,6 +201,8 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         if self.__computation_mutated_event_listener:
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
+        if self.__data_item_manager:
+            self.__data_item_manager.computation_changed(self, None)
         self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed

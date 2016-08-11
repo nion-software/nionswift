@@ -976,7 +976,7 @@ class ComputationQueueItem:
         self.buffered_data_source = buffered_data_source
         self.computation = computation
         self.data_and_metadata = data_and_metadata
-        self.finish_event = None
+        self.valid = True
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject):
@@ -1018,9 +1018,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_request_remove_data_item_listeners = dict()
         self.__data_item_references = dict()
         self.__computation_queue_lock = threading.RLock()
-        self.__computation_queue = list()  # type: List[ComputationQueueItem]
-        self.__computation_immediate = False
-        self.__computation_queue_closing = False
+        self.__computation_pending_queue = list()  # type: List[ComputationQueueItem]
+        self.__computation_active_items = list()  # type: List[ComputationQueueItem]
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -1100,12 +1099,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def close(self):
         # stop computations
         with self.__computation_queue_lock:
-            for computation_queue_item in self.__computation_queue:
-                if computation_queue_item.finish_event:
-                    computation_queue_item.finish_event.set()
-                    computation_queue_item.finish_event = None
-            self.__computation_queue.clear()
-            self.__computation_queue_closing = True
+            self.__computation_pending_queue.clear()
+            for computation_queue_item in self.__computation_active_items:
+                computation_queue_item.valid = False
+            self.__computation_active_items.clear()
 
         # close hardware source related stuff
         self.__hardware_source_added_event_listener.close()
@@ -1224,6 +1221,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         This method is NOT threadsafe.
         """
+        # remove data item from any computations
+        with self.__computation_queue_lock:
+            for computation_queue_item in self.__computation_pending_queue + self.__computation_active_items:
+                if computation_queue_item.buffered_data_source in data_item.data_sources:
+                    computation_queue_item.valid = False
         # remove data item from any selections
         self.data_item_will_be_removed_event.fire(data_item)
         # remove the data item from any groups
@@ -1626,8 +1628,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __recompute(self):
         computation_queue_item = None
         with self.__computation_queue_lock:
-            if len(self.__computation_queue) > 0:
-                computation_queue_item = self.__computation_queue.pop(0)
+            if len(self.__computation_pending_queue) > 0:
+                computation_queue_item = self.__computation_pending_queue.pop(0)
+                self.__computation_active_items.append(computation_queue_item)
         buffered_data_source = computation_queue_item.buffered_data_source
         computation = computation_queue_item.computation
         if computation:
@@ -1641,8 +1644,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 import traceback
                 traceback.print_exc()
                 computation.error_text = _("Unable to compute data")
-            if data_and_metadata:
+            if data_and_metadata and computation_queue_item.valid:  # TODO: race condition for 'valid'
                 buffered_data_source.set_data_and_metadata(data_and_metadata)
+        with self.__computation_queue_lock:
+            self.__computation_active_items.remove(computation_queue_item)
 
     def recompute_immediate(self, data_item: DataItem.DataItem) -> None:
         # this can be called on the UI thread; but it can also take time. use sparingly.
@@ -1666,17 +1671,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
             def computation_needs_update():
                 with self.__computation_queue_lock:
-                    for computation_queue_item in self.__computation_queue:
+                    for computation_queue_item in self.__computation_pending_queue:
                         if computation_queue_item.buffered_data_source == buffered_data_source:
                             computation_queue_item.computation = computation
                             return
                     computation_queue_item = ComputationQueueItem(buffered_data_source=buffered_data_source, computation=computation)
-                    self.__computation_queue.append(computation_queue_item)
+                    self.__computation_pending_queue.append(computation_queue_item)
                 self.dispatch_task2(self.__recompute)
 
             computation_changed_listener = computation.needs_update_event.listen(computation_needs_update)
             self.__computation_changed_listeners[buffered_data_source.uuid] = computation_changed_listener
             computation_needs_update()
+        else:
+            with self.__computation_queue_lock:
+                for computation_queue_item in self.__computation_pending_queue + self.__computation_active_items:
+                    if computation_queue_item.buffered_data_source == buffered_data_source:
+                        computation_queue_item.valid = False
+                        return
 
     def get_object_specifier(self, object, property_name: str=None):
         if isinstance(object, DataItem.DataItem):

@@ -115,7 +115,7 @@ class TestDocumentModelClass(unittest.TestCase):
     def test_processing_pick_configures_in_and_out_regions_and_connection(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            d = numpy.random.rand(8, 8, 64)
+            d = (100 * numpy.random.randn(8, 8, 64)).astype(numpy.int)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             pick_data_item = document_model.get_pick_new(data_item)
@@ -135,6 +135,33 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item.maybe_data_source.displays[0].slice_interval = interval2
             self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
             self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, interval2)
+
+    def test_recompute_after_data_item_deleted_does_not_update_data_on_deleted_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = (100 * numpy.random.randn(4, 4)).astype(numpy.int)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
+            document_model.remove_data_item(inverted_data_item)
+            document_model.recompute_all()
+
+    def test_recompute_after_computation_cleared_does_not_update_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = (100 * numpy.random.randn(4, 4)).astype(numpy.int)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            inverted_data_item = document_model.get_invert_new(data_item)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
+            with data_item.maybe_data_source.data_ref() as data_ref:
+                data_ref.data = (100 * numpy.random.randn(4, 4)).astype(numpy.int)
+            inverted_data_item.maybe_data_source.set_computation(None)
+            self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
+
 
 if __name__ == '__main__':
     unittest.main()
