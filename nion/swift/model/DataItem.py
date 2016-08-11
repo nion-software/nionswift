@@ -454,7 +454,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 
     @property
     def metadata(self):
-        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else None
+        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else dict()
 
     def set_intensity_calibration(self, intensity_calibration):
         """ Set the intensity calibration. """
@@ -478,6 +478,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         self.set_dimensional_calibrations(dimensional_calibrations)
 
     def set_metadata(self, metadata):
+        assert metadata is not None
         with self._changes():
             self.__data_and_metadata._set_metadata(metadata)
             self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
@@ -1185,6 +1186,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
         return copy.deepcopy(self._get_persistent_property_value("metadata"))
 
     def set_metadata(self, metadata):
+        assert metadata is not None
         self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
 
     def __computation_changed_or_mutated(self, data_source, computation):

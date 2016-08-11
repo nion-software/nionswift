@@ -1021,6 +1021,15 @@ class TestDataItemClass(unittest.TestCase):
         self.assertTrue(Image.is_shape_and_dtype_rgba(*display_specifier.buffered_data_source.data_shape_and_dtype))
         self.assertEqual(len(display_specifier.buffered_data_source.dimensional_calibrations), 2)
 
+    def test_metadata_is_valid_when_a_data_item_has_no_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
+            document_model.append_data_item(data_item)
+            data_item_inverted = document_model.get_invert_new(data_item)
+            inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
+            self.assertIsInstance(inverted_display_specifier.buffered_data_source.metadata, dict)
+
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
 
