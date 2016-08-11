@@ -180,7 +180,8 @@ class MetadataPanel(Panel.Panel):
         def metadata_changed(metadata):
             delegate.metadata = metadata
             def reconstruct_metadata():
-                metadata_editor_canvas_item.reconstruct()
+                if self.__metadata_editor_canvas_item:  # use this instead of local variable to handle close properly
+                    self.__metadata_editor_canvas_item.reconstruct()
             self.document_controller.queue_task(reconstruct_metadata)
 
         self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(metadata_changed)
@@ -190,6 +191,7 @@ class MetadataPanel(Panel.Panel):
         self.__metadata_editor_canvas_item = metadata_editor_canvas_item
 
     def close(self):
+        self.__metadata_editor_canvas_item = None
         self.__metadata_changed_event_listener.close()
         self.__metadata_changed_event_listener = None
         self.__metadata_model.close()
