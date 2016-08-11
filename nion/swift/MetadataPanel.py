@@ -179,7 +179,9 @@ class MetadataPanel(Panel.Panel):
 
         def metadata_changed(metadata):
             delegate.metadata = metadata
-            metadata_editor_canvas_item.reconstruct()
+            def reconstruct_metadata():
+                metadata_editor_canvas_item.reconstruct()
+            self.document_controller.queue_task(reconstruct_metadata)
 
         self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(metadata_changed)
 
