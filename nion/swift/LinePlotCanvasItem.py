@@ -90,6 +90,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_legend_canvas_item)
         self.__line_graph_area_stack.add_canvas_item(self.__line_graph_frame_canvas_item)
 
+        self.line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
+        self.__line_graph_stack.add_canvas_item(self.line_graph_canvas_item)
+
         self.__line_graph_vertical_axis_label_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisLabelCanvasItem()
         self.__line_graph_vertical_axis_scale_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisScaleCanvasItem()
         self.__line_graph_vertical_axis_ticks_canvas_item = LineGraphCanvasItem.LineGraphVerticalAxisTicksCanvasItem()
@@ -236,6 +239,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__line_graph_regions_canvas_item.update()
 
     def prepare_display(self):
+        # thread safe. no UI.
         if self.__data_shape:
             data_fn = self.__data_fn
             data_shape = self.__data_shape
@@ -328,30 +332,26 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # the display has been changed, so this method has been called. it must be called on the ui thread.
         # data_info is a new copy of data info. it will be owned by this line plot after calling this method.
         # this method stores the data_info into each line plot canvas item and updates the canvas item.
+        # thread safe. no UI.
         data = data_info.data
         if Image.is_data_1d(data):
-            if len(self.__line_graph_stack.canvas_items) != 1:
-                self.__line_graph_stack.remove_all_canvas_items()
-                self.__line_graph_stack.add_canvas_item(LineGraphCanvasItem.LineGraphCanvasItem())
-                self.line_graph_canvas_item = self.__line_graph_stack.canvas_items[0]
+            if len(self.line_graph_canvas_item.line_graph_data_list) != 1:
+                self.line_graph_canvas_item.line_graph_data_list = [LineGraphCanvasItem.LineGraphData(data_info)]
         elif Image.is_data_2d(data):
             rows = min(16, data.shape[0])
-            if len(self.__line_graph_stack.canvas_items) != rows:
-                self.__line_graph_stack.remove_all_canvas_items()
+            if len(self.line_graph_canvas_item.line_graph_data_list) != rows:
                 colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
                 filled = True
+                line_graph_data_list = list()
                 for row in range(rows):
-                    line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-                    line_graph_canvas_item.wants_mouse_events = False
-                    line_graph_canvas_item.slice = slice(row, row + 1)
-                    line_graph_canvas_item.filled = filled
-                    line_graph_canvas_item.color = colors[row]
-                    self.__line_graph_stack.add_canvas_item(line_graph_canvas_item)
+                    line_graph_data_list.append(LineGraphCanvasItem.LineGraphData(data_info, slice(row, row + 1), filled, colors[row]))
                     filled = False
-                self.line_graph_canvas_item = self.__line_graph_stack.canvas_items[0]
+                self.line_graph_canvas_item.line_graph_data_list = line_graph_data_list
 
-        for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
-            line_graph_canvas_item.data_info = data_info
+        for line_graph_data in self.line_graph_canvas_item.line_graph_data_list:
+            line_graph_data.data_info = data_info
+
+        self.line_graph_canvas_item.update()
 
         self.__line_graph_background_canvas_item.data_info = data_info
         self.__line_graph_regions_canvas_item.data_info = data_info

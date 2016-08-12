@@ -14,6 +14,7 @@
 import collections
 import gettext
 import math
+import typing
 
 # third party libraries
 import numpy
@@ -423,6 +424,16 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
                 draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks)
 
 
+class LineGraphData:
+
+    def __init__(self, data_info, slice=None, filled=True, color=None):
+        self.data_info = data_info
+        self.slice = slice
+        self.filled = filled
+        self.color = color if color is not None else '#1E90FF'  # dodger blue
+        self.retained_rebin_1d = dict()
+
+
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot itself."""
 
@@ -430,33 +441,25 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         super().__init__()
         self.__drawing_context = None
         self.__needs_update = True
-        self.__data_info = None
-        self.__slice = None
-        self.__retained_rebin_1d = dict()
-        self.filled = True
-        self.color = '#1E90FF'  # dodger blue
+        self.__line_graph_data_list = list()  # type: typing.List[LineGraphData]
 
     @property
-    def data_info(self):
-        return self.__data_info
+    def line_graph_data_list(self):
+        return self.__line_graph_data_list
 
-    @data_info.setter
-    def data_info(self, value):
-        self.__data_info = value
+    @line_graph_data_list.setter
+    def line_graph_data_list(self, value):
+        self.__line_graph_data_list = value
         self.__needs_update = True
 
     @property
-    def slice(self):
-        return self.__slice
-
-    @slice.setter
-    def slice(self, value):
-        self.__slice = value
-        self.__needs_update = True
+    def _data_info(self):  # for testing only
+        return self.__line_graph_data_list[0].data_info if len(self.__line_graph_data_list) > 0 else None
 
     def map_mouse_to_position(self, mouse, data_size):
         """ Map the mouse to the 1-d position within the line graph. """
-        x_properties = self.data_info.x_properties if self.data_info else None
+        data_info = self.__line_graph_data_list[0].data_info if len(self.__line_graph_data_list) > 0 else None
+        x_properties = data_info.x_properties if data_info else None
         if x_properties and x_properties.drawn_left_channel is not None and x_properties.drawn_right_channel is not None:
             mouse = Geometry.IntPoint.make(mouse)
             plot_rect = self.canvas_bounds
@@ -486,33 +489,33 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __paint(self, drawing_context):
         # draw the data, if any
-        data_info = self.data_info
-        y_properties = self.data_info.y_properties if data_info else None
-        x_properties = self.data_info.x_properties if data_info else None
-        if data_info and data_info.data is not None and y_properties and x_properties:
+        for line_graph_data in self.__line_graph_data_list:
+            data_info = line_graph_data.data_info
+            y_properties = data_info.y_properties if data_info else None
+            x_properties = data_info.x_properties if data_info else None
+            if data_info and data_info.data is not None and y_properties and x_properties:
 
-            plot_rect = self.canvas_bounds
-            plot_width = int(plot_rect[1][1]) - 1
-            plot_height = int(plot_rect[1][0]) - 1
-            plot_origin_x = int(plot_rect[0][1])
-            plot_origin_y = int(plot_rect[0][0])
+                plot_rect = self.canvas_bounds
+                plot_width = int(plot_rect[1][1]) - 1
+                plot_height = int(plot_rect[1][0]) - 1
+                plot_origin_x = int(plot_rect[0][1])
+                plot_origin_y = int(plot_rect[0][0])
 
-            # extract the data we need for drawing y-axis
-            calibrated_data_min = y_properties.calibrated_data_min
-            calibrated_data_max = y_properties.calibrated_data_max
-            calibrated_data_range = calibrated_data_max - calibrated_data_min
+                # extract the data we need for drawing y-axis
+                calibrated_data_min = y_properties.calibrated_data_min
+                calibrated_data_max = y_properties.calibrated_data_max
+                calibrated_data_range = calibrated_data_max - calibrated_data_min
 
-            # extract the data we need for drawing x-axis
-            data_left = x_properties.drawn_left_channel
-            data_width = x_properties.drawn_right_channel - x_properties.drawn_left_channel
+                # extract the data we need for drawing x-axis
+                data_left = x_properties.drawn_left_channel
+                data_width = x_properties.drawn_right_channel - x_properties.drawn_left_channel
 
-            # draw the line plot itself
-            rebin_cache = self.__retained_rebin_1d
-            if self.__slice is not None:
-                data = data_info.data[self.__slice].reshape((data_info.data.shape[-1], ))
-            else:
-                data = data_info.data
-            draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, data, calibrated_data_min, calibrated_data_range, data_left, data_width, self.filled, self.color, rebin_cache)
+                # draw the line plot itself
+                if line_graph_data.slice is not None:
+                    data = data_info.data[line_graph_data.slice].reshape((data_info.data.shape[-1], ))
+                else:
+                    data = data_info.data
+                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, data, calibrated_data_min, calibrated_data_range, data_left, data_width, line_graph_data.filled, line_graph_data.color, line_graph_data.retained_rebin_1d)
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):

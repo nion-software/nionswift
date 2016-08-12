@@ -668,7 +668,7 @@ class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
         line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
         line_graph_canvas_item.draw_captions = False
         line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.data_info = data_info
+        line_graph_canvas_item.line_graph_data_list = [LineGraphCanvasItem.LineGraphData(data_info)]
         line_graph_frame = LineGraphCanvasItem.LineGraphFrameCanvasItem()
         line_graph_frame.data_info = data_info
         line_graph_area_stack.add_canvas_item(line_graph_background)
