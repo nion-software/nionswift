@@ -1,11 +1,7 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import copy
 import gettext
 import json
-import logging
 import weakref
 
 # third party libraries
@@ -17,6 +13,7 @@ from nion.swift import Panel
 from nion.ui import CanvasItem
 from nion.ui import TreeCanvasItem
 from nion.utils import Event
+from nion.utils import Geometry
 
 _ = gettext.gettext
 
@@ -170,12 +167,25 @@ class MetadataPanel(Panel.Panel):
 
         metadata_editor_widget = ui.create_canvas_widget()
         metadata_editor_canvas_item = TreeCanvasItem.TreeCanvasItem(ui.get_font_metrics, delegate)
+        metadata_editor_widget.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         metadata_editor_widget.canvas_item.add_canvas_item(metadata_editor_canvas_item)
+        metadata_editor_widget.canvas_item.add_stretch()
 
         column = self.ui.create_column_widget()
         column.add_spacing(6)
         column.add(metadata_editor_widget)
         column.add_spacing(6)
+
+        scroll_area = self.ui.create_scroll_area_widget()
+        scroll_area.set_scrollbar_policies("needed", "needed")
+        scroll_area.content = column
+
+        def content_height_changed(content_height):
+            metadata_editor_canvas_item.sizing.set_fixed_height(content_height + 12)
+            metadata_editor_widget.canvas_item.update_layout(Geometry.IntPoint(), scroll_area.size, True)
+            column.size = Geometry.IntSize(height=metadata_editor_canvas_item.canvas_size.height, width=column.size.width)
+
+        metadata_editor_canvas_item.on_content_height_changed = content_height_changed
 
         def metadata_changed(metadata):
             delegate.metadata = metadata
@@ -186,7 +196,7 @@ class MetadataPanel(Panel.Panel):
 
         self.__metadata_changed_event_listener = self.__metadata_model.metadata_changed_event.listen(metadata_changed)
 
-        self.widget = column
+        self.widget = scroll_area
 
         self.__metadata_editor_canvas_item = metadata_editor_canvas_item
 
