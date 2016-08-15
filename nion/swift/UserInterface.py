@@ -546,7 +546,8 @@ class QtWidget(object):
 
     @property
     def size(self):
-        raise NotImplementedError()
+        w, h = self.proxy.Widget_getWidgetSize(self.widget)
+        return Geometry.IntSize(width=w, height=h)
 
     @size.setter
     def size(self, size):
