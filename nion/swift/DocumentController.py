@@ -5,6 +5,7 @@ import gettext
 import json
 import logging
 import math
+import operator
 import os.path
 import random
 import threading
@@ -393,8 +394,8 @@ class DocumentController:
             for dynamic_window_action in self.__dynamic_window_actions:
                 self.window_menu.remove_action(dynamic_window_action)
             self.__dynamic_window_actions = []
-            for dock_widget in self.workspace_controller.dock_widgets:
-                toggle_action = dock_widget.toggle_action
+            toggle_actions = [dock_widget.toggle_action for dock_widget in self.workspace_controller.dock_widgets]
+            for toggle_action in sorted(toggle_actions, key=operator.attrgetter("title")):
                 self.window_menu.add_action(toggle_action)
                 self.__dynamic_window_actions.append(toggle_action)
 
