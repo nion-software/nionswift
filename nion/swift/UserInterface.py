@@ -1978,25 +1978,20 @@ class QtNewListWidget(QtColumnWidget):
         self.__sync_header()
 
 
-class QtAction(object):
+class QtAction:
 
     def __init__(self, proxy, native_action=None):
         self.proxy = proxy
-        self.native_action = native_action
+        self.native_action = native_action  # action is not connected since native_action will not by PyAction
         self.on_triggered = None
-        self.__title = str()
-        self.__checked = False
-        self.__enabled = True
 
     def close(self):
         self.proxy = None
         self.native_action = None
         self.on_triggered = None
-        super(QtAction, self).close()
 
     def create(self, document_window, title, key_sequence, role):
-        self.__title = notnone(title)
-        self.native_action = self.proxy.Action_create(document_window.native_document_window, self.__title, key_sequence, role)
+        self.native_action = self.proxy.Action_create(document_window.native_document_window, title, key_sequence, role)
         self.proxy.Action_connect(self.native_action, self)
 
     # public method to trigger button
@@ -2010,30 +2005,27 @@ class QtAction(object):
 
     @property
     def title(self):
-        return self.__title
+        return self.proxy.Action_getTitle(self.native_action) if self.native_action else str()
 
     @title.setter
     def title(self, value):
-        self.__title = notnone(value)
-        self.proxy.Action_setTitle(self.native_action, self.__title)
+        self.proxy.Action_setTitle(self.native_action, value)
 
     @property
     def checked(self):
-        return self.__checked
+        return self.proxy.Action_getChecked(self.native_action) if self.native_action else False
 
     @checked.setter
     def checked(self, checked):
-        self.__checked = checked
-        self.proxy.Action_setChecked(self.native_action, self.__checked)
+        self.proxy.Action_setChecked(self.native_action, checked)
 
     @property
     def enabled(self):
-        return self.__enabled
+        return self.proxy.Action_getEnabled(self.native_action) if self.native_action else True
 
     @enabled.setter
     def enabled(self, enabled):
-        self.__enabled = enabled
-        self.proxy.Action_setEnabled(self.native_action, self.__enabled)
+        self.proxy.Action_setEnabled(self.native_action, enabled)
 
 
 class QtMenu(object):
