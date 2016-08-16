@@ -108,8 +108,6 @@ for class_name in getattr(module, class_list_property):
     print("")
     print("")
     print("class {}:".format(class_name))
-    if class_name == "API":
-        print("    version = \"~1.0\"")
     if doc:
         print("    \"\"\"{}\"\"\"".format(doc))
     class_functions_dict = class_dict.get("functions", dict())
@@ -167,3 +165,5 @@ for class_name in getattr(module, class_list_property):
             if doc:
                 print("        \"\"\"{}\"\"\"".format(doc))
             print("        ...")
+print("")
+print("version = \"~1.0\"")

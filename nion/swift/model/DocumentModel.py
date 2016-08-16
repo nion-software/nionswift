@@ -1903,8 +1903,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             return data_item_reference
         return self.__data_item_references.setdefault(key, DocumentModel.DataItemReference(self, key))
 
-    def setup_channel(self, hardware_source_id, channel_id, data_item):
-        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id))
+    def setup_channel(self, hardware_source_id, channel_id, processor_id, data_item):
+        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source_id, channel_id, processor_id))
         data_item_reference.data_item = data_item
 
     def __construct_data_item_reference(self, hardware_source: HardwareSource.HardwareSource, data_channel: HardwareSource.DataChannel, is_recording: bool, append_data_item_fn):

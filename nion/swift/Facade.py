@@ -26,6 +26,7 @@ from nion.data import Calibration as CalibrationModule
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DataItem as DataItemModule
+from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
@@ -500,11 +501,11 @@ class DataItem:
         "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "display", "add_point_region", "add_rectangle_region",
         "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
 
-    def __init__(self, data_item):
+    def __init__(self, data_item: DataItemModule.DataItem):
         self.__data_item = data_item
 
     @property
-    def _data_item(self):
+    def _data_item(self) -> DataItemModule.DataItem:
         return self.__data_item
 
     @property
@@ -1356,13 +1357,13 @@ class Instrument:
 class Library:
 
     public = ["data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
-        "get_or_create_data_group", "data_ref_for_data_item"]
+        "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source"]
 
-    def __init__(self, document_model):
+    def __init__(self, document_model: DocumentModelModule.DocumentModel):
         self.__document_model = document_model
 
     @property
-    def _document_model(self):
+    def _document_model(self) -> DocumentModelModule.DocumentModel:
         return self.__document_model
 
     @property
@@ -1518,6 +1519,33 @@ class Library:
                     data_ref.data_updated()
 
         return DataRef(self.__document_model, data_item)
+
+    def get_data_item_for_hardware_source(self, hardware_source, channel_id: str=None, processor_id: str=None, create_if_needed: bool=False) -> DataItem:
+        """Get the data item associated with a hardware source and (optional) channel id. Optionally reate if missing.
+
+        :param hardware_source: The hardware_source.
+        :param channel_id: The (optional) channel id.
+        :param processor_id: The (optional) processor id for the channel.
+        :param create_if_needed: Whether to create a new data item if none is found.
+        :return: The associate data item. May be None.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        assert hardware_source is not None
+        hardware_source_id = hardware_source._hardware_source.hardware_source_id
+        document_model = self._document_model
+        data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key(hardware_source_id, channel_id))
+        data_item = data_item_reference.data_item
+        if data_item is None and create_if_needed:
+            data_item = DataItemModule.DataItem()
+            data_item.append_data_source(DataItemModule.BufferedDataSource())
+            document_model.append_data_item(data_item)
+            document_model.setup_channel(hardware_source_id, channel_id, processor_id, data_item)
+            data_item.session_id = document_model.session_id
+            data_item = document_model.get_data_item_reference(document_model.make_data_item_reference_key(hardware_source_id, channel_id)).data_item
+        return DataItem(data_item) if data_item else None
 
 
 class DocumentController:
@@ -1801,9 +1829,10 @@ class API_1:
         "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids", "get_all_instrument_ids",
         "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task"]
 
-    def __init__(self, ui_version):
+    def __init__(self, ui_version, app):
         super().__init__()
         self.__ui_version = ui_version
+        self.__app = app
 
     def create_calibration(self, offset: float=None, scale: float=None, units: str=None) -> CalibrationModule.Calibration:
         """Create a calibration object with offset, scale, and units.
@@ -1939,9 +1968,9 @@ class API_1:
 
         class MenuItemReference:
 
-            def __init__(self):
+            def __init__(self, app):
                 self.__menu_item_handler = menu_item_handler
-                ApplicationModule.app.register_menu_handler(build_menus)
+                app.register_menu_handler(build_menus)
 
             def __del__(self):
                 self.close()
@@ -1954,7 +1983,7 @@ class API_1:
                     ApplicationModule.app.unregister_menu_handler(build_menus)
                     self.__menu_item_handler = None
 
-        return MenuItemReference()
+        return MenuItemReference(self.__app)
 
 
     def create_hardware_source(self, hardware_source_delegate):
@@ -2096,7 +2125,7 @@ class API_1:
 
         Scriptable: Yes
         """
-        return Application(ApplicationModule.app)
+        return Application(self.__app)
 
     @property
     def library(self) -> Library:
@@ -2106,17 +2135,24 @@ class API_1:
 
         Scriptable: Yes
         """
-        return Library(ApplicationModule.app.document_controllers[0].document_model)
+        return Library(self.__app.document_controllers[0].document_model)
 
     def resolve_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
 
     # provisional
     def queue_task(self, fn) -> None:
-        ApplicationModule.app.document_controllers[0].queue_task(fn)
+        self.__app.document_controllers[0].queue_task(fn)
 
     def raise_requirements_exception(self, reason) -> None:
         raise PlugInManager.RequirementsException(reason)
+
+
+def _get_api_with_app(version, ui_version, app):
+    actual_version = "1.0.0"
+    if Utility.compare_versions(version, actual_version) > 0:
+        raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
+    return API_1(ui_version, app)
 
 
 def get_api(version, ui_version):
@@ -2124,10 +2160,7 @@ def get_api(version, ui_version):
 
     version is a string in the form "1.0.2".
     """
-    actual_version = "1.0.0"
-    if Utility.compare_versions(version, actual_version) > 0:
-        raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
-    return API_1(ui_version)
+    return _get_api_with_app(version, ui_version, ApplicationModule.app)
 
 
 # this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
