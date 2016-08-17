@@ -59,6 +59,8 @@ def annotation_to_str(annotation):
         annotation = getattr(module, annotation)
         return "\"{}\"".format(annotation.__name__)
 
+    if annotation == bool:
+        return "bool"
     if annotation == float:
         return "float"
     if annotation == int:
