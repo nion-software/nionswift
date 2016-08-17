@@ -13,7 +13,7 @@ from nion.swift.model import DocumentModel
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.ui import TestUI
-
+from nion.utils import Geometry
 
 
 class TestFacadeClass(unittest.TestCase):
@@ -154,6 +154,40 @@ class TestFacadeClass(unittest.TestCase):
             self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[3], Graphics.LineGraphic)
             self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[0], Graphics.IntervalGraphic)
             self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[1], Graphics.ChannelGraphic)
+
+    def test_display_data_panel_reuses_existing_display(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            # configure data item
+            data_item = DataItem.DataItem(numpy.arange(64).reshape(8, 8))
+            document_model.append_data_item(data_item)
+            # configure workspace
+            d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
+                {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True},
+                {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
+            workspace_2x1 = document_controller.workspace_controller.new_workspace("2x1", d)
+            document_controller.workspace_controller.change_workspace(workspace_2x1)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            self.assertIsNone(document_controller.workspace_controller.display_panels[0].data_item)
+            self.assertIsNone(document_controller.workspace_controller.display_panels[1].data_item)
+            # test display_data_item
+            api = Facade.get_api("~1.0", "~1.0")
+            library = api.library
+            document_controller_ref = api.application.document_controllers[0]
+            data_item_ref = library.data_items[0]
+            # display data item and verify it is displayed
+            display_panal_ref = document_controller_ref.display_data_item(data_item_ref)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item_ref._data_item)
+            self.assertIsNone(document_controller.workspace_controller.display_panels[1].data_item)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0], display_panal_ref._display_panel)
+            # display data item again and verify it is displayed only once
+            display_panal_ref = document_controller_ref.display_data_item(data_item_ref)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item_ref._data_item)
+            self.assertIsNone(document_controller.workspace_controller.display_panels[1].data_item)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0], display_panal_ref._display_panel)
 
 
 if __name__ == '__main__':

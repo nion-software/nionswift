@@ -720,12 +720,11 @@ class DataItem:
             DisplayPanelModule.DataItemDataSourceDisplay.update_display(display_type, display_canvas_item, buffered_data_source)
             dc = DrawingContext.DrawingContext()
             display_canvas_item._repaint(dc)
+            return dc.to_svg(size, viewbox)
         except Exception as e:
             import traceback
             traceback.print_exc()
             traceback.print_stack()
-
-        return dc.to_svg(size, viewbox)
 
 
 class DisplayPanel:
@@ -734,6 +733,10 @@ class DisplayPanel:
 
     def __init__(self, display_panel):
         self.__display_panel = display_panel
+
+    @property
+    def _display_panel(self):
+        return self.__display_panel
 
     @property
     def specifier(self):
@@ -1598,13 +1601,17 @@ class DocumentController:
         return DisplayPanel(display_panel) if display_panel else None
 
     def display_data_item(self, data_item: DataItem, source_display_panel=None, source_data_item=None):
-        """Display a new data item.
+        """Display a new data item and gives it keyboard focus. Uses existing display if it is already displayed.
 
         .. versionadded:: 1.0
 
         Status: Provisional
         Scriptable: Yes
         """
+        for display_panel in self.__document_controller.workspace_controller.display_panels:
+            if display_panel.data_item == data_item._data_item:
+                display_panel.request_focus()
+                return DisplayPanel(display_panel)
         result_display_panel = self.__document_controller.next_result_display_panel()
         if result_display_panel:
             result_display_panel.set_displayed_data_item(data_item._data_item)
@@ -2148,14 +2155,14 @@ class API_1:
         raise PlugInManager.RequirementsException(reason)
 
 
-def _get_api_with_app(version, ui_version, app):
+def _get_api_with_app(version: str, ui_version: str, app: ApplicationModule.Application) -> API_1:
     actual_version = "1.0.0"
     if Utility.compare_versions(version, actual_version) > 0:
         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
     return API_1(ui_version, app)
 
 
-def get_api(version, ui_version):
+def get_api(version: str, ui_version: str) -> API_1:
     """Get a versioned interface matching the given version and ui_version.
 
     version is a string in the form "1.0.2".
