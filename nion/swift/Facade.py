@@ -1524,30 +1524,32 @@ class Library:
         return DataRef(self.__document_model, data_item)
 
     def get_data_item_for_hardware_source(self, hardware_source, channel_id: str=None, processor_id: str=None, create_if_needed: bool=False) -> DataItem:
-        """Get the data item associated with a hardware source and (optional) channel id. Optionally reate if missing.
+        """Get the data item associated with hardware source and (optional) channel id and processor_id. Optionally create if missing.
 
         :param hardware_source: The hardware_source.
         :param channel_id: The (optional) channel id.
         :param processor_id: The (optional) processor id for the channel.
         :param create_if_needed: Whether to create a new data item if none is found.
-        :return: The associate data item. May be None.
+        :return: The associated data item. May be None.
 
         .. versionadded:: 1.0
 
+        Status: Provisional
         Scriptable: Yes
         """
         assert hardware_source is not None
         hardware_source_id = hardware_source._hardware_source.hardware_source_id
         document_model = self._document_model
-        data_item_reference = document_model.get_data_item_reference(document_model.make_data_item_reference_key(hardware_source_id, channel_id))
+        data_item_reference_key = document_model.make_data_item_reference_key(hardware_source_id, channel_id, processor_id)
+        data_item_reference = document_model.get_data_item_reference(data_item_reference_key)
         data_item = data_item_reference.data_item
         if data_item is None and create_if_needed:
             data_item = DataItemModule.DataItem()
             data_item.append_data_source(DataItemModule.BufferedDataSource())
             document_model.append_data_item(data_item)
-            document_model.setup_channel(hardware_source_id, channel_id, processor_id, data_item)
+            document_model.setup_channel(data_item_reference_key, data_item)
             data_item.session_id = document_model.session_id
-            data_item = document_model.get_data_item_reference(document_model.make_data_item_reference_key(hardware_source_id, channel_id)).data_item
+            data_item = document_model.get_data_item_reference(data_item_reference_key).data_item
         return DataItem(data_item) if data_item else None
 
 
