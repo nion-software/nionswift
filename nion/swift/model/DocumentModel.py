@@ -1115,6 +1115,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # TODO: close other listeners here too
         HardwareSource.HardwareSourceManager().abort_all_and_close()
 
+        # make sure the data item references shut down cleanly
+        for data_item in self.data_items:
+            for data_item_reference in self.__data_item_references.values():
+                data_item_reference.data_item_removed(data_item)
+
         for listeners in self.__data_channel_updated_listeners.values():
             for listener in listeners:
                 listener.close()
@@ -1875,7 +1880,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__latest_data_and_metadata = None
                 if latest_data_and_metadata:
                     data_item = self.data_item
-                    data_item.update_data_and_metadata(latest_data_and_metadata, sub_area)
+                    if data_item:
+                        data_item.update_data_and_metadata(latest_data_and_metadata, sub_area)
             if not is_complete or self.__is_incomplete:
                 self.__is_incomplete = not is_complete
                 do_update()
