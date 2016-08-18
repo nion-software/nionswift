@@ -190,7 +190,7 @@ def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcas
         frame5 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
         testcase.assertEqual((1, 3, 5), (frame1 - frame0, frame3 - frame0, frame5 - frame0))
     finally:
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
 
 def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -201,52 +201,38 @@ def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_sourc
         hardware_source.get_next_data_elements_to_finish()
         hardware_source.get_next_data_elements_to_finish()
     finally:
-        hardware_source.abort_playing()
-    document_controller.periodic()  # data items queued to be added from background thread get added here
-    start_time = time.time()
-    while hardware_source.is_playing:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
-    testcase.assertFalse(hardware_source.is_playing)
+        hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()  # data items queued to be added from background thread get added here
     testcase.assertEqual(len(document_controller.document_model.data_items), 1)
 
 def _test_simple_hardware_start_and_stop_actually_stops_acquisition(testcase, hardware_source, document_controller):
-    hardware_source.start_playing()
     try:
-        start_time = time.time()
-        while not hardware_source.is_playing:
-            time.sleep(0.01)
-            testcase.assertTrue(time.time() - start_time < 3.0)
-    finally:
-        hardware_source.stop_playing()
-    start_time = time.time()
-    while hardware_source.is_playing:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.start_playing(sync_timeout=3.0)
+        hardware_source.stop_playing(sync_timeout=3.0)
+    except Exception as e:
+        hardware_source.abort_playing(sync_timeout=3.0)
 
 def _test_simple_hardware_start_and_abort_works_as_expected(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
     try:
         testcase.assertTrue(hardware_source.is_playing)
     finally:
-        hardware_source.abort_playing()
-    start_time = time.time()
-    while hardware_source.is_playing:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.abort_playing(sync_timeout=3.0)
 
 def _test_record_only_acquires_one_item(testcase, hardware_source, document_controller):
     # the definition is that the 'view' image is always acquired; there should only
     # be a single new 'record' image though. the 'record' image should not have a
     # category of 'temporary'; the 'view' image should.
     hardware_source.start_recording()
-    testcase.assertFalse(hardware_source.is_playing)
-    testcase.assertTrue(hardware_source.is_recording)
-    start_time = time.time()
-    while hardware_source.is_recording:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
+    try:
+        testcase.assertFalse(hardware_source.is_playing)
+        testcase.assertTrue(hardware_source.is_recording)
+        start_time = time.time()
+        while hardware_source.is_recording:
+            time.sleep(0.01)
+            testcase.assertTrue(time.time() - start_time < 3.0)
+    finally:
+        hardware_source.abort_recording(sync_timeout=3.0)
     testcase.assertFalse(hardware_source.is_playing)
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 2)
@@ -259,12 +245,8 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
         # start playing, grab a few frames
         hardware_source.get_next_data_elements_to_finish()
         hardware_source.get_next_data_elements_to_finish()
-        hardware_source.start_recording()
-        # wait for recording to start
-        start_time = time.time()
-        while not hardware_source.is_recording:
-            time.sleep(0.01)
-            testcase.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.start_recording(sync_timeout=3.0)
+        data_elements = hardware_source.get_next_data_elements_to_finish()
         testcase.assertTrue(hardware_source.is_playing)
         # wait for recording to stop
         start_time = time.time()
@@ -274,7 +256,7 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
         testcase.assertTrue(hardware_source.is_playing)
         hardware_source.get_next_data_elements_to_finish()
     finally:
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 2)
 
@@ -285,17 +267,13 @@ def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, do
         hardware_source.get_next_data_elements_to_finish()
         document_controller.periodic()
         # now start recording
-        hardware_source.start_recording()
-        # wait for recording to start
-        start_time = time.time()
-        while not hardware_source.is_recording:
-            time.sleep(0.01)
-            testcase.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.start_recording(sync_timeout=3.0)
         hardware_source.abort_recording()
         hardware_source.get_next_data_elements_to_finish()
     finally:
         # clean up
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
+        hardware_source.abort_recording(sync_timeout=3.0)
 
 def _test_view_reuses_single_data_item(testcase, hardware_source, document_controller):
     document_model = document_controller.document_model
@@ -305,12 +283,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     try:
         hardware_source.get_next_data_elements_to_finish()
     finally:
-        hardware_source.stop_playing()
-    # wait for it to stop
-    start_time = time.time()
-    while hardware_source.is_playing:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.stop_playing(sync_timeout=3.0)
     document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
     testcase.assertEqual(len(document_model.data_items), 1)
     data_item = document_model.data_items[0]
@@ -323,12 +296,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     try:
         hardware_source.get_next_data_elements_to_start()
     finally:
-        hardware_source.stop_playing()
-    # wait for it to stop
-    start_time = time.time()
-    while hardware_source.is_playing:
-        time.sleep(0.01)
-        testcase.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.stop_playing(sync_timeout=3.0)
     document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
     testcase.assertEqual(len(document_model.data_items), 2)
     data_item = document_model.data_items[0]
@@ -343,7 +311,7 @@ def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardwar
     try:
         data_elements = hardware_source.get_next_data_elements_to_finish()
     finally:
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()
     testcase.assertNotEqual(data_elements[0]["data"][0, 0], 0)
     testcase.assertNotEqual(data_elements[0]["data"][-1, -1], 0)
@@ -353,7 +321,7 @@ def _test_get_next_data_elements_to_finish_produces_data_item_full_frames(testca
     try:
         hardware_source.get_next_data_elements_to_finish()
     finally:
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()
     testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[0, 0], 0)
     testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[-1, -1], 0)
@@ -379,7 +347,7 @@ def _test_exception_during_view_halts_playback(testcase, hardware_source, exposu
             testcase.assertTrue(time.time() - start_time < 3.0)
         testcase.assertFalse(hardware_source.is_playing)
     finally:
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
 
 def _test_exception_during_record_halts_playback(testcase, hardware_source, exposure):
     enabled = [False]
@@ -390,21 +358,27 @@ def _test_exception_during_record_halts_playback(testcase, hardware_source, expo
     hardware_source._test_acquire_exception = lambda *args: None
     # first make sure that record works as expected
     hardware_source.start_recording()
-    time.sleep(exposure * 0.5)
-    testcase.assertTrue(hardware_source.is_recording)
-    start = time.time()
-    while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
-        time.sleep(0.05)
-    # print(time.time() - start)
-    testcase.assertFalse(hardware_source.is_recording)
+    try:
+        time.sleep(exposure * 0.5)
+        testcase.assertTrue(hardware_source.is_recording)
+        start = time.time()
+        while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
+            time.sleep(0.05)
+        # print(time.time() - start)
+        testcase.assertFalse(hardware_source.is_recording)
+    finally:
+        hardware_source.abort_recording(sync_timeout=3.0)
     # now raise an exception
     enabled[0] = True
     hardware_source.start_recording()
-    start = time.time()
-    while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
-        time.sleep(0.05)
-    # print(time.time() - start)
-    testcase.assertFalse(hardware_source.is_recording)
+    try:
+        start = time.time()
+        while time.time() - start < exposure * 10.0 and hardware_source.is_recording:
+            time.sleep(0.05)
+        # print(time.time() - start)
+        testcase.assertFalse(hardware_source.is_recording)
+    finally:
+        hardware_source.abort_recording(sync_timeout=3.0)
 
 def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposure):
     enabled = [False]
@@ -425,21 +399,24 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
             time.sleep(0.01)
             testcase.assertTrue(time.time() - start_time < 3.0)
     finally:
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
     enabled[0] = False
     hardware_source.start_playing()
     try:
         hardware_source.get_next_data_elements_to_finish(timeout=10.0)
         hardware_source.get_next_data_elements_to_finish(timeout=10.0)
     finally:
-        hardware_source.abort_playing()
+        hardware_source.abort_playing(sync_timeout=3.0)
 
 def _test_record_starts_and_finishes_in_reasonable_time(testcase, hardware_source, exposure):
     # a reasonable time is 2x of record mode exposure (record mode exposure is 2x regular exposure)
     hardware_source.start_recording(sync_timeout=3.0)
-    testcase.assertTrue(hardware_source.is_recording)
+    try:
+        testcase.assertTrue(hardware_source.is_recording)
+    except Exception as e:
+        hardware_source.abort_recording(sync_timeout=3.0)
     start = time.time()
-    hardware_source.stop_recording(sync_timeout=3.0)
+    hardware_source.stop_recording(sync_timeout=10.0)
     elapsed = time.time() - start
     # print(exposure, elapsed)
     testcase.assertTrue(elapsed < exposure * 8.0)
@@ -456,24 +433,12 @@ class TestHardwareSourceClass(unittest.TestCase):
         HardwareSource.HardwareSourceManager().close()
 
     def __acquire_one(self, document_controller, hardware_source):
-        hardware_source.start_playing()
-        start_time = time.time()
-        while not hardware_source.is_playing:
-            time.sleep(0.01)
-            self.assertTrue(time.time() - start_time < 3.0)
-        hardware_source.stop_playing()
-        start_time = time.time()
-        while hardware_source.is_playing:
-            time.sleep(0.01)
-            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.start_playing(sync_timeout=3.0)
+        hardware_source.stop_playing(sync_timeout=3.0)
         document_controller.periodic()
 
     def __record_one(self, document_controller, hardware_source):
-        hardware_source.start_recording()
-        start_time = time.time()
-        while hardware_source.is_recording:
-            time.sleep(0.01)
-            self.assertTrue(time.time() - start_time < 3.0)
+        hardware_source.start_recording(sync_timeout=3.0)
         document_controller.periodic()
 
     def __setup_simple_hardware_source(self, persistent_storage_systems=None):
@@ -523,178 +488,179 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_acquiring_frames_with_generator_produces_correct_frame_numbers(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
 
     def test_acquiring_frames_as_partials_with_generator_produces_correct_frame_numbers(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_acquiring_frames_with_generator_produces_correct_frame_numbers(self, hardware_source, document_controller)
 
     def test_acquire_multiple_frames_reuses_same_data_item(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
 
     def test_acquire_multiple_frames_as_partials_reuses_same_data_item(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_acquire_multiple_frames_reuses_same_data_item(self, hardware_source, document_controller)
 
     def test_simple_hardware_start_and_stop_actually_stops_acquisition(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_simple_hardware_start_and_stop_actually_stops_acquisition(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_simple_hardware_start_and_stop_actually_stops_acquisition(self, hardware_source, document_controller)
 
     def test_simple_hardware_start_and_abort_works_as_expected(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_simple_hardware_start_and_abort_works_as_expected(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_simple_hardware_start_and_abort_works_as_expected(self, hardware_source, document_controller)
 
     def test_record_only_acquires_one_item(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_record_only_acquires_one_item(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_record_only_acquires_one_item(self, hardware_source, document_controller)
 
     def test_record_during_view_records_one_item_and_keeps_viewing(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_record_during_view_records_one_item_and_keeps_viewing(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_record_during_view_records_one_item_and_keeps_viewing(self, hardware_source, document_controller)
 
     def test_abort_record_during_view_returns_to_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_abort_record_during_view_returns_to_view(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_abort_record_during_view_returns_to_view(self, hardware_source, document_controller)
 
     def test_view_reuses_single_data_item(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_view_reuses_single_data_item(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_view_reuses_single_data_item(self, hardware_source, document_controller)
 
     def test_get_next_data_elements_to_finish_returns_full_frames(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
 
     def test_get_next_data_elements_to_finish_produces_data_item_full_frames(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_get_next_data_elements_to_finish_produces_data_item_full_frames(self, hardware_source, document_controller)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_get_next_data_elements_to_finish_produces_data_item_full_frames(self, hardware_source, document_controller)
 
     def test_exception_during_view_halts_playback(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_exception_during_record_halts_playback(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_able_to_restart_view_after_exception(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
 
     def test_exception_during_view_halts_scan(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_exception_during_view_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_exception_during_record_halts_scan(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_exception_during_record_halts_playback(self, hardware_source, hardware_source.sleep)
 
     def test_able_to_restart_scan_after_exception_scan(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_able_to_restart_view_after_exception(self, hardware_source, hardware_source.sleep)
 
     def test_record_starts_and_finishes_in_reasonable_time(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        _test_record_starts_and_finishes_in_reasonable_time(self, hardware_source, hardware_source.sleep)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            _test_record_starts_and_finishes_in_reasonable_time(self, hardware_source, hardware_source.sleep)
 
     def test_view_updates_a_single_data_item_when_multiple_document_controllers_exist(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        document_controller2 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.__acquire_one(document_controller, hardware_source)
-        document_controller2.periodic()
-        self.__acquire_one(document_controller, hardware_source)
-        document_controller2.periodic()
-        self.assertEqual(len(document_model.data_items), 1)
-        document_controller2.close()
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            document_controller2 = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller2):
+                self.__acquire_one(document_controller, hardware_source)
+                document_controller2.periodic()
+                self.__acquire_one(document_controller, hardware_source)
+                document_controller2.periodic()
+                self.assertEqual(len(document_model.data_items), 1)
 
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        # first start playing
-        hardware_source.start_playing(sync_timeout=3.0)
-        self.assertFalse(hardware_source.suspended)
-        # now start recording
-        hardware_source.sleep = 0.06
-        hardware_source.start_recording()
-        hardware_source.suspend_event.wait(3.0)
-        self.assertTrue(hardware_source.suspended)
-        start_time = time.time()
-        while hardware_source.is_recording:
-            time.sleep(0.01)
-            self.assertTrue(time.time() - start_time < 3.0)
-        time.sleep(0.01)
-        self.assertFalse(hardware_source.suspended)
-        # clean up
-        hardware_source.abort_playing(sync_timeout=3.0)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            # first start playing
+            hardware_source.start_playing(sync_timeout=3.0)
+            try:
+                time.sleep(0.02)  # make the test a little more difficult to pass (this triggered a data item reference problem)
+                self.assertFalse(hardware_source.suspended)
+                # now start recording
+                hardware_source.sleep = 0.06
+                hardware_source.start_recording()
+                try:
+                    hardware_source.suspend_event.wait(3.0)
+                    self.assertTrue(hardware_source.suspended)
+                    start_time = time.time()
+                    while hardware_source.is_recording:
+                        time.sleep(0.01)
+                        self.assertTrue(time.time() - start_time < 3.0)
+                    time.sleep(0.01)
+                    self.assertFalse(hardware_source.suspended)
+                finally:
+                    hardware_source.abort_recording(sync_timeout=3.0)
+            finally:
+                hardware_source.abort_playing(sync_timeout=3.0)
 
     def test_view_reuses_externally_configured_item(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        hardware_source_id = hardware_source.hardware_source_id
-        self.assertEqual(len(document_model.data_items), 0)
-        data_item = DataItem.DataItem(numpy.ones(256) + 1)
-        document_model.append_data_item(data_item)
-        document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source_id), data_item)
-        # at this point the data item contains 2.0. the acquisition will produce a 1.0.
-        # the 2.0 will get copied to data_item 1 and the 1.0 will be replaced into data_item 0.
-        new_data_item = copy.deepcopy(document_model.data_items[0])
-        document_model.append_data_item(new_data_item)
-        self.__acquire_one(document_controller, hardware_source)
-        self.assertEqual(len(document_model.data_items), 2)  # old one is copied
-        self.assertAlmostEqual(document_model.data_items[0].data_sources[0].data[0], 1.0)
-        self.assertAlmostEqual(document_model.data_items[1].data_sources[0].data[0], 2.0)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            hardware_source_id = hardware_source.hardware_source_id
+            self.assertEqual(len(document_model.data_items), 0)
+            data_item = DataItem.DataItem(numpy.ones(256) + 1)
+            document_model.append_data_item(data_item)
+            document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source_id), data_item)
+            # at this point the data item contains 2.0. the acquisition will produce a 1.0.
+            # the 2.0 will get copied to data_item 1 and the 1.0 will be replaced into data_item 0.
+            new_data_item = copy.deepcopy(document_model.data_items[0])
+            document_model.append_data_item(new_data_item)
+            self.__acquire_one(document_controller, hardware_source)
+            self.assertEqual(len(document_model.data_items), 2)  # old one is copied
+            self.assertAlmostEqual(document_model.data_items[0].data_sources[0].data[0], 1.0)
+            self.assertAlmostEqual(document_model.data_items[1].data_sources[0].data[0], 2.0)
 
     def test_setup_channel_configures_tags_correctly(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        hardware_source_id = hardware_source.hardware_source_id
-        channel_id = "aaa"
-        self.assertEqual(len(document_model.data_items), 0)
-        data_item = DataItem.DataItem(numpy.ones(256) + 1)
-        document_model.append_data_item(data_item)
-        data_item_reference_key = document_model.make_data_item_reference_key(hardware_source_id, channel_id)
-        document_model.setup_channel(data_item_reference_key, data_item)
-        data_item_reference = document_model.get_data_item_reference(data_item_reference_key)
-        self.assertEqual(data_item, data_item_reference.data_item)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            hardware_source_id = hardware_source.hardware_source_id
+            channel_id = "aaa"
+            self.assertEqual(len(document_model.data_items), 0)
+            data_item = DataItem.DataItem(numpy.ones(256) + 1)
+            document_model.append_data_item(data_item)
+            data_item_reference_key = document_model.make_data_item_reference_key(hardware_source_id, channel_id)
+            document_model.setup_channel(data_item_reference_key, data_item)
+            data_item_reference = document_model.get_data_item_reference(data_item_reference_key)
+            self.assertEqual(data_item, data_item_reference.data_item)
 
     def test_partial_acquisition_only_updates_sub_area(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        data_item = DataItem.DataItem(numpy.zeros((256, 256)) + 16)
-        document_model.append_data_item(data_item)
-        document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source.hardware_source_id, "a"), data_item)
-        hardware_source.exposure = 0.02
-        hardware_source.start_playing()
-        time.sleep(0.01)
-        hardware_source.abort_playing()
-        start_time = time.time()
-        while hardware_source.is_playing:
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((256, 256)) + 16)
+            document_model.append_data_item(data_item)
+            document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source.hardware_source_id, "a"), data_item)
+            hardware_source.exposure = 0.02
+            hardware_source.start_playing()
             time.sleep(0.01)
-            self.assertTrue(time.time() - start_time < 3.0)
-        self.assertEqual(len(document_model.data_items), 1)
-        data = document_model.data_items[0].data_sources[0].data
-        self.assertAlmostEqual(data[0, 0], 1.0)
-        self.assertAlmostEqual(data[128, 0], 16.0)
-        document_controller.close()
+            hardware_source.abort_playing(sync_timeout=3.0)
+            self.assertEqual(len(document_model.data_items), 1)
+            data = document_model.data_items[0].data_sources[0].data
+            self.assertAlmostEqual(data[0, 0], 1.0)
+            self.assertAlmostEqual(data[128, 0], 16.0)
 
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = ScanAcquisitionTask(False, 0).make_data_element()
@@ -711,156 +677,156 @@ class TestHardwareSourceClass(unittest.TestCase):
 
     def test_channel_id_and_name_and_index_are_empty_for_simple_hardware_source(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        self.__acquire_one(document_controller, hardware_source)
-        data_item0 = document_model.data_items[0]
-        buffered_data_source = data_item0.data_sources[0]
-        hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-        self.assertEqual(data_item0.title, hardware_source.display_name)
-        self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
-        self.assertIsNone(hardware_source_metadata.get("channel_id"))
-        self.assertIsNone(hardware_source_metadata.get("channel_name"))
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            data_item0 = document_model.data_items[0]
+            buffered_data_source = data_item0.data_sources[0]
+            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+            self.assertEqual(data_item0.title, hardware_source.display_name)
+            self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
+            self.assertIsNone(hardware_source_metadata.get("channel_id"))
+            self.assertIsNone(hardware_source_metadata.get("channel_name"))
 
     def test_channel_id_and_name_and_index_are_correct_for_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        self.__acquire_one(document_controller, hardware_source)
-        data_item0 = document_model.data_items[0]
-        buffered_data_source = data_item0.data_sources[0]
-        hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-        self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
-        self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
-        self.assertEqual(hardware_source_metadata.get("channel_id"), "a")
-        self.assertEqual(hardware_source_metadata.get("channel_name"), "A")
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            data_item0 = document_model.data_items[0]
+            buffered_data_source = data_item0.data_sources[0]
+            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+            self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
+            self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
+            self.assertEqual(hardware_source_metadata.get("channel_id"), "a")
+            self.assertEqual(hardware_source_metadata.get("channel_name"), "A")
 
     def test_channel_id_and_name_and_index_are_correct_for_multiview(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        hardware_source.channel_enabled_list = (True, True)
-        self.__acquire_one(document_controller, hardware_source)
-        data_item0 = document_model.data_items[0]
-        buffered_data_source0 = data_item0.data_sources[0]
-        hardware_source_metadata0 = buffered_data_source0.metadata.get("hardware_source", dict())
-        self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
-        self.assertEqual(hardware_source_metadata0.get("channel_index"), 0)
-        self.assertEqual(hardware_source_metadata0.get("channel_id"), "a")
-        self.assertEqual(hardware_source_metadata0.get("channel_name"), "A")
-        data_item1 = document_model.data_items[1]
-        buffered_data_source1 = data_item1.data_sources[0]
-        hardware_source_metadata1 = buffered_data_source1.metadata.get("hardware_source", dict())
-        self.assertEqual(data_item1.title, "%s (%s)" % (hardware_source.display_name, "B"))
-        self.assertEqual(hardware_source_metadata1.get("channel_index"), 1)
-        self.assertEqual(hardware_source_metadata1.get("channel_id"), "b")
-        self.assertEqual(hardware_source_metadata1.get("channel_name"), "B")
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            hardware_source.channel_enabled_list = (True, True)
+            self.__acquire_one(document_controller, hardware_source)
+            data_item0 = document_model.data_items[0]
+            buffered_data_source0 = data_item0.data_sources[0]
+            hardware_source_metadata0 = buffered_data_source0.metadata.get("hardware_source", dict())
+            self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
+            self.assertEqual(hardware_source_metadata0.get("channel_index"), 0)
+            self.assertEqual(hardware_source_metadata0.get("channel_id"), "a")
+            self.assertEqual(hardware_source_metadata0.get("channel_name"), "A")
+            data_item1 = document_model.data_items[1]
+            buffered_data_source1 = data_item1.data_sources[0]
+            hardware_source_metadata1 = buffered_data_source1.metadata.get("hardware_source", dict())
+            self.assertEqual(data_item1.title, "%s (%s)" % (hardware_source.display_name, "B"))
+            self.assertEqual(hardware_source_metadata1.get("channel_index"), 1)
+            self.assertEqual(hardware_source_metadata1.get("channel_id"), "b")
+            self.assertEqual(hardware_source_metadata1.get("channel_name"), "B")
 
     def test_multiview_reuse_second_channel_by_id_not_index(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        hardware_source.channel_enabled_list = (True, True)
-        self.__acquire_one(document_controller, hardware_source)
-        buffered_data_source0 = document_model.data_items[0].data_sources[0]
-        buffered_data_source1 = document_model.data_items[1].data_sources[0]
-        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)  # 1.0 because top half of two part partial acquisition
-        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 1.0)
-        self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)  # 2.0 because bottom half of two part partial acquisition
-        self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 2.0)
-        hardware_source.channel_enabled_list = (False, True)
-        self.__acquire_one(document_controller, hardware_source)
-        self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)
-        self.assertAlmostEqual(buffered_data_source1.data[0, 0], 3.0)
-        self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)
-        self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 4.0)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            hardware_source.channel_enabled_list = (True, True)
+            self.__acquire_one(document_controller, hardware_source)
+            buffered_data_source0 = document_model.data_items[0].data_sources[0]
+            buffered_data_source1 = document_model.data_items[1].data_sources[0]
+            self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)  # 1.0 because top half of two part partial acquisition
+            self.assertAlmostEqual(buffered_data_source1.data[0, 0], 1.0)
+            self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)  # 2.0 because bottom half of two part partial acquisition
+            self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 2.0)
+            hardware_source.channel_enabled_list = (False, True)
+            self.__acquire_one(document_controller, hardware_source)
+            self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)
+            self.assertAlmostEqual(buffered_data_source1.data[0, 0], 3.0)
+            self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)
+            self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 4.0)
 
     def test_restarting_view_in_same_session_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        self.__acquire_one(document_controller, hardware_source)
-        new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
-        document_controller.periodic()
-        document_model.recompute_all()
-        modified = document_model.data_items[1].modified
-        value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
-        acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
-        self.assertEqual(acq_value, 1.0)
-        self.assertEqual(value, -acq_value)
-        self.__acquire_one(document_controller, hardware_source)
-        document_controller.periodic()
-        document_model.recompute_all()
-        self.assertNotEqual(modified, document_model.data_items[1].modified)
-        value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
-        acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
-        self.assertEqual(acq_value, 2.0)
-        self.assertEqual(value, -acq_value)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
+            document_controller.periodic()
+            document_model.recompute_all()
+            modified = document_model.data_items[1].modified
+            value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
+            acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
+            self.assertEqual(acq_value, 1.0)
+            self.assertEqual(value, -acq_value)
+            self.__acquire_one(document_controller, hardware_source)
+            document_controller.periodic()
+            document_model.recompute_all()
+            self.assertNotEqual(modified, document_model.data_items[1].modified)
+            value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
+            acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
+            self.assertEqual(acq_value, 2.0)
+            self.assertEqual(value, -acq_value)
 
     def test_restarting_view_after_reload_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        self.__acquire_one(document_controller, hardware_source)
-        new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
-        document_controller.periodic()
-        document_model.recompute_all()
-        document_model.start_new_session()
-        new_data_item = copy.deepcopy(document_model.data_items[0])
-        document_model.append_data_item(new_data_item)
-        self.__acquire_one(document_controller, hardware_source)
-        document_controller.periodic()
-        document_model.recompute_all()
-        self.assertEqual(len(document_model.data_items), 3)
-        value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
-        acq_value0 = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
-        acq_value2 = document_model.data_items[2].data_sources[0].data_and_metadata.data[0]
-        self.assertEqual(acq_value0, 2.0)
-        self.assertEqual(acq_value2, 1.0)
-        self.assertEqual(value, -acq_value0)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            new_data_item = document_model.get_invert_new(document_model.data_items[0], None)
+            document_controller.periodic()
+            document_model.recompute_all()
+            document_model.start_new_session()
+            new_data_item = copy.deepcopy(document_model.data_items[0])
+            document_model.append_data_item(new_data_item)
+            self.__acquire_one(document_controller, hardware_source)
+            document_controller.periodic()
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.data_items), 3)
+            value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
+            acq_value0 = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
+            acq_value2 = document_model.data_items[2].data_sources[0].data_and_metadata.data[0]
+            self.assertEqual(acq_value0, 2.0)
+            self.assertEqual(acq_value2, 1.0)
+            self.assertEqual(value, -acq_value0)
 
     def test_reloading_restarted_view_after_size_change_produces_data_item_with_unique_uuid(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(persistent_storage_systems=[memory_persistent_storage_system])
-        document_model.session_id = "20000630-150200"
-        self.__acquire_one(document_controller, hardware_source)
-        self.assertEqual(len(document_model.data_items), 1)
-        new_data_item = copy.deepcopy(document_model.data_items[0])
-        document_model.append_data_item(new_data_item)
-        document_model.session_id = "20000630-150201"
-        self.__acquire_one(document_controller, hardware_source)
-        self.assertEqual(len(document_model.data_items), 2)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            document_model.session_id = "20000630-150200"
+            self.__acquire_one(document_controller, hardware_source)
+            self.assertEqual(len(document_model.data_items), 1)
+            new_data_item = copy.deepcopy(document_model.data_items[0])
+            document_model.append_data_item(new_data_item)
+            document_model.session_id = "20000630-150201"
+            self.__acquire_one(document_controller, hardware_source)
+            self.assertEqual(len(document_model.data_items), 2)
         # reload
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
-        self.assertEqual(len(document_model.data_items), 2)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
+            self.assertEqual(len(document_model.data_items), 2)
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_image(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        hardware_source.image = numpy.ones((4, 4))
-        display_panel = document_controller.selected_display_panel
-        self.__acquire_one(document_controller, hardware_source)
-        display_panel.set_displayed_data_item(document_model.data_items[0])
-        count_ref = [0]
-        def metric_update():
-            count_ref[0] += 1
-        with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
-            self.assertEqual(count_ref[0], 0)
+        with contextlib.closing(document_controller):
+            hardware_source.image = numpy.ones((4, 4))
+            display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
-        self.assertEqual(count_ref[0], 1)
-        document_controller.close()
+            display_panel.set_displayed_data_item(document_model.data_items[0])
+            count_ref = [0]
+            def metric_update():
+                count_ref[0] += 1
+            with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
+                self.assertEqual(count_ref[0], 0)
+                self.__acquire_one(document_controller, hardware_source)
+            self.assertEqual(count_ref[0], 1)
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
-        hardware_source.image = numpy.ones((4, ))
-        display_panel = document_controller.selected_display_panel
-        self.__acquire_one(document_controller, hardware_source)
-        display_panel.set_displayed_data_item(document_model.data_items[0])
-        count_ref = [0]
-        def metric_update():
-            count_ref[0] += 1
-        with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
-            self.assertEqual(count_ref[0], 0)
+        with contextlib.closing(document_controller):
+            hardware_source.image = numpy.ones((4, ))
+            display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
-        self.assertEqual(count_ref[0], 1)
-        document_controller.close()
+            display_panel.set_displayed_data_item(document_model.data_items[0])
+            count_ref = [0]
+            def metric_update():
+                count_ref[0] += 1
+            with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
+                self.assertEqual(count_ref[0], 0)
+                self.__acquire_one(document_controller, hardware_source)
+            self.assertEqual(count_ref[0], 1)
 
     def test_two_acquisitions_succeed(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -893,11 +859,7 @@ class TestHardwareSourceClass(unittest.TestCase):
                 time.sleep(0.01)
                 document_controller.periodic()
                 self.assertTrue(time.time() - start_time < 3.0)
-            hardware_source.abort_playing()
-            start_time = time.time()
-            while hardware_source.is_playing:
-                time.sleep(0.01)
-                self.assertTrue(time.time() - start_time < 3.0)
+            hardware_source.abort_playing(sync_timeout=3.0)
             document_controller.periodic()
 
     def test_data_generator_generates_ndarrays(self):
@@ -909,7 +871,7 @@ class TestHardwareSourceClass(unittest.TestCase):
                     self.assertIsInstance(data_generator(), numpy.ndarray)
                     self.assertIsInstance(data_generator(), numpy.ndarray)
             finally:
-                hardware_source.abort_playing()
+                hardware_source.abort_playing(sync_timeout=3.0)
 
     def test_hardware_source_api_data_item_setup(self):
         document_controller, document_model, _hardware_source = self.__setup_simple_hardware_source()
@@ -921,7 +883,19 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(document_model.data_items[0], data_item._data_item)
             self.assertIsNone(document_model.data_items[0].maybe_data_source.data)
-            self.__acquire_one(document_controller, hardware_source)
+
+            hardware_source.start_playing()
+            start_time = time.time()
+            while not hardware_source.is_playing:
+                time.sleep(0.01)
+                self.assertTrue(time.time() - start_time < 3.0)
+            hardware_source.stop_playing()
+            start_time = time.time()
+            while hardware_source.is_playing:
+                time.sleep(0.01)
+                self.assertTrue(time.time() - start_time < 3.0)
+            document_controller.periodic()
+
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(document_model.data_items[0], data_item._data_item)
             self.assertIsNotNone(document_model.data_items[0].maybe_data_source.data)
