@@ -129,6 +129,7 @@ class ScanAcquisitionTask(HardwareSource.AcquisitionTask):
                     data_element["properties"]["complete"] = True
                     data_element["properties"]["frame_index"] = self.frame_index
                     self.frame_index += 1
+                data_element["properties"]["is_continuous"] = self.__is_continuous
                 data_elements.append(data_element)
         self.top = not self.top
         return data_elements
@@ -227,17 +228,14 @@ def _test_record_only_acquires_one_item(testcase, hardware_source, document_cont
     try:
         testcase.assertFalse(hardware_source.is_playing)
         testcase.assertTrue(hardware_source.is_recording)
-        start_time = time.time()
-        while hardware_source.is_recording:
-            time.sleep(0.01)
-            testcase.assertTrue(time.time() - start_time < 3.0)
+        data_elements = hardware_source.get_next_data_elements_to_finish(timeout=3.0)
     finally:
         hardware_source.abort_recording(sync_timeout=3.0)
     testcase.assertFalse(hardware_source.is_playing)
     document_controller.periodic()
-    testcase.assertEqual(len(document_controller.document_model.data_items), 2)
+    testcase.assertEqual(len(document_controller.document_model.data_items), 1)
     testcase.assertEqual(document_controller.document_model.data_items[0].category, "temporary")
-    testcase.assertNotEqual(document_controller.document_model.data_items[1].category, "temporary")
+    # UPDATE: record data is now in data_elements; it is neither temporary or not. it's just data.
 
 def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
@@ -258,7 +256,9 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
     finally:
         hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()
-    testcase.assertEqual(len(document_controller.document_model.data_items), 2)
+    testcase.assertEqual(len(document_controller.document_model.data_items), 1)
+    # ensure the recorded data is different from the view data.
+    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.metadata["hardware_source"]["is_continuous"], data_elements[0]["properties"]["is_continuous"])
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing

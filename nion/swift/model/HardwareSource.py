@@ -225,7 +225,7 @@ class AcquisitionTask:
 
     def __mark_as_finished(self):
         self.__finished = True
-        self.data_elements_changed_event.fire(list(), self.__is_continuous, self.__view_id, False, self.__is_stopping)
+        self.data_elements_changed_event.fire(list(), self.__view_id, False, self.__is_stopping)
         self.finished_event.fire()
 
     # called from the hardware source
@@ -358,7 +358,7 @@ class AcquisitionTask:
                 break
 
         # notify that data elements have changed
-        self.data_elements_changed_event.fire(data_elements, self.__is_continuous, self.__view_id, complete, self.__is_stopping)
+        self.data_elements_changed_event.fire(data_elements, self.__view_id, complete, self.__is_stopping)
 
         if complete:
             self.__frame_index += 1
@@ -511,7 +511,7 @@ class DataChannel:
     def is_started(self):
         return self.__start_count > 0
 
-    def update(self, data_and_metadata: DataAndMetadata.DataAndMetadata, state: str, sub_area, view_id, is_recording) -> None:
+    def update(self, data_and_metadata: DataAndMetadata.DataAndMetadata, state: str, sub_area, view_id) -> None:
         """Called from hardware source when new data arrives."""
         self.__state = state
         self.__sub_area = sub_area
@@ -532,7 +532,7 @@ class DataChannel:
             hardware_source_metadata["view_id"] = view_id
         data_and_metadata.metadata.setdefault("hardware_source", dict()).update(hardware_source_metadata)
 
-        self.data_channel_updated_event.fire(data_and_metadata, is_recording)
+        self.data_channel_updated_event.fire(data_and_metadata)
         self.is_dirty = True
 
     def start(self):
@@ -672,7 +672,7 @@ class HardwareSource:
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
-    def __data_elements_changed(self, data_elements, is_continuous, view_id, is_complete, is_stopping):
+    def __data_elements_changed(self, data_elements, view_id, is_complete, is_stopping):
         data_channels = list()
         for data_element in data_elements:
             assert data_element is not None
@@ -685,7 +685,7 @@ class HardwareSource:
                 channel_state = "marked"
             sub_area = data_element.get("sub_area")
             data_channel = self.__data_channels[channel_index]
-            data_channel.update(data_and_metadata, channel_state, sub_area, view_id, not is_continuous)
+            data_channel.update(data_and_metadata, channel_state, sub_area, view_id)
             data_channels.append(data_channel)
         # update channel buffers with processors
         for data_channel in self.__data_channels:
@@ -693,7 +693,7 @@ class HardwareSource:
             if src_channel_index is not None:
                 src_data_channel = self.__data_channels[src_channel_index]
                 if src_data_channel.is_dirty and src_data_channel.state == "complete":
-                    data_channel.update(data_channel.processor.process(src_data_channel.data_and_metadata), "complete", None, view_id, not is_continuous)
+                    data_channel.update(data_channel.processor.process(src_data_channel.data_and_metadata), "complete", None, view_id)
                 data_channels.append(data_channel)
         # all channel buffers are clean now
         for data_channel in self.__data_channels:
@@ -1125,7 +1125,7 @@ class DataChannelBuffer:
         self.__data_channel_start_listeners = None
         self.__data_channel_stop_listeners = None
 
-    def __data_channel_updated(self, data_channel: DataChannel, data_and_metadata: DataAndMetadata.DataAndMetadata, is_recording: bool) -> None:
+    def __data_channel_updated(self, data_channel: DataChannel, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         if self.__state == DataChannelBuffer.State.started:
             if data_channel.state == "complete":
                 with self.__buffer_lock:

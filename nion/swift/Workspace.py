@@ -555,20 +555,6 @@ class Workspace:
         for display_panel in self.display_panels:
             display_panel.set_selected(display_panel == selected_display_panel)
 
-    # not thread safe.
-    def append_data_item(self, data_item, is_recording):
-        self.document_model.append_data_item(data_item)
-        is_data_item_displayed = False
-        for display_panel in self.display_panels:
-            if display_panel.data_item == data_item:
-                is_data_item_displayed = True
-                break
-        if is_recording and not is_data_item_displayed:
-            result_display_panel = self.document_controller.next_result_display_panel()
-            if result_display_panel:
-                result_display_panel.set_displayed_data_item(data_item)
-                result_display_panel.request_focus()
-
 
 class WorkspaceManager(metaclass=Utility.Singleton):
 

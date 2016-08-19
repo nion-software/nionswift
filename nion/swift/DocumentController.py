@@ -107,8 +107,8 @@ class DocumentController:
 
         self.__data_item_will_be_removed_event_listener = self.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
 
-        def queued_append_data_item(data_item, is_recording):
-            self.queue_task(functools.partial(self.workspace.append_data_item, data_item, is_recording))
+        def queued_append_data_item(data_item):
+            self.queue_task(functools.partial(self.document_model.append_data_item, data_item))
             return True
 
         self.__append_data_item_event_listener = self.document_model.append_data_item_event.listen(queued_append_data_item)
