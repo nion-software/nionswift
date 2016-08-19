@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import functools
 import gettext
 import operator
@@ -322,11 +323,13 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, display_stream, histogram_data_future_stream, color_map_data_stream, cursor_changed_fn):
+    def __init__(self, ui, display_stream, histogram_data_future_stream, color_map_data_stream, cursor_changed_fn, event_loop: asyncio.AbstractEventLoop):
         super().__init__(ui.create_column_widget(properties={"min-height": 84, "max-height": 84}))
 
-        self.__histogram_data_future_stream = histogram_data_future_stream
-        self.__display_future_stream = display_stream
+        self.__histogram_data_future_stream = histogram_data_future_stream.add_ref()
+        self.__display_future_stream = display_stream.add_ref()
+
+        self.__task = None
 
         def set_display_limits(display_limits):
             display = display_stream.value
@@ -346,11 +349,20 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         histogram_widget = ui.create_canvas_widget()
         histogram_widget.canvas_item.add_canvas_item(self.__histogram_canvas_item)
 
-        def handle_histogram_data_future(histogram_data_future):
+        def handle_histogram_data_future_old(histogram_data_future):
             def handle_histogram_data(histogram_data):
                 if self.__histogram_canvas_item:  # hack to fix closing issues.
                     self.__histogram_canvas_item._set_histogram_data(histogram_data)
             histogram_data_future.evaluate(handle_histogram_data)
+
+        def handle_histogram_data_future(histogram_data_future):
+            async def handle_histogram_data():
+                histogram_data = await event_loop.run_in_executor(None, histogram_data_future)
+                self.__histogram_canvas_item._set_histogram_data(histogram_data)
+            if self.__task:
+                self.__task.cancel()
+                self.__task = None
+            self.__task = event_loop.create_task(handle_histogram_data())
 
         self.__histogram_data_stream_listener = histogram_data_future_stream.value_stream.listen(handle_histogram_data_future)
         handle_histogram_data_future(self.__histogram_data_future_stream.value)
@@ -358,7 +370,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         def handle_update_color_map_data(color_map_data):
             self.__histogram_canvas_item.color_map_data = color_map_data
 
-        self.__color_map_data_stream = color_map_data_stream
+        self.__color_map_data_stream = color_map_data_stream.add_ref()
         self.__color_map_data_stream_listener = self.__color_map_data_stream.value_stream.listen(handle_update_color_map_data)
         handle_update_color_map_data(self.__color_map_data_stream.value)
 
@@ -367,13 +379,23 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
     def close(self):
         self.__histogram_data_stream_listener.close()
         self.__histogram_data_stream_listener = None
+        self.__histogram_data_future_stream.remove_ref()
         self.__histogram_data_future_stream = None
         self.__color_map_data_stream_listener.close()
         self.__color_map_data_stream_listener = None
+        self.__color_map_data_stream.remove_ref()
         self.__color_map_data_stream = None
+        self.__display_future_stream.remove_ref()
         self.__display_future_stream = None
         self.__histogram_canvas_item = None
+        if self.__task:
+            self.__task.cancel()
+            self.__task = None
         super().close()
+
+    @property
+    def _task(self):
+        return self.__task
 
     def _recompute(self):
         pass
@@ -385,10 +407,13 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
 
 class StatisticsWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, statistics_future_stream):
+    def __init__(self, ui, statistics_future_stream, event_loop: asyncio.AbstractEventLoop):
         super().__init__(ui.create_column_widget(properties={"min-height": 18 * 3, "max-height": 18 * 3}))
 
-        self.__statistics_future_stream = statistics_future_stream
+        self.__statistics_future_stream = statistics_future_stream.add_ref()
+
+        self.__task = None
+        self.__event_loop = event_loop
 
         stats_column1 = ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
         stats_column2 = ui.create_column_widget(properties={"min-width": 140, "max-width": 140})
@@ -411,7 +436,8 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
         stats_column2_label.bind_text(Binding.PropertyBinding(self._stats2_property, "value"))
 
         def handle_statistics_future(statistics_future):
-            def handle_statistics(statistics_data):
+            async def handle_statistics():
+                statistics_data = await event_loop.run_in_executor(None, statistics_future)
                 statistic_strings = list()
                 for key in sorted(statistics_data.keys()):
                     value = statistics_data[key]
@@ -422,7 +448,10 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
                     statistic_strings.append(statistic_str)
                 self._stats1_property.value = "\n".join(statistic_strings[:(len(statistic_strings) + 1) // 2])
                 self._stats2_property.value = "\n".join(statistic_strings[(len(statistic_strings) + 1) // 2:])
-            statistics_future.evaluate(handle_statistics)
+            if self.__task:
+                self.__task.cancel()
+                self.__task = None
+            self.__task = event_loop.create_task(handle_statistics())
 
         self.__statistics_stream_listener = statistics_future_stream.value_stream.listen(handle_statistics_future)
         handle_statistics_future(self.__statistics_future_stream.value)
@@ -432,8 +461,17 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
     def close(self):
         self.__statistics_stream_listener.close()
         self.__statistics_stream_listener = None
+        self.__statistics_future_stream.remove_ref()
         self.__statistics_future_stream = None
+        if self.__task:
+            self.__task.cancel()
+            self.__task = None
+        self.__event_loop = None
         super().close()
+
+    @property
+    def _task(self):
+        return self.__task
 
     @property
     def _statistics_future_stream(self):
@@ -443,6 +481,8 @@ class StatisticsWidget(Widgets.CompositeWidgetBase):
         pass
 
 
+# import asyncio
+
 class HistogramPanel(Panel.Panel):
     """ A panel to present a histogram of the selected data item. """
 
@@ -451,6 +491,20 @@ class HistogramPanel(Panel.Panel):
 
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
+
+        # async def hello_world(n, event_loop):
+        #     print(n)
+        #     await asyncio.sleep(n, loop=event_loop)
+        #     print("Hello World! " + str(n))
+        #
+        # async def do_it_baby(t, event_loop):
+        #     await asyncio.sleep(1, loop=event_loop)
+        #     t.cancel()
+        #     print("YEA")
+        #
+        # document_controller.event_loop.create_task(hello_world(3, document_controller.event_loop))
+        # t = document_controller.event_loop.create_task(hello_world(5, document_controller.event_loop))
+        # document_controller.event_loop.create_task(do_it_baby(t, document_controller.event_loop))
 
         def calculate_region_data(display_data_and_metadata_promise, region):
             def provide_data():
@@ -498,10 +552,10 @@ class HistogramPanel(Panel.Panel):
             return None
 
         def calculate_future_histogram_data(display_data_and_metadata_promise, display_range):
-            return Stream.FutureValue(calculate_histogram_data, display_data_and_metadata_promise, display_range)
+            return functools.partial(calculate_histogram_data, display_data_and_metadata_promise, display_range)
 
         display_stream = TargetDisplayStream(document_controller)
-        buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller)
+        self.__buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller).add_ref()
         region_stream = TargetRegionStream(display_stream)
         display_data_and_metadata_stream = DisplayPropertyStream(display_stream, 'display_data_and_metadata_promise')
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
@@ -510,9 +564,9 @@ class HistogramPanel(Panel.Panel):
         histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_range_stream), calculate_future_histogram_data)
         color_map_data_stream = DisplayPropertyStream(display_stream, "color_map_data")
         if debounce:
-            histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05)
+            histogram_data_and_metadata_stream = Stream.DebounceStream(histogram_data_and_metadata_stream, 0.05, document_controller.event_loop)
         if sample:
-            histogram_data_and_metadata_stream = Stream.SampleStream(histogram_data_and_metadata_stream, 0.5)
+            histogram_data_and_metadata_stream = Stream.SampleStream(histogram_data_and_metadata_stream, 0.5, document_controller.event_loop)
 
         def cursor_changed_fn(canvas_x: float) -> None:
             if not canvas_x:
@@ -520,7 +574,7 @@ class HistogramPanel(Panel.Panel):
             if display_stream and display_stream.value and canvas_x:
                 display_range = display_stream.value.display_range
                 if display_range is not None:  # can be None with empty data
-                    intensity_calibration = buffered_data_source_stream.value.intensity_calibration
+                    intensity_calibration = self.__buffered_data_source_stream.value.intensity_calibration
                     adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
                     calibration = intensity_calibration if display_calibrated_values_stream.value else Calibration.Calibration()
                     adjusted_x = calibration.convert_to_calibrated_value_str(adjusted_x)
@@ -528,7 +582,7 @@ class HistogramPanel(Panel.Panel):
                 else:
                     document_controller.cursor_changed(None)
 
-        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, color_map_data_stream, cursor_changed_fn)
+        self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, color_map_data_stream, cursor_changed_fn, document_controller.event_loop)
 
         def calculate_statistics(display_data_and_metadata_promise, display_data_range, region, display_calibrated_values):
             display_data_and_metadata = display_data_and_metadata_promise.value if display_data_and_metadata_promise else None
@@ -556,15 +610,15 @@ class HistogramPanel(Panel.Panel):
             return dict()
 
         def calculate_future_statistics(display_data_and_metadata_promise, display_data_range, region, display_calibrated_values):
-            return Stream.FutureValue(calculate_statistics, display_data_and_metadata_promise, display_data_range, region, display_calibrated_values)
+            return functools.partial(calculate_statistics, display_data_and_metadata_promise, display_data_range, region, display_calibrated_values)
 
         display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
         statistics_future_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_data_range_stream, region_stream, display_calibrated_values_stream), calculate_future_statistics)
         if debounce:
-            statistics_future_stream = Stream.DebounceStream(statistics_future_stream, 0.05)
+            statistics_future_stream = Stream.DebounceStream(statistics_future_stream, 0.05, document_controller.event_loop)
         if sample:
-            statistics_future_stream = Stream.SampleStream(statistics_future_stream, 0.5)
-        self._statistics_widget = StatisticsWidget(self.ui, statistics_future_stream)
+            statistics_future_stream = Stream.SampleStream(statistics_future_stream, 0.5, document_controller.event_loop)
+        self._statistics_widget = StatisticsWidget(self.ui, statistics_future_stream, document_controller.event_loop)
 
         # create the main column with the histogram and the statistics section
         column = self.ui.create_column_widget(properties={"height": 80 + 18 * 3 + 12})
@@ -577,10 +631,16 @@ class HistogramPanel(Panel.Panel):
         # this is necessary to make the panel happy
         self.widget = column
 
+    def close(self):
+        self.__buffered_data_source_stream.remove_ref()
+        self.__buffered_data_source_stream = None
+        super().close()
 
-class TargetDataItemStream:
+
+class TargetDataItemStream(Stream.AbstractStream):
 
     def __init__(self, document_controller):
+        super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # cached values
@@ -590,14 +650,12 @@ class TargetDataItemStream:
         # manually send the first data item changed message to set things up.
         self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         # disconnect data item binding
         self.__selected_data_item_changed(None)
         self.__selected_data_item_changed_event_listener.close()
         self.__selected_data_item_changed_event_listener = None
+        super().close()
 
     @property
     def value(self):
@@ -609,9 +667,10 @@ class TargetDataItemStream:
             self.__value = data_item
 
 
-class TargetBufferedDataSourceStream:
+class TargetBufferedDataSourceStream(Stream.AbstractStream):
 
     def __init__(self, document_controller):
+        super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # cached values
@@ -621,14 +680,12 @@ class TargetBufferedDataSourceStream:
         # manually send the first data item changed message to set things up.
         self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         # disconnect data item binding
         self.__selected_data_item_changed(None)
         self.__selected_data_item_changed_event_listener.close()
         self.__selected_data_item_changed_event_listener = None
+        super().close()
 
     @property
     def value(self):
@@ -642,9 +699,10 @@ class TargetBufferedDataSourceStream:
             self.__value = buffered_data_source
 
 
-class TargetDisplayStream:
+class TargetDisplayStream(Stream.AbstractStream):
 
     def __init__(self, document_controller):
+        super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # cached values
@@ -654,14 +712,12 @@ class TargetDisplayStream:
         # manually send the first data item changed message to set things up.
         self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         # disconnect data item binding
         self.__selected_data_item_changed(None)
         self.__selected_data_item_changed_event_listener.close()
         self.__selected_data_item_changed_event_listener = None
+        super().close()
 
     @property
     def value(self):
@@ -675,13 +731,14 @@ class TargetDisplayStream:
             self.__value = display
 
 
-class TargetRegionStream:
+class TargetRegionStream(Stream.AbstractStream):
 
     def __init__(self, display_stream):
+        super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # references
-        self.__display_stream = display_stream
+        self.__display_stream = display_stream.add_ref()
         # initialize
         self.__display_graphic_selection_changed_event_listener = None
         self.__value = None
@@ -689,14 +746,13 @@ class TargetRegionStream:
         self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
         self.__display_changed(display_stream.value)
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         self.__display_changed(None)
         self.__display_stream_listener.close()
         self.__display_stream_listener = None
+        self.__display_stream.remove_ref()
         self.__display_stream = None
+        super().close()
 
     @property
     def value(self):
@@ -724,14 +780,15 @@ class TargetRegionStream:
             self.value_stream.fire(None)
 
 
-class DisplayPropertyStream:
+class DisplayPropertyStream(Stream.AbstractStream):
     # TODO: add a display_data_changed to Display class and use it here
 
     def __init__(self, display_stream, property_name):
+        super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
         # references
-        self.__display_stream = display_stream
+        self.__display_stream = display_stream.add_ref()
         # initialize
         self.__property_name = property_name
         self.__property_changed_event_listener = None
@@ -740,14 +797,13 @@ class DisplayPropertyStream:
         self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
         self.__display_changed(display_stream.value)
 
-    def __del__(self):
-        self.close()
-
     def close(self):
         self.__display_changed(None)
         self.__display_stream_listener.close()
         self.__display_stream_listener = None
+        self.__display_stream.remove_ref()
         self.__display_stream = None
+        super().close()
 
     @property
     def value(self):

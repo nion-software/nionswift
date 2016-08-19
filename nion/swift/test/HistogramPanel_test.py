@@ -68,12 +68,15 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
         # verify assumptions
+        # wait for histogram task to be complete
+        self.document_controller.event_loop.run_until_complete(self.histogram_panel._histogram_widget._task)
         histogram_data1 = self.histogram_canvas_item.histogram_data
         self.assertIsNotNone(histogram_data1)
         # now change the data and verify that histogram gets recomputed via document model
         with self.display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
-        self.histogram_panel._histogram_widget._recompute()
+        # wait for histogram task to be complete
+        self.document_controller.event_loop.run_until_complete(self.histogram_panel._histogram_widget._task)
         histogram_data2 = self.histogram_canvas_item.histogram_data
         self.assertFalse(numpy.array_equal(histogram_data1, histogram_data2))
 
@@ -86,6 +89,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         # now change the data and verify that statistics gets recomputed via document model
         with self.display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
+        # wait for statistics task to be complete
+        self.document_controller.event_loop.run_until_complete(self.histogram_panel._statistics_widget._task)
         self.assertNotEqual(stats1_text, self.histogram_panel._statistics_widget._stats1_property.value)
         self.assertNotEqual(stats2_text, self.histogram_panel._statistics_widget._stats2_property.value)
 
@@ -108,9 +113,10 @@ class TestHistogramPanelClass(unittest.TestCase):
             data_ref.master_data = data
         self.display_specifier.display.slice_center = 15
         self.display_specifier.display.slice_width = 2
-        self.assertAlmostEqual(float(self.histogram_panel._statistics_widget._statistics_future_stream.value.value["mean"]), numpy.average(numpy.sum(data[..., 14:16], -1)))
-        self.assertAlmostEqual(float(self.histogram_panel._statistics_widget._statistics_future_stream.value.value["min"]), numpy.amin(numpy.sum(data[..., 14:16], -1)))
-        self.assertAlmostEqual(float(self.histogram_panel._statistics_widget._statistics_future_stream.value.value["max"]), numpy.amax(numpy.sum(data[..., 14:16], -1)))
+        statistics_dict = self.histogram_panel._statistics_widget._statistics_future_stream.value()
+        self.assertAlmostEqual(float(statistics_dict["mean"]), numpy.average(numpy.sum(data[..., 14:16], -1)))
+        self.assertAlmostEqual(float(statistics_dict["min"]), numpy.amin(numpy.sum(data[..., 14:16], -1)))
+        self.assertAlmostEqual(float(statistics_dict["max"]), numpy.amax(numpy.sum(data[..., 14:16], -1)))
 
 if __name__ == '__main__':
     unittest.main()

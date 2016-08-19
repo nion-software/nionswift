@@ -458,14 +458,16 @@ class CalibrationsInspectorSection(InspectorSection):
         super(CalibrationsInspectorSection, self).__init__(ui, "calibrations", _("Calibrations"))
         # get streams
         dimensional_calibrations_stream = Stream.PropertyStream(buffered_data_source, "dimensional_calibrations")
-        intensity_calibration_stream = Stream.PropertyStream(buffered_data_source, "intensity_calibration")
+        self.__intensity_calibration_stream = Stream.PropertyStream(buffered_data_source, "intensity_calibration").add_ref()
         # configure the bindings to dimension calibrations
         self.__calibrations = list()
+        self.__dimensional_calibration_streams = list()
         for index in range(len(buffered_data_source.dimensional_calibrations)):
             # select the indexed dimensional calibration and form a new stream
             dimensional_calibration_stream = Stream.MapStream(dimensional_calibrations_stream, operator.itemgetter(index))
             # then convert it to an observable so that we can bind to offset/scale/units and add it to calibrations list
             self.__calibrations.append(CalibrationStreamToObservable(dimensional_calibration_stream, functools.partial(buffered_data_source.set_dimensional_calibration, index)))
+            self.__dimensional_calibration_streams.append(dimensional_calibration_stream.add_ref())
         # ui. create the spatial calibrations list.
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -474,7 +476,7 @@ class CalibrationsInspectorSection(InspectorSection):
             list_widget.insert_item(spatial_calibration, index)
         self.add_widget_to_content(list_widget)
         # create the intensity row
-        intensity_calibration = CalibrationStreamToObservable(intensity_calibration_stream, buffered_data_source.set_intensity_calibration)
+        intensity_calibration = CalibrationStreamToObservable(self.__intensity_calibration_stream, buffered_data_source.set_intensity_calibration)
         if intensity_calibration is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})
@@ -507,6 +509,11 @@ class CalibrationsInspectorSection(InspectorSection):
         # close the bound calibrations
         for spatial_calibration in self.__calibrations:
             spatial_calibration.close()
+        self.__intensity_calibration_stream.remove_ref()
+        self.__intensity_calibration_stream = None
+        for dimensional_calibration_stream in self.__dimensional_calibration_streams:
+            dimensional_calibration_stream.remove_ref()
+        self.__dimensional_calibration_streams = None
 
     # not thread safe
     def __create_header_widget(self):
