@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import copy
 import functools
 import gettext
@@ -11,14 +12,10 @@ import random
 import threading
 import time
 import traceback
+import typing
 import uuid
 import weakref
-import typing
 
-# third party libraries
-# None
-
-# local libraries
 from nion.swift import DataPanel
 from nion.swift import Decorators
 from nion.swift import DisplayPanel
@@ -52,6 +49,12 @@ class DocumentController:
         super(DocumentController, self).__init__()
 
         self.__closed = False  # debugging
+
+        logger = logging.getLogger()
+        old_level = logger.level
+        logger.setLevel(logging.INFO)
+        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
+        logger.setLevel(old_level)
 
         self.ui = ui
         self.uuid = uuid.uuid4()
@@ -197,6 +200,10 @@ class DocumentController:
         self.ui.destroy_document_window(self)
         self.__periodic_queue = None
         self.__periodic_set = None
+        self.__event_loop.stop()
+        self.__event_loop.run_forever()  # give cancelled tasks a chance to finish
+        self.__event_loop.close()
+        self.__event_loop = None
 
     def about_to_show(self):
         geometry, state = self.workspace_controller.restore_geometry_state()
@@ -512,6 +519,8 @@ class DocumentController:
         # t0 = time.time()
         # logging.debug("t start %s ", t0)
         # perform any pending operations
+        self.__event_loop.stop()
+        self.__event_loop.run_forever()
         with self.__weak_periodic_listeners_mutex:
             periodic_listeners = copy.copy(self.__weak_periodic_listeners)
         current_time = time.time()
@@ -538,6 +547,10 @@ class DocumentController:
         # self.filter_controller.periodic()
         # t3 = time.time()
         # logging.debug("t end %s %s %s", t1-t0, t2-t1, t3-t2)
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return self.__event_loop
 
     @property
     def workspace_controller(self):
