@@ -113,6 +113,11 @@ class DocumentController:
 
         self.__append_data_item_event_listener = self.document_model.append_data_item_event.listen(queued_append_data_item)
 
+        def queued_perform_data_item_updates():
+            self.queue_task(functools.partial(self.document_model.perform_data_item_updates))
+
+        self.__perform_data_item_updates_event_listener = self.document_model.perform_data_item_updates_event.listen(queued_perform_data_item_updates)
+
         self.filter_controller = FilterPanel.FilterController(self)
 
         self.__data_browser_controller = DataPanel.DataBrowserController(self, selection)
@@ -173,6 +178,8 @@ class DocumentController:
         self.__data_item_will_be_removed_event_listener = None
         self.__append_data_item_event_listener.close()
         self.__append_data_item_event_listener = None
+        self.__perform_data_item_updates_event_listener.close()
+        self.__perform_data_item_updates_event_listener = None
         self.__filtered_data_items_binding.close()
         self.__filtered_data_items_binding = None
         self.filter_controller.close()

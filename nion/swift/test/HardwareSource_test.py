@@ -658,6 +658,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             time.sleep(0.01)
             hardware_source.abort_playing(sync_timeout=3.0)
             self.assertEqual(len(document_model.data_items), 1)
+            document_controller.periodic()
             data = document_model.data_items[0].data_sources[0].data
             self.assertAlmostEqual(data[0, 0], 1.0)
             self.assertAlmostEqual(data[128, 0], 16.0)

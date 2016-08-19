@@ -1072,6 +1072,7 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
             self.data_item_content_changed_event.fire(changes)
 
     def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, sub_area: Tuple[Tuple[int, int], Tuple[int, int]]=None) -> None:
+        assert threading.current_thread() == threading.main_thread()
         display_specifier = DisplaySpecifier.from_data_item(self)
         assert display_specifier.buffered_data_source and display_specifier.display
         with self.data_item_changes(), display_specifier.buffered_data_source._changes():
