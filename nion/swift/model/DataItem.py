@@ -96,12 +96,14 @@ class DatetimeToStringConverter(object):
     def convert(self, value):
         return value.isoformat() if value is not None else None
     def convert_back(self, value):
-        if len(value) == 26:
-            return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")
-        elif len(value) == 19:
-            return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
-        else:
-            return None
+        try:
+            if len(value) == 26:
+                return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%f")
+            elif len(value) == 19:
+                return datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+        except ValueError as e:
+            pass  # fall through
+        return None
 
 
 def data_source_factory(lookup_id):
@@ -283,6 +285,9 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                         dimensional_calibrations.pop(-1)
                 metadata = self._get_persistent_property_value("metadata")
                 timestamp = self._get_persistent_property_value("created")
+                if timestamp is None:  # invalid timestamp -- set property to now but don't trigger change
+                    timestamp = datetime.datetime.now()
+                    self._get_persistent_property("created").value = timestamp
                 is_sequence = self._get_persistent_property_value("is_sequence", False)
                 collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
                 datum_dimension_count = self._get_persistent_property_value("datum_dimension_count")
@@ -1012,6 +1017,9 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
             for data_source in copy.copy(self.data_sources):
                 self.remove_data_source(data_source)
             super(DataItem, self).read_from_dict(properties)
+            if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
+                timestamp = datetime.datetime.now()
+                self._get_persistent_property("created").value = timestamp
             self.__data_item_changes = set()
         self.__pending_write = False
 

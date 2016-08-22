@@ -2612,6 +2612,22 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items[1].data_items), 1)
             self.assertEqual(document_model.data_items[1].data_items[0], document_model.data_items[0])
 
+    def test_data_item_with_corrupt_created_still_loads(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(src_data_item)
+        memory_persistent_storage_system.properties[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
+        memory_persistent_storage_system.properties[str(src_data_item.uuid)]["data_sources"][0]["created"] = "todaytodaytodaytodaytoday0"
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            # for corrupt/missing created dates, a new one matching todays date should be assigned
+            self.assertIsNotNone(document_model.data_items[0].created)
+            self.assertIsNotNone(document_model.data_items[0].maybe_data_source.created)
+            self.assertEqual(document_model.data_items[0].created.date(), datetime.datetime.now().date())
+            self.assertEqual(document_model.data_items[0].maybe_data_source.created.date(), datetime.datetime.now().date())
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()
