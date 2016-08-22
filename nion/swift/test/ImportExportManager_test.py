@@ -104,6 +104,34 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         self.assertEqual(data_item.uuid, data_element_uuid)
 
+    def test_creating_data_element_with_sequence_data_makes_correct_data_item(self):
+        data_element = dict()
+        data_element["version"] = 1
+        data_element["data"] = numpy.zeros((4, 16, 16), dtype=numpy.double)
+        data_element["is_sequence"] = True
+        data_element["collection_dimension_count"] = 0
+        data_element["datum_dimension_count"] = 2
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertEqual(data_item.maybe_data_source.is_sequence, True)
+        self.assertEqual(data_item.maybe_data_source.collection_dimension_count, 0)
+        self.assertEqual(data_item.maybe_data_source.datum_dimension_count, 2)
+        self.assertEqual(data_item.maybe_data_source.data_and_metadata.is_sequence, True)
+        self.assertEqual(data_item.maybe_data_source.data_and_metadata.collection_dimension_count, 0)
+        self.assertEqual(data_item.maybe_data_source.data_and_metadata.datum_dimension_count, 2)
+
+    def test_creating_data_element_with_sequence_and_implicit_datum_size_data_makes_correct_data_item(self):
+        data_element = dict()
+        data_element["version"] = 1
+        data_element["data"] = numpy.zeros((4, 16, 16), dtype=numpy.double)
+        data_element["is_sequence"] = True
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertEqual(data_item.maybe_data_source.is_sequence, True)
+        self.assertEqual(data_item.maybe_data_source.collection_dimension_count, 0)
+        self.assertEqual(data_item.maybe_data_source.datum_dimension_count, 2)
+        self.assertEqual(data_item.maybe_data_source.data_and_metadata.is_sequence, True)
+        self.assertEqual(data_item.maybe_data_source.data_and_metadata.collection_dimension_count, 0)
+        self.assertEqual(data_item.maybe_data_source.data_and_metadata.datum_dimension_count, 2)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

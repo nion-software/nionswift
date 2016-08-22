@@ -15,6 +15,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
@@ -199,11 +200,41 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # master data
         if data_file_path is not None:
             data_item.source_file_path = data_file_path
-        with display_specifier.buffered_data_source.data_ref() as data_ref:
-            data = data_element["data"]
-            data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
-            sub_area = data_element.get("sub_area")
-            if data_matches:
+        data = data_element["data"]
+        dimensional_shape = Image.dimensional_shape_from_data(data)
+        is_sequence = data_element.get("is_sequence", False)
+        collection_dimension_count = data_element.get("collection_dimension_count", 0)
+        datum_dimension_count = data_element.get("datum_dimension_count", len(Image.dimensional_shape_from_data(data)) - collection_dimension_count - (1 if is_sequence else 0))
+        data_shape_data_dtype = (data.shape, data.dtype)
+        dimensional_calibrations = None
+        if "spatial_calibrations" in data_element:
+            dimensional_calibrations_list = data_element.get("spatial_calibrations")
+            if len(dimensional_calibrations_list) == len(dimensional_shape):
+                dimensional_calibrations = list()
+                for dimension, dimension_calibration in enumerate(dimensional_calibrations_list):
+                    offset = float(dimension_calibration.get("offset", 0.0))
+                    scale = float(dimension_calibration.get("scale", 1.0))
+                    units = dimension_calibration.get("units", "")
+                    units = str(units) if units is not None else str()
+                    if scale != 0.0:
+                        dimensional_calibrations.append(Calibration.Calibration(offset, scale, units))
+                    else:
+                        dimensional_calibrations.append(Calibration.Calibration())
+        intensity_calibration = None
+        if "intensity_calibration" in data_element:
+            intensity_calibration_dict = data_element.get("intensity_calibration")
+            offset = float(intensity_calibration_dict.get("offset", 0.0))
+            scale = float(intensity_calibration_dict.get("scale", 1.0))
+            units = intensity_calibration_dict.get("units", "")
+            units = str(units) if units is not None else str()
+            if scale != 0.0:
+                intensity_calibration = Calibration.Calibration(offset, scale, units)
+            else:
+                intensity_calibration = Calibration.Calibration()
+        is_same_shape = display_specifier.buffered_data_source.data_shape_and_dtype == data_shape_data_dtype and display_specifier.buffered_data_source.is_sequence == is_sequence and display_specifier.buffered_data_source.collection_dimension_count == collection_dimension_count and display_specifier.buffered_data_source.datum_dimension_count == datum_dimension_count
+        if is_same_shape:
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
+                sub_area = data_element.get("sub_area")
                 if sub_area is not None:
                     top = sub_area[0][0]
                     bottom = sub_area[0][0] + sub_area[1][0]
@@ -213,36 +244,15 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 else:
                     data_ref.master_data[:] = data[:]
                 data_ref.data_updated()  # trigger change notifications
-            else:
-                data_ref.master_data = data.copy()
-        # spatial calibrations
-        if "spatial_calibrations" in data_element:
-            dimensional_calibrations = data_element.get("spatial_calibrations")
-            if len(dimensional_calibrations) == len(display_specifier.buffered_data_source.dimensional_shape):
-                for dimension, dimension_calibration in enumerate(dimensional_calibrations):
-                    offset = float(dimension_calibration.get("offset", 0.0))
-                    scale = float(dimension_calibration.get("scale", 1.0))
-                    units = dimension_calibration.get("units", "")
-                    units = str(units) if units is not None else str()
-                    if scale != 0.0:
-                        display_specifier.buffered_data_source.set_dimensional_calibration(dimension, Calibration.Calibration(offset, scale, units))
-        if "intensity_calibration" in data_element:
-            intensity_calibration = data_element.get("intensity_calibration")
-            offset = float(intensity_calibration.get("offset", 0.0))
-            scale = float(intensity_calibration.get("scale", 1.0))
-            units = intensity_calibration.get("units", "")
-            units = str(units) if units is not None else str()
-            if scale != 0.0:
-                display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration(offset, scale, units))
-        if "is_sequence" in data_element:
-            is_sequence = data_element.get("is_sequence")
-            display_specifier.buffered_data_source.is_sequence = is_sequence
-        if "collection_dimension_count" in data_element:
-            collection_dimension_count = data_element.get("collection_dimension_count")
-            display_specifier.buffered_data_source.collection_dimension_count = collection_dimension_count
-        if "datum_dimension_count" in data_element:
-            datum_dimension_count = data_element.get("datum_dimension_count")
-            display_specifier.buffered_data_source.datum_dimension_count = datum_dimension_count
+            if dimensional_calibrations is not None:
+                for dimension, dimensional_calibration in enumerate(dimensional_calibrations):
+                    display_specifier.buffered_data_source.set_dimensional_calibration(dimension, dimensional_calibration)
+            if intensity_calibration:
+                display_specifier.buffered_data_source.set_intensity_calibration(intensity_calibration)
+        else:
+            data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, data_descriptor=data_descriptor)
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
         # properties (general tags)
         if "properties" in data_element:
             buffered_data_source = data_item.maybe_data_source
