@@ -1694,8 +1694,8 @@ class QtCanvasWidget(QtWidget):
         if self.on_pan_gesture:
             self.on_pan_gesture(delta_x, delta_y)
 
-    def grab_mouse(self):
-        self.proxy.Canvas_grabMouse(self.widget)
+    def grab_mouse(self, gx, gy):
+        self.proxy.Canvas_grabMouse(self.widget, gx, gy)
 
     def release_mouse(self):
         self.proxy.Canvas_releaseMouse(self.widget)
@@ -2168,6 +2168,11 @@ class QtDocumentWindow(object):
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         self.proxy.DocumentWindow_tabifyDockWidgets(self.native_document_window, dock_widget1.native_dock_widget, dock_widget2.native_dock_widget)
 
+    @property
+    def screen_size(self):
+        w, h = self.proxy.DocumentWindow_getScreenSize(self.native_document_window)
+        return Geometry.IntSize(width=w, height=h)
+
     # call show to display the window.
     def show(self, size=None, position=None):
         if size is not None:
@@ -2175,6 +2180,11 @@ class QtDocumentWindow(object):
         if position is not None:
             self.proxy.DocumentWindow_setPosition(self.native_document_window, position.x, position.y)
         self.proxy.DocumentWindow_show(self.native_document_window, self.window_style)
+
+    def fill_screen(self):
+        screen_size = self.screen_size
+        self.proxy.DocumentWindow_setPosition(self.native_document_window, 0, 0)
+        self.proxy.DocumentWindow_setSize(self.native_document_window, screen_size.width, screen_size.height)
 
     @property
     def title(self):
