@@ -244,7 +244,7 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
         hardware_source.get_next_data_elements_to_finish()
         hardware_source.get_next_data_elements_to_finish()
         hardware_source.start_recording(sync_timeout=3.0)
-        data_elements = hardware_source.get_next_data_elements_to_finish()
+        data_elements = hardware_source.get_next_data_elements_to_start()
         testcase.assertTrue(hardware_source.is_playing)
         # wait for recording to stop
         start_time = time.time()
@@ -258,7 +258,7 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 1)
     # ensure the recorded data is different from the view data.
-    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.metadata["hardware_source"]["is_continuous"], data_elements[0]["properties"]["is_continuous"])
+    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.metadata["hardware_source"]["frame_index"], data_elements[0]["properties"]["frame_index"])
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing
