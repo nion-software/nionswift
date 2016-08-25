@@ -490,6 +490,9 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.display_changed_event.fire()
         if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index"):
             self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
+        if property_name in ("display_calibrated_values", ):
+            self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
+            self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
@@ -572,6 +575,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             self.remove_cached_value("data_sample")
             self.__validate_data_stats()
         self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
+        self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
+        self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
         self.display_changed_event.fire()
 
     def __clear_cached_data(self):
@@ -633,14 +638,18 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        if self.display_calibrated_values:
+        if self.display_calibrated_values and self.__data_and_metadata:
             return self.__data_and_metadata.dimensional_calibrations
         else:
-            return [Calibration.Calibration() for i in range(0, len(self.__get_display_dimensional_shape()))]
+            display_dimensional_shape = self.__get_display_dimensional_shape()
+            if display_dimensional_shape is not None:
+                return [Calibration.Calibration() for i in range(0, len(display_dimensional_shape))]
+            else:
+                return list()
 
     @property
     def displayed_intensity_calibration(self):
-        if self.display_calibrated_values:
+        if self.display_calibrated_values and self.__data_and_metadata:
             return self.__data_and_metadata.intensity_calibration
         else:
             return Calibration.Calibration()

@@ -328,7 +328,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # trigger updates
         self.__bitmap_canvas_item.update()
 
-    def update_regions(self, data_shape, dimensional_calibrations, graphic_selection, graphics, display_calibrated_values):
+    def update_regions(self, data_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
         self.__graphics_canvas_item.update_graphics(data_shape, self.__graphics, self.__graphic_selection)

@@ -156,7 +156,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__left_channel = None
         self.__right_channel = None
         self.__legend_labels = None
-        self.__display_calibrated_values = False
 
         self.__graphics = list()
         self.__graphic_selection = set()
@@ -169,19 +168,18 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # call super
         super(LinePlotCanvasItem, self).close()
 
-    def update_line_plot_display_state(self, data_fn, data_shape, intensity_calibration: Calibration.Calibration, dimensional_calibration: Calibration.Calibration, metadata: dict, display_properties, display_calibrated_values) -> None:
+    def update_line_plot_display_state(self, data_fn, data_shape, displayed_intensity_calibration: Calibration.Calibration, displayed_dimensional_calibration: Calibration.Calibration, metadata: dict, display_properties) -> None:
         """ Update the display state. """
         self.__data_fn = data_fn
         self.__data_shape = data_shape
-        self.__dimensional_calibration = dimensional_calibration
-        self.__intensity_calibration = intensity_calibration
+        self.__dimensional_calibration = displayed_dimensional_calibration
+        self.__intensity_calibration = displayed_intensity_calibration
         self.__y_min = display_properties["y_min"]
         self.__y_max = display_properties["y_max"]
         self.__y_style = display_properties["y_style"]
         self.__left_channel = display_properties["left_channel"]
         self.__right_channel = display_properties["right_channel"]
         self.__legend_labels = display_properties["legend_labels"]
-        self.__display_calibrated_values = display_calibrated_values
         if self.__display_frame_rate_id:
             frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
             if frame_index != self.__display_frame_rate_last_index:
@@ -193,7 +191,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # finally, trigger the paint thread (if there still is one) to update
         self.update()
 
-    def update_regions(self, data_shape, dimensional_calibrations, graphic_selection, graphics, display_calibrated_values):
+    def update_regions(self, data_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
 
@@ -201,7 +199,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return
 
         data_length = data_shape[-1]
-        dimensional_calibration = dimensional_calibrations[-1] if display_calibrated_values else Calibration.Calibration()
+        dimensional_calibration = displayed_dimensional_calibrations[-1]
 
         def convert_to_calibrated_value_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_length), samples=data_length, include_units=False))
@@ -251,7 +249,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             left_channel = self.__left_channel
             right_channel = self.__right_channel
             legend_labels = self.__legend_labels
-            display_calibrated_values = self.__display_calibrated_values
 
             # this can be done here -- it is always in a thread (paint)
             scalar_data = data_fn()
@@ -262,8 +259,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 left_channel = left_channel if left_channel is not None else 0
                 right_channel = right_channel if right_channel is not None else data_shape[-1]
                 left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
-                dimensional_calibration = dimensional_calibration if display_calibrated_values else None
-                intensity_calibration = intensity_calibration if display_calibrated_values else None
 
                 # make sure complex becomes scalar
                 scalar_data = Image.scalar_from_array(scalar_data)

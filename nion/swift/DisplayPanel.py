@@ -9,15 +9,11 @@ import string
 import uuid
 import weakref
 
-# third party libraries
-
-# local libraries
 from nion.data import Calibration
-from nion.data import Image
 from nion.swift import DataPanel
-from nion.swift import Panel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
+from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
@@ -506,11 +502,10 @@ class DataItemDataSourceDisplay:
         if buffered_data_source and display:
             def display_graphic_selection_changed(graphic_selection):
                 # this message comes from the display when the graphic selection changes
-                display_calibrated_values = display.display_calibrated_values
                 dimensional_shape = buffered_data_source.dimensional_shape
-                dimensional_calibrations = buffered_data_source.dimensional_calibrations
+                displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
                 graphics = display.graphics
-                self.__display_canvas_item.update_regions(dimensional_shape, dimensional_calibrations, graphic_selection, graphics, display_calibrated_values)
+                self.__display_canvas_item.update_regions(dimensional_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
 
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
@@ -546,24 +541,24 @@ class DataItemDataSourceDisplay:
         data_and_metadata = buffered_data_source.data_and_metadata
         if data_and_metadata:
             display = buffered_data_source.displays[0]
-            dimensional_calibrations = data_and_metadata.dimensional_calibrations
+            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
             metadata = data_and_metadata.metadata
             if display_type == "image":
-                if len(dimensional_calibrations) == 0:
+                if len(displayed_dimensional_calibrations) == 0:
                     dimensional_calibration = Calibration.Calibration()
-                elif len(dimensional_calibrations) == 1:
-                    dimensional_calibration = dimensional_calibrations[0]
+                elif len(displayed_dimensional_calibrations) == 1:
+                    dimensional_calibration = displayed_dimensional_calibrations[0]
                 else:
-                    dimensional_calibration = dimensional_calibrations[1]
+                    dimensional_calibration = displayed_dimensional_calibrations[1]
                 display_canvas_item.update_image_display_state(lambda: display.preview_2d, display.preview_2d_shape, dimensional_calibration, metadata)
             elif display_type == "line_plot":
                 display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style, "left_channel": display.left_channel,
                     "right_channel": display.right_channel, "legend_labels": display.legend_labels}
                 dimensional_shape = data_and_metadata.dimensional_shape
-                dimensional_calibration = dimensional_calibrations[-1] if len(dimensional_calibrations) > 0 else Calibration.Calibration()
-                intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
-                display_canvas_item.update_line_plot_display_state(lambda: display.display_data, dimensional_shape, intensity_calibration,
-                                                                   dimensional_calibration, metadata, display_properties, display.display_calibrated_values)
+                displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
+                displayed_intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
+                display_canvas_item.update_line_plot_display_state(lambda: display.display_data, dimensional_shape, displayed_intensity_calibration,
+                                                                   displayed_dimensional_calibration, metadata, display_properties)
 
     def __update_display(self, buffered_data_source):
         self.update_display(self.__display_type, self.__display_canvas_item, buffered_data_source)

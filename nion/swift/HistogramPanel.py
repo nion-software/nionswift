@@ -9,7 +9,6 @@ import typing
 import numpy
 
 # local libraries
-from nion.data import Calibration
 from nion.data import Core
 from nion.data import Image
 from nion.swift import Panel
@@ -349,12 +348,6 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         histogram_widget = ui.create_canvas_widget()
         histogram_widget.canvas_item.add_canvas_item(self.__histogram_canvas_item)
 
-        def handle_histogram_data_future_old(histogram_data_future):
-            def handle_histogram_data(histogram_data):
-                if self.__histogram_canvas_item:  # hack to fix closing issues.
-                    self.__histogram_canvas_item._set_histogram_data(histogram_data)
-            histogram_data_future.evaluate(handle_histogram_data)
-
         def handle_histogram_data_future(histogram_data_future):
             async def handle_histogram_data():
                 histogram_data = await event_loop.run_in_executor(None, histogram_data_future)
@@ -559,7 +552,6 @@ class HistogramPanel(Panel.Panel):
         region_stream = TargetRegionStream(display_stream)
         display_data_and_metadata_stream = DisplayPropertyStream(display_stream, 'display_data_and_metadata_promise')
         display_range_stream = DisplayPropertyStream(display_stream, 'display_range')
-        display_calibrated_values_stream = DisplayPropertyStream(display_stream, 'display_calibrated_values')
         display_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data)
         histogram_data_and_metadata_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_range_stream), calculate_future_histogram_data)
         color_map_data_stream = DisplayPropertyStream(display_stream, "color_map_data")
@@ -574,17 +566,16 @@ class HistogramPanel(Panel.Panel):
             if display_stream and display_stream.value and canvas_x:
                 display_range = display_stream.value.display_range
                 if display_range is not None:  # can be None with empty data
-                    intensity_calibration = self.__buffered_data_source_stream.value.intensity_calibration
+                    displayed_intensity_calibration = display_stream.value.displayed_intensity_calibration
                     adjusted_x = display_range[0] + canvas_x * (display_range[1] - display_range[0])
-                    calibration = intensity_calibration if display_calibrated_values_stream.value else Calibration.Calibration()
-                    adjusted_x = calibration.convert_to_calibrated_value_str(adjusted_x)
+                    adjusted_x = displayed_intensity_calibration.convert_to_calibrated_value_str(adjusted_x)
                     document_controller.cursor_changed([_('Intensity: ') + str(adjusted_x)])
                 else:
                     document_controller.cursor_changed(None)
 
         self._histogram_widget = HistogramWidget(self.ui, display_stream, histogram_data_and_metadata_stream, color_map_data_stream, cursor_changed_fn, document_controller.event_loop)
 
-        def calculate_statistics(display_data_and_metadata_promise, display_data_range, region, display_calibrated_values):
+        def calculate_statistics(display_data_and_metadata_promise, display_data_range, region, displayed_intensity_calibration):
             display_data_and_metadata = display_data_and_metadata_promise.value if display_data_and_metadata_promise else None
             data = display_data_and_metadata.data if display_data_and_metadata else None
             data_range = display_data_range
@@ -597,23 +588,22 @@ class HistogramPanel(Panel.Panel):
                     data_min, data_max = data_range if data_range is not None else (None, None)
                 else:
                     data_min, data_max = numpy.amin(data), numpy.amax(data)
-                should_calibrate = display_data_and_metadata and display_calibrated_values
-                calibration = display_data_and_metadata.intensity_calibration if should_calibrate else Calibration.Calibration()
-                mean_str = calibration.convert_to_calibrated_value_str(mean)
-                std_str = calibration.convert_to_calibrated_value_str(std)
-                data_min_str = calibration.convert_to_calibrated_value_str(data_min)
-                data_max_str = calibration.convert_to_calibrated_value_str(data_max)
-                rms_str = calibration.convert_to_calibrated_value_str(rms)
-                sum_data_str = calibration.convert_to_calibrated_value_str(sum_data)
+                mean_str = displayed_intensity_calibration.convert_to_calibrated_value_str(mean)
+                std_str = displayed_intensity_calibration.convert_to_calibrated_value_str(std)
+                data_min_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_min)
+                data_max_str = displayed_intensity_calibration.convert_to_calibrated_value_str(data_max)
+                rms_str = displayed_intensity_calibration.convert_to_calibrated_value_str(rms)
+                sum_data_str = displayed_intensity_calibration.convert_to_calibrated_value_str(sum_data)
 
                 return { "mean": mean_str, "std": std_str, "min": data_min_str, "max": data_max_str, "rms": rms_str, "sum": sum_data_str }
             return dict()
 
-        def calculate_future_statistics(display_data_and_metadata_promise, display_data_range, region, display_calibrated_values):
-            return functools.partial(calculate_statistics, display_data_and_metadata_promise, display_data_range, region, display_calibrated_values)
+        def calculate_future_statistics(display_data_and_metadata_promise, display_data_range, region, displayed_intensity_calibration):
+            return functools.partial(calculate_statistics, display_data_and_metadata_promise, display_data_range, region, displayed_intensity_calibration)
 
         display_data_range_stream = DisplayPropertyStream(display_stream, 'data_range')
-        statistics_future_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_data_range_stream, region_stream, display_calibrated_values_stream), calculate_future_statistics)
+        displayed_intensity_calibration_stream = DisplayPropertyStream(display_stream, 'displayed_intensity_calibration')
+        statistics_future_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_future_statistics)
         if debounce:
             statistics_future_stream = Stream.DebounceStream(statistics_future_stream, 0.05, document_controller.event_loop)
         if sample:
