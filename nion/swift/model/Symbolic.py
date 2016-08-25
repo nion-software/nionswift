@@ -577,11 +577,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             data_and_metadata = self.evaluate()
             self.evaluate_error = None
             self.last_evaluate_data_time = time.perf_counter()
-            return DataAndMetadata.DataAndMetadata.from_data(data_and_metadata.data,
-                                                             data_and_metadata.intensity_calibration,
-                                                             data_and_metadata.dimensional_calibrations,
-                                                             data_and_metadata.metadata,
-                                                             data_and_metadata.timestamp)
+            return data_and_metadata
         except Exception as e:
             self.evaluate_error = str(e)
 

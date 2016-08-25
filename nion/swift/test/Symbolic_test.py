@@ -1218,6 +1218,23 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(data.dtype, numpy.complex128)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex128)))
 
+    def test_data_descriptor_is_maintained_during_evaluate(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data1 = ((numpy.abs(numpy.random.randn(10,)) + 1) * 10).astype(numpy.int32)
+            data_item1 = DataItem.DataItem(src_data1)
+            document_model.append_data_item(data_item1)
+            src_data2 = ((numpy.abs(numpy.random.randn(10,)) + 1) * 10).astype(numpy.int32)
+            data_item2 = DataItem.DataItem(src_data2)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item1, "data"))
+            computation.create_object("src2", document_model.get_object_specifier(data_item2, "data"))
+            computation.expression = "vstack((src1, src2))"
+            data_and_metadata = computation.evaluate_data()
+            self.assertEqual(data_and_metadata.collection_dimension_count, 1)
+            self.assertEqual(data_and_metadata.datum_dimension_count, 1)
+
     def disabled_test_reshape_rgb(self):
         assert False
 
