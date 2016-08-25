@@ -13,6 +13,8 @@ import threading
 import typing
 
 import numpy
+
+from nion.data import Calibration
 from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
@@ -291,7 +293,9 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
                     collection_dimension_count = data_and_metadata.collection_dimension_count
                     datum_dimension_count = data_and_metadata.datum_dimension_count
                     # next dimensions are treated as collection indexes.
-                    if collection_dimension_count in (1, 2) and datum_dimension_count == 1:
+                    if collection_dimension_count == 1 and datum_dimension_count == 1:
+                        pass
+                    elif collection_dimension_count == 2 and datum_dimension_count == 1:
                         data_and_metadata = Core.function_slice_sum(data_and_metadata, self.slice_center, self.slice_width)
                     else:  # default, "pick"
                         collection_slice = [collection_index for collection_index in self.collection_index][0:collection_dimension_count] + [Ellipsis, ]
@@ -325,7 +329,9 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             collection_dimension_count = data_and_metadata.collection_dimension_count
             datum_dimension_count = data_and_metadata.datum_dimension_count
             # next dimensions are treated as collection indexes.
-            if collection_dimension_count in (1, 2) and datum_dimension_count == 1:
+            if collection_dimension_count == 1 and datum_dimension_count == 1:
+                return dimensional_shape[next_dimension:next_dimension + collection_dimension_count + datum_dimension_count]
+            elif collection_dimension_count == 2 and datum_dimension_count == 1:
                 return dimensional_shape[next_dimension:next_dimension + collection_dimension_count]
             else:  # default, "pick"
                 return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
@@ -624,6 +630,96 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         super(Display, self).notify_set_property(key, value)
         if not self._is_reading:
             self.__thumbnail_processor.item_property_changed(key, value)
+
+    @property
+    def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
+        if self.display_calibrated_values:
+            return self.__data_and_metadata.dimensional_calibrations
+        else:
+            return [Calibration.Calibration() for i in range(0, len(self.__get_display_dimensional_shape()))]
+
+    @property
+    def displayed_intensity_calibration(self):
+        if self.display_calibrated_values:
+            return self.__data_and_metadata.intensity_calibration
+        else:
+            return Calibration.Calibration()
+
+    def __get_calibrated_value_text(self, value: float, intensity_calibration) -> str:
+        if value is not None:
+            return intensity_calibration.convert_to_calibrated_value_str(value)
+        elif value is None:
+            return _("N/A")
+        else:
+            return str(value)
+
+    def get_value_and_position_text(self, pos) -> (str, str):
+        data_and_metadata = self.__data_and_metadata
+        dimensional_calibrations = self.displayed_dimensional_calibrations
+        intensity_calibration = self.displayed_intensity_calibration
+
+        if data_and_metadata is None or pos is None:
+            return str(), str()
+
+        is_sequence = data_and_metadata.is_sequence
+        collection_dimension_count = data_and_metadata.collection_dimension_count
+        datum_dimension_count = data_and_metadata.datum_dimension_count
+        if is_sequence:
+            pos = (self.sequence_index, ) + pos
+        if collection_dimension_count == 2 and datum_dimension_count == 1:
+            pos = pos + (self.slice_center, )
+        else:
+            for collection_index in self.collection_index[0:collection_dimension_count]:
+                pos = (collection_index, ) + pos
+
+        assert len(pos) == len(data_and_metadata.dimensional_shape)
+
+        position_text = ""
+        value_text = ""
+        data_shape = data_and_metadata.data_shape
+        if len(pos) == 3:
+            # 3d image
+            # make sure the position is within the bounds of the image
+            if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2]:
+                position_text = u"{0}, {1}, {2}".format(dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
+                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
+                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+        if len(pos) == 2:
+            # 2d image
+            # make sure the position is within the bounds of the image
+            if len(data_shape) == 1:
+                if pos[-1] >= 0 and pos[-1] < data_shape[-1]:
+                    position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[-1], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
+                    full_pos = [0, ] * len(data_shape)
+                    full_pos[-1] = pos[-1]
+                    value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
+            else:
+                if pos[0] >= 0 and pos[0] < data_shape[0] and pos[1] >= 0 and pos[1] < data_shape[1]:
+                    is_polar = dimensional_calibrations[0].units.startswith("1/") and dimensional_calibrations[0].units == dimensional_calibrations[1].units
+                    is_polar = is_polar and abs(dimensional_calibrations[0].scale * data_shape[0] - dimensional_calibrations[1].scale * data_shape[1]) < 1e-12
+                    is_polar = is_polar and abs(dimensional_calibrations[0].offset / (dimensional_calibrations[0].scale * data_shape[0]) + 0.5) < 1e-12
+                    is_polar = is_polar and abs(dimensional_calibrations[1].offset / (dimensional_calibrations[1].scale * data_shape[1]) + 0.5) < 1e-12
+                    if is_polar:
+                        x = dimensional_calibrations[1].convert_to_calibrated_value(pos[1])
+                        y = dimensional_calibrations[0].convert_to_calibrated_value(pos[0])
+                        r = math.sqrt(x * x + y * y)
+                        angle = -math.atan2(y, x)
+                        r_str = dimensional_calibrations[0].convert_to_calibrated_value_str(dimensional_calibrations[0].convert_from_calibrated_value(r), value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True)
+                        position_text = u"{0}, {1:.4f}° ({2})".format(r_str, math.degrees(angle), _("polar"))
+                    else:
+                        position_text = u"{0}, {1}".format(dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1], display_inverted=True),
+                            dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0], display_inverted=True))
+                    value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
+        if len(pos) == 1:
+            # 1d plot
+            # make sure the position is within the bounds of the line plot
+            if pos[0] >= 0 and pos[0] < data_shape[-1]:
+                position_text = u"{0}".format(dimensional_calibrations[-1].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[-1]), samples=data_shape[-1]))
+                full_pos = [0, ] * len(data_shape)
+                full_pos[-1] = pos[0]
+                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
+        return position_text, value_text
 
     # called from processors
     def processor_needs_recompute(self, processor):

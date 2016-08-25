@@ -1,16 +1,12 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
-import logging
 import unittest
 
 # third party libraries
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift import Application
-from nion.swift import DisplayPanel
 from nion.swift import DocumentController
 from nion.swift import Panel
 from nion.swift.model import DataItem
@@ -57,14 +53,25 @@ class TestInfoPanelClass(unittest.TestCase):
         document_controller.close()
 
     def test_cursor_over_1d_multiple_data_displays_without_exception(self):
-        data_item = DataItem.DataItem(numpy.zeros((4, 1000)))
-        p, v = DisplayPanel.get_value_and_position_text(data_item.maybe_data_source.data_and_metadata, False, (500,))
-        self.assertEqual(p, "500.0")
+        data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
+        data_item = DataItem.new_data_item(data_and_metadata)
+        display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        p, v = display.get_value_and_position_text((500,))
+        self.assertEqual(p, "500.0, 0.0")
+        self.assertEqual(v, "0")
+
+    def test_cursor_over_1d_sequence_data_displays_without_exception(self):
+        data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
+        data_item = DataItem.new_data_item(data_and_metadata)
+        display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        p, v = display.get_value_and_position_text((500,))
+        self.assertEqual(p, "500.0, 0.0")
         self.assertEqual(v, "0")
 
     def test_cursor_over_1d_image_without_exception(self):
         data_item = DataItem.DataItem(numpy.zeros((50,)))
-        p, v = DisplayPanel.get_value_and_position_text(data_item.maybe_data_source.data_and_metadata, False, (0.5, 25))
+        display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        p, v = display.get_value_and_position_text((25, ))
         self.assertEqual(p, "25.0")
         self.assertEqual(v, "0")
 
@@ -95,8 +102,29 @@ class TestInfoPanelClass(unittest.TestCase):
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
         document_controller.periodic()
-        self.assertAlmostEqual(info_panel.label_row_1.text, "Position: 0.0, 50.0, 50.0")
-        self.assertAlmostEqual(info_panel.label_row_2.text, "Value: 1")
-        self.assertAlmostEqual(info_panel.label_row_3.text, None)
+        self.assertEqual(info_panel.label_row_1.text, "Position: 0.0, 50.0, 50.0")
+        self.assertEqual(info_panel.label_row_2.text, "Value: 1")
+        self.assertIsNone(info_panel.label_row_3.text, None)
+        display_panel.display_canvas_item.mouse_exited()
+        document_controller.close()
+
+    def test_cursor_over_2d_data_sequence_displays_correct_ordering_of_indices(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((20, 100, 100), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+        data_item = DataItem.new_data_item(data_and_metadata)
+        document_model.append_data_item(data_item)
+        DataItem.DisplaySpecifier.from_data_item(data_item).display.sequence_index = 4
+        display_panel.set_displayed_data_item(data_item)
+        header_height = Panel.HeaderCanvasItem().header_height
+        info_panel = document_controller.find_dock_widget("info-panel").panel
+        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+        display_panel.display_canvas_item.mouse_entered()
+        display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
+        document_controller.periodic()
+        self.assertEqual(info_panel.label_row_1.text, "Position: 50.0, 50.0, 4.0")
+        self.assertEqual(info_panel.label_row_2.text, "Value: 1")
+        self.assertIsNone(info_panel.label_row_3.text, None)
         display_panel.display_canvas_item.mouse_exited()
         document_controller.close()

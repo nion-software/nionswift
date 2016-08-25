@@ -768,7 +768,7 @@ class CollectionIndexInspectorSection(InspectorSection):
             index_label_widget = self.ui.create_label_widget("{}: {}".format(_("Index"), index))
             index_line_edit_widget = self.ui.create_line_edit_widget()
             index_slider_widget = self.ui.create_slider_widget()
-            index_slider_widget.maximum = buffered_data_source.dimensional_shape[collection_index_base + index]
+            index_slider_widget.maximum = buffered_data_source.dimensional_shape[collection_index_base + index] - 1
             index_slider_widget.bind_value(Binding.TuplePropertyBinding(display, "collection_index", index))
             index_line_edit_widget.bind_text(Binding.TuplePropertyBinding(display, "collection_index", index, converter=Converter.IntegerToStringConverter()))
             index_row_widget.add(index_label_widget)
@@ -1597,7 +1597,7 @@ class DataItemInspector(object):
             if buffered_data_source.is_sequence:
                 self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_collection:
-                if buffered_data_source.collection_dimension_count in (1, 2) and buffered_data_source.datum_dimension_count == 1:
+                if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
                     self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
                     self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
@@ -1615,7 +1615,7 @@ class DataItemInspector(object):
             if buffered_data_source.is_sequence:
                 self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_collection:
-                if buffered_data_source.collection_dimension_count in (1, 2) and buffered_data_source.datum_dimension_count == 1:
+                if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
                     self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
                     self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
