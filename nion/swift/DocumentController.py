@@ -200,8 +200,11 @@ class DocumentController:
         self.ui.destroy_document_window(self)
         self.__periodic_queue = None
         self.__periodic_set = None
+        # give cancelled tasks a chance to finish
         self.__event_loop.stop()
-        self.__event_loop.run_forever()  # give cancelled tasks a chance to finish
+        self.__event_loop.run_forever()
+        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
+        # now close
         self.__event_loop.close()
         self.__event_loop = None
 
