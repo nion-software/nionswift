@@ -137,6 +137,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("complex_display_type", changed=self.__display_type_changed)
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
+        self.define_property("dimensional_calibration_style", None, changed=self.__property_changed)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
         self.define_property("y_min", changed=self.__property_changed)
         self.define_property("y_max", changed=self.__property_changed)
@@ -186,6 +187,11 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
+
+    def read_from_dict(self, properties):
+        super().read_from_dict(properties)
+        if self.dimensional_calibration_style is None:
+            self._get_persistent_property("dimensional_calibration_style").value = "calibrated" if self.display_calibrated_values else "relative-top-left"
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
@@ -490,9 +496,10 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.display_changed_event.fire()
         if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index"):
             self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
-        if property_name in ("display_calibrated_values", ):
+        if property_name in ("dimensional_calibration_style", ):
             self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
             self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
+            self._get_persistent_property("display_calibrated_values").value = value == "calibrated"
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
@@ -638,18 +645,26 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
-        if self.display_calibrated_values and self.__data_and_metadata:
+        dimensional_calibration_style = self.dimensional_calibration_style
+        if (dimensional_calibration_style is None or dimensional_calibration_style == "calibrated") and self.__data_and_metadata:
             return self.__data_and_metadata.dimensional_calibrations
         else:
-            display_dimensional_shape = self.__get_display_dimensional_shape()
-            if display_dimensional_shape is not None:
-                return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in display_dimensional_shape]
+            dimensional_shape = self.__data_and_metadata.dimensional_shape if self.__data_and_metadata is not None else None
+            if dimensional_shape is not None:
+                if dimensional_calibration_style == "relative-top-left":
+                    return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in dimensional_shape]
+                elif dimensional_calibration_style == "relative-center":
+                    return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
+                elif dimensional_calibration_style == "pixels-top-left":
+                    return [Calibration.Calibration() for display_dimension in dimensional_shape]
+                else:  # "pixels-center"
+                    return [Calibration.Calibration(offset=-display_dimension//2) for display_dimension in dimensional_shape]
             else:
                 return list()
 
     @property
     def displayed_intensity_calibration(self):
-        if self.display_calibrated_values and self.__data_and_metadata:
+        if self.dimensional_calibration_style == "calibrated" and self.__data_and_metadata:
             return self.__data_and_metadata.intensity_calibration
         else:
             return Calibration.Calibration()

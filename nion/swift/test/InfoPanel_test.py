@@ -43,7 +43,7 @@ class TestInfoPanelClass(unittest.TestCase):
         display_panel = document_controller.selected_display_panel
         data_item = DataItem.DataItem(numpy.zeros((1000, )))
         document_model.append_data_item(data_item)
-        data_item.data_sources[0].displays[0].display_calibrated_values = False
+        data_item.data_sources[0].displays[0].dimensional_calibration_style = "relative-top-left"
         display_panel.set_displayed_data_item(data_item)
         header_height = Panel.HeaderCanvasItem().header_height
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
@@ -56,6 +56,7 @@ class TestInfoPanelClass(unittest.TestCase):
         data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 1, 1))
         data_item = DataItem.new_data_item(data_and_metadata)
         display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        display.dimensional_calibration_style = "pixels-top-left"
         p, v = display.get_value_and_position_text((500,))
         self.assertEqual(p, "500.0, 0.0")
         self.assertEqual(v, "0")
@@ -64,6 +65,7 @@ class TestInfoPanelClass(unittest.TestCase):
         data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
         data_item = DataItem.new_data_item(data_and_metadata)
         display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        display.dimensional_calibration_style = "pixels-top-left"
         p, v = display.get_value_and_position_text((500,))
         self.assertEqual(p, "500.0, 0.0")
         self.assertEqual(v, "0")
@@ -71,6 +73,7 @@ class TestInfoPanelClass(unittest.TestCase):
     def test_cursor_over_1d_image_without_exception(self):
         data_item = DataItem.DataItem(numpy.zeros((50,)))
         display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        display.dimensional_calibration_style = "pixels-top-left"
         p, v = display.get_value_and_position_text((25, ))
         self.assertEqual(p, "25.0")
         self.assertEqual(v, "0")
@@ -94,6 +97,7 @@ class TestInfoPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
         data_item = DataItem.DataItem(numpy.ones((100, 100, 20)))
+        data_item.maybe_data_source.displays[0].dimensional_calibration_style = "pixels-top-left"
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
         header_height = Panel.HeaderCanvasItem().header_height
@@ -115,7 +119,9 @@ class TestInfoPanelClass(unittest.TestCase):
         data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((20, 100, 100), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
         data_item = DataItem.new_data_item(data_and_metadata)
         document_model.append_data_item(data_item)
-        DataItem.DisplaySpecifier.from_data_item(data_item).display.sequence_index = 4
+        display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        display.sequence_index = 4
+        display.dimensional_calibration_style = "pixels-top-left"
         display_panel.set_displayed_data_item(data_item)
         header_height = Panel.HeaderCanvasItem().header_height
         info_panel = document_controller.find_dock_widget("info-panel").panel

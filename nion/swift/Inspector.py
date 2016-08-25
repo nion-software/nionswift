@@ -448,6 +448,28 @@ class CalibrationStreamToObservable(Observable.Observable):
         self.notify_set_property("units", calibration.units)
 
 
+def make_calibration_style_chooser(ui, display):
+    display_calibration_style_options = ((_("Calibrated"), "calibrated"), (_("Pixels (Top Left)"), "pixels-top-left"), (_("Pixels (Center)"), "pixels-center"), (_("Relative (Top Left)"), "relative-top-left"), (_("Relative (Center)"), "relative-center"))
+    display_calibration_style_reverse_map = {"calibrated": 0, "pixels-top-left": 1, "pixels-center": 2, "relative-top-left": 3, "relative-center": 4}
+
+    class CalibrationStyleIndexConverter:
+        """
+            Convert from flag index (-1, 0, 1) to chooser index.
+        """
+        def convert(self, value):
+            return display_calibration_style_reverse_map.get(value, 0)
+        def convert_back(self, value):
+            if value >= 0 and value < len(display_calibration_style_options):
+                return display_calibration_style_options[value][1]
+            else:
+                return "calibrated"
+
+    display_calibration_style_chooser = ui.create_combo_box_widget(items=display_calibration_style_options, item_getter=operator.itemgetter(0))
+    display_calibration_style_chooser.bind_current_index(Binding.PropertyBinding(display, "dimensional_calibration_style", converter=CalibrationStyleIndexConverter()))
+
+    return display_calibration_style_chooser
+
+
 class CalibrationsInspectorSection(InspectorSection):
 
     """
@@ -498,9 +520,8 @@ class CalibrationsInspectorSection(InspectorSection):
             self.add_widget_to_content(intensity_row)
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
-        self.display_calibrations_checkbox = self.ui.create_check_box_widget(_("Displayed"))
-        self.display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(display, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
-        self.display_calibrations_row.add(self.display_calibrations_checkbox)
+        self.display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
+        self.display_calibrations_row.add(make_calibration_style_chooser(self.ui, display))
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
         self.finish_widget_content()
@@ -1250,9 +1271,8 @@ class GraphicsInspectorSection(InspectorSection):
         self.add_widget_to_content(list_widget)
         # create the display calibrations check box row
         display_calibrations_row = self.ui.create_row_widget()
-        display_calibrations_checkbox = self.ui.create_check_box_widget(_("Use Calibrated Units"))
-        display_calibrations_checkbox.bind_check_state(Binding.PropertyBinding(display, "display_calibrated_values", converter=Converter.CheckedToCheckStateConverter()))
-        display_calibrations_row.add(display_calibrations_checkbox)
+        display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
+        display_calibrations_row.add(make_calibration_style_chooser(self.ui, display))
         display_calibrations_row.add_stretch()
         self.add_widget_to_content(display_calibrations_row)
         self.finish_widget_content()

@@ -868,7 +868,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
             modified = data_item.modified
-            data_item.data_sources[0].displays[0].display_calibrated_values = False
+            data_item.data_sources[0].displays[0].dimensional_calibration_style = "relative-top-left"
             self.assertGreater(data_item.modified, modified)
 
     def test_changing_data_on_buffered_data_source_updates_modified(self):
