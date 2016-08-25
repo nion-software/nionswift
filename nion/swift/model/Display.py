@@ -643,7 +643,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         else:
             display_dimensional_shape = self.__get_display_dimensional_shape()
             if display_dimensional_shape is not None:
-                return [Calibration.Calibration() for i in range(0, len(display_dimensional_shape))]
+                return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in display_dimensional_shape]
             else:
                 return list()
 

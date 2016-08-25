@@ -164,7 +164,7 @@ class InspectorPanel(Panel.Panel):
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
-class InspectorSection(object):
+class InspectorSection:
     """A class to manage creation of a widget representing a twist down inspector section.
 
     Represent a section in the inspector. The section is composed of a title in bold and then content. Subclasses should
@@ -267,7 +267,7 @@ class InfoInspectorSection(InspectorSection):
 
         # flag
         self.flag_row = self.ui.create_row_widget()
-        class FlaggedToIndexConverter(object):
+        class FlaggedToIndexConverter:
             """
                 Convert from flag index (-1, 0, 1) to chooser index.
             """
@@ -696,7 +696,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.channels_row.add(self.channels_right)
         self.channels_row.add_stretch()
 
-        class LogCheckedToCheckStateConverter(object):
+        class LogCheckedToCheckStateConverter:
             """ Convert between bool and checked/unchecked strings. """
 
             def convert(self, value):
@@ -834,7 +834,7 @@ class SliceInspectorSection(InspectorSection):
         self._slice_width_line_edit_widget = slice_width_line_edit_widget
 
 
-class RadianToDegreeStringConverter(object):
+class RadianToDegreeStringConverter:
     """
         Converter object to convert from radian value to degree string and back.
     """
@@ -844,108 +844,128 @@ class RadianToDegreeStringConverter(object):
         return math.radians(Converter.FloatToStringConverter().convert_back(str))
 
 
-class CalibratedValueFloatToStringConverter(object):
+class CalibratedValueFloatToStringConverter:
     """
         Converter object to convert from calibrated value to string and back.
     """
-    def __init__(self, buffered_data_source, index, data_size):
+    def __init__(self, buffered_data_source, display, index):
         self.__buffered_data_source = buffered_data_source
+        self.__display = display
         self.__index = index
-        self.__data_size = data_size
     def convert_calibrated_value_to_str(self, calibrated_value):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
         return calibration.convert_calibrated_value_to_str(calibrated_value)
     def convert_to_calibrated_value(self, value):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_to_calibrated_value(self.__data_size * value)
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        return calibration.convert_to_calibrated_value(data_size * value)
     def convert_from_calibrated_value(self, calibrated_value):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_from_calibrated_value(calibrated_value) / self.__data_size
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        return calibration.convert_from_calibrated_value(calibrated_value) / data_size
     def convert(self, value):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_to_calibrated_value_str(self.__data_size * value, value_range=(0, self.__data_size), samples=self.__data_size)
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
     def convert_back(self, str):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / self.__data_size
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / data_size
 
 
-class CalibratedSizeFloatToStringConverter(object):
+class CalibratedSizeFloatToStringConverter:
     """
         Converter object to convert from calibrated size to string and back.
         """
-    def __init__(self, buffered_data_source, index, data_size):
+    def __init__(self, buffered_data_source, display, index, factor=1.0):
         self.__buffered_data_source = buffered_data_source
+        self.__display = display
         self.__index = index
-        self.__data_size = data_size
+        self.__factor = factor
     def convert_calibrated_value_to_str(self, calibrated_value):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
         return calibration.convert_calibrated_value_to_str(calibrated_value)
     def convert_to_calibrated_value(self, size):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_to_calibrated_size(self.__data_size * size)
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        return calibration.convert_to_calibrated_size(data_size * size * self.__factor)
     def convert(self, size):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_to_calibrated_size_str(self.__data_size * size, value_range=(0, self.__data_size), samples=self.__data_size)
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        return calibration.convert_to_calibrated_size_str(data_size * size * self.__factor, value_range=(0, data_size), samples=data_size)
     def convert_back(self, str):
-        calibration = self.__buffered_data_source.dimensional_calibrations[self.__index]
-        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / self.__data_size
+        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / data_size / self.__factor
 
 
-# combine the display calibrated values binding with the calibration values themselves.
-# this allows the text to reflect calibrated or uncalibrated data.
-# display_calibrated_values_binding should have a target value type of boolean.
-class CalibratedValueBinding(Binding.Binding):
-    def __init__(self, buffered_data_source, value_binding, display_calibrated_values_binding, converter):
+class CalibratedBinding(Binding.Binding):
+    def __init__(self, buffered_data_source, display, value_binding, converter):
         super().__init__(None, converter)
         self.__value_binding = value_binding
-        self.__display_calibrated_values_binding = display_calibrated_values_binding
         def update_target(value):
             self.update_target_direct(self.get_target_value())
         self.__value_binding.target_setter = update_target
-        self.__display_calibrated_values_binding.target_setter = update_target
         self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(lambda: update_target(None))
+        def calibrations_changed(k, v):
+            if k == "displayed_dimensional_calibrations":
+                update_target(v)
+        self.__calibrations_changed_event_listener = display.property_changed_event.listen(calibrations_changed)
     def close(self):
         self.__metadata_changed_event_listener.close()
         self.__metadata_changed_event_listener = None
         self.__value_binding.close()
         self.__value_binding = None
-        self.__display_calibrated_values_binding.close()
-        self.__display_calibrated_values_binding = None
+        self.__calibrations_changed_event_listener.close()
+        self.__calibrations_changed_event_listener = None
         super().close()
     # set the model value from the target ui element text.
     def update_source(self, target_value):
-        display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
-        if display_calibrated_values:
-            converted_value = self.converter.convert_back(target_value)
-        else:
-            converted_value = Converter.FloatToStringConverter().convert_back(target_value)
+        converted_value = self.converter.convert_back(target_value)
         self.__value_binding.update_source(converted_value)
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.
     def get_target_value(self):
-        display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
         value = self.__value_binding.get_target_value()
-        return self.converter.convert(value) if display_calibrated_values else "{0:g}".format(value)
+        return self.converter.convert(value)
 
 
-# combine the display calibrated values binding with the calibration values themselves.
-# this allows the text to reflect calibrated or uncalibrated data.
-# display_calibrated_values_binding should have a target value type of boolean.
+class CalibratedValueBinding(CalibratedBinding):
+    def __init__(self, buffered_data_source, index, display, value_binding):
+        converter = CalibratedValueFloatToStringConverter(buffered_data_source, display, index)
+        super().__init__(buffered_data_source, display, value_binding, converter)
+
+
+class CalibratedSizeBinding(CalibratedBinding):
+    def __init__(self, buffered_data_source, index, display, value_binding):
+        converter = CalibratedSizeFloatToStringConverter(buffered_data_source, display, index)
+        super().__init__(buffered_data_source, display, value_binding, converter)
+
+
+class CalibratedWidthBinding(CalibratedBinding):
+    def __init__(self, buffered_data_source, display, value_binding):
+        factor = 1.0 / buffered_data_source.dimensional_shape[0]
+        converter = CalibratedSizeFloatToStringConverter(buffered_data_source, display, 0, factor)  # width is stored in pixels. argh.
+        super().__init__(buffered_data_source, display, value_binding, converter)
+
+
 class CalibratedLengthBinding(Binding.Binding):
-    def __init__(self, buffered_data_source, start_binding, end_binding, display_calibrated_values_binding, x_converter, y_converter, size_converter):
+    def __init__(self, buffered_data_source, display, start_binding, end_binding):
         super().__init__(None, None)
-        self.__x_converter = x_converter
-        self.__y_converter = y_converter
-        self.__size_converter = size_converter
+        self.__x_converter = CalibratedValueFloatToStringConverter(buffered_data_source, display, 1)
+        self.__y_converter = CalibratedValueFloatToStringConverter(buffered_data_source, display, 0)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(buffered_data_source, display, 0)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
-        self.__display_calibrated_values_binding = display_calibrated_values_binding
         def update_target(value):
             self.update_target_direct(self.get_target_value())
         self.__start_binding.target_setter = update_target
         self.__end_binding.target_setter = update_target
-        self.__display_calibrated_values_binding.target_setter = update_target
         self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(lambda: update_target(None))
+        def calibrations_changed(k, v):
+            if k == "displayed_dimensional_calibrations":
+                update_target(v)
+        self.__calibrations_changed_event_listener = display.property_changed_event.listen(calibrations_changed)
     def close(self):
         self.__metadata_changed_event_listener.close()
         self.__metadata_changed_event_listener = None
@@ -953,44 +973,32 @@ class CalibratedLengthBinding(Binding.Binding):
         self.__start_binding = None
         self.__end_binding.close()
         self.__end_binding = None
-        self.__display_calibrated_values_binding.close()
-        self.__display_calibrated_values_binding = None
+        self.__calibrations_changed_event_listener.close()
+        self.__calibrations_changed_event_listener = None
         super().close()
     # set the model value from the target ui element text.
     def update_source(self, target_value):
-        display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
-        if display_calibrated_values:
-            start = self.__start_binding.get_target_value()
-            end = self.__end_binding.get_target_value()
-            calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]), x=self.__x_converter.convert_to_calibrated_value(start[1]))
-            calibrated_end = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(end[0]), x=self.__x_converter.convert_to_calibrated_value(end[1]))
-            delta = calibrated_end - calibrated_start
-            angle = -math.atan2(delta.y, delta.x)
-            new_calibrated_end = calibrated_start + target_value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
-            end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y), x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
-            self.__end_binding.update_source(end)
-        else:
-            value = Converter.FloatToStringConverter().convert_back(target_value)
-            delta = Geometry.FloatPoint.make(self.__end_binding.get_target_value()) - Geometry.FloatPoint.make(self.__start_binding.get_target_value())
-            angle = -math.atan2(delta.y, delta.x)
-            end = Geometry.FloatPoint.make(self.__start_binding.get_target_value()) + value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
-            self.__end_binding.update_source(end)
+        start = self.__start_binding.get_target_value()
+        end = self.__end_binding.get_target_value()
+        calibrated_start = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(start[0]), x=self.__x_converter.convert_to_calibrated_value(start[1]))
+        calibrated_end = Geometry.FloatPoint(y=self.__y_converter.convert_to_calibrated_value(end[0]), x=self.__x_converter.convert_to_calibrated_value(end[1]))
+        delta = calibrated_end - calibrated_start
+        angle = -math.atan2(delta.y, delta.x)
+        new_calibrated_end = calibrated_start + target_value * Geometry.FloatSize(height=-math.sin(angle), width=math.cos(angle))
+        end = Geometry.FloatPoint(y=self.__y_converter.convert_from_calibrated_value(new_calibrated_end.y), x=self.__x_converter.convert_from_calibrated_value(new_calibrated_end.x))
+        self.__end_binding.update_source(end)
     # get the value from the model and return it as a string suitable for the target ui element.
     # in this binding, it combines the two source bindings into one.
     def get_target_value(self):
-        display_calibrated_values = self.__display_calibrated_values_binding.get_target_value()
         start = self.__start_binding.get_target_value()
         end = self.__end_binding.get_target_value()
-        dy = end[1] - start[1]
-        dx = end[0] - start[0]
-        value = math.sqrt(dx * dx + dy * dy)
         calibrated_dy = self.__y_converter.convert_to_calibrated_value(end[0]) - self.__y_converter.convert_to_calibrated_value(start[0])
         calibrated_dx = self.__x_converter.convert_to_calibrated_value(end[1]) - self.__x_converter.convert_to_calibrated_value(start[1])
         calibrated_value = math.sqrt(calibrated_dx * calibrated_dx + calibrated_dy * calibrated_dy)
-        return self.__size_converter.convert_calibrated_value_to_str(calibrated_value) if display_calibrated_values else "{0:g}".format(value)
+        return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
-def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+def make_point_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # create the ui
     graphic_position_row = ui.create_row_widget()
     graphic_position_row.add_spacing(20)
@@ -1010,15 +1018,12 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size,
     graphic_widget.add(graphic_position_row)
     graphic_widget.add_spacing(4)
 
+    image_size = display_specifier.buffered_data_source.dimensional_shape
     if (len(image_size) > 1):
-        def new_display_calibrated_values_binding():
-            return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # calculate values from rectangle type graphic
         # signal_index
-        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-        position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 1), new_display_calibrated_values_binding(), x_converter)
-        position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "position", 0), new_display_calibrated_values_binding(), y_converter)
+        position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 1))
+        position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 0))
         graphic_position_x_line_edit.bind_text(position_x_binding)
         graphic_position_y_line_edit.bind_text(position_y_binding)
     else:
@@ -1026,7 +1031,7 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, image_size,
         graphic_position_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "position", 0))
 
 
-def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+def make_line_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1078,19 +1083,15 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, 
     graphic_widget.add(graphic_param_row)
     graphic_widget.add_spacing(4)
 
+    image_size = display_specifier.buffered_data_source.dimensional_shape
     if len(image_size) > 1:
-        def new_display_calibrated_values_binding():
-            return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # configure the bindings
         # signal_index
-        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-        l_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-        start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 1), new_display_calibrated_values_binding(), x_converter)
-        start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "start", 0), new_display_calibrated_values_binding(), y_converter)
-        end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 1), new_display_calibrated_values_binding(), x_converter)
-        end_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "end", 0), new_display_calibrated_values_binding(), y_converter)
-        length_binding = CalibratedLengthBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "start"), Binding.PropertyBinding(graphic, "end"), new_display_calibrated_values_binding(), x_converter, y_converter, l_converter)
+        start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 1))
+        start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 0))
+        end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 1))
+        end_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 0))
+        length_binding = CalibratedLengthBinding(display_specifier.buffered_data_source, display_specifier.display, Binding.PropertyBinding(graphic, "start"), Binding.PropertyBinding(graphic, "end"))
         angle_binding = Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter())
         graphic_start_x_line_edit.bind_text(start_x_binding)
         graphic_start_y_line_edit.bind_text(start_y_binding)
@@ -1107,13 +1108,10 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, 
         graphic_param_a_line_edit.bind_text(Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter()))
 
 
-def make_line_profile_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
-    def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
-    make_line_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic)
+def make_line_profile_inspector(ui, graphic_widget, display_specifier, graphic):
+    make_line_type_inspector(ui, graphic_widget, display_specifier, graphic)
     # configure the bindings
-    width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, 1.0)
-    width_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "width"), new_display_calibrated_values_binding(), width_converter)
+    width_binding = CalibratedWidthBinding(display_specifier.buffered_data_source, display_specifier.display, Binding.PropertyBinding(graphic, "width"))
     # create the ui
     graphic_width_row = ui.create_row_widget()
     graphic_width_row.add_spacing(20)
@@ -1127,7 +1125,7 @@ def make_line_profile_inspector(ui, graphic_widget, display_specifier, image_siz
     graphic_widget.add_spacing(4)
 
 
-def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # create the ui
     graphic_center_row = ui.create_row_widget()
     graphic_center_row.add_spacing(20)
@@ -1164,18 +1162,13 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_s
     graphic_widget.add_spacing(4)
 
     # calculate values from rectangle type graphic
+    image_size = display_specifier.buffered_data_source.dimensional_shape
     if len(image_size) > 1:
-        def new_display_calibrated_values_binding():
-            return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
         # signal_index
-        x_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        y_converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-        width_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 1, image_size[1])
-        height_converter = CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, 0, image_size[0])
-        center_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 1), new_display_calibrated_values_binding(), x_converter)
-        center_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "center", 0), new_display_calibrated_values_binding(), y_converter)
-        size_width_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 1), new_display_calibrated_values_binding(), width_converter)
-        size_height_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.TuplePropertyBinding(graphic, "size", 0), new_display_calibrated_values_binding(), height_converter)
+        center_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 1))
+        center_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 0))
+        size_width_binding = CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 1))
+        size_height_binding = CalibratedSizeBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 0))
         graphic_center_x_line_edit.bind_text(center_x_binding)
         graphic_center_y_line_edit.bind_text(center_y_binding)
         graphic_size_width_line_edit.bind_text(size_width_binding)
@@ -1186,7 +1179,7 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, image_s
         graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 1))
         graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 0))
 
-def make_wedge_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
+def make_wedge_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # create the ui
     graphic_center_start_angle_row = ui.create_row_widget()
     graphic_center_start_angle_row.add_spacing(20)
@@ -1203,20 +1196,16 @@ def make_wedge_type_inspector(ui, graphic_widget, display_specifier, image_size,
     graphic_widget.add(graphic_center_start_angle_row)
     graphic_widget.add_spacing(4)
     graphic_widget.add(graphic_center_end_angle_row)
-    # graphic_widget.add_stretch()
-    # graphic_widget.add_spacing(4)
+    graphic_widget.add_spacing(4)
 
     graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 0, RadianToDegreeStringConverter()))
     graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 1, RadianToDegreeStringConverter()))
 
 
-def make_interval_type_inspector(ui, graphic_widget, display_specifier, image_size, graphic):
-    def new_display_calibrated_values_binding():
-        return Binding.PropertyBinding(display_specifier.display, "display_calibrated_values")
+def make_interval_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # configure the bindings
-    converter = CalibratedValueFloatToStringConverter(display_specifier.buffered_data_source, -1, image_size[-1])
-    start_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "start"), new_display_calibrated_values_binding(), converter)
-    end_binding = CalibratedValueBinding(display_specifier.buffered_data_source, Binding.PropertyBinding(graphic, "end"), new_display_calibrated_values_binding(), converter)
+    start_binding = CalibratedValueBinding(display_specifier.buffered_data_source, -1, display_specifier.display, Binding.PropertyBinding(graphic, "start"))
+    end_binding = CalibratedValueBinding(display_specifier.buffered_data_source, -1, display_specifier.display, Binding.PropertyBinding(graphic, "end"))
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1295,28 +1284,28 @@ class GraphicsInspectorSection(InspectorSection):
         # create the graphic specific widget
         if isinstance(graphic, Graphics.PointGraphic):
             graphic_type_label.text = _("Point")
-            make_point_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_point_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_type_label.text = _("Line Profile")
-            make_line_profile_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_line_profile_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.LineGraphic):
             graphic_type_label.text = _("Line")
-            make_line_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_line_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.RectangleGraphic):
             graphic_type_label.text = _("Rectangle")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.EllipseGraphic):
             graphic_type_label.text = _("Ellipse")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
-            make_interval_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_interval_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
-            make_wedge_type_inspector(self.ui, graphic_widget, self.__display_specifier, image_size, graphic)
+            make_wedge_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
@@ -1555,7 +1544,7 @@ class ComputationInspectorSection(InspectorSection):
         super(ComputationInspectorSection, self).close()
 
 
-class DataItemInspector(object):
+class DataItemInspector:
     """A class to manage creation of a widget representing an inspector for a display specifier.
 
     A new data item inspector is created whenever the display specifier changes, but not when the content of the items
