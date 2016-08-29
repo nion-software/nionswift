@@ -1,5 +1,6 @@
-# python api_tool.py --classes api_public > ../typeshed/nion/typeshed/API_1_0.py
-# python api_tool.py --classes hardware_source_public > ../typeshed/nion/typeshed/HardwareSource_1_0.py
+# python api_tool.py --classes api_public --level release > ../typeshed/nion/typeshed/API_1_0.py
+# python api_tool.py --classes api_public --level release prerelease > ../typeshed/nion/typeshed/API_1_0_prerelease.py
+# python api_tool.py --classes hardware_source_public --level release > ../typeshed/nion/typeshed/HardwareSource_1_0.py
 
 import argparse
 import importlib
@@ -8,10 +9,12 @@ import typing
 
 parser = argparse.ArgumentParser(description='Generate API type stub files.')
 parser.add_argument('--classes', dest='class_list_property', required=True, help='Class list property')
+parser.add_argument('--levels', dest='levels', required=True, nargs='+', help='Level property')
 args = parser.parse_args()
 
 module = importlib.import_module("nion.swift.Facade")
 class_list_property = args.class_list_property
+levels = args.levels
 
 class_dicts = dict()
 
@@ -23,9 +26,11 @@ for member in inspect.getmembers(module, predicate=inspect.isclass):
         class_dict = dict()
         class_dict["name"] = class_name
         class_dict["doc"] = member[1].__doc__
-        member_public = member[1].public
+        members = list()
+        for level in levels:
+            members.extend(getattr(member[1], level, list()))
         for member_member in inspect.getmembers(member[1], predicate=lambda x: isinstance(x, property)):
-            if member_member[0] in member_public:
+            if member_member[0] in members:
                 property_dict = class_dict.setdefault("properties", dict()).setdefault(member_member[0], dict())
                 function_get = member_member[1].fget
                 if function_get:
@@ -41,7 +46,7 @@ for member in inspect.getmembers(module, predicate=inspect.isclass):
                         property_dict.setdefault("set", dict())["doc"] = function_set.__doc__
         for method_member in inspect.getmembers(member[1], predicate=lambda x: inspect.isfunction):
             function_name = method_member[0]
-            if function_name in member_public and function_name not in class_dict.get("properties", dict()):
+            if function_name in members and function_name not in class_dict.get("properties", dict()):
                 function_dict = class_dict.setdefault("functions", dict()).setdefault(function_name, dict())
                 function = method_member[1]
                 function_dict["fullargspec"] = inspect.getfullargspec(function)
@@ -85,7 +90,7 @@ def annotation_to_str(annotation):
     if annotation.__name__ == "ndarray":
         return "numpy.ndarray"
     if issubclass(annotation, typing.List):
-        return "List[{}]".format(annotation_to_str(annotation.__parameters__[0]))
+        return "List[{}]".format(annotation_to_str(annotation.__args__[0]))
     if isinstance(annotation, type):
         class_ = annotation.__class__
         if class_ is not None:

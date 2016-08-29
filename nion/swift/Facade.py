@@ -414,9 +414,7 @@ class UserInterface:
         return push_button_widget
 
     def create_radio_button_widget(self, text=None):
-        radio_button_widget = RadioButtonWidget(self.__ui)
-        radio_button_widget.text = text
-        return radio_button_widget
+        raise NotImplemented()
 
     def create_check_box_widget(self, text=None):
         check_box_widget = CheckBoxWidget(self.__ui)
@@ -451,7 +449,7 @@ class Panel(PanelModule.Panel):
 
 class Region:
 
-    public = ["type", "label", "get_property", "set_property"]
+    release = ["type", "label", "get_property", "set_property"]
 
     region_to_graphic_type_map = {
         "point-graphic": "point-region",
@@ -497,7 +495,7 @@ class Region:
 
 class DataItem:
 
-    public = ["data", "set_data", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations", "set_dimensional_calibrations",
+    release = ["data", "set_data", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations", "set_dimensional_calibrations",
         "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "display", "add_point_region", "add_rectangle_region",
         "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
 
@@ -729,7 +727,7 @@ class DataItem:
 
 class DisplayPanel:
 
-    public = ["data_item", "set_data_item"]
+    release = ["data_item", "set_data_item"]
 
     def __init__(self, display_panel):
         self.__display_panel = display_panel
@@ -775,7 +773,7 @@ class DisplayPanel:
 
 class Graphic:
 
-    public = ["region"]
+    release = ["region"]
 
     def __init__(self, graphic):
         self.__graphic = graphic
@@ -791,7 +789,7 @@ class Graphic:
 
 class Display:
 
-    public = ["display_type", "selected_graphics", "graphics", "data_item"]
+    release = ["display_type", "selected_graphics", "graphics", "data_item"]
 
     def __init__(self, display):
         self.__display = display
@@ -827,7 +825,7 @@ class Display:
 
 class DataGroup:
 
-    public = ["add_data_item"]
+    release = ["add_data_item"]
 
     def __init__(self, data_group):
         self.__data_group = data_group
@@ -873,7 +871,7 @@ class Monitor:
 
 class RecordTask:
 
-    public = ["close", "is_finished", "grab", "cancel"]
+    release = ["close", "is_finished", "grab", "cancel"]
 
     def __init__(self, hardware_source, frame_parameters, channels_enabled):
         self.__hardware_source = hardware_source
@@ -932,7 +930,7 @@ class RecordTask:
 
 class ViewTask:
 
-    public = ["close", "grab_earliest", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
+    release = ["close", "grab_earliest", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
 
     def __init__(self, hardware_source: HardwareSourceModule.HardwareSource, frame_parameters: dict, channels_enabled: List[bool], buffer_size: int):
         self.__hardware_source = hardware_source
@@ -1013,7 +1011,7 @@ class ViewTask:
 
 class HardwareSource:
 
-    public = ["close", "profile_index", "get_default_frame_parameters", "get_frame_parameters", "get_frame_parameters_for_profile_by_index",
+    release = ["close", "profile_index", "get_default_frame_parameters", "get_frame_parameters", "get_frame_parameters_for_profile_by_index",
         "set_frame_parameters", "set_frame_parameters_for_profile_by_index", "start_playing", "stop_playing", "abort_playing", "is_playing",
         "start_recording", "abort_recording", "is_recording", "record", "create_record_task", "create_view_task", "grab_next_to_finish",
         "grab_next_to_start", "get_property_as_float", "set_property_as_float", "get_property_as_int", "set_property_as_int", "get_property_as_bool",
@@ -1233,7 +1231,7 @@ class Instrument:
     begin/end transaction should be matched.
     """
 
-    public = ["close", "set_control_output", "get_control_output", "get_control_state", "get_property_as_float", "set_property_as_float",
+    release = ["close", "set_control_output", "get_control_output", "get_control_state", "get_property_as_float", "set_property_as_float",
         "get_property_as_int", "set_property_as_int", "get_property_as_bool", "set_property_as_bool", "get_property_as_str",
         "set_property_as_str", "get_property_as_float_point", "set_property_as_float_point"]
 
@@ -1359,7 +1357,7 @@ class Instrument:
 
 class Library:
 
-    public = ["data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
+    release = ["data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
         "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source"]
 
     def __init__(self, document_model: DocumentModelModule.DocumentModel):
@@ -1554,7 +1552,8 @@ class Library:
 
 
 class DocumentController:
-    public = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display", "target_data_item",
+
+    release = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display", "target_data_item",
         "show_get_string_message_box", "show_confirmation_message_box", "queue_task", "add_data", "create_data_item_from_data",
         "create_data_item_from_data_and_metadata", "get_or_create_data_group"]
 
@@ -1703,7 +1702,7 @@ class DocumentController:
 
 class Application:
 
-    public = ["library", "document_controllers"]
+    release = ["library", "document_controllers"]
 
     def __init__(self, application):
         self.__application = application
@@ -1834,7 +1833,7 @@ class API_1:
     # Allowed: add keyword arguments to end of existing methods as long as the default doesn't change functionality.
     # Allowed: add methods as long as they are optional.
 
-    public = ["create_calibration", "create_data_and_metadata", "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
+    release = ["create_calibration", "create_data_and_metadata", "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
         "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids", "get_all_instrument_ids",
         "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task"]
 
