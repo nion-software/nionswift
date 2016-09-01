@@ -21,9 +21,7 @@ class DataItemProcessor(object):
     Items should call data_item_changed when they change so that the result data can be marked
      as stale.
 
-    TODO: review whether item_property_changed is necessary
-
-    In addition, items should call item_property_changed when a property changes so that subclasses
+    In addition, items should call mark_data_dirty when a property changes so that subclasses
      can watch for specific property changes and be marked as stale.
 
     Clients of processors must be able to receive important notifications such as when a processor
@@ -60,13 +58,6 @@ class DataItemProcessor(object):
         """ Called from item to indicate its data or metadata has changed."""
         self._set_cached_value_dirty()
 
-    def item_property_changed(self, key, value):
-        """Called from item to indicate a property has changed.
-
-        Subclasses can override and call set_cached_value_dirty to add property dependencies.
-        """
-        pass
-
     def __initialize_cache(self):
         """Initialize the cache values (cache values are used for optimization)."""
         if self.__cached_value_dirty is None:
@@ -77,7 +68,6 @@ class DataItemProcessor(object):
 
     # thread safe
     def _set_cached_value_dirty(self):
-        """Subclasses can use this to mark cache value dirty within item_property_changed."""
         self.item.set_cached_value_dirty(self.__cache_property_name)
         self.__initialize_cache()
         self.__cached_value_dirty = True

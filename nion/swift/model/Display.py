@@ -637,12 +637,6 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def graphic_changed(self, graphic):
         self.display_changed_event.fire()
 
-    # override from storage to watch for changes to this data item. notify observers.
-    def notify_set_property(self, key, value):
-        super(Display, self).notify_set_property(key, value)
-        if not self._is_reading:
-            self.__thumbnail_processor.item_property_changed(key, value)
-
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         dimensional_calibration_style = self.dimensional_calibration_style
