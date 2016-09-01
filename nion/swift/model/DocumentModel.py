@@ -1064,7 +1064,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __finish_read(self, data_items: List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
-            data_item.storage_cache = self.storage_cache
+            data_item.set_storage_cache(self.storage_cache)
             self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
             self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
             self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
@@ -1199,7 +1199,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert before_index <= len(self.__data_items) and before_index >= 0
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
-        data_item.storage_cache = self.storage_cache
+        data_item.set_storage_cache(self.storage_cache)
         data_item.persistent_object_context = self.persistent_object_context
         self.persistent_object_context.write_data_item(data_item)
         self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)

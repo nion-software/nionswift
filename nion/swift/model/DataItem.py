@@ -125,7 +125,7 @@ class UuidsToStringsConverter(object):
         return [uuid.UUID(uuid_str) for uuid_str in value]
 
 
-class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.PersistentObject):
+class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     """
     A data source that stores the data directly, with optional source data that gets updated as necessary.
@@ -310,10 +310,6 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
                 display.validate()  # do this here to avoid having changes happen outside of _changes
 
     def finish_reading(self):
-        # display properties need to be updated after storage_cache is initialized.
-        # this is where to do it. in order for these methods to not have the side
-        # effect of invalidating cached values, they need to occur while is_reading
-        # is still true. call super after these two.
         for display in self.displays:
             display.update_data(self.data_and_metadata)
         super(BufferedDataSource, self).finish_reading()
@@ -494,10 +490,9 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
         metadata.update(additional_metadata)
         self.set_metadata(metadata)
 
-    def storage_cache_changed(self, storage_cache):
-        # override from Cacheable
+    def set_storage_cache(self, storage_cache):
         for display in self.displays:
-            display.storage_cache = storage_cache
+            display.set_storage_cache(storage_cache)
 
     def __insert_display(self, name, before_index, display):
         # listen
@@ -748,7 +743,7 @@ class BufferedDataSource(Observable.Observable, Cache.Cacheable, Persistence.Per
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObject):
+class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     """
     Data items represent a set of data sources + metadata.
@@ -941,11 +936,10 @@ class DataItem(Observable.Observable, Cache.Cacheable, Persistence.PersistentObj
     def data_items(self):
         return tuple(self.__data_items)
 
-    def storage_cache_changed(self, storage_cache):
-        # override from Cacheable to update the children that need updating
+    def set_storage_cache(self, storage_cache):
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
         for data_source in self.data_sources:
-            data_source.storage_cache = self.__suspendable_storage_cache
+            data_source.set_storage_cache(self.__suspendable_storage_cache)
 
     @property
     def _suspendable_storage_cache(self):

@@ -128,11 +128,12 @@ class GraphicSelection(object):
             self.changed_event.fire()
 
 
-class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObject):
+class Display(Observable.Observable, Persistence.PersistentObject):
     # Displays are associated with exactly one data item.
 
     def __init__(self):
         super(Display, self).__init__()
+        self.__cacheable = Cache.ShadowCache()
         self.__graphics = list()
         self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("complex_display_type", changed=self.__display_type_changed)
@@ -159,7 +160,7 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.__display_data_and_metadata_lock = threading.RLock()
         self.__preview = None
         self.__preview_lock = threading.RLock()
-        self.__thumbnail_processor = ThumbnailDataItemProcessor(self)
+        self.__thumbnail_processor = ThumbnailDataItemProcessor(self, self.__cacheable)
         self.graphic_selection = GraphicSelection()
         def graphic_selection_changed():
             # relay the message
@@ -200,6 +201,10 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         self.about_to_be_removed_event.fire()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
+
+    @property
+    def _cacheable(self):
+        return self.__cacheable
 
     @property
     def thumbnail_processor(self):
@@ -420,8 +425,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def __sequence_index_changed(self, name, value):
         self.__property_changed(name, value)
         if not self._is_reading:
-            self.remove_cached_value("data_range")
-            self.remove_cached_value("data_sample")
+            self.__cacheable.remove_cached_value(self, "data_range")
+            self.__cacheable.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
         self.notify_set_property("sequence_index", self.sequence_index)
@@ -429,8 +434,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     def __collection_index_changed(self, name, value):
         self.__property_changed(name, value)
         if not self._is_reading:
-            self.remove_cached_value("data_range")
-            self.remove_cached_value("data_sample")
+            self.__cacheable.remove_cached_value(self, "data_range")
+            self.__cacheable.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
         self.notify_set_property("collection_index", self.collection_index)
@@ -460,8 +465,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         # notify for dependent slice_interval property
         self.__property_changed(name, value)
         if not self._is_reading:
-            self.remove_cached_value("data_range")
-            self.remove_cached_value("data_sample")
+            self.__cacheable.remove_cached_value(self, "data_range")
+            self.__cacheable.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
         self.notify_set_property("slice_interval", self.slice_interval)
@@ -505,8 +510,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         """Ensure that data stats are valid after reading."""
         display_data = self.display_data
         is_data_complex_type = self.__data_and_metadata.is_data_complex_type if self.__data_and_metadata else False
-        data_range = self.get_cached_value("data_range")
-        data_sample = self.get_cached_value("data_sample")
+        data_range = self.__cacheable.get_cached_value(self, "data_range")
+        data_sample = self.__cacheable.get_cached_value(self, "data_sample")
         if display_data is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
             self.__calculate_data_stats_for_data(display_data, self.__data_and_metadata.data_shape, self.__data_and_metadata.data_dtype)
 
@@ -525,13 +530,13 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
             data_range = None
             data_sample = None
         if data_range is not None:
-            self.set_cached_value("data_range", data_range)
+            self.__cacheable.set_cached_value(self, "data_range", data_range)
         else:
-            self.remove_cached_value("data_range")
+            self.__cacheable.remove_cached_value(self, "data_range")
         if data_sample is not None:
-            self.set_cached_value("data_sample", data_sample)
+            self.__cacheable.set_cached_value(self, "data_sample", data_sample)
         else:
-            self.remove_cached_value("data_sample")
+            self.__cacheable.remove_cached_value(self, "data_sample")
         self.__clear_cached_data()
         self.notify_set_property("data_range", data_range)
         self.notify_set_property("data_sample", data_sample)
@@ -540,12 +545,12 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
     @property
     def data_range(self):
         self.__validate_data_stats()
-        return self.get_cached_value("data_range")
+        return self.__cacheable.get_cached_value(self, "data_range")
 
     @property
     def data_sample(self):
         self.__validate_data_stats()
-        return self.get_cached_value("data_sample")
+        return self.__cacheable.get_cached_value(self, "data_sample")
 
     def __get_display_range(self, data_range, data_sample):
         if self.display_limits is not None:
@@ -578,13 +583,16 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
         if old_data_shape != new_data_shape:
             self.validate()
         if not self._is_reading:
-            self.remove_cached_value("data_range")
-            self.remove_cached_value("data_sample")
+            self.__cacheable.remove_cached_value(self, "data_range")
+            self.__cacheable.remove_cached_value(self, "data_sample")
             self.__validate_data_stats()
         self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
         self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
         self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
         self.display_changed_event.fire()
+
+    def set_storage_cache(self, storage_cache):
+        self.__cacheable.set_storage_cache(storage_cache, self)
 
     def __clear_cached_data(self):
         with self.__display_data_and_metadata_lock:
@@ -750,8 +758,8 @@ class Display(Observable.Observable, Cache.Cacheable, Persistence.PersistentObje
 
 class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
-    def __init__(self, display):
-        super(ThumbnailDataItemProcessor, self).__init__(display, "thumbnail_data")
+    def __init__(self, display, cacheable):
+        super(ThumbnailDataItemProcessor, self).__init__(display, cacheable, "thumbnail_data")
         self.width = 72
         self.height = 72
 
