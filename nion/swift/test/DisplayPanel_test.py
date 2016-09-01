@@ -992,7 +992,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsNone(self.display_panel.display_canvas_item)
         # thumbnails and processors
-        self.display_specifier.display.thumbnail_processor.get_calculated_data(self.document_controller.ui, self.display_specifier.display.data_for_processor)
+        self.display_specifier.display.thumbnail_processor.get_calculated_data(self.document_controller.ui, self.display_specifier.display.display_data)
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
@@ -1002,7 +1002,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsNone(self.display_panel.display_canvas_item)
         # thumbnails and processors
-        self.display_specifier.display.thumbnail_processor.get_calculated_data(self.document_controller.ui, self.display_specifier.display.data_for_processor)
+        self.display_specifier.display.thumbnail_processor.get_calculated_data(self.document_controller.ui, self.display_specifier.display.display_data)
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 

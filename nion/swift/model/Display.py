@@ -10,6 +10,7 @@ import math
 import numbers
 import operator
 import threading
+import time
 import typing
 
 import numpy
@@ -20,7 +21,6 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
-from nion.swift.model import DataItemProcessor
 from nion.swift.model import Graphics
 from nion.swift.model import LineGraphCanvasItem
 from nion.ui import CanvasItem
@@ -133,7 +133,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self):
         super(Display, self).__init__()
-        self.__cacheable = Cache.ShadowCache()
+        self.__cache = Cache.ShadowCache()
         self.__graphics = list()
         self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("complex_display_type", changed=self.__display_type_changed)
@@ -160,7 +160,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_and_metadata_lock = threading.RLock()
         self.__preview = None
         self.__preview_lock = threading.RLock()
-        self.__thumbnail_processor = ThumbnailDataItemProcessor(self, self.__cacheable)
+        self.__thumbnail_processor = ThumbnailDataItemProcessor(self, self.__cache)
         self.graphic_selection = GraphicSelection()
         def graphic_selection_changed():
             # relay the message
@@ -204,7 +204,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def _cacheable(self):
-        return self.__cacheable
+        return self.__cache
 
     @property
     def thumbnail_processor(self):
@@ -213,10 +213,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     @property
     def thumbnail_data(self):
         return self.__thumbnail_processor.get_cached_data() if self.__thumbnail_processor else None
-
-    @property
-    def data_for_processor(self):
-        return self.display_data
 
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
@@ -425,8 +421,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __sequence_index_changed(self, name, value):
         self.__property_changed(name, value)
         if not self._is_reading:
-            self.__cacheable.remove_cached_value(self, "data_range")
-            self.__cacheable.remove_cached_value(self, "data_sample")
+            self.__cache.remove_cached_value(self, "data_range")
+            self.__cache.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
         self.notify_set_property("sequence_index", self.sequence_index)
@@ -434,8 +430,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __collection_index_changed(self, name, value):
         self.__property_changed(name, value)
         if not self._is_reading:
-            self.__cacheable.remove_cached_value(self, "data_range")
-            self.__cacheable.remove_cached_value(self, "data_sample")
+            self.__cache.remove_cached_value(self, "data_range")
+            self.__cache.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
         self.notify_set_property("collection_index", self.collection_index)
@@ -465,8 +461,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         # notify for dependent slice_interval property
         self.__property_changed(name, value)
         if not self._is_reading:
-            self.__cacheable.remove_cached_value(self, "data_range")
-            self.__cacheable.remove_cached_value(self, "data_sample")
+            self.__cache.remove_cached_value(self, "data_range")
+            self.__cache.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
         self.notify_set_property("slice_interval", self.slice_interval)
@@ -510,8 +506,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         """Ensure that data stats are valid after reading."""
         display_data = self.display_data
         is_data_complex_type = self.__data_and_metadata.is_data_complex_type if self.__data_and_metadata else False
-        data_range = self.__cacheable.get_cached_value(self, "data_range")
-        data_sample = self.__cacheable.get_cached_value(self, "data_sample")
+        data_range = self.__cache.get_cached_value(self, "data_range")
+        data_sample = self.__cache.get_cached_value(self, "data_sample")
         if display_data is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
             self.__calculate_data_stats_for_data(display_data, self.__data_and_metadata.data_shape, self.__data_and_metadata.data_dtype)
 
@@ -530,13 +526,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             data_range = None
             data_sample = None
         if data_range is not None:
-            self.__cacheable.set_cached_value(self, "data_range", data_range)
+            self.__cache.set_cached_value(self, "data_range", data_range)
         else:
-            self.__cacheable.remove_cached_value(self, "data_range")
+            self.__cache.remove_cached_value(self, "data_range")
         if data_sample is not None:
-            self.__cacheable.set_cached_value(self, "data_sample", data_sample)
+            self.__cache.set_cached_value(self, "data_sample", data_sample)
         else:
-            self.__cacheable.remove_cached_value(self, "data_sample")
+            self.__cache.remove_cached_value(self, "data_sample")
         self.__clear_cached_data()
         self.notify_set_property("data_range", data_range)
         self.notify_set_property("data_sample", data_sample)
@@ -545,12 +541,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     @property
     def data_range(self):
         self.__validate_data_stats()
-        return self.__cacheable.get_cached_value(self, "data_range")
+        return self.__cache.get_cached_value(self, "data_range")
 
     @property
     def data_sample(self):
         self.__validate_data_stats()
-        return self.__cacheable.get_cached_value(self, "data_sample")
+        return self.__cache.get_cached_value(self, "data_sample")
 
     def __get_display_range(self, data_range, data_sample):
         if self.display_limits is not None:
@@ -583,8 +579,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if old_data_shape != new_data_shape:
             self.validate()
         if not self._is_reading:
-            self.__cacheable.remove_cached_value(self, "data_range")
-            self.__cacheable.remove_cached_value(self, "data_sample")
+            self.__cache.remove_cached_value(self, "data_range")
+            self.__cache.remove_cached_value(self, "data_sample")
             self.__validate_data_stats()
         self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
         self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
@@ -592,7 +588,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_changed_event.fire()
 
     def set_storage_cache(self, storage_cache):
-        self.__cacheable.set_storage_cache(storage_cache, self)
+        self.__cache.set_storage_cache(storage_cache, self)
 
     def __clear_cached_data(self):
         with self.__display_data_and_metadata_lock:
@@ -756,21 +752,149 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_processor_data_updated_event.fire(processor)
 
 
-class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
+class ThumbnailDataItemProcessor:
 
-    def __init__(self, display, cacheable):
-        super().__init__(display, cacheable, "thumbnail_data")
+    def __init__(self, display, cache):
+        self.__display = display
+        self.__cache = cache
+        self.__cache_property_name = "thumbnail_data"
+        # the next two fields represent a memory cache -- a cache of the cache values.
+        # if self.__cached_value_dirty is None then this first level cache has not yet
+        # been initialized. these fields are used for optimization.
+        self.__cached_value = None
+        self.__cached_value_dirty = None
+        self.__cached_value_time = 0
+        self.__is_recomputing = False
+        self.__is_recomputing_lock = threading.RLock()
+        self.__recompute_lock = threading.RLock()
         self.width = 72
         self.height = 72
 
+    def close(self):
+        pass
+
+    # thread safe
+    def mark_data_dirty(self):
+        """ Called from item to indicate its data or metadata has changed."""
+        self.__cache.set_cached_value_dirty(self.__display, self.__cache_property_name)
+        self.__initialize_cache()
+        self.__cached_value_dirty = True
+        self.__display.processor_needs_recompute(self)
+
+    def __initialize_cache(self):
+        """Initialize the cache values (cache values are used for optimization)."""
+        if self.__cached_value_dirty is None:
+            self.__cached_value_dirty = self.__cache.is_cached_value_dirty(self.__display, self.__cache_property_name)
+            self.__cached_value = self.__cache.get_cached_value(self.__display, self.__cache_property_name)
+            # import logging
+            # logging.debug("loading %s %s %s", self.__cached_value_dirty, self.__cache_property_name, self.__display.uuid)
+
+    def recompute_if_necessary(self, dispatch, arg):
+        """Recompute the data on a thread, if necessary.
+
+        If the data has recently been computed, this call will be rescheduled for the future.
+
+        If the data is currently being computed, it do nothing."""
+        self.__initialize_cache()
+        if self.__cached_value_dirty:
+            with self.__is_recomputing_lock:
+                is_recomputing = self.__is_recomputing
+                self.__is_recomputing = True
+            if is_recomputing:
+                pass
+            else:
+                # the only way to get here is if we're not currently computing
+                # this has the side effect of limiting the number of threads that
+                # are sleeping.
+                def recompute():
+                    try:
+                        minimum_time = 0.5
+                        current_time = time.time()
+                        if current_time < self.__cached_value_time + minimum_time:
+                            time.sleep(self.__cached_value_time + minimum_time - current_time)
+                        self.recompute_data(arg)
+                    finally:
+                        with self.__is_recomputing_lock:
+                            self.__is_recomputing = False
+                dispatch(recompute, self.__cache_property_name)
+
+    def recompute_data(self, ui):
+        """Compute the data associated with this processor.
+
+        This method is thread safe and may take a long time to return. It should not be called from
+         the UI thread. Upon return, the results will be calculated with the latest data available
+         and the cache will not be marked dirty.
+        """
+        self.__initialize_cache()
+        with self.__recompute_lock:
+            if self.__cached_value_dirty:
+                data = self.__display.display_data  # grab the most up to date data
+                if data is not None:  # for data to load and make sure it has data
+                    try:
+                        calculated_data = self.get_calculated_data(ui, data)
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        traceback.print_stack()
+                        raise
+                    self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
+                    self.__cached_value = calculated_data
+                    self.__cached_value_dirty = False
+                    self.__cached_value_time = time.time()
+                    # import logging
+                    # logging.debug("updated %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
+                else:
+                    calculated_data = None
+                if calculated_data is None:
+                    calculated_data = self.get_default_data()
+                    if calculated_data is not None:
+                        # if the default is not None, treat is as valid cached data
+                        self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
+                        self.__cached_value = calculated_data
+                        self.__cached_value_dirty = False
+                        self.__cached_value_time = time.time()
+                        # import logging
+                        # logging.debug("default %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
+                    else:
+                        # otherwise remove everything from the cache
+                        self.__cache.remove_cached_value(self.__display, self.__cache_property_name)
+                        self.__cached_value = None
+                        self.__cached_value_dirty = None
+                        self.__cached_value_time = 0
+                        # import logging
+                        # logging.debug("removed %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
+                self.__recompute_lock.release()
+                self.__display.processor_data_updated(self)
+                self.__recompute_lock.acquire()
+
+    def get_data(self, ui):
+        """Return the computed data for this processor.
+
+        This method is thread safe but may take a long time to return since it may have to compute
+         the results. It should not be called from the UI thread.
+        """
+        self.recompute_data(ui)
+        return self.get_cached_data()
+
+    def get_cached_data(self):
+        """Return the cached data for this processor.
+
+        This method is thread safe and always returns quickly, using the cached data.
+        """
+        self.__initialize_cache()
+        calculated_data = self.__cached_value
+        if calculated_data is not None:
+            return calculated_data
+        return self.get_default_data()
+
     def get_calculated_data(self, ui, data):
         thumbnail_data = None
-        assert isinstance(self.item, Display)
+        assert isinstance(self.__display, Display)
         if Image.is_data_1d(data):
             thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
         elif Image.is_data_2d(data):
-            data_range = self.item.data_range
-            display_limits = self.item.display_limits
+            data_range = self.__display.data_range
+            display_limits = self.__display.display_limits
             thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
         return thumbnail_data
 
