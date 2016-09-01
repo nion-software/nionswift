@@ -53,23 +53,24 @@ class DisplayItem(object):
             (property, read-only) datetime_str
             (property, read-only) format_str
             (property, read-only) status_str
-            (method) get_thumbnail(dispatch_task, ui)
+            (method) draw_thumbnail(dispatch_task, ui, drawing_context, draw_rect)
             (method) get_mime_data(ui)
             (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
             (method) recompute(dispatch_task, ui)
             (event) needs_update_event
-            (event) needs_recompute_event
     """
 
-    def __init__(self, data_item):
+    def __init__(self, data_item, dispatch_task, ui):
         self.__data_item = data_item
+        self.__dispatch_task = dispatch_task
+        self.ui = ui
         self.needs_update_event = Event.Event()
-        self.needs_recompute_event = Event.Event()
 
         def data_item_content_changed(changes):
             self.needs_update_event.fire()
 
         self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
+
         # grab the display specifier and if there is a display, handle thumbnail updating.
         display_specifier = data_item.primary_display_specifier
         display = display_specifier.display
@@ -77,7 +78,7 @@ class DisplayItem(object):
 
             def display_processor_needs_recompute(processor):
                 if processor == display.thumbnail_processor:
-                    self.needs_recompute_event.fire()
+                    self.recompute(self.__dispatch_task, self.ui)
 
             def display_processor_data_updated(processor):
                 if processor == display.thumbnail_processor:
@@ -106,12 +107,16 @@ class DisplayItem(object):
         if display:
             display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
 
-    def get_thumbnail(self, dispatch_task, ui):
+    def draw_thumbnail(self, dispatch_task, ui, draw_rect):
+        drawing_context = ui.create_offscreen_drawing_context()
         display = self.__data_item.primary_display_specifier.display
         if display:
             display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
-            return display.thumbnail_data
-        return None
+            thumbnail_data = display.thumbnail_data
+            if thumbnail_data is not None:
+                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
+                drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+        return drawing_context
 
     @property
     def title_str(self):
@@ -184,7 +189,7 @@ class DataListController:
         (property, read-only) datetime_str
         (property, read-only) format_str
         (property, read-only) status_str
-        (method) get_thumbnail(dispatch_task, ui)
+        (method) draw_thumbnail(dispatch_task, ui, draw_rect)
         (method) get_mime_data(ui)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
         (method) recompute(dispatch_task, ui)
@@ -200,7 +205,6 @@ class DataListController:
 
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
-        self.__display_item_needs_recompute_listeners = list()
 
         class ListCanvasItemDelegate(object):
             def __init__(self, data_list_controller):
@@ -261,9 +265,6 @@ class DataListController:
         for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
             display_item_needs_update_listener.close()
         self.__display_item_needs_update_listeners = None
-        for display_item_needs_recompute_listener in self.__display_item_needs_recompute_listeners:
-            display_item_needs_recompute_listener.close()
-        self.__display_item_needs_recompute_listeners = None
         self.__display_items = None
         self.on_selection_changed = None
         self.on_context_menu_event = None
@@ -315,15 +316,11 @@ class DataListController:
             self.__changed_display_items = True
             self.__add_task(str(id(self)), self.__update_display_items)
 
-    def __display_item_needs_recompute(self, display_item):
-        display_item.recompute(self.dispatch_task, self.ui)
-
     # call this method to insert a display item
     # not thread safe
     def display_item_inserted(self, display_item, before_index):
         self.__display_items.insert(before_index, display_item)
         self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
-        self.__display_item_needs_recompute_listeners.insert(before_index, display_item.needs_recompute_event.listen(functools.partial(self.__display_item_needs_recompute, display_item)))
         # tell the icon view to update.
         self.__list_canvas_item.update()
 
@@ -332,8 +329,6 @@ class DataListController:
     def display_item_removed(self, index):
         self.__display_item_needs_update_listeners[index].close()
         del self.__display_item_needs_update_listeners[index]
-        self.__display_item_needs_recompute_listeners[index].close()
-        del self.__display_item_needs_recompute_listeners[index]
         del self.__display_items[index]
         self.__list_canvas_item.update()
 
@@ -341,11 +336,8 @@ class DataListController:
     def paint_item(self, drawing_context, index, rect, is_selected):
         display_item = self.__display_items[index]
         with drawing_context.saver():
-            thumbnail_data = display_item.get_thumbnail(self.dispatch_task, self.ui)
-            if thumbnail_data is not None:
-                draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
-                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+            draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
+            drawing_context.add(display_item.draw_thumbnail(self.dispatch_task, self.ui, draw_rect))
             drawing_context.fill_style = "#000"
             drawing_context.font = "11px italic"
             drawing_context.fill_text(display_item.title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
@@ -382,7 +374,7 @@ class DataGridController:
         (property, read-only) datetime_str
         (property, read-only) format_str
         (property, read-only) status_str
-        (method) get_thumbnail(dispatch_task, ui)
+        (method) draw_thumbnail(dispatch_task, ui, draw_rect)
         (method) get_mime_data(ui)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
         (method) recompute(dispatch_task, ui)
@@ -398,7 +390,6 @@ class DataGridController:
 
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
-        self.__display_item_needs_recompute_listeners = list()
 
         class GridCanvasItemDelegate(object):
             def __init__(self, data_grid_controller):
@@ -462,9 +453,6 @@ class DataGridController:
         for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
             display_item_needs_update_listener.close()
         self.__display_item_needs_update_listeners = None
-        for display_item_needs_recompute_listener in self.__display_item_needs_recompute_listeners:
-            display_item_needs_recompute_listener.close()
-        self.__display_item_needs_recompute_listeners = None
         self.__display_items = None
         self.on_selection_changed = None
         self.on_context_menu_event = None
@@ -512,15 +500,11 @@ class DataGridController:
             self.__changed_display_items = True
             self.__add_task(str(id(self)), self.__update_display_items)
 
-    def __display_item_needs_recompute(self, display_item):
-        display_item.recompute(self.dispatch_task, self.ui)
-
     # call this method to insert a display item
     # not thread safe
     def display_item_inserted(self, display_item, before_index):
         self.__display_items.insert(before_index, display_item)
         self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
-        self.__display_item_needs_recompute_listeners.insert(before_index, display_item.needs_recompute_event.listen(functools.partial(self.__display_item_needs_recompute, display_item)))
         # tell the icon view to update.
         self.icon_view_canvas_item.update()
 
@@ -529,17 +513,11 @@ class DataGridController:
     def display_item_removed(self, index):
         self.__display_item_needs_update_listeners[index].close()
         del self.__display_item_needs_update_listeners[index]
-        self.__display_item_needs_recompute_listeners[index].close()
-        del self.__display_item_needs_recompute_listeners[index]
         del self.__display_items[index]
         self.icon_view_canvas_item.update()
 
     def paint_item(self, drawing_context, index, rect, is_selected):
-        thumbnail_data = self.__display_items[index].get_thumbnail(self.dispatch_task, self.ui)
-        if thumbnail_data is not None:
-            draw_rect = rect.inset(6)
-            draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-            drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
+        drawing_context.add(self.__display_items[index].draw_thumbnail(self.dispatch_task, self.ui, rect.inset(6)))
 
 
 class DataListWidget(Widgets.CompositeWidgetBase):
@@ -978,6 +956,9 @@ class DataPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
 
+        dispatch_task = document_controller.document_model.dispatch_task
+        ui = document_controller.ui
+
         self.__data_browser_controller = document_controller.data_browser_controller
         self.__filter_changed_event_listener = self.__data_browser_controller.filter_changed_event.listen(self.__data_panel_filter_changed)
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
@@ -1023,13 +1004,11 @@ class DataPanel(Panel.Panel):
         latest_items_controller = LibraryItemController(_("Latest Session"), latest_items_binding)
         self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
 
-        self.library_model_controller = LibraryModelController(document_controller.ui, self.__item_controllers)
+        self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
         self.library_model_controller.on_receive_files = self.library_model_receive_files
 
         self.data_group_model_controller = DataGroupModelController(document_controller)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
-
-        ui = document_controller.ui
 
         self.__blocked = False
 
@@ -1113,25 +1092,25 @@ class DataPanel(Panel.Panel):
             return True
 
         selection = self.__data_browser_controller.selection
-        self.data_list_controller = DataListController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, selection)
+        self.data_list_controller = DataListController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
         self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
-        self.data_grid_controller = DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, selection)
+        self.data_grid_controller = DataGridController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
 
-        data_list_widget = DataListWidget(document_controller.ui, self.data_list_controller)
-        data_grid_widget = DataGridWidget(document_controller.ui, self.data_grid_controller)
+        data_list_widget = DataListWidget(ui, self.data_list_controller)
+        data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
         def data_item_inserted(data_item, before_index):
-            display_item = DisplayItem(data_item)
+            display_item = DisplayItem(data_item, dispatch_task, ui)
             self.__display_items.insert(before_index, display_item)
             self.data_list_controller.display_item_inserted(display_item, before_index)
             self.data_grid_controller.display_item_inserted(display_item, before_index)

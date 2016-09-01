@@ -1133,6 +1133,9 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
     def __init__(self, document_controller):
         super().__init__(document_controller)
 
+        dispatch_task = document_controller.document_model.dispatch_task
+        ui = document_controller.ui
+
         self.header_canvas_item.end_header_color = "#FFC"
         self.header_canvas_item.title = _("Browser")
         self.content_canvas_item.focused_style = None
@@ -1158,7 +1161,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         self.data_grid_controller.on_drag_started = data_list_drag_started
 
         def data_item_inserted(data_item, before_index):
-            display_item = DataPanel.DisplayItem(data_item)
+            display_item = DataPanel.DisplayItem(data_item, dispatch_task, ui)
             self.__display_items.insert(before_index, display_item)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 

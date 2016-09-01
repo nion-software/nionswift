@@ -32,7 +32,7 @@ from nion.utils import Promise
 _ = gettext.gettext
 
 
-class GraphicSelection(object):
+class GraphicSelection:
     def __init__(self, indexes=None):
         super(GraphicSelection, self).__init__()
         self.__indexes = copy.copy(indexes) if indexes else set()
@@ -759,7 +759,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 class ThumbnailDataItemProcessor(DataItemProcessor.DataItemProcessor):
 
     def __init__(self, display, cacheable):
-        super(ThumbnailDataItemProcessor, self).__init__(display, cacheable, "thumbnail_data")
+        super().__init__(display, cacheable, "thumbnail_data")
         self.width = 72
         self.height = 72
 
