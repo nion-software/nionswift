@@ -1483,7 +1483,7 @@ class ComputationInspectorSection(InspectorSection):
                             variable_specifier["property"] = property_name_ref[0]
                         variable.specifier = variable_specifier
 
-                    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(data_item)
+                    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(document_model.dispatch_task, ui, data_item)
                     data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(self.ui,
                                                                                                data_item_thumbnail_source,
                                                                                                Geometry.IntSize(80, 80))

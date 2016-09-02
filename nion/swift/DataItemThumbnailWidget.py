@@ -45,53 +45,66 @@ class AbstractDataItemThumbnailSource(metaclass=abc.ABCMeta):
 
 class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
 
-    def __init__(self, data_item):
+    def __init__(self, dispatch_task, ui, data_item):
         super().__init__()
+        self.__dispatch_task = dispatch_task
+        self.ui = ui
         self.__data_item = None
+        self.__thumbnail_needs_recompute_event_listener = None
+        self.__thumbnail_updated_event_listener = None
         self.set_data_item(data_item)
+
+    def close(self):
+        self.__detach_listeners()
+        super().close()
+
+    def __detach_listeners(self):
+        if self.__thumbnail_needs_recompute_event_listener:
+            self.__thumbnail_needs_recompute_event_listener.close()
+            self.__thumbnail_needs_recompute_event_listener = None
+        if self.__thumbnail_updated_event_listener:
+            self.__thumbnail_updated_event_listener.close()
+            self.__thumbnail_updated_event_listener = None
 
     @property
     def data_item(self):
         return self.__data_item
 
     def set_data_item(self, data_item):
+        self.__detach_listeners()
+
         self.__data_item = data_item
         self._update_thumbnail(data_item)
 
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        if display_specifier.display:
 
-class DataItemReferenceThumbnailSource(AbstractDataItemThumbnailSource):
+            def trigger_recompute(p):
+                display_specifier.display.thumbnail_processor.recompute_if_necessary(self.__dispatch_task, self.ui)
+
+            def needs_update(p):
+                self._update_thumbnail(data_item)
+
+            self.__thumbnail_needs_recompute_event_listener = display_specifier.display.display_processor_needs_recompute_event.listen(trigger_recompute)
+            self.__thumbnail_updated_event_listener = display_specifier.display.display_processor_data_updated_event.listen(needs_update)
+
+            trigger_recompute(None)
+
+
+class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
+    """Used to track a data item referenced by a data item reference.
+
+    Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations."""
 
     def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference, dispatch_task):
-        super().__init__()
-        self.__data_item = None
-        self.__data_item_content_changed_event_listener = None
+        super().__init__(dispatch_task, ui, data_item_reference.data_item)
 
         def data_item_changed():
-            if self.__data_item_content_changed_event_listener:
-                self.__data_item_content_changed_event_listener.close()
-                self.__data_item_content_changed_event_listener = None
-            data_item = data_item_reference.data_item
-            if data_item:
-                self.__data_item = data_item
-                def data_item_content_changed(changes):
-                    data_item = self.__data_item
-                    display = data_item.primary_display_specifier.display if data_item else None
-                    display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
-                    self._update_thumbnail(data_item)
-                self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
-            else:
-                self.__data_item = None
-                self._update_thumbnail(self.__data_item)
+            self.set_data_item(data_item_reference.data_item)
 
         self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
 
-        data_item_changed()
-        self._update_thumbnail(self.__data_item)
-
     def close(self):
-        if self.__data_item_content_changed_event_listener:
-            self.__data_item_content_changed_event_listener.close()
-            self.__data_item_content_changed_event_listener = None
         self.__data_item_changed_event_listener.close()
         self.__data_item_changed_event_listener = None
         super().close()
