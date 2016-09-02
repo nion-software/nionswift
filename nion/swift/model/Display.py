@@ -214,6 +214,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def thumbnail_data(self):
         return self.__thumbnail_processor.get_cached_data() if self.__thumbnail_processor else None
 
+    @property
+    def data_and_metadata_for_display_panel(self):
+        return self.__data_and_metadata
+
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
         if self.__data_and_metadata.is_data_complex_type:
@@ -437,6 +441,20 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.notify_set_property("collection_index", self.collection_index)
 
     @property
+    def actual_display_type(self):
+        display_type = self.display_type
+        data_and_metadata = self.__data_and_metadata
+        valid_data = functools.reduce(operator.mul, self.preview_2d_shape) > 0 if self.preview_2d_shape is not None else False
+        if valid_data and data_and_metadata and not display_type in ("line_plot", "image"):
+            if data_and_metadata.collection_dimension_count == 2 and data_and_metadata.datum_dimension_count == 1:
+                display_type = "image"
+            elif data_and_metadata.datum_dimension_count == 1:
+                display_type = "line_plot"
+            elif data_and_metadata.datum_dimension_count == 2:
+                display_type = "image"
+        return display_type
+
+    @property
     def slice_interval(self):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
             depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
@@ -501,6 +519,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
             self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
             self._get_persistent_property("display_calibrated_values").value = value == "calibrated"
+        if not self._is_reading:
+            self.__thumbnail_processor.mark_data_dirty()
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
@@ -640,6 +660,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     # is added or removed from this object.
     def graphic_changed(self, graphic):
         self.display_changed_event.fire()
+        if not self._is_reading:
+            self.__thumbnail_processor.mark_data_dirty()
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:

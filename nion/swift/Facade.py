@@ -699,6 +699,7 @@ class DataItem:
         aspect_ratio = None
 
         buffered_data_source = display_specifier.buffered_data_source
+        display = display_specifier.display
 
         if buffered_data_source.is_data_1d:
             display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics, None)
@@ -715,7 +716,7 @@ class DataItem:
         try:
             display_canvas_item.update_layout(viewbox.origin, viewbox.size)
             display_type = "line_plot" if buffered_data_source.is_data_1d else "image"
-            DisplayPanelModule.DataItemDataSourceDisplay.update_display(display_type, display_canvas_item, buffered_data_source)
+            DisplayPanelModule.DataItemDataSourceDisplay.update_display(display_type, display_canvas_item, display)
             dc = DrawingContext.DrawingContext()
             display_canvas_item._repaint(dc)
             return dc.to_svg(size, viewbox)

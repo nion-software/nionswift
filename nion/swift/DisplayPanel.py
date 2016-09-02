@@ -15,9 +15,11 @@ from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import Panel
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import Geometry
 
@@ -511,7 +513,7 @@ class DataItemDataSourceDisplay:
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # update the display canvas, etc.
                 # thread safe
-                self.__update_display(buffered_data_source)
+                self.update_display(self.__display_type, self.__display_canvas_item, display)
                 display_graphic_selection_changed(display.graphic_selection)
 
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
@@ -536,11 +538,10 @@ class DataItemDataSourceDisplay:
         return self.__display_canvas_item
 
     @classmethod
-    def update_display(cls, display_type, display_canvas_item, buffered_data_source):
-        assert buffered_data_source is not None
-        data_and_metadata = buffered_data_source.data_and_metadata
+    def update_display(cls, display_type, display_canvas_item, display):
+        assert display is not None
+        data_and_metadata = display.data_and_metadata_for_display_panel
         if data_and_metadata:
-            display = buffered_data_source.displays[0]
             displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
             metadata = data_and_metadata.metadata
             if display_type == "image":
@@ -559,9 +560,6 @@ class DataItemDataSourceDisplay:
                 displayed_intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
                 display_canvas_item.update_line_plot_display_state(lambda: display.display_data, dimensional_shape, displayed_intensity_calibration,
                                                                    displayed_dimensional_calibration, metadata, display_properties)
-
-    def __update_display(self, buffered_data_source):
-        self.update_display(self.__display_type, self.__display_canvas_item, buffered_data_source)
 
     def add_index_to_selection(self, index):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -791,29 +789,13 @@ class DataItemDisplayTypeMonitor:
         buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
         if buffered_data_source and display:
-            def get_display_type():
-                # called when anything in the data item changes, including things like graphics or the data itself.
-                # thread safe
-                # TODO: handle consistently: if data is not valid, display_type should be cleared and not use whatever was assigned.
-                # the way it works now is that if the display_type is already set, then invalid data will have no effect and the
-                # display will happily be created with invalid data. the tests test for this behavior. ugh.
-                display_type = display.display_type
-                valid_data = functools.reduce(operator.mul, display.preview_2d_shape) > 0 if display.preview_2d_shape is not None else False
-                if valid_data and not display_type in ("line_plot", "image"):
-                    if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
-                        display_type = "image"
-                    elif buffered_data_source.datum_dimension_count == 1:
-                        display_type = "line_plot"
-                    elif buffered_data_source.datum_dimension_count == 2:
-                        display_type = "image"
-                return display_type
 
             def display_changed():
-                self.__set_display_type(get_display_type())
+                self.__set_display_type(display.actual_display_type)
 
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
 
-            display_type = get_display_type()
+            display_type = display.actual_display_type
 
         self.__set_display_type(display_type)
 
@@ -1542,6 +1524,37 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))
 
         return dynamic_live_actions
+
+
+def preview(ui, display: Display.Display, width: int, height: int) -> DrawingContext.DrawingContext:
+    dimensional_shape = display.data_and_metadata_for_display_panel.dimensional_shape
+    displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+    graphics = display.graphics
+    display_type = display.actual_display_type
+    drawing_context = ui.create_offscreen_drawing_context()
+
+    if display_type == "line_plot":
+        frame_width, frame_height = width, int(width / 1.618)
+        display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
+        DataItemDataSourceDisplay.update_display("line_plot", display_canvas_item, display)
+        display_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(height=frame_height, width=frame_width))
+        display_canvas_item.update_regions(dimensional_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+        with drawing_context.saver():
+            drawing_context.translate(0, (frame_width - frame_height) * 0.5)
+            display_canvas_item._repaint(drawing_context)
+
+    elif display_type == "image":
+        display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, draw_background=False)
+        display_canvas_item.set_fit_mode()
+        DataItemDataSourceDisplay.update_display("image", display_canvas_item, display)
+        dimensional_shape = display.data_and_metadata_for_display_panel.dimensional_shape
+        displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+        graphics = display.graphics
+        display_canvas_item.update_layout((0, 0), (height, width))
+        display_canvas_item.update_regions(dimensional_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+        display_canvas_item._repaint(drawing_context)
+
+    return drawing_context
 
 
 DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanelContent)

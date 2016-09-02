@@ -252,7 +252,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         update_display_properties(display_properties)
     """
 
-    def __init__(self, get_font_metrics_fn, delegate):
+    def __init__(self, get_font_metrics_fn, delegate, draw_background: bool=True):
         super().__init__()
 
         self.__get_font_metrics_fn = get_font_metrics_fn
@@ -266,9 +266,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
         # create the child canvas items
         # the background
-        background_canvas_item = CanvasItem.BackgroundCanvasItem()
         # next the zoomable items
-        self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888")
+        self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
         self.__graphics_canvas_item = GraphicsCanvasItem(get_font_metrics_fn)
         # put the zoomable items into a composition
         self.__composite_canvas_item = CanvasItem.CanvasItemComposition()
@@ -280,7 +279,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # info overlay (scale marker, etc.)
         self.__info_overlay_canvas_item = InfoOverlayCanvasItem()
         # canvas items get added back to front
-        self.add_canvas_item(background_canvas_item)
+        if draw_background:
+            self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__info_overlay_canvas_item)
 
