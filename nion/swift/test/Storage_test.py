@@ -987,7 +987,7 @@ class TestStorageClass(unittest.TestCase):
         read_data_item = document_model.data_items[0]
         read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
         # check storage caches
-        self.assertEqual(read_display_specifier.display._cacheable.storage_cache, read_data_item._suspendable_storage_cache)
+        self.assertEqual(read_display_specifier.display._display_cache.storage_cache, read_data_item._suspendable_storage_cache)
         # clean up
         document_controller.close()
 

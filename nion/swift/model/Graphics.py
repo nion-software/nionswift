@@ -7,7 +7,6 @@ import numpy  # for arange
 import typing
 
 # local libraries
-from nion.swift import ImageCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -1480,7 +1479,7 @@ class WedgeGraphic(Graphic):
             self.end_angle = value - 2 * math.pi
 
     # test is required for Graphic interface
-    def test(self, mapping: ImageCanvasItem.ImageCanvasItemMapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float], move_only: bool) -> typing.Tuple[str, bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         length = 10000  # safe line length

@@ -9,11 +9,11 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift import LineGraphCanvasItem
 from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import LineGraphCanvasItem
 from nion.ui import TestUI
 
 

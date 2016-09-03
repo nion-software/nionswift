@@ -1,4 +1,5 @@
 # standard libraries
+import contextlib
 import logging
 import unittest
 import weakref
@@ -13,6 +14,7 @@ from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.swift import ImageCanvasItem
 from nion.swift import Panel
+from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
@@ -992,7 +994,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsNone(self.display_panel.display_canvas_item)
         # thumbnails and processors
-        self.display_specifier.display.thumbnail_processor.get_calculated_data(self.document_controller.ui, self.display_specifier.display.display_data)
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(None, self.app.ui, self.display_specifier.display)) as thumbnail_source:
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
@@ -1002,7 +1006,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsNone(self.display_panel.display_canvas_item)
         # thumbnails and processors
-        self.display_specifier.display.thumbnail_processor.get_calculated_data(self.document_controller.ui, self.display_specifier.display.display_data)
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(None, self.app.ui, self.display_specifier.display)) as thumbnail_source:
+            thumbnail_source.recompute_data()
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 

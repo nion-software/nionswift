@@ -10,7 +10,6 @@ import math
 import numbers
 import operator
 import threading
-import time
 import typing
 
 import numpy
@@ -22,8 +21,6 @@ from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import Graphics
-from nion.swift.model import LineGraphCanvasItem
-from nion.ui import CanvasItem
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
@@ -160,7 +157,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__display_data_and_metadata_lock = threading.RLock()
         self.__preview = None
         self.__preview_lock = threading.RLock()
-        self.__thumbnail_processor = ThumbnailDataItemProcessor(self, self.__cache)
+        self.thumbnail_changed_event = Event.Event()
         self.graphic_selection = GraphicSelection()
         def graphic_selection_changed():
             # relay the message
@@ -177,8 +174,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
 
     def close(self):
-        self.__thumbnail_processor.close()
-        self.__thumbnail_processor = None
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
@@ -203,16 +198,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = True
 
     @property
-    def _cacheable(self):
+    def _display_cache(self):
         return self.__cache
-
-    @property
-    def thumbnail_processor(self):
-        return self.__thumbnail_processor
-
-    @property
-    def thumbnail_data(self):
-        return self.__thumbnail_processor.get_cached_data() if self.__thumbnail_processor else None
 
     @property
     def data_and_metadata_for_display_panel(self):
@@ -520,7 +507,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
             self._get_persistent_property("display_calibrated_values").value = value == "calibrated"
         if not self._is_reading:
-            self.__thumbnail_processor.mark_data_dirty()
+            self.thumbnail_changed_event.fire()
 
     def __validate_data_stats(self):
         """Ensure that data stats are valid after reading."""
@@ -617,7 +604,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__preview = None
         # clear the processor caches
         if not self._is_reading:
-            self.__thumbnail_processor.mark_data_dirty()
+            self.thumbnail_changed_event.fire()
 
     def __insert_graphic(self, name, before_index, item):
         graphic_changed_listener = item.graphic_changed_event.listen(functools.partial(self.graphic_changed, item))
@@ -661,7 +648,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def graphic_changed(self, graphic):
         self.display_changed_event.fire()
         if not self._is_reading:
-            self.__thumbnail_processor.mark_data_dirty()
+            self.thumbnail_changed_event.fire()
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
@@ -772,203 +759,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     # called from processors
     def processor_data_updated(self, processor):
         self.display_processor_data_updated_event.fire(processor)
-
-
-class ThumbnailDataItemProcessor:
-
-    def __init__(self, display, cache):
-        self.__display = display
-        self.__cache = cache
-        self.__cache_property_name = "thumbnail_data"
-        # the next two fields represent a memory cache -- a cache of the cache values.
-        # if self.__cached_value_dirty is None then this first level cache has not yet
-        # been initialized. these fields are used for optimization.
-        self.__cached_value = None
-        self.__cached_value_dirty = None
-        self.__cached_value_time = 0
-        self.__is_recomputing = False
-        self.__is_recomputing_lock = threading.RLock()
-        self.__recompute_lock = threading.RLock()
-        self.width = 72
-        self.height = 72
-
-    def close(self):
-        pass
-
-    # thread safe
-    def mark_data_dirty(self):
-        """ Called from item to indicate its data or metadata has changed."""
-        self.__cache.set_cached_value_dirty(self.__display, self.__cache_property_name)
-        self.__initialize_cache()
-        self.__cached_value_dirty = True
-        self.__display.processor_needs_recompute(self)
-
-    def __initialize_cache(self):
-        """Initialize the cache values (cache values are used for optimization)."""
-        if self.__cached_value_dirty is None:
-            self.__cached_value_dirty = self.__cache.is_cached_value_dirty(self.__display, self.__cache_property_name)
-            self.__cached_value = self.__cache.get_cached_value(self.__display, self.__cache_property_name)
-            # import logging
-            # logging.debug("loading %s %s %s", self.__cached_value_dirty, self.__cache_property_name, self.__display.uuid)
-
-    def recompute_if_necessary(self, dispatch, arg):
-        """Recompute the data on a thread, if necessary.
-
-        If the data has recently been computed, this call will be rescheduled for the future.
-
-        If the data is currently being computed, it do nothing."""
-        self.__initialize_cache()
-        if self.__cached_value_dirty:
-            with self.__is_recomputing_lock:
-                is_recomputing = self.__is_recomputing
-                self.__is_recomputing = True
-            if is_recomputing:
-                pass
-            else:
-                # the only way to get here is if we're not currently computing
-                # this has the side effect of limiting the number of threads that
-                # are sleeping.
-                def recompute():
-                    try:
-                        minimum_time = 0.5
-                        current_time = time.time()
-                        if current_time < self.__cached_value_time + minimum_time:
-                            time.sleep(self.__cached_value_time + minimum_time - current_time)
-                        self.recompute_data(arg)
-                    finally:
-                        with self.__is_recomputing_lock:
-                            self.__is_recomputing = False
-                dispatch(recompute, self.__cache_property_name)
-
-    def recompute_data(self, ui):
-        """Compute the data associated with this processor.
-
-        This method is thread safe and may take a long time to return. It should not be called from
-         the UI thread. Upon return, the results will be calculated with the latest data available
-         and the cache will not be marked dirty.
-        """
-        self.__initialize_cache()
-        with self.__recompute_lock:
-            if self.__cached_value_dirty:
-                data = self.__display.display_data  # grab the most up to date data
-                if data is not None:  # for data to load and make sure it has data
-                    try:
-                        calculated_data = self.get_calculated_data(ui, data)
-                    except Exception as e:
-                        import traceback
-                        traceback.print_exc()
-                        traceback.print_stack()
-                        raise
-                    self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
-                    self.__cached_value = calculated_data
-                    self.__cached_value_dirty = False
-                    self.__cached_value_time = time.time()
-                    # import logging
-                    # logging.debug("updated %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
-                else:
-                    calculated_data = None
-                if calculated_data is None:
-                    calculated_data = self.get_default_data()
-                    if calculated_data is not None:
-                        # if the default is not None, treat is as valid cached data
-                        self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
-                        self.__cached_value = calculated_data
-                        self.__cached_value_dirty = False
-                        self.__cached_value_time = time.time()
-                        # import logging
-                        # logging.debug("default %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
-                    else:
-                        # otherwise remove everything from the cache
-                        self.__cache.remove_cached_value(self.__display, self.__cache_property_name)
-                        self.__cached_value = None
-                        self.__cached_value_dirty = None
-                        self.__cached_value_time = 0
-                        # import logging
-                        # logging.debug("removed %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
-                self.__recompute_lock.release()
-                self.__display.processor_data_updated(self)
-                self.__recompute_lock.acquire()
-
-    def get_data(self, ui):
-        """Return the computed data for this processor.
-
-        This method is thread safe but may take a long time to return since it may have to compute
-         the results. It should not be called from the UI thread.
-        """
-        self.recompute_data(ui)
-        return self.get_cached_data()
-
-    def get_cached_data(self):
-        """Return the cached data for this processor.
-
-        This method is thread safe and always returns quickly, using the cached data.
-        """
-        self.__initialize_cache()
-        calculated_data = self.__cached_value
-        if calculated_data is not None:
-            return calculated_data
-        return self.get_default_data()
-
-    def get_calculated_data(self, ui, data):
-        thumbnail_data = None
-        assert isinstance(self.__display, Display)
-        if Image.is_data_1d(data):
-            thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
-        elif Image.is_data_2d(data):
-            data_range = self.__display.data_range
-            display_limits = self.__display.display_limits
-            thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
-        return thumbnail_data
-
-    def get_default_data(self):
-        return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
-
-    def __get_thumbnail_1d_data(self, ui, data, height, width):
-        assert data is not None
-        assert Image.is_data_1d(data)
-        data = Image.convert_to_grayscale(data)
-        data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, data_left=0, data_right=data.shape[0])
-        line_graph_area_stack = CanvasItem.CanvasItemComposition()
-        line_graph_background = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
-        line_graph_background.draw_grid = False
-        line_graph_background.background_color = "#EEEEEE"
-        line_graph_background.data_info = data_info
-        line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-        line_graph_canvas_item.draw_captions = False
-        line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.line_graph_data_list = [LineGraphCanvasItem.LineGraphData(data_info)]
-        line_graph_frame = LineGraphCanvasItem.LineGraphFrameCanvasItem()
-        line_graph_frame.data_info = data_info
-        line_graph_area_stack.add_canvas_item(line_graph_background)
-        line_graph_area_stack.add_canvas_item(line_graph_canvas_item)
-        line_graph_area_stack.add_canvas_item(line_graph_frame)
-        line_graph_area_stack.update_layout(((height - width / 1.618) * 0.5, 0), (width / 1.618, width))
-        drawing_context = ui.create_offscreen_drawing_context()
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.rect(0, 0, width, height)
-        drawing_context.fill_style = "#EEEEEE"
-        drawing_context.fill()
-        drawing_context.restore()
-        drawing_context.translate(0, (height - width / 1.618) * 0.5)
-        line_graph_area_stack._repaint(drawing_context)
-        return ui.create_rgba_image(drawing_context, width, height)
-
-    def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
-        assert image is not None
-        assert Image.is_data_2d(image)
-        image = Image.scalar_from_array(image)
-        image_height = image.shape[0]
-        image_width = image.shape[1]
-        if image_height > 0 and image_width > 0:
-            scaled_height = height if image_height > image_width else height * image_height // image_width
-            scaled_width = width if image_width > image_height else width * image_width // image_height
-            scaled_height = max(1, scaled_height)
-            scaled_width = max(1, scaled_width)
-            thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-            if data_range is None or not (any([math.isnan(x) for x in data_range]) or any([math.isinf(x) for x in data_range])):
-                return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        return self.get_default_data()
 
 
 def display_factory(lookup_id):

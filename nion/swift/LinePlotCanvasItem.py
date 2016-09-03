@@ -9,8 +9,8 @@ import numpy
 # local libraries
 from nion.data import Calibration
 from nion.data import Image
+from nion.swift import LineGraphCanvasItem
 from nion.swift.model import Graphics
-from nion.swift.model import LineGraphCanvasItem
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.utils import Geometry

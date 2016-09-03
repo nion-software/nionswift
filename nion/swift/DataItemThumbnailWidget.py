@@ -7,9 +7,9 @@ import uuid
 
 # local libraries
 from nion.data import Image
+from nion.swift import Thumbnails
 from nion.swift import Widgets
 from nion.swift.model import DataItem
-from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
 from nion.utils import Geometry
@@ -38,7 +38,7 @@ class AbstractDataItemThumbnailSource(metaclass=abc.ABCMeta):
 
     def _update_thumbnail(self, data_item: DataItem.DataItem) -> None:
         display = data_item.primary_display_specifier.display if data_item else None
-        self._set_thumbnail_data(display.thumbnail_data if display else None)
+        self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display(display))
         if callable(self.on_rgba_bitmap_data_changed):
             self.on_rgba_bitmap_data_changed(data_item, self.__thumbnail_data)
 
@@ -50,7 +50,7 @@ class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
         self.__dispatch_task = dispatch_task
         self.ui = ui
         self.__data_item = None
-        self.__thumbnail_needs_recompute_event_listener = None
+        self.__thumbnail_source = None
         self.__thumbnail_updated_event_listener = None
         self.set_data_item(data_item)
 
@@ -59,12 +59,12 @@ class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
         super().close()
 
     def __detach_listeners(self):
-        if self.__thumbnail_needs_recompute_event_listener:
-            self.__thumbnail_needs_recompute_event_listener.close()
-            self.__thumbnail_needs_recompute_event_listener = None
         if self.__thumbnail_updated_event_listener:
             self.__thumbnail_updated_event_listener.close()
             self.__thumbnail_updated_event_listener = None
+        if self.__thumbnail_source:
+            self.__thumbnail_source.close()
+            self.__thumbnail_source = None
 
     @property
     def data_item(self):
@@ -79,16 +79,12 @@ class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         if display_specifier.display:
 
-            def trigger_recompute(p):
-                display_specifier.display.thumbnail_processor.recompute_if_necessary(self.__dispatch_task, self.ui)
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.__dispatch_task, self.ui, display_specifier.display)
 
-            def needs_update(p):
+            def thumbnail_updated():
                 self._update_thumbnail(data_item)
 
-            self.__thumbnail_needs_recompute_event_listener = display_specifier.display.display_processor_needs_recompute_event.listen(trigger_recompute)
-            self.__thumbnail_updated_event_listener = display_specifier.display.display_processor_data_updated_event.listen(needs_update)
-
-            trigger_recompute(None)
+            self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
 
 
 class DataItemReferenceThumbnailSource(DataItemThumbnailSource):

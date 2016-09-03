@@ -13,6 +13,7 @@ import weakref
 # local libraries
 from nion.swift import Decorators
 from nion.swift import Panel
+from nion.swift import Thumbnails
 from nion.swift import Widgets
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -56,7 +57,6 @@ class DisplayItem(object):
             (method) draw_thumbnail(dispatch_task, ui, drawing_context, draw_rect)
             (method) get_mime_data(ui)
             (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
-            (method) recompute(dispatch_task, ui)
             (event) needs_update_event
     """
 
@@ -71,30 +71,17 @@ class DisplayItem(object):
 
         self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
 
-        # grab the display specifier and if there is a display, handle thumbnail updating.
-        display_specifier = data_item.primary_display_specifier
-        display = display_specifier.display
-        if display:
-
-            def display_processor_needs_recompute(processor):
-                if processor == display.thumbnail_processor:
-                    self.recompute(self.__dispatch_task, self.ui)
-
-            def display_processor_data_updated(processor):
-                if processor == display.thumbnail_processor:
-                    self.needs_update_event.fire()
-
-            self.__display_processor_needs_recompute_event_listener = display.display_processor_needs_recompute_event.listen(display_processor_needs_recompute)
-            self.__display_processor_data_updated_event_listener = display.display_processor_data_updated_event.listen(display_processor_data_updated)
+        self.__thumbnail_updated_event_listener = None
+        self.__thumbnail_source = None
 
     def close(self):
         # remove the listener.
-        display_specifier = self.__data_item.primary_display_specifier
-        if display_specifier.display:
-            self.__display_processor_needs_recompute_event_listener.close()
-            self.__display_processor_data_updated_event_listener.close()
-            self.__display_processor_needs_recompute_event_listener = None
-            self.__display_processor_data_updated_event_listener = None
+        if self.__thumbnail_updated_event_listener:
+            self.__thumbnail_updated_event_listener.close()
+            self.__thumbnail_updated_event_listener = None
+        if self.__thumbnail_source:
+            self.__thumbnail_source.close()
+            self.__thumbnail_source = None
         self.__data_item_content_changed_event_listener.close()
         self.__data_item_content_changed_event_listener = None
 
@@ -102,17 +89,24 @@ class DisplayItem(object):
     def data_item(self):
         return self.__data_item
 
-    def recompute(self, dispatch_task, ui):
-        display = self.__data_item.primary_display_specifier.display
-        if display:
-            display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
+    def __create_thumbnail_source(self):
+        # grab the display specifier and if there is a display, handle thumbnail updating.
+        display_specifier = self.__data_item.primary_display_specifier
+        display = display_specifier.display
+        if display and not self.__thumbnail_source:
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.__dispatch_task, self.ui, display)
+
+            def thumbnail_updated():
+                self.needs_update_event.fire()
+
+            self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
 
     def draw_thumbnail(self, dispatch_task, ui, draw_rect):
         drawing_context = ui.create_offscreen_drawing_context()
         display = self.__data_item.primary_display_specifier.display
         if display:
-            display.thumbnail_processor.recompute_if_necessary(dispatch_task, ui)
-            thumbnail_data = display.thumbnail_data
+            self.__create_thumbnail_source()
+            thumbnail_data = self.__thumbnail_source.thumbnail_data
             if thumbnail_data is not None:
                 draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
                 drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0], draw_rect[1][1], draw_rect[1][0])
@@ -159,7 +153,8 @@ class DisplayItem(object):
         mime_data = self.get_mime_data(ui)
         display_specifier = data_item.primary_display_specifier
         display = display_specifier.display
-        thumbnail_data = display.thumbnail_data if display else None
+        self.__create_thumbnail_source()
+        thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
         return mime_data, thumbnail_data
 
 
@@ -192,7 +187,6 @@ class DataListController:
         (method) draw_thumbnail(dispatch_task, ui, draw_rect)
         (method) get_mime_data(ui)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
-        (method) recompute(dispatch_task, ui)
     """
 
     def __init__(self, dispatch_task, add_task, clear_task, ui, selection):
@@ -377,7 +371,6 @@ class DataGridController:
         (method) draw_thumbnail(dispatch_task, ui, draw_rect)
         (method) get_mime_data(ui)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
-        (method) recompute(dispatch_task, ui)
     """
 
     def __init__(self, dispatch_task, add_task, clear_task, ui, selection):
