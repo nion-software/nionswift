@@ -12,6 +12,7 @@ import numpy
 
 # local libraries
 from nion.data import Image
+from nion.swift import DisplayPanel
 from nion.swift import LineGraphCanvasItem
 from nion.swift.model import Utility
 from nion.swift.model.Display import Display
@@ -160,65 +161,14 @@ class ThumbnailDataItemProcessor:
         return self.get_default_data()
 
     def get_calculated_data(self, ui, data):
-        thumbnail_data = None
-        assert isinstance(self.__display, Display)
-        if Image.is_data_1d(data):
-            thumbnail_data = self.__get_thumbnail_1d_data(ui, data, self.height, self.width)
-        elif Image.is_data_2d(data):
-            data_range = self.__display.data_range
-            display_limits = self.__display.display_limits
-            thumbnail_data = self.__get_thumbnail_2d_data(ui, data, self.height, self.width, data_range, display_limits)
-        return thumbnail_data
+        drawing_context = DisplayPanel.preview(ui, self.__display, 512, 512)
+        thumbnail_drawing_context = ui.create_offscreen_drawing_context()
+        thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
+        thumbnail_drawing_context.add(drawing_context)
+        return ui.create_rgba_image(thumbnail_drawing_context, self.width, self.height)
 
     def get_default_data(self):
         return numpy.zeros((self.height, self.width), dtype=numpy.uint32)
-
-    def __get_thumbnail_1d_data(self, ui, data, height, width):
-        assert data is not None
-        assert Image.is_data_1d(data)
-        data = Image.convert_to_grayscale(data)
-        data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, data_left=0, data_right=data.shape[0])
-        line_graph_area_stack = CanvasItem.CanvasItemComposition()
-        line_graph_background = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
-        line_graph_background.draw_grid = False
-        line_graph_background.background_color = "#EEEEEE"
-        line_graph_background.data_info = data_info
-        line_graph_canvas_item = LineGraphCanvasItem.LineGraphCanvasItem()
-        line_graph_canvas_item.draw_captions = False
-        line_graph_canvas_item.graph_background_color = "rgba(0,0,0,0)"
-        line_graph_canvas_item.line_graph_data_list = [LineGraphCanvasItem.LineGraphData(data_info)]
-        line_graph_frame = LineGraphCanvasItem.LineGraphFrameCanvasItem()
-        line_graph_frame.data_info = data_info
-        line_graph_area_stack.add_canvas_item(line_graph_background)
-        line_graph_area_stack.add_canvas_item(line_graph_canvas_item)
-        line_graph_area_stack.add_canvas_item(line_graph_frame)
-        line_graph_area_stack.update_layout(((height - width / 1.618) * 0.5, 0), (width / 1.618, width))
-        drawing_context = ui.create_offscreen_drawing_context()
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.rect(0, 0, width, height)
-        drawing_context.fill_style = "#EEEEEE"
-        drawing_context.fill()
-        drawing_context.restore()
-        drawing_context.translate(0, (height - width / 1.618) * 0.5)
-        line_graph_area_stack._repaint(drawing_context)
-        return ui.create_rgba_image(drawing_context, width, height)
-
-    def __get_thumbnail_2d_data(self, ui, image, height, width, data_range, display_limits):
-        assert image is not None
-        assert Image.is_data_2d(image)
-        image = Image.scalar_from_array(image)
-        image_height = image.shape[0]
-        image_width = image.shape[1]
-        if image_height > 0 and image_width > 0:
-            scaled_height = height if image_height > image_width else height * image_height // image_width
-            scaled_width = width if image_width > image_height else width * image_width // image_height
-            scaled_height = max(1, scaled_height)
-            scaled_width = max(1, scaled_width)
-            thumbnail_image = Image.scaled(image, (scaled_height, scaled_width), 'nearest')
-            if data_range is None or not (any([math.isnan(x) for x in data_range]) or any([math.isinf(x) for x in data_range])):
-                return Image.create_rgba_image_from_array(thumbnail_image, data_range=data_range, display_limits=display_limits)
-        return self.get_default_data()
 
 
 class ThumbnailSource(ReferenceCounting.ReferenceCounted):

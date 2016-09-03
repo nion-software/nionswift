@@ -533,6 +533,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             data_range = None
             data_sample = None
         if data_range is not None:
+            if math.isnan(data_range[0]) or math.isnan(data_range[1]) or math.isinf(data_range[0]) or math.isinf(data_range[1]):
+                data_range = (0.0, 0.0)
             self.__cache.set_cached_value(self, "data_range", data_range)
         else:
             self.__cache.remove_cached_value(self, "data_range")
