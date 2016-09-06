@@ -750,6 +750,18 @@ class DataItemDataSourceDisplay:
             return region
         return None
 
+    def create_ring(self, radius):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        display = display_specifier.display
+        if display:
+            display.graphic_selection.clear()
+            region = Graphics.RingGraphic()
+            region.radius_1 = radius
+            display.add_graphic(region)
+            display.graphic_selection.set(display.graphics.index(region))
+            return region
+        return None
+
 
 class DataItemDisplayTypeMonitor:
     """Monitor a data item for changes to the display type.
