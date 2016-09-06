@@ -1598,6 +1598,133 @@ class WedgeGraphic(Graphic):
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
+class RingGraphic(Graphic):
+    def __init__(self):
+        super().__init__("ring-graphic")
+        self.title = _("Annular Ring")
+
+        def validate_angles(value: float) -> float:
+            return abs(float(value))
+
+        self.define_property("outer_radius", 0.2, validate=validate_angles, changed=self._property_changed)
+        self.define_property("inner_radius", 0.2, validate=validate_angles, changed=self._property_changed)
+
+    # test is required for Graphic interface
+    def test(self, mapping: ImageCanvasItem.ImageCanvasItemMapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        length = 10000  # safe line length
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        top_marker_outer = mapping.map_point_image_norm_to_widget((0.5, 0.5 - self.outer_radius))
+        left_marker_outer = mapping.map_point_image_norm_to_widget((0.5 - self.outer_radius, 0.5))
+        right_marker_outer = mapping.map_point_image_norm_to_widget((0.5 + self.outer_radius, 0.5))
+        bottom_marker_outer = mapping.map_point_image_norm_to_widget((0.5, 0.5 + self.outer_radius))
+        top_marker_inner = mapping.map_point_image_norm_to_widget((0.5, 0.5 - self.inner_radius))
+        left_marker_inner = mapping.map_point_image_norm_to_widget((0.5 - self.inner_radius, 0.5))
+        right_marker_inner = mapping.map_point_image_norm_to_widget((0.5 + self.inner_radius, 0.5))
+        bottom_marker_inner = mapping.map_point_image_norm_to_widget((0.5, 0.5 + self.inner_radius))
+        image_norm_test_point = mapping.map_point_widget_to_image_norm(test_point)
+        test_radius = math.sqrt((image_norm_test_point[0] - 0.5) ** 2 + (image_norm_test_point[1] - 0.5) ** 2)
+        if self.test_point(top_marker_outer, test_point, 4):
+            return "outer_radius", True
+        if self.test_point(bottom_marker_outer, test_point, 4):
+            return "outer_radius", True
+        if self.test_point(left_marker_outer, test_point, 4):
+            return "outer_radius", True
+        if self.test_point(right_marker_outer, test_point, 4):
+            return "outer_radius", True
+        if self.test_point(top_marker_inner, test_point, 4):
+            return "inner_radius", True
+        if self.test_point(bottom_marker_inner, test_point, 4):
+            return "inner_radius", True
+        if self.test_point(left_marker_inner, test_point, 4):
+            return "inner_radius", True
+        if self.test_point(right_marker_inner, test_point, 4):
+            return "inner_radius", True
+        if test_radius < self.outer_radius and test_radius > self.inner_radius:
+            return "all", True
+
+        # didn't find anything
+        return None, None
+
+    def begin_drag(self):
+        pass
+
+    def end_drag(self, part_data):
+        pass
+
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        current_norm = mapping.map_point_widget_to_image_norm(current)
+        radius = math.sqrt((current_norm[1] - 0.5) ** 2 + (current_norm[0] - 0.5) ** 2)
+        if part[0] == "outer_radius":
+            self.outer_radius = radius
+        if part[0] == "inner_radius":
+            self.inner_radius = radius
+        return None, None
+
+    def get_mask(self, data_shape: typing.Tuple[int]):
+        mask1 = numpy.zeros(data_shape)
+        mask2 = numpy.zeros(data_shape)
+        bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
+        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        mask1[get_slope_eq(x, y, self.__start_angle_internal)] = 1
+        mask1[get_slope_eq(x, y, self.__end_angle_internal)] = 0
+        mask1[int(bounds_int[1][0] / 2), int(bounds_int[1][0] / 2)] = 1
+        mask2[get_slope_eq(x, y, (self.__start_angle_internal + math.pi) % (math.pi * 2))] = 1
+        mask2[get_slope_eq(x, y, (self.__end_angle_internal + math.pi) % (math.pi * 2))] = 0
+        return numpy.logical_or(mask1, mask2)
+
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+        # origin is top left
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        outer_radius_widget = mapping.map_size_image_norm_to_widget((self.outer_radius, self.outer_radius))
+        inner_radius_widget = mapping.map_size_image_norm_to_widget((self.inner_radius, self.inner_radius))
+        with ctx.saver():
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            self.draw_ellipse(ctx, center[1], center[0], outer_radius_widget[1] * 2, outer_radius_widget[0] * 2)
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            self.draw_ellipse(ctx, center[1], center[0], inner_radius_widget[1] * 2, inner_radius_widget[0] * 2)
+            # draw 2 thick arcs
+            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            # ctx.stroke_style = "#0000FF"
+            # ra = 0.0  # rotation angle
+            ctx.begin_path()
+            for i in numpy.arange(0, 2 * math.pi, 0.1):
+                x = center[1] + outer_radius_widget[1] * math.cos(i)
+                y = center[0] + outer_radius_widget[0] * math.sin(i)
+                if i == 0:
+                    ctx.move_to(x, y)
+                else:
+                    ctx.line_to(x, y)
+            for i in numpy.arange(0, 2 * math.pi, 0.1):
+                x = center[1] + inner_radius_widget[1] * math.cos(2 * math.pi - i)
+                y = center[0] + inner_radius_widget[0] * math.sin(2 * math.pi - i)
+                if i == 0:
+                    ctx.move_to(x, y)
+                else:
+                    ctx.line_to(x, y)
+            ctx.close_path()
+            # ctx.stroke()
+            ctx.fill()
+        if is_selected:
+            self.draw_marker(ctx, (center[0] + outer_radius_widget[0], center[1]))
+            self.draw_marker(ctx, (center[0] - outer_radius_widget[0], center[1]))
+            self.draw_marker(ctx, (center[0], center[1] + outer_radius_widget[1]))
+            self.draw_marker(ctx, (center[0], center[1] - outer_radius_widget[1]))
+            self.draw_marker(ctx, (center[0] + inner_radius_widget[0], center[1]))
+            self.draw_marker(ctx, (center[0] - inner_radius_widget[0], center[1]))
+            self.draw_marker(ctx, (center[0], center[1] + inner_radius_widget[1]))
+            self.draw_marker(ctx, (center[0], center[1] - inner_radius_widget[1]))
+        self.draw_label(ctx, get_font_metrics_fn, mapping)
+
+    def label_position(self, mapping, font_metrics, padding):
+        p1 = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        return Geometry.FloatPoint(y=p1.y, x=p1.x)
+
+
 def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
@@ -1608,7 +1735,8 @@ def factory(lookup_id):
         "interval-graphic": IntervalGraphic,
         "channel-graphic": ChannelGraphic,
         "spot-graphic": SpotGraphic,
-        "wedge-graphic": WedgeGraphic
+        "wedge-graphic": WedgeGraphic,
+        "ring-graphic": RingGraphic
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else None

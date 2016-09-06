@@ -113,7 +113,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             widget_mapping = ImageCanvasItemMapping(self.__dimensional_shape, (0, 0), self.canvas_size)
             with drawing_context.saver():
                 for graphic_index, graphic in enumerate(self.__graphics):
-                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic)):
+                    if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                         try:
                             graphic.draw(drawing_context, self.__get_font_metrics_fn, widget_mapping, self.__graphic_selection.contains(graphic_index))
                         except Exception as e:
@@ -457,7 +457,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             part_specs = list()
             specific_part_spec = None
             for graphic_index, graphic in enumerate(graphics):
-                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic)):
+                if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                     already_selected = graphic_index in selection_indexes
                     move_only = not already_selected or multiple_items_selected
                     try:
@@ -652,6 +652,28 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+        elif self.delegate.tool_mode == "ring":
+            widget_mapping = self.__get_mouse_mapping()
+            pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
+            radius = math.sqrt((pos[0] - 0.5) ** 2 + (pos[1] - 0.5) ** 2)
+            graphic = self.delegate.create_ring(radius)
+            self.delegate.add_index_to_selection(self.__graphics.index(graphic))
+            if graphic:
+                # setup drag
+                start_drag_pos = Geometry.IntPoint(y=y, x=x)
+                selection_indexes = self.__graphic_selection.indexes
+                assert len(selection_indexes) == 1
+                self.graphic_drag_item_was_selected = True
+                # keep track of general drag information
+                self.__graphic_drag_start_pos = start_drag_pos
+                self.__graphic_drag_changed = False
+                # keep track of info for the specific item that was clicked
+                self.__graphic_drag_item = graphic
+                self.__graphic_drag_part = "outer_radius"
+                # keep track of drag information for each item in the set
+                self.__graphic_drag_indexes = selection_indexes
+                self.__graphic_drag_items.append(graphic)
+                self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
         elif self.delegate.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
@@ -730,6 +752,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         elif self.delegate.tool_mode == "spot":
             self.cursor_shape = "cross"
         elif self.delegate.tool_mode == "wedge":
+            self.cursor_shape = "cross"
+        elif self.delegate.tool_mode == "ring":
             self.cursor_shape = "cross"
         elif self.delegate.tool_mode == "hand":
             self.cursor_shape = "hand"

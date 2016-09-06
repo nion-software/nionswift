@@ -1218,6 +1218,28 @@ def make_wedge_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 0, RadianToDegreeStringConverter()))
     graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 1, RadianToDegreeStringConverter()))
 
+def make_ring_type_inspector(ui, graphic_widget, display_specifier, graphic):
+    # create the ui
+    graphic_outer_radius_row = ui.create_row_widget()
+    graphic_outer_radius_row.add_spacing(20)
+    graphic_outer_radius_row.add(ui.create_label_widget(_("Radius 1"), properties={"width": 60}))
+    graphic_outer_radius_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_outer_radius_row.add(graphic_outer_radius_line_edit)
+    graphic_outer_radius_row.add_stretch()
+    graphic_inner_radius_row = ui.create_row_widget()
+    graphic_inner_radius_row.add_spacing(20)
+    graphic_inner_radius_row.add(ui.create_label_widget(_("Radius 2"), properties={"width": 60}))
+    graphic_inner_radius_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_inner_radius_row.add(graphic_inner_radius_line_edit)
+    graphic_inner_radius_row.add_stretch()
+
+    graphic_widget.add(graphic_outer_radius_row)
+    graphic_widget.add(graphic_inner_radius_row)
+
+    float_point_2_converter = Converter.FloatToStringConverter(format="{0:.4f}")
+    graphic_outer_radius_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "outer_radius")))
+    graphic_inner_radius_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "inner_radius")))
+
 
 def make_interval_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # configure the bindings
@@ -1322,6 +1344,9 @@ class GraphicsInspectorSection(InspectorSection):
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
             make_wedge_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+        elif isinstance(graphic, Graphics.RingGraphic):
+            graphic_type_label.text = _("Annular Ring")
+            make_ring_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
