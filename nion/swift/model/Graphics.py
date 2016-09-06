@@ -1610,7 +1610,7 @@ class RingGraphic(Graphic):
         self.define_property("inner_radius", 0.2, validate=validate_angles, changed=self._property_changed)
 
     # test is required for Graphic interface
-    def test(self, mapping: ImageCanvasItem.ImageCanvasItemMapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
+    def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
         length = 10000  # safe line length
@@ -1648,7 +1648,7 @@ class RingGraphic(Graphic):
         return None, None
 
     def begin_drag(self):
-        pass
+        return self.outer_radius, self.inner_radius
 
     def end_drag(self, part_data):
         pass
