@@ -669,7 +669,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_changed = False
                 # keep track of info for the specific item that was clicked
                 self.__graphic_drag_item = graphic
-                self.__graphic_drag_part = "outer_radius"
+                self.__graphic_drag_part = "radius_1"
                 # keep track of drag information for each item in the set
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)

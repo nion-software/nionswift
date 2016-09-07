@@ -981,7 +981,7 @@ class DocumentController:
             current_index = display.graphic_selection.current_index
             if current_index is not None:
                 graphic = display.graphics[current_index]
-                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic)):
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                     mask_graphics.append(graphic)
         return mask_graphics
 

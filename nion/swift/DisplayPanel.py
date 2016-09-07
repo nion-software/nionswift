@@ -756,7 +756,7 @@ class DataItemDataSourceDisplay:
         if display:
             display.graphic_selection.clear()
             region = Graphics.RingGraphic()
-            region.outer_radius = radius
+            region.radius_1 = radius
             display.add_graphic(region)
             display.graphic_selection.set(display.graphics.index(region))
             return region

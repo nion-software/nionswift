@@ -1218,27 +1218,54 @@ def make_wedge_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 0, RadianToDegreeStringConverter()))
     graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 1, RadianToDegreeStringConverter()))
 
+def make_annular_ring_mode_chooser(ui, ring):
+    annular_ring_mode_options = ((_("Band Pass"), "band-pass"), (_("Low Pass"), "low-pass"), (_("High Pass"), "high-pass"))
+    annular_ring_mode_reverse_map = {"band-pass": 0, "low-pass": 1, "high-pass": 2}
+
+    class AnnularRingModeIndexConverter:
+        """
+            Convert from flag index (-1, 0, 1) to chooser index.
+        """
+        def convert(self, value):
+            return annular_ring_mode_reverse_map.get(value, 0)
+        def convert_back(self, value):
+            if value >= 0 and value < len(annular_ring_mode_options):
+                return annular_ring_mode_options[value][1]
+            else:
+                return "calibrated"
+
+    display_calibration_style_chooser = ui.create_combo_box_widget(items=annular_ring_mode_options, item_getter=operator.itemgetter(0))
+    display_calibration_style_chooser.bind_current_index(Binding.PropertyBinding(ring, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
+
+    return display_calibration_style_chooser
+
 def make_ring_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # create the ui
-    graphic_outer_radius_row = ui.create_row_widget()
-    graphic_outer_radius_row.add_spacing(20)
-    graphic_outer_radius_row.add(ui.create_label_widget(_("Radius 1"), properties={"width": 60}))
-    graphic_outer_radius_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-    graphic_outer_radius_row.add(graphic_outer_radius_line_edit)
-    graphic_outer_radius_row.add_stretch()
-    graphic_inner_radius_row = ui.create_row_widget()
-    graphic_inner_radius_row.add_spacing(20)
-    graphic_inner_radius_row.add(ui.create_label_widget(_("Radius 2"), properties={"width": 60}))
-    graphic_inner_radius_line_edit = ui.create_line_edit_widget(properties={"width": 98})
-    graphic_inner_radius_row.add(graphic_inner_radius_line_edit)
-    graphic_inner_radius_row.add_stretch()
+    graphic_radius_1_row = ui.create_row_widget()
+    graphic_radius_1_row.add_spacing(20)
+    graphic_radius_1_row.add(ui.create_label_widget(_("Radius 1"), properties={"width": 60}))
+    graphic_radius_1_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_radius_1_row.add(graphic_radius_1_line_edit)
+    graphic_radius_1_row.add_stretch()
+    graphic_radius_2_row = ui.create_row_widget()
+    graphic_radius_2_row.add_spacing(20)
+    graphic_radius_2_row.add(ui.create_label_widget(_("Radius 2"), properties={"width": 60}))
+    graphic_radius_2_line_edit = ui.create_line_edit_widget(properties={"width": 98})
+    graphic_radius_2_row.add(graphic_radius_2_line_edit)
+    graphic_radius_2_row.add_stretch()
+    ring_mode_row = ui.create_row_widget()
+    ring_mode_row.add_spacing(20)
+    ring_mode_row.add(ui.create_label_widget(_("Mode"), properties={"width": 60}))
+    ring_mode_row.add(make_annular_ring_mode_chooser(ui, graphic))
+    ring_mode_row.add_stretch()
 
-    graphic_widget.add(graphic_outer_radius_row)
-    graphic_widget.add(graphic_inner_radius_row)
+    graphic_widget.add(graphic_radius_1_row)
+    graphic_widget.add(graphic_radius_2_row)
+    graphic_widget.add(ring_mode_row)
 
     float_point_2_converter = Converter.FloatToStringConverter(format="{0:.4f}")
-    graphic_outer_radius_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "outer_radius")))
-    graphic_inner_radius_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "inner_radius")))
+    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "radius_1")))
+    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "radius_2")))
 
 
 def make_interval_type_inspector(ui, graphic_widget, display_specifier, graphic):
