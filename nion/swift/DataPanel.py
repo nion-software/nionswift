@@ -14,12 +14,12 @@ import weakref
 from nion.swift import Decorators
 from nion.swift import Panel
 from nion.swift import Thumbnails
-from nion.swift import Widgets
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.ui import CanvasItem
 from nion.ui import GridCanvasItem
 from nion.ui import ListCanvasItem
+from nion.ui import Widgets
 from nion.utils import Event
 from nion.utils import Geometry
 

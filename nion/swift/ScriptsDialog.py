@@ -15,11 +15,11 @@ from typing import AbstractSet
 import numpy
 
 # local libraries
-from nion.swift import Widgets
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.ui import Dialog
 from nion.ui import Selection
+from nion.ui import Widgets
 from nion.utils import Converter
 
 _ = gettext.gettext

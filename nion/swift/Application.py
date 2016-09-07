@@ -28,7 +28,6 @@ from nion.swift import Task
 from nion.swift import Test
 from nion.swift import ToolbarPanel
 from nion.swift import Workspace
-from nion.swift import Widgets
 from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -37,6 +36,7 @@ from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.ui import Dialog
 from nion.ui import Selection
+from nion.ui import Widgets
 
 _ = gettext.gettext
 

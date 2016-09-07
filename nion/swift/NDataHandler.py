@@ -16,7 +16,6 @@ import os
 import struct
 import threading
 import time
-import uuid
 
 from nion.swift.model import Utility
 from nion.utils import Geometry

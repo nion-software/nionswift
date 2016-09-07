@@ -8,10 +8,10 @@ import uuid
 # local libraries
 from nion.data import Image
 from nion.swift import Thumbnails
-from nion.swift import Widgets
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
+from nion.ui import Widgets
 from nion.utils import Geometry
 
 
