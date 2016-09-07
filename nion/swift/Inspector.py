@@ -1,7 +1,3 @@
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import copy
 import functools

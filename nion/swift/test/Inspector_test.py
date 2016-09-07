@@ -1,13 +1,14 @@
-# futures
-from __future__ import absolute_import
-
+# standard imports
 import contextlib
 import locale
 import logging
 import math
 import unittest
 
+# third-party imports
 import numpy
+
+# local imports
 from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
@@ -412,6 +413,18 @@ class TestInspectorClass(unittest.TestCase):
         Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.display.graphics[0])
         self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "256.0 mm")  # x
         self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "64.00 mm")  # y
+
+    def test_pixel_center_rounding_correct_on_odd_dimensioned_image(self):
+        data_item = DataItem.DataItem(numpy.full((139, 89), 0, dtype=numpy.uint32))  # y, x
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        point_graphic = Graphics.PointGraphic()
+        point_graphic.position = 0.5, 0.5
+        display_specifier.display.add_graphic(point_graphic)
+        graphic_widget = self.app.ui.create_column_widget()
+        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.display.graphics[0])
+        display_specifier.display.dimensional_calibration_style = "pixels-center"
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "0.0")  # x
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "0.0")  # y
 
     def test_interval_dimensions_show_calibrated_units_on_single_spectrum(self):
         data_item = DataItem.DataItem(numpy.full((100, ), 0, dtype=numpy.uint32))  # time, energy

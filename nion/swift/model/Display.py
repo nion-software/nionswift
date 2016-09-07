@@ -667,7 +667,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 elif dimensional_calibration_style == "pixels-top-left":
                     return [Calibration.Calibration() for display_dimension in dimensional_shape]
                 else:  # "pixels-center"
-                    return [Calibration.Calibration(offset=-display_dimension//2) for display_dimension in dimensional_shape]
+                    return [Calibration.Calibration(offset=-display_dimension/2) for display_dimension in dimensional_shape]
             else:
                 return list()
 
