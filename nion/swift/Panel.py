@@ -1,21 +1,13 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import code
 import collections
 import contextlib
 import gettext
+import io
 import logging
 import sys
 import threading
 import weakref
-
-# conditional imports
-if sys.version < '3':
-    import cStringIO as io
-else:
-    import io
 
 # third party libraries
 # None
@@ -29,7 +21,7 @@ from nion.utils import Process
 _ = gettext.gettext
 
 
-class Panel(object):
+class Panel:
     """
         Represents content within a dock widget. The dock widget owns
         the panel and will invoke close and periodic on it. The dock
@@ -82,14 +74,14 @@ class Panel(object):
 
 class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id, properties):
-        super(OutputPanel, self).__init__(document_controller, panel_id, "Output")
+        super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
         properties["stylesheet"] = "background: white; font: 12px courier, monospace"
         self.widget = self.ui.create_text_edit_widget(properties)
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
         class OutputPanelHandler(logging.Handler):
             def __init__(self, ui):
-                super(OutputPanelHandler, self).__init__()
+                super().__init__()
                 self.ui = ui
                 self.__lock = threading.RLock()
                 self.__q = collections.deque()
@@ -110,7 +102,7 @@ class OutputPanel(Panel):
         logging.getLogger().addHandler(self.__output_panel_handler)
     def close(self):
         logging.getLogger().removeHandler(self.__output_panel_handler)
-        super(OutputPanel, self).close()
+        super().close()
 
 
 @contextlib.contextmanager
@@ -205,7 +197,7 @@ class ConsolePanel(Panel):
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
     def __init__(self, title=None, label=None, display_close_control=False):
-        super(HeaderCanvasItem, self).__init__()
+        super().__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
         self.__label = label if label else ""
@@ -223,7 +215,7 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None
-        super(HeaderCanvasItem, self).close()
+        super().close()
 
     def __str__(self):
         return self.__title
