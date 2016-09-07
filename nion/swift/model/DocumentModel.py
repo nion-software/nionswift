@@ -281,7 +281,7 @@ class MemoryPersistentStorageSystem(object):
         return MemoryPersistentStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data, self._test_data_read_event)
 
 
-from nion.swift import NDataHandler
+from nion.swift.model import NDataHandler
 
 class FilePersistentStorageSystem:
 

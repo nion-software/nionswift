@@ -2,9 +2,7 @@
     A module for handle .ndata files for Swift.
 """
 
-# futures
-from __future__ import absolute_import
-
+# standard libraries
 import binascii
 import calendar
 import datetime
@@ -17,6 +15,7 @@ import struct
 import threading
 import time
 
+# local libraries
 from nion.swift.model import Utility
 from nion.utils import Geometry
 

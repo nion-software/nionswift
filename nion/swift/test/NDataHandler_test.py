@@ -2,6 +2,7 @@
 import binascii
 import contextlib
 import datetime
+import io
 import json
 import logging
 import os
@@ -9,18 +10,11 @@ import shutil
 import unittest
 import uuid
 
-# conditional imports
-import sys
-if sys.version < '3':
-    import cStringIO as io
-else:
-    import io
-
 # third party libraries
 import numpy
 
 # local libraries
-from nion.swift import NDataHandler
+from nion.swift.model import NDataHandler
 from nion.swift.model import Cache
 
 
