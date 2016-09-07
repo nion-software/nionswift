@@ -426,6 +426,25 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "0.0")  # x
         self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "0.0")  # y
 
+    def test_editing_pixel_width_on_rectangle_adjusts_rectangle_properly(self):
+        data_item = DataItem.DataItem(numpy.full((100, 50), 0, dtype=numpy.uint32))  # y, x
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        point_graphic = Graphics.RectangleGraphic()
+        display_specifier.display.add_graphic(point_graphic)
+        graphic_widget = self.app.ui.create_column_widget()
+        Inspector.make_rectangle_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.display.graphics[0])
+        display_specifier.display.dimensional_calibration_style = "pixel-center"
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "0.0")  # x
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "0.0")  # y
+        self.assertEqual(graphic_widget.children[1].children[0].children[1].text, "50.0")  # width
+        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "100.0")  # height
+        graphic_widget.children[1].children[0].children[1].text = "40"
+        graphic_widget.children[1].children[0].children[1].editing_finished("40")
+        self.assertEqual(graphic_widget.children[0].children[0].children[1].text, "0.0")  # x
+        self.assertEqual(graphic_widget.children[0].children[1].children[1].text, "0.0")  # y
+        self.assertEqual(graphic_widget.children[1].children[0].children[1].text, "40.0")  # width
+        self.assertEqual(graphic_widget.children[1].children[1].children[1].text, "100.0")  # height
+
     def test_interval_dimensions_show_calibrated_units_on_single_spectrum(self):
         data_item = DataItem.DataItem(numpy.full((100, ), 0, dtype=numpy.uint32))  # time, energy
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)

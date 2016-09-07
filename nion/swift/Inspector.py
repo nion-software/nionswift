@@ -901,7 +901,7 @@ class CalibratedSizeFloatToStringConverter:
         self.__factor = factor
     def convert_calibrated_value_to_str(self, calibrated_value):
         calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        return calibration.convert_calibrated_value_to_str(calibrated_value)
+        return calibration.convert_calibrated_size_to_str(calibrated_value)
     def convert_to_calibrated_value(self, size):
         calibration = self.__display.displayed_dimensional_calibrations[self.__index]
         data_size = self.__buffered_data_source.dimensional_shape[self.__index]
@@ -913,7 +913,7 @@ class CalibratedSizeFloatToStringConverter:
     def convert_back(self, str):
         calibration = self.__display.displayed_dimensional_calibrations[self.__index]
         data_size = self.__buffered_data_source.dimensional_shape[self.__index]
-        return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / data_size / self.__factor
+        return calibration.convert_from_calibrated_size(Converter.FloatToStringConverter().convert_back(str)) / data_size / self.__factor
 
 
 class CalibratedBinding(Binding.Binding):
