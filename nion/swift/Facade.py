@@ -13,10 +13,8 @@ import datetime
 import gettext
 import pickle
 import threading
+import typing
 import uuid
-
-# typing
-from typing import List
 
 # third party libraries
 import numpy
@@ -25,6 +23,10 @@ import numpy
 from nion.data import Calibration as CalibrationModule
 from nion.data import DataAndMetadata
 from nion.data import Image
+from nion.swift import Application as ApplicationModule
+from nion.swift import DisplayPanel as DisplayPanelModule
+from nion.swift import Panel as PanelModule
+from nion.swift import Workspace
 from nion.swift.model import DataItem as DataItemModule
 from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
@@ -32,13 +34,8 @@ from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
-from nion.swift import Application as ApplicationModule
-from nion.swift import DisplayPanel as DisplayPanelModule
-from nion.swift import Panel as PanelModule
-from nion.swift import Workspace
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.utils import Geometry
-
 
 __all__ = ["get_api"]
 
@@ -555,7 +552,7 @@ class DataItem:
         self.__data_item.maybe_data_source.set_intensity_calibration(intensity_calibration)
 
     @property
-    def dimensional_calibrations(self) -> List[CalibrationModule.Calibration]:
+    def dimensional_calibrations(self) -> typing.List[CalibrationModule.Calibration]:
         """Return a copy of the list of dimensional calibrations.
 
         .. versionadded:: 1.0
@@ -564,7 +561,7 @@ class DataItem:
         """
         return self.__data_item.maybe_data_source.dimensional_calibrations
 
-    def set_dimensional_calibrations(self, dimensional_calibrations: List[CalibrationModule.Calibration]) -> None:
+    def set_dimensional_calibrations(self, dimensional_calibrations: typing.List[CalibrationModule.Calibration]) -> None:
         """Set the dimensional calibrations.
 
         :param dimensional_calibrations: A list of calibrations, must match the dimensions of the data.
@@ -620,7 +617,7 @@ class DataItem:
         self.__data_item.maybe_data_source.set_data_and_metadata(data_and_metadata)
 
     @property
-    def regions(self) -> List[Region]:
+    def regions(self) -> typing.List[Region]:
         return [Region(region) for region in self.__data_item.maybe_data_source.displays[0].graphics]
 
     @property
@@ -808,11 +805,11 @@ class Display:
         self.__display.display_type = value
 
     @property
-    def selected_graphics(self) -> List[Graphic]:
+    def selected_graphics(self) -> typing.List[Graphic]:
         return [Graphic(graphic) for graphic in self.__display.selected_graphics]
 
     @property
-    def graphics(self) -> List[Graphic]:
+    def graphics(self) -> typing.List[Graphic]:
         return [Graphic(graphic) for graphic in self.__display.graphics]
 
     @property
@@ -853,7 +850,7 @@ class DataGroup:
         raise NotImplementedError()
 
     @property
-    def data_items(self) -> List[DataItem]:
+    def data_items(self) -> typing.List[DataItem]:
         raise AttributeError()
 
 
@@ -912,7 +909,7 @@ class RecordTask:
         """
         return not self.__thread.is_alive()
 
-    def grab(self) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -933,7 +930,7 @@ class ViewTask:
 
     release = ["close", "grab_earliest", "grab_immediate", "grab_next_to_finish", "grab_next_to_start"]
 
-    def __init__(self, hardware_source: HardwareSourceModule.HardwareSource, frame_parameters: dict, channels_enabled: List[bool], buffer_size: int):
+    def __init__(self, hardware_source: HardwareSourceModule.HardwareSource, frame_parameters: dict, channels_enabled: typing.List[bool], buffer_size: int):
         self.__hardware_source = hardware_source
         self.__was_playing = self.__hardware_source.is_playing
         if frame_parameters:
@@ -961,7 +958,7 @@ class ViewTask:
         if not self.__was_playing:
             self.__hardware_source.stop_playing()
 
-    def grab_immediate(self) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_immediate(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -973,7 +970,7 @@ class ViewTask:
         """
         return self.__data_channel_buffer.grab_latest()
 
-    def grab_next_to_finish(self) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_finish(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -985,7 +982,7 @@ class ViewTask:
         """
         return self.__data_channel_buffer.grab_next()
 
-    def grab_next_to_start(self) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_next_to_start(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -997,7 +994,7 @@ class ViewTask:
         """
         return self.__data_channel_buffer.grab_following()
 
-    def grab_earliest(self) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_earliest(self) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab list of data/metadata from the task.
 
         .. versionadded:: 1.0
@@ -1063,7 +1060,7 @@ class HardwareSource:
     def set_frame_parameters_for_profile_by_index(self, profile_index: int, frame_parameters: dict) -> None:
         self.__hardware_source.set_frame_parameters(profile_index, self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
 
-    def start_playing(self, frame_parameters: dict=None, channels_enabled: List[bool]=None) -> None:
+    def start_playing(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None) -> None:
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled:
@@ -1081,7 +1078,7 @@ class HardwareSource:
     def is_playing(self) -> bool:
         return self.__hardware_source.is_playing
 
-    def start_recording(self, frame_parameters: dict=None, channels_enabled: List[bool]=None):
+    def start_recording(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None):
         if frame_parameters is not None:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
@@ -1096,7 +1093,7 @@ class HardwareSource:
     def is_recording(self) -> bool:
         return self.__hardware_source.is_recording
 
-    def record(self, frame_parameters: dict=None, channels_enabled: List[bool]=None, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+    def record(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Record data and return a list of data_and_metadata objects.
 
         .. versionadded:: 1.0
@@ -1118,7 +1115,7 @@ class HardwareSource:
         data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-    def create_record_task(self, frame_parameters: dict=None, channels_enabled: List[bool]=None) -> RecordTask:
+    def create_record_task(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None) -> RecordTask:
         """Create a record task for this hardware source.
 
         .. versionadded:: 1.0
@@ -1136,7 +1133,7 @@ class HardwareSource:
         """
         return RecordTask(self.__hardware_source, frame_parameters, channels_enabled)
 
-    def create_view_task(self, frame_parameters: dict=None, channels_enabled: List[bool]=None, buffer_size: int=1) -> ViewTask:
+    def create_view_task(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, buffer_size: int=1) -> ViewTask:
         """Create a view task for this hardware source.
 
         .. versionadded:: 1.0
@@ -1173,7 +1170,7 @@ class HardwareSource:
         data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
 
-    def grab_next_to_start(self, frame_parameters: dict=None, channels_enabled: List[bool]=None, timeout: float=None) -> DataAndMetadata.DataAndMetadata:
+    def grab_next_to_start(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, timeout: float=None) -> DataAndMetadata.DataAndMetadata:
         self.start_playing(frame_parameters, channels_enabled)
         data_elements = self.__hardware_source.get_next_data_elements_to_start(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
@@ -1385,7 +1382,7 @@ class Library:
         return len(self.__document_model.data_items)
 
     @property
-    def data_items(self) -> List[DataItem]:
+    def data_items(self) -> typing.List[DataItem]:
         """Return the list of data items.
 
         :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
@@ -1580,7 +1577,7 @@ class DocumentController:
         return Library(self.__document_controller.document_model)
 
     @property
-    def all_display_panels(self) -> List[DisplayPanel]:
+    def all_display_panels(self) -> typing.List[DisplayPanel]:
         """Return the list of display panels currently visible.
 
         .. versionadded:: 1.0
@@ -1727,7 +1724,7 @@ class Application:
         return Library(self.__application.document_controllers[0].document_model)
 
     @property
-    def document_controllers(self) -> List[DocumentController]:
+    def document_controllers(self) -> typing.List[DocumentController]:
         """Return the document controllers.
 
         .. versionadded:: 1.0
@@ -1861,7 +1858,7 @@ class API_1:
         return CalibrationModule.Calibration(offset, scale, units)
 
     def create_data_and_metadata(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None,
-                                 dimensional_calibrations: List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
+                                 dimensional_calibrations: typing.List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
 
         :param data: an ndarray of data.
@@ -1886,7 +1883,7 @@ class API_1:
         timestamp = timestamp if timestamp else datetime.datetime.utcnow()
         return DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
-    def create_data_and_metadata_from_data(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None, dimensional_calibrations: List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
+    def create_data_and_metadata_from_data(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None, dimensional_calibrations: typing.List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
 
         .. versionadded:: 1.0
@@ -2100,10 +2097,10 @@ class API_1:
     def create_unary_operation(self, unary_operation_delegate):
         return None
 
-    def get_all_hardware_source_ids(self) -> List[str]:
+    def get_all_hardware_source_ids(self) -> typing.List[str]:
         return HardwareSourceModule.HardwareSourceManager().get_all_hardware_source_ids()
 
-    def get_all_instrument_ids(self) -> List[str]:
+    def get_all_instrument_ids(self) -> typing.List[str]:
         return HardwareSourceModule.HardwareSourceManager().get_all_instrument_ids()
 
     def get_hardware_source_by_id(self, hardware_source_id: str, version: str):
