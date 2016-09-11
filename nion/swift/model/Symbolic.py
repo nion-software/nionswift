@@ -421,7 +421,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__bound_item_deleted_event_listeners = dict()
         self.__variable_property_changed_listener = dict()
         self.__evaluate_lock = threading.RLock()
-        self.__evaluating = False
         self.__data_and_metadata = None
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
@@ -553,17 +552,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.error_text = error_text
             self.__needs_parse = False
 
-    def begin_evaluate(self) -> bool:
-        """Begin an evaluation transaction. Returns true if ok to proceed."""
-        with self.__evaluate_lock:
-            evaluating = self.__evaluating
-            self.__evaluating = True
-            return not evaluating
-
-    def end_evaluate(self) -> None:
-        """End an evaluation transaction. Not required if begin_evaluation returns False."""
-        self.__evaluating = False
-
     def evaluate(self) -> DataAndMetadata.DataAndMetadata:
         """Evaluate the computation and return data and metadata."""
         self._evaluation_count_for_test += 1
@@ -587,15 +575,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.needs_update = True
             self.needs_update_event.fire()
 
-        def needs_update2():
-            self.evaluate()
-            needs_update()
-
         def deleted():
             if variable.cascade_delete:
                 self.cascade_delete_event.fire()
 
-        self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update2)
+        self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update)
 
         variable_specifier = variable.variable_specifier
         if not variable_specifier:
