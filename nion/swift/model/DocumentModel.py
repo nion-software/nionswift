@@ -969,10 +969,10 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
 
 class ComputationQueueItem:
-    def __init__(self, buffered_data_source=None, computation=None, data_and_metadata=None):
+    def __init__(self, data_item, buffered_data_source, computation):
+        self.data_item = data_item
         self.buffered_data_source = buffered_data_source
         self.computation = computation
-        self.data_and_metadata = data_and_metadata
         self.valid = True
 
 
@@ -1217,7 +1217,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.buffered_data_source_set_changed_event.fire(set(data_item.data_sources), set())
         # handle computation
         for data_source in data_item.data_sources:
-            self.computation_changed(data_source, data_source.computation)
+            self.computation_changed(data_item, data_source, data_source.computation)
             if data_source.computation:
                 data_source.computation.bind(self)
 
@@ -1638,21 +1638,26 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if len(self.__computation_pending_queue) > 0:
                 computation_queue_item = self.__computation_pending_queue.pop(0)
                 self.__computation_active_items.append(computation_queue_item)
+        # data_item = computation_queue_item.data_item
         buffered_data_source = computation_queue_item.buffered_data_source
         computation = computation_queue_item.computation
         if computation:
-            data_and_metadata = None
             try:
+                class DataHolder:
+                    def __init__(self):
+                        self.data_and_metadata = None
+                data_item = DataHolder()
                 if computation.needs_update:
-                    data_and_metadata = computation.evaluate_data()
+                    computation.evaluate_with_target(data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
+                if computation_queue_item.valid:  # TODO: race condition for 'valid'
+                    if data_item.data_and_metadata:
+                        buffered_data_source.set_data_and_metadata(data_item.data_and_metadata)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 computation.error_text = _("Unable to compute data")
-            if data_and_metadata and computation_queue_item.valid:  # TODO: race condition for 'valid'
-                buffered_data_source.set_data_and_metadata(data_and_metadata)
         with self.__computation_queue_lock:
             self.__computation_active_items.remove(computation_queue_item)
 
@@ -1660,7 +1665,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # this can be called on the UI thread; but it can also take time. use sparingly.
         # need the data to make connect_explorer_interval work; so do this here. ugh.
         buffered_data_source = data_item.maybe_data_source
-        data_and_metadata = buffered_data_source.computation.evaluate_data()
+        data_and_metadata = DataItem.evaluate_data(buffered_data_source.computation)
         if data_and_metadata:
             with buffered_data_source._changes():
                 with buffered_data_source.data_ref() as data_ref:
@@ -1669,7 +1674,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
                     buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
 
-    def computation_changed(self, buffered_data_source, computation):
+    def computation_changed(self, data_item, buffered_data_source, computation):
         existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
         if existing_computation_changed_listener:
             existing_computation_changed_listener.close()
@@ -1682,7 +1687,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         if computation_queue_item.buffered_data_source == buffered_data_source:
                             computation_queue_item.computation = computation
                             return
-                    computation_queue_item = ComputationQueueItem(buffered_data_source=buffered_data_source, computation=computation)
+                    computation_queue_item = ComputationQueueItem(data_item, buffered_data_source, computation)
                     self.__computation_pending_queue.append(computation_queue_item)
                 self.dispatch_task2(self.__recompute)
 

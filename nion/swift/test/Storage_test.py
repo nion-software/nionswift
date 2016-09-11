@@ -1391,7 +1391,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1463,7 +1463,7 @@ class TestStorageClass(unittest.TestCase):
             data2 = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[1].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data2
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1536,7 +1536,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1589,7 +1589,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1643,7 +1643,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(512).reshape((8, 8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1698,7 +1698,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1770,7 +1770,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1842,7 +1842,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1896,7 +1896,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
@@ -1953,10 +1953,10 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(512).reshape((8, 8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            data0 = computation.evaluate_data().data
+            data0 = DataItem.evaluate_data(computation).data
             self.assertIsNone(computation.error_text)
             document_model.data_items[0].maybe_data_source.displays[0].graphics[0].position = 0.0, 0.0
-            data1 = computation.evaluate_data().data
+            data1 = DataItem.evaluate_data(computation).data
             self.assertIsNone(computation.error_text)
             self.assertFalse(numpy.array_equal(data0, data1))
             self.assertTrue(numpy.array_equal(data1, data[0, 0, :]))
@@ -2018,7 +2018,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.arange(64).reshape((8, 8))
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 data_ref.master_data = data
-            self.assertIsNotNone(computation.evaluate_data().data)
+            self.assertIsNotNone(DataItem.evaluate_data(computation).data)
             self.assertIsNone(computation.error_text)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)

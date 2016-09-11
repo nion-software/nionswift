@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import copy
@@ -43,7 +40,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, -d)
 
     def test_binary_addition_returns_added_data(self):
@@ -60,7 +57,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("a+b")
             computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
             computation.create_object("b", document_model.get_object_specifier(data_item2, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d1 + d2)
 
     def test_binary_multiplication_with_scalar_returns_multiplied_data(self):
@@ -72,10 +69,10 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation1 = document_model.create_computation("a * 5")
             computation1.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data1 = computation1.evaluate().data
+            data1 = DataItem.evaluate_data(computation1).data
             computation2 = document_model.create_computation("5 * a")
             computation2.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data2 = computation1.evaluate().data
+            data2 = DataItem.evaluate_data(computation2).data
             assert numpy.array_equal(data1, d * 5)
             assert numpy.array_equal(data2, d * 5)
 
@@ -88,7 +85,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a - amin(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d - numpy.amin(d))
 
     def test_ability_to_take_slice(self):
@@ -100,7 +97,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a[:,4,4]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d[:,4,4])
 
     def test_ability_to_take_slice_on_1d_data(self):
@@ -111,7 +108,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a[2:6]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d[2:6])
 
     def test_slice_with_empty_dimension_produces_error(self):
@@ -123,7 +120,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a[2:2, :, :]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            self.assertIsNone(computation.evaluate())
+            self.assertIsNone(DataItem.evaluate_data(computation))
 
     def test_ability_to_take_slice_with_ellipses_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -134,7 +131,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a[2, ...]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d[2, ...])
 
     def test_ability_to_take_slice_with_ellipses_produces_correct_calibration(self):
@@ -147,7 +144,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a[2, ...]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual(len(data_and_metadata.data_shape), len(data_and_metadata.dimensional_calibrations))
             self.assertEqual("mm", data_and_metadata.dimensional_calibrations[0].units)
             self.assertEqual("nm", data_and_metadata.dimensional_calibrations[1].units)
@@ -161,7 +158,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a[newaxis, ...]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d[numpy.newaxis, ...])
 
     def test_ability_to_take_1d_slice_with_newaxis(self):
@@ -173,7 +170,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a[..., newaxis]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d[..., numpy.newaxis])
 
     def test_slice_sum_sums_correct_slices(self):
@@ -184,7 +181,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("slice_sum(a, 4, 6)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.sum(d[..., 1:7], -1))
 
     def test_reshape_1d_to_2d_produces_correct_data(self):
@@ -195,15 +192,15 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("reshape(a, shape(2, 2))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.reshape(d, (2, 2)))
             computation = document_model.create_computation("reshape(a, shape(4, -1))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.reshape(d, (4, -1)))
             computation = document_model.create_computation("reshape(a, shape(-1, 4))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.reshape(d, (-1, 4)))
 
     def test_reshape_1d_to_2d_preserves_calibration(self):
@@ -215,12 +212,12 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("reshape(a, shape(4, -1))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
             self.assertEqual("", data_and_metadata.dimensional_calibrations[1].units)
             computation = document_model.create_computation("reshape(a, shape(-1, 4))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual("", data_and_metadata.dimensional_calibrations[0].units)
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[1].units)
 
@@ -233,7 +230,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("reshape(a, shape(4))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual(1, len(data_and_metadata.dimensional_calibrations))
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
 
@@ -249,7 +246,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("reshape(a, data_shape(b))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_object("b", document_model.get_object_specifier(data_item2, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.reshape(d, (2, 2)))
 
     def test_concatenate_two_images(self):
@@ -260,7 +257,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("concatenate((a[0:2, 0:2], a[2:4, 2:4]))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[2:4, 2:4])))
 
     def test_concatenate_keeps_calibrations_in_non_axis_dimensions(self):
@@ -273,7 +270,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("concatenate((a[0:2, 0:2], a[2:4, 2:4]))")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual("nm", data_and_metadata.intensity_calibration.units)
             self.assertEqual("m", data_and_metadata.dimensional_calibrations[0].units)
             self.assertEqual("", data_and_metadata.dimensional_calibrations[1].units)
@@ -286,7 +283,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("concatenate((reshape(a, shape(1, -1)), reshape(a, shape(1, -1))), 0)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.concatenate((numpy.reshape(d, (1, -1)), numpy.reshape(d, (1, -1))), 0))
 
     def test_concatenate_three_images_along_second_axis(self):
@@ -297,7 +294,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("concatenate((a[0:2, 0:2], a[1:3, 1:3], a[2:4, 2:4]), 1)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.concatenate((d[0:2, 0:2], d[1:3, 1:3], d[2:4, 2:4]), 1))
 
     def test_ability_to_write_read_basic_nodes(self):
@@ -313,8 +310,8 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
             computation2.needs_update = True
-            data = computation.evaluate().data
-            data2 = computation2.evaluate().data
+            data = DataItem.evaluate_data(computation).data
+            data2 = DataItem.evaluate_data(computation2).data
             assert numpy.array_equal(data, -src_data / numpy.average(src_data) * 5)
             assert numpy.array_equal(data, data2)
 
@@ -328,7 +325,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("-a / average(a) * 5")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, -d / numpy.average(d) * 5)
 
     def test_fft_returns_complex_data(self):
@@ -339,7 +336,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("fft(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
     def test_gaussian_blur_handles_scalar_argument(self):
@@ -350,7 +347,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("gaussian_blur(a, 4.0)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, scipy.ndimage.gaussian_filter(d, sigma=4.0))
 
     def test_transpose_flip_handles_args(self):
@@ -361,7 +358,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("transpose_flip(a, flip_v=True)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, numpy.flipud(d))
 
     def test_crop_handles_args(self):
@@ -377,7 +374,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("crop(a, regionA.bounds)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             computation.create_object("regionA", document_model.get_object_specifier(region))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d[9:42, 19:45])
 
     def test_evaluate_computation_within_document_model_gives_correct_value(self):
@@ -388,7 +385,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
 
     def test_computation_within_document_model_fires_needs_update_event_when_data_changes(self):
@@ -475,8 +472,8 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.random.randn(2, 2)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)))
-            data_and_metadata = computation.evaluate()
+            computation = document_model.create_computation("import uuid\n-data_by_uuid(uuid.UUID('{}'))".format(str(data_item.uuid)))
+            data_and_metadata = DataItem.evaluate_data(computation)
             assert numpy.array_equal(data_and_metadata.data, -d)
 
     def test_computation_handles_region_lookups(self):
@@ -490,9 +487,9 @@ class TestSymbolicClass(unittest.TestCase):
             region.size = 0.6, 0.4
             data_item.maybe_data_source.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("crop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid)))
+            computation = document_model.create_computation("import uuid\ncrop(a, region_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid)))
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             assert numpy.array_equal(data_and_metadata.data, d[20:80, 30:70])
 
     def test_computation_copies_metadata_during_computation(self):
@@ -508,7 +505,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("-a / average(a) * 5")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual(data_and_metadata.metadata, data_item.maybe_data_source.metadata)
             self.assertEqual(data_and_metadata.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
             self.assertEqual(data_and_metadata.dimensional_calibrations, data_item.maybe_data_source.dimensional_calibrations)
@@ -533,7 +530,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("(a++)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertIsNone(data_and_metadata)
 
     def test_evaluate_computation_with_invalid_source_gives_sensible_response(self):
@@ -544,7 +541,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a+e")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertIsNone(data_and_metadata)
 
     def test_evaluate_computation_with_invalid_function_in_document_fails_cleanly(self):
@@ -566,10 +563,10 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("-a")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
             computation.expression = "-2 * a"
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data*2))
 
     def test_changing_computation_updates_data_item(self):
@@ -595,7 +592,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("sin(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual(len(data_and_metadata.dimensional_calibrations), 2)
 
     def test_computation_stores_original_text(self):
@@ -616,7 +613,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("xyz(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertIsNone(data_and_metadata)
             self.assertTrue(computation.error_text is not None and len(computation.error_text) > 0)
             self.assertEqual(computation.expression, "xyz(a)")
@@ -634,7 +631,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_node_dict['original_expression'] = "missing(a)"
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
-            self.assertIsNone(computation2.evaluate())
+            self.assertIsNone(DataItem.evaluate_data(computation2))
 
     def test_computation_can_extract_item_from_scalar_tuple(self):
         document_model = DocumentModel.DocumentModel()
@@ -644,7 +641,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("a + data_shape(a)[1] + data_shape(a)[0]")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertTrue(numpy.array_equal(data_and_metadata.data, data + 6))
 
     def test_columns_and_rows_and_radius_functions_return_correct_values(self):
@@ -655,7 +652,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation("row(a, -1, 1) + column(a, -1, 1) + radius(a)")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data_and_metadata = computation.evaluate()
+            data_and_metadata = DataItem.evaluate_data(computation)
             icol, irow = numpy.meshgrid(numpy.linspace(-1, 1, 8), numpy.linspace(-1, 1, 10))
             self.assertTrue(numpy.array_equal(data_and_metadata.data, icol + irow + numpy.sqrt(pow(icol, 2) + pow(irow, 2))))
 
@@ -776,8 +773,8 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
             computation2.needs_update = True
-            data = computation.evaluate().data
-            data2 = computation2.evaluate().data
+            data = DataItem.evaluate_data(computation).data
+            data2 = DataItem.evaluate_data(computation2).data
             assert numpy.array_equal(data, src_data)
             assert numpy.array_equal(data, data2)
 
@@ -791,7 +788,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             assert numpy.array_equal(data, d + 5)
 
     def test_evaluation_with_two_variables_produces_correct_data(self):
@@ -805,7 +802,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_variable("y", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            assert numpy.array_equal(computation.evaluate().data, src_data)
+            assert numpy.array_equal(DataItem.evaluate_data(computation).data, src_data)
 
     def test_changing_variable_value_updates_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -881,8 +878,8 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
             computation2.needs_update = True
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
-            self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation2).data, src_data + 5))
 
     def test_computation_variable_writes_and_reads(self):
         variable = Symbolic.ComputationVariable("x", value_type="integral", value=5)
@@ -909,9 +906,9 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("a + x")
             x = computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
             computation.expression = "x + a"
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
 
     def test_computation_using_object_parses_and_evaluates(self):
         document_model = DocumentModel.DocumentModel()
@@ -922,7 +919,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
 
     def test_computation_using_object_updates_when_data_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -933,7 +930,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("a + x")
             computation.create_variable("x", value_type="integral", value=5)
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
             d = computation.write_to_dict()
             read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
@@ -941,7 +938,7 @@ class TestSymbolicClass(unittest.TestCase):
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             with data_item.maybe_data_source.data_ref() as dr:
                 dr.data = src_data2
-            self.assertTrue(numpy.array_equal(read_computation.evaluate().data, src_data2 + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(read_computation).data, src_data2 + 5))
 
     def test_computation_using_object_updates_efficiently_when_region_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -1067,8 +1064,8 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
             computation2.needs_update = True
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
-            self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation2).data, src_data + 5))
 
     def test_computation_with_object_evaluates_correctly_after_changing_the_variable_name(self):
         document_model = DocumentModel.DocumentModel()
@@ -1079,10 +1076,10 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation("a + x")
             computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
             x = computation.create_variable("x", value_type="integral", value=5)
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
             x.name = "xx"
             computation.expression = "a + xx"
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data + 5))
 
     def test_computation_with_object_evaluates_correctly_after_changing_the_specifier(self):
         document_model = DocumentModel.DocumentModel()
@@ -1096,10 +1093,10 @@ class TestSymbolicClass(unittest.TestCase):
             expression = "a + 1"
             computation = document_model.create_computation(expression)
             a = computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data1 + 1))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data1 + 1))
             a.specifier = document_model.get_object_specifier(data_item2, "data")
             computation.expression = expression
-            self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data2 + 1))
+            self.assertTrue(numpy.array_equal(DataItem.evaluate_data(computation).data, src_data2 + 1))
 
     def test_computation_fires_needs_update_event_when_specifier_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -1219,19 +1216,19 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
             computation.expression = "astype(src, int)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.int_)
             self.assertTrue(numpy.array_equal(data, src_data.astype(int)))
             computation.expression = "astype(src, int16)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.int16)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int16)))
             computation.expression = "astype(src, int32)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.int32)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int32)))
             computation.expression = "astype(src, int64)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.int64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.int64)))
 
@@ -1244,19 +1241,19 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
             computation.expression = "astype(src, uint8)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.uint8)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint8)))
             computation.expression = "astype(src, uint16)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.uint16)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint16)))
             computation.expression = "astype(src, uint32)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.uint32)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint32)))
             computation.expression = "astype(src, uint64)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.uint64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.uint64)))
 
@@ -1269,11 +1266,11 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
             computation.expression = "astype(src, float32)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.float32)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.float32)))
             computation.expression = "astype(src, float64)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.float64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.float64)))
 
@@ -1286,11 +1283,11 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation()
             computation.create_object("src", document_model.get_object_specifier(data_item, "data"))
             computation.expression = "astype(src, complex64)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.complex64)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex64)))
             computation.expression = "astype(src, complex128)"
-            data = computation.evaluate().data
+            data = DataItem.evaluate_data(computation).data
             self.assertEqual(data.dtype, numpy.complex128)
             self.assertTrue(numpy.array_equal(data, src_data.astype(numpy.complex128)))
 
@@ -1307,7 +1304,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation.create_object("src1", document_model.get_object_specifier(data_item1, "data"))
             computation.create_object("src2", document_model.get_object_specifier(data_item2, "data"))
             computation.expression = "vstack((src1, src2))"
-            data_and_metadata = computation.evaluate_data()
+            data_and_metadata = DataItem.evaluate_data(computation)
             self.assertEqual(data_and_metadata.collection_dimension_count, 1)
             self.assertEqual(data_and_metadata.datum_dimension_count, 1)
 

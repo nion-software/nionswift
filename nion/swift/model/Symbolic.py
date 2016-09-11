@@ -411,7 +411,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_type("computation")
         self.define_property("original_expression", expression)
         self.define_property("error_text", changed=self.__error_changed)
-        self.define_property("evaluate_error")
         self.define_property("label", changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
@@ -421,7 +420,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__bound_item_deleted_event_listeners = dict()
         self.__variable_property_changed_listener = dict()
         self.__evaluate_lock = threading.RLock()
-        self.__data_and_metadata = None
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
         self.needs_update_event = Event.Event()
@@ -510,8 +508,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             pass
         return names
 
-    def __parse_expression(self, expression):
-        if expression:
+    def evaluate_with_target(self, target) -> None:
+        expression = self.original_expression
+        if self.needs_update and expression:
             computation_variable_map = dict()
             for variable in self.variables:
                 variable_specifier = variable.variable_specifier
@@ -528,42 +527,28 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             g["data_by_uuid"] = functools.partial(data_by_uuid, computation_context)
             g["region_by_uuid"] = functools.partial(region_by_uuid, computation_context)
             g["region_mask"] = region_mask
+            g["target"] = target
             l = dict()
             for variable_name, object_specifier in computation_variable_map.items():
                 resolved_object = computation_context.resolve_object_specifier(object_specifier)
                 g[variable_name] = resolved_object.value if resolved_object else None
-            expression_lines = expression_lines[:-1] + ["result = {0}".format(expression_lines[-1]), ]
+            expression_lines = expression_lines[:-1] + ["target.data_and_metadata = {0}".format(expression_lines[-1]), ]
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
             try:
                 compiled = compile(code, "expr", "exec")
                 exec(compiled, g, l)
                 self._evaluation_count_for_test += 1
-                data_and_metadata, error_text = l["result"], None
+                error_text = None
             except Exception as e:
                 # import sys, traceback
                 # traceback.print_exc()
                 # traceback.format_exception(*sys.exc_info())
-                data_and_metadata, error_text = None, str(e)  # use this instead of giving user too much information from stack trace
+                error_text = str(e)  # a stack trace would be too much information right now
 
-            self.__data_and_metadata = data_and_metadata
             self.error_text = error_text
             self.needs_update = False
-
-    def evaluate(self) -> DataAndMetadata.DataAndMetadata:
-        """Evaluate the computation and return data and metadata."""
-        if self.needs_update:
-            self.__parse_expression(self.expression)
-        return self.__data_and_metadata
-
-    def evaluate_data(self) -> DataAndMetadata.DataAndMetadata:
-        try:
-            data_and_metadata = self.evaluate()
-            self.evaluate_error = None
             self.last_evaluate_data_time = time.perf_counter()
-            return data_and_metadata
-        except Exception as e:
-            self.evaluate_error = str(e)
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
         def needs_update():

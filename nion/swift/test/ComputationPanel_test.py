@@ -1,6 +1,5 @@
 # standard libraries
 import contextlib
-import logging
 import unittest
 
 # third party libraries

@@ -204,7 +204,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
         if self.__data_item_manager:
-            self.__data_item_manager.computation_changed(self, None)
+            self.__data_item_manager.computation_changed(self._data_item, self, None)
         self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed
@@ -336,10 +336,10 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         with self.__data_item_manager_lock:
             computation = self.computation
             if self.__data_item_manager and computation:
-                self.__data_item_manager.computation_changed(self, None)
+                self.__data_item_manager.computation_changed(self._data_item, self, None)
             self.__data_item_manager = data_item_manager
             if self.__data_item_manager and computation:
-                self.__data_item_manager.computation_changed(self, computation)
+                self.__data_item_manager.computation_changed(self._data_item, self, computation)
 
     def set_dependent_data_item(self, data_item):
         self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
@@ -381,7 +381,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__computation_cascade_delete_event_listener.close()
             self.__computation_cascade_delete_event_listener= None
         if self.__data_item_manager:
-            self.__data_item_manager.computation_changed(self, new_computation)
+            self.__data_item_manager.computation_changed(self._data_item, self, new_computation)
         if new_computation:
             def computation_mutated():
                 self.computation_changed_or_mutated_event.fire(self, new_computation)
@@ -1447,9 +1447,17 @@ def sort_by_date_key(data_item):
     """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
     return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
 
-def new_data_item(data_and_metadata):
+def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> DataItem:
     data_item = DataItem()
     buffered_data_source = BufferedDataSource()
     data_item.append_data_source(buffered_data_source)
     buffered_data_source.set_data_and_metadata(data_and_metadata)
     return data_item
+
+def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
+    class DataHolder:
+        def __init__(self):
+            self.data_and_metadata = None
+    data_item = DataHolder()
+    computation.evaluate_with_target(data_item)
+    return data_item.data_and_metadata
