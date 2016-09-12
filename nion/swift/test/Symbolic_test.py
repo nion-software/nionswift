@@ -312,6 +312,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_node_dict = computation.write_to_dict()
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
+            computation2.needs_update = True
             data = computation.evaluate().data
             data2 = computation2.evaluate().data
             assert numpy.array_equal(data, -src_data / numpy.average(src_data) * 5)
@@ -774,6 +775,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_node_dict = computation.write_to_dict()
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
+            computation2.needs_update = True
             data = computation.evaluate().data
             data2 = computation2.evaluate().data
             assert numpy.array_equal(data, src_data)
@@ -878,6 +880,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = computation.write_to_dict()
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
+            computation2.needs_update = True
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
             self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
 
@@ -934,6 +937,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = computation.write_to_dict()
             read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
+            read_computation.needs_update = True
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             with data_item.maybe_data_source.data_ref() as dr:
                 dr.data = src_data2
@@ -1062,6 +1066,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = computation.write_to_dict()
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
+            computation2.needs_update = True
             self.assertTrue(numpy.array_equal(computation.evaluate().data, src_data + 5))
             self.assertTrue(numpy.array_equal(computation2.evaluate().data, src_data + 5))
 

@@ -423,7 +423,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__evaluate_lock = threading.RLock()
         self.__data_and_metadata = None
         self.last_evaluate_data_time = 0
-        self.needs_update = True
+        self.needs_update = expression is not None
         self.needs_update_event = Event.Event()
         self.cascade_delete_event = Event.Event()
         self.computation_mutated_event = Event.Event()

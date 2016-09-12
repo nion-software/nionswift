@@ -82,11 +82,13 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertIsNone(panel._error_label_for_testing.text)
             panel._text_edit_for_testing.text = "xyz(a)"
             panel._text_edit_for_testing.on_return_pressed()
+            document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(panel._text_edit_for_testing.text, "xyz(a)")
             self.assertTrue(len(panel._error_label_for_testing.text) > 0)
             panel._text_edit_for_testing.text = expression
             panel._text_edit_for_testing.on_return_pressed()
+            document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(panel._text_edit_for_testing.text, expression)
             self.assertIsNone(panel._error_label_for_testing.text)
