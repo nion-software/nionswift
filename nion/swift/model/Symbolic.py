@@ -423,14 +423,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__evaluate_lock = threading.RLock()
         self.__data_and_metadata = None
         self.last_evaluate_data_time = 0
-        self.needs_update = expression is not None
+        self.needs_update = True
         self.needs_update_event = Event.Event()
         self.cascade_delete_event = Event.Event()
         self.computation_mutated_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
         self._evaluation_count_for_test = 0
-        self.__needs_parse = True
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
@@ -448,10 +447,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         count = self.item_count("variables")
         self.append_item("variables", variable)
         self.__bind_variable(variable)
-        self.__parse_expression(self.expression)
         self.variable_inserted_event.fire(count, variable)
         self.computation_mutated_event.fire()
-        self.__needs_parse = True
         self.needs_update = True
         self.needs_update_event.fire()
 
@@ -459,9 +456,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__unbind_variable(variable)
         index = self.item_index("variables", variable)
         self.remove_item("variables", variable)
-        self.__parse_expression(self.expression)
         self.variable_removed_event.fire(index, variable)
         self.computation_mutated_event.fire()
+        self.needs_update = True
+        self.needs_update_event.fire()
 
     def create_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> ComputationVariable:
         variable = ComputationVariable(name, value_type, value, value_default, value_min, value_max, control_type, specifier, label)
@@ -490,7 +488,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     @expression.setter
     def expression(self, value: str) -> None:
         if value != self.original_expression:
-            self.__parse_expression(value)
             self.original_expression = value
             self.processing_id = None
             self.needs_update = True
@@ -541,6 +538,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             try:
                 compiled = compile(code, "expr", "exec")
                 exec(compiled, g, l)
+                self._evaluation_count_for_test += 1
                 data_and_metadata, error_text = l["result"], None
             except Exception as e:
                 # import sys, traceback
@@ -550,13 +548,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
             self.__data_and_metadata = data_and_metadata
             self.error_text = error_text
-            self.__needs_parse = False
+            self.needs_update = False
 
     def evaluate(self) -> DataAndMetadata.DataAndMetadata:
         """Evaluate the computation and return data and metadata."""
-        self._evaluation_count_for_test += 1
-        self.needs_update = False
-        if self.__needs_parse:
+        if self.needs_update:
             self.__parse_expression(self.expression)
         return self.__data_and_metadata
 
@@ -571,7 +567,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
         def needs_update():
-            self.__needs_parse = True
             self.needs_update = True
             self.needs_update_event.fire()
 

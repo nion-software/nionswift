@@ -982,6 +982,56 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             evaluation_count = computation._evaluation_count_for_test
             s.value = 4
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 0)
+            document_model.recompute_all()
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
+
+    def test_computation_updates_efficiently_when_variable_added_or_removed(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            region = Graphics.RectangleGraphic()
+            region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
+            data_item.maybe_data_source.displays[0].add_graphic(region)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation("gaussian_blur(a, s)")
+            s = computation.create_variable("s", value_type="integral", value=5)
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            document_model.recompute_all()
+            evaluation_count = computation._evaluation_count_for_test
+            t = computation.create_variable("t", value_type="integral", value=5)
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 0)
+            document_model.recompute_all()
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
+            computation.remove_variable(t)
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
+            document_model.recompute_all()
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 2)
+
+    def test_computation_updates_efficiently_when_expression_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(12, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            region = Graphics.RectangleGraphic()
+            region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
+            data_item.maybe_data_source.displays[0].add_graphic(region)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation("gaussian_blur(a, s)")
+            s = computation.create_variable("s", value_type="integral", value=5)
+            computation.create_object("a", document_model.get_object_specifier(data_item, "data"))
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            document_model.recompute_all()
+            evaluation_count = computation._evaluation_count_for_test
+            computation.expression = "gaussian_blur(a, 2)"
+            # computation should not be re-evaluated until requested
+            self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 0)
             document_model.recompute_all()
             self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
 
