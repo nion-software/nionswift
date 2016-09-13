@@ -1044,26 +1044,36 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(read_display_specifier2.buffered_data_source.computation.needs_update)
 
-    @unittest.expectedFailure
-    def test_computation_with_id_updates_to_latest_version_when_reloaded(self):
+    def test_computations_with_id_update_to_latest_version_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        modifieds = dict()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            crop_region = Graphics.RectangleGraphic()
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             document_model.append_data_item(data_item)
             inverted_data_item = document_model.get_invert_new(data_item)
-            inverted_data_item_uuid = inverted_data_item.uuid
+            cropped_inverted_data_item = document_model.get_invert_new(data_item, crop_region)
             document_model.recompute_all()
-            inverted_data_item_modified = inverted_data_item.modified
+            modifieds[str(inverted_data_item.uuid)] = inverted_data_item.modified
+            modifieds[str(cropped_inverted_data_item.uuid)] = cropped_inverted_data_item.modified
         # modify original expression to be something else
-        memory_persistent_storage_system.properties[str(inverted_data_item_uuid)]["data_sources"][0]["computation"]["original_expression"] = "incorrect"
+        original_expressions = dict()
+        for data_item_uuid in memory_persistent_storage_system.properties.keys():
+            computation_dict = memory_persistent_storage_system.properties[data_item_uuid]["data_sources"][0].get("computation", dict())
+            original_expression = computation_dict.get("original_expression")
+            if original_expression:
+                computation_dict["original_expression"] = "incorrect"
+                original_expressions[data_item_uuid] = original_expression
         # reload and check inverted data item has updated original expression, does not need recompute, and has not been modified
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            inverted_data_item = document_model.get_data_item_by_uuid(inverted_data_item_uuid)
-            self.assertNotEqual(inverted_data_item.maybe_data_source.computation.original_expression, "incorrect")
-            self.assertFalse(inverted_data_item.maybe_data_source.computation.needs_update)
-            self.assertEqual(inverted_data_item.modified, inverted_data_item_modified)
+            for data_item_uuid in original_expressions.keys():
+                data_item = document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
+                self.assertEqual(data_item.maybe_data_source.computation.original_expression, original_expressions[data_item_uuid])
+                self.assertFalse(data_item.maybe_data_source.computation.needs_update)
+                self.assertEqual(data_item.modified, modifieds[data_item_uuid])
 
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()

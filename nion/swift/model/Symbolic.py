@@ -632,3 +632,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for variable in self.variables:
             if variable.name == variable_name:
                 variable.value = value
+
+    def _has_variable(self, variable_name: str) -> bool:
+        for variable in self.variables:
+            if variable.name == variable_name:
+                return True
+        return False

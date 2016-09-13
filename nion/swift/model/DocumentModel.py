@@ -11,11 +11,9 @@ import os.path
 import shutil
 import threading
 import time
+import typing
 import uuid
 import weakref
-
-# typing
-from typing import List
 
 # third party libraries
 import scipy
@@ -1017,8 +1015,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_request_remove_data_item_listeners = dict()
         self.__data_item_references = dict()
         self.__computation_queue_lock = threading.RLock()
-        self.__computation_pending_queue = list()  # type: List[ComputationQueueItem]
-        self.__computation_active_items = list()  # type: List[ComputationQueueItem]
+        self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
+        self.__computation_active_items = list()  # type: typing.List[ComputationQueueItem]
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -1061,7 +1059,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_items = self.persistent_object_context.read_data_items()
         self.__finish_read(data_items)
 
-    def __finish_read(self, data_items: List[DataItem.DataItem]) -> None:
+    def __finish_read(self, data_items: typing.List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
             data_item.set_storage_cache(self.storage_cache)
@@ -1085,6 +1083,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 computation = buffered_data_source.computation
                 if computation:
                     try:
+                        self.update_computation(computation)
                         computation.bind(self)
                     except Exception as e:
                         print(str(e))
@@ -1152,7 +1151,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.undefine_items()
         self.undefine_relationships()
 
-    def auto_migrate(self, paths: List[str], log_copying: bool=True) -> None:
+    def auto_migrate(self, paths: typing.List[str], log_copying: bool=True) -> None:
         file_persistent_storage_system = FilePersistentStorageSystem(paths)
         persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=log_copying)
         data_items = persistent_object_context.read_data_items(target_document=self)
@@ -2043,10 +2042,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def make_connection(type, src=None, src_prop=None, dst=None, dst_prop=None):
         return DocumentModel.Connection(type, src, src_prop, dst, dst_prop)
 
-    def make_data_item_with_computation(self, fn_template: str, sources: List, params: List, label: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
+    def make_data_item_with_computation(self, fn_template: str, sources: typing.List, params: typing.List, label: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
         return self.__get_processing_new(fn_template, sources, params, label, prefix, out_regions, connections)
 
-    def __get_processing_new(self, fn_template: str, sources: List, params: List, label: str, processing_id: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
+    def __get_processing_new(self, fn_template: str, sources: typing.List, params: typing.List, label: str, processing_id: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
         data_items = [source.data_item for source in sources]
         display_specifiers = [DataItem.DisplaySpecifier.from_data_item(data_item) for data_item in data_items]
         buffered_data_sources = [display_specifier.buffered_data_source for display_specifier in display_specifiers]
@@ -2184,114 +2183,189 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             return new_data_item
         return None
 
+    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
+        processing_descriptions = self.__get_processing_descriptions()
+        region_map = region_map or dict()
+        processing_description = processing_descriptions[processing_id]
+        src_dicts = processing_description.get("sources", list())
+        assert len(inputs) == len(src_dicts)
+        src_list = list()
+        for src_dict, input in zip(src_dicts, inputs):
+            requirement_list = list()
+            for requirement_dict in src_dict.get("requirements", list()):
+                requirement = DocumentModel.make_requirement(requirement_dict["type"], mn=requirement_dict["mn"], mx=requirement_dict["mx"])
+                requirement_list.append(requirement)
+            region_list = list()
+            region_dict_list = src_dict.get("regions", list())
+            src_name = src_dict["name"]
+            src_region_list = region_map.get(src_name, list())
+            assert len(region_dict_list) == len(src_region_list)
+            for region_dict, region in zip(region_dict_list, src_region_list):
+                region_desc = DocumentModel.make_region(region_dict["name"], region_dict["type"], region, region_dict.get("params"))
+                region_list.append(region_desc)
+            src = DocumentModel.make_source(input[0], input[1] if src_dict.get("croppable", False) else None, src_name, src_dict["label"], src_dict.get("use_display_data", True), requirement_list, region_list)
+            src_list.append(src)
+        param_list = list()
+        for param_dict in processing_description.get("parameters", list()):
+            param = DocumentModel.make_parameter(param_dict["name"], param_dict["label"], param_dict["type"], param_dict["value"],
+                                                 param_dict.get("value_default"), param_dict.get("value_min"), param_dict.get("value_max"),
+                                                 param_dict.get("control_type"))
+            param_list.append(param)
+        out_region_list = list()
+        for out_region_dict in processing_description.get("out_regions", list()):
+            out_region = DocumentModel.make_region(out_region_dict["name"], out_region_dict["type"], params=out_region_dict.get("params"))
+            out_region_list.append(out_region)
+        connection_list = list()
+        for connection_dict in processing_description.get("connections", list()):
+            connection = DocumentModel.make_connection(connection_dict["type"], src=connection_dict["src"], src_prop=connection_dict.get("src_prop"), dst=connection_dict["dst"], dst_prop=connection_dict.get("dst_prop"))
+            connection_list.append(connection)
+        return self.__get_processing_new(processing_description["script"], src_list, param_list, processing_description["title"], processing_id, out_regions=out_region_list, connections=connection_list)
+
+    def update_computation(self, computation: Symbolic.Computation) -> None:
+        if computation:
+            processing_descriptions = self.__get_processing_descriptions()
+            processing_id = computation.processing_id
+            processing_description = processing_descriptions.get(processing_id)
+            if processing_description:
+                src_names = list()
+                src_texts = list()
+                source_dicts = processing_description["sources"]
+                for i, source_dict in enumerate(source_dicts):
+                    src_names.append(source_dict["name"])
+                    data_expression = source_dict["name"] + (".display_data" if source_dict.get("use_display_data", True) else ".data")
+                    if source_dict.get("croppable", False):
+                        crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
+                        if computation._has_variable(crop_region_variable_name):
+                            data_expression = "crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
+                    src_texts.append(data_expression)
+                expression = processing_description["script"].format(**dict(zip(src_names, src_texts)))
+                computation._get_persistent_property("original_expression").value = expression
+
+    def __get_processing_descriptions(self):
+        vs = dict()
+        vs["fft"] = {"title": _("FFT"), "script": "fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["inverse-fft"] = {"title": _("Inverse FFT"), "script": "ifft({src})", "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
+        vs["auto-correlate"] = {"title": _("Auto Correlate"), "script": "autocorrelate({src})",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["cross-correlate"] = {"title": _("Cross Correlate"), "script": "crosscorrelate({src1}, {src2})",
+            "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+        vs["sobel"] = {"title": _("Sobel"), "script": "sobel({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["laplace"] = {"title": _("Laplace"), "script": "laplace({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 3, "value_default": 3, "value_min": 0, "value_max": 100,
+            "control_type": "slider"}
+        vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "script": "gaussian_blur({src}, sigma)",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [sigma_param]}
+        filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integral", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
+        vs["median-filter"] = {"title": _("Median Filter"), "script": "median_filter({src}, filter_size)",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
+        vs["uniform-filter"] = {"title": _("Uniform Filter"), "script": "uniform_filter({src}, filter_size)",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
+        do_transpose_param = {"name": "do_transpose", "label": _("Transpose"), "type": "boolean", "value": False, "value_default": False}
+        do_flip_v_param = {"name": "do_flip_v", "label": _("Flip Vertical"), "type": "boolean", "value": False, "value_default": False}
+        do_flip_h_param = {"name": "do_flip_h", "label": _("Flip Horizontal"), "type": "boolean", "value": False, "value_default": False}
+        vs["transpose-flip"] = {"title": _("Transpose/Flip"), "script": "transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
+        width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
+        height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
+        vs["resample"] = {"title": _("Resample"), "script": "resample_image({src}, shape(height, width))",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
+        bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
+        vs["histogram"] = {"title": _("Histogram"), "script": "histogram({src}, bins)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}],
+            "parameters": [bins_param]}
+        vs["invert"] = {"title": _("Invert"), "script": "invert({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["convert-to-scalar"] = {"title": _("Scalar"), "script": "{src}", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        requirement_2d = {"type": "dimensionality", "mn": 2, "mx": 2}
+        requirement_3d = {"type": "dimensionality", "mn": 3, "mx": 3}
+        crop_in_region = {"name": "crop_region", "type": "rectangle", "params": {"label": _("Crop Region")}}
+        vs["crop"] = {"title": _("Crop"), "script": "crop({src}, crop_region.bounds)",
+            "sources": [{"name": "src", "label": _("Source"), "regions": [crop_in_region], "requirements": [requirement_2d]}]}
+        vs["sum"] = {"title": _("Sum"), "script": "sum({src}, 0)",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_2d]}]}
+        slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
+        slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+        vs["slice"] = {"title": _("Slice"), "script": "slice_sum({src}, center, width)",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_3d]}],
+            "parameters": [slice_center_param, slice_width_param]}
+        pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
+        pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
+        pick_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
+        vs["pick-point"] = {"title": _("Pick"), "script": "pick({src}, pick_region.position)",
+            "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_in_region], "requirements": [requirement_3d]}],
+            "out_regions": [pick_out_region], "connections": [pick_connection]}
+        pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
+        pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
+        pick_sum_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
+        vs["pick-mask-sum"] = {"title": _("Pick Sum"), "script": "sum_region({src}, region_mask({src}, region))",
+            "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
+            "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
+        line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
+        line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
+        vs["line-profile"] = {"title": _("Line Profile"), "script": "line_profile({src}, line_region.vector, line_region.width)",
+            "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
+        filter_in_region = {"name": "region", "type": "spot"}
+        vs["filter"] = {"title": _("Filter"), "script": "real(ifft(fourier_mask(src.data, region_mask(src.data, region))))",
+            "sources": [{"name": "src", "label": _("Source"), "regions": [filter_in_region], "requirements": [requirement_2d]}]}
+        return vs
+
     def get_fft_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("fft({src})", [src], [], _("FFT"), "fft")
+        return self.__make_computation("fft", [(data_item, crop_region)])
 
     def get_ifft_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False)
-        return self.__get_processing_new("ifft({src})", [src], [], _("Inverse FFT"), "inverse-fft")
+        return self.__make_computation("inverse-fft", [(data_item, crop_region)])
 
     def get_auto_correlate_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("autocorrelate({src})", [src], [], _("Auto Correlate"), "auto-correlate")
+        return self.__make_computation("auto-correlate", [(data_item, crop_region)])
 
     def get_cross_correlate_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src1 = DocumentModel.make_source(data_item1, crop_region1, "src1", _("Source1"))
-        src2 = DocumentModel.make_source(data_item2, crop_region2, "src2", _("Source2"))
-        return self.__get_processing_new("crosscorrelate({src1}, {src2})", [src1, src2], [], _("Cross Correlate"), "cross-correlate")
+        return self.__make_computation("cross-correlate", [(data_item1, crop_region1), (data_item2, crop_region2)])
 
     def get_sobel_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("sobel({src})", [src], [], _("Sobel"), "sobel")
+        return self.__make_computation("sobel", [(data_item, crop_region)])
 
     def get_laplace_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("laplace({src})", [src], [], _("Laplace"), "laplace")
+        return self.__make_computation("laplace", [(data_item, crop_region)])
 
     def get_gaussian_blur_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        param = DocumentModel.make_parameter("sigma", _("Sigma"), "real", 3, value_default=3, value_min=0, value_max=100, control_type="slider")
-        return self.__get_processing_new("gaussian_blur({src}, sigma)", [src], [param], _("Gaussian Blur"), "gaussian-blur")
+        return self.__make_computation("gaussian-blur", [(data_item, crop_region)])
 
     def get_median_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        param = DocumentModel.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
-        return self.__get_processing_new("median_filter({src}, filter_size)", [src], [param], _("Median Filter"), "median-filter")
+        return self.__make_computation("median-filter", [(data_item, crop_region)])
 
     def get_uniform_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        param = DocumentModel.make_parameter("filter_size", _("Size"), "integral", 3, value_default=3, value_min=1, value_max=100)
-        return self.__get_processing_new("uniform_filter({src}, filter_size)", [src], [param], _("Uniform Filter"), "uniform-filter")
+        return self.__make_computation("uniform-filter", [(data_item, crop_region)])
 
     def get_transpose_flip_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        param1 = DocumentModel.make_parameter("do_transpose", _("Transpose"), "boolean", False, value_default=False)
-        param2 = DocumentModel.make_parameter("do_flip_v", _("Flip Vertical"), "boolean", False, value_default=False)
-        param3 = DocumentModel.make_parameter("do_flip_h", _("Flip Horizontal"), "boolean", False, value_default=False)
-        return self.__get_processing_new("transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", [src], [param1, param2, param3], _("Transpose/Flip"), "transpose-flip")
+        return self.__make_computation("transpose-flip", [(data_item, crop_region)])
 
     def get_resample_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        param1 = DocumentModel.make_parameter("width", _("Width"), "integral", 256, value_default=256, value_min=1)
-        param2 = DocumentModel.make_parameter("height", _("Height"), "integral", 256, value_default=256, value_min=1)
-        return self.__get_processing_new("resample_image({src}, shape(height, width))", [src], [param1, param2], _("Resample"), "resample")
+        return self.__make_computation("resample", [(data_item, crop_region)])
 
     def get_histogram_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        param = DocumentModel.make_parameter("bins", _("Bins"), "integral", 256, value_default=256, value_min=2)
-        return self.__get_processing_new("histogram({src}, bins)", [src], [param], _("Histogram"), "histogram")
+        return self.__make_computation("histogram", [(data_item, crop_region)])
 
     def get_invert_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("invert({src})", [src], [], _("Invert"), "invert")
+        return self.__make_computation("invert", [(data_item, crop_region)])
 
     def get_convert_to_scalar_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"))
-        return self.__get_processing_new("{src}", [src], [], _("Scalar"), "convert-to-scalar")
+        return self.__make_computation("convert-to-scalar", [(data_item, crop_region)])
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
-        in_region = DocumentModel.make_region("crop_region", "rectangle", crop_region, {"label": _("Crop Region")})
-        src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("crop({src}, crop_region.bounds)", [src], [], _("Crop"), "crop")
+        return self.__make_computation("crop", [(data_item, crop_region)], {"src": [crop_region]})
 
     def get_projection_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
-        return self.__get_processing_new("sum({src}, 0)", [src], [], _("Sum"), "sum")
+        return self.__make_computation("sum", [(data_item, crop_region)])
 
     def get_slice_sum_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
-        src = DocumentModel.make_source(data_item, crop_region, "src", _("Source"), use_display_data=False, requirements=[requirement])
-        param1 = DocumentModel.make_parameter("center", _("Center"), "integral", 0, value_default=0, value_min=0)
-        param2 = DocumentModel.make_parameter("width", _("Width"), "integral", 1, value_default=1, value_min=1)
-        return self.__get_processing_new("slice_sum({src}, center, width)", [src], [param1, param2], _("Slice"), "slice")
+        return self.__make_computation("slice", [(data_item, crop_region)])
 
     def get_pick_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.PointTypeGraphic=None) -> DataItem.DataItem:
-        requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
-        in_region = DocumentModel.make_region("pick_region", "point", pick_region, {"label": _("Pick Point")})
-        out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
-        connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
-        src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("pick({src}, pick_region.position)", [src], [], _("Pick"), "pick-point", out_regions=[out_region], connections=[connection])
+        return self.__make_computation("pick-point", [(data_item, crop_region)], {"src": [pick_region]})
 
     def get_pick_region_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, pick_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        requirement = DocumentModel.make_requirement("dimensionality", mn=3, mx=3)
-        in_region = DocumentModel.make_region("region", "rectangle", pick_region, {"label": _("Pick Region")})
-        connection = DocumentModel.make_connection("property", src="display", src_prop="slice_interval", dst="interval_region", dst_prop="interval")
-        out_region = DocumentModel.make_region("interval_region", "interval", params={"label": _("Display Slice")})
-        src = DocumentModel.make_source(data_item, None, "src", _("Source"), use_display_data=False, regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("sum_region({src}, region_mask({src}, region))", [src], [], _("Pick Sum"), "pick-mask-sum", out_regions=[out_region], connections=[connection])
+        return self.__make_computation("pick-mask-sum", [(data_item, crop_region)], {"src": [pick_region]})
 
     def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
-        in_region = DocumentModel.make_region("line_region", "line", line_region, {"label": _("Line Profile")})
-        connection = DocumentModel.make_connection("interval_list", src="data_source", dst="line_region")
-        src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region])
-        return self.__get_processing_new("line_profile({src}, line_region.vector, line_region.width)", [src], [], _("Line Profile"), "line-profile", connections=[connection])
+        return self.__make_computation("line-profile", [(data_item, crop_region)], {"src": [line_region]})
 
     def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, filter_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        requirement = DocumentModel.make_requirement("dimensionality", mn=2, mx=2)  # TODO: be an FFT
-        in_region = DocumentModel.make_region("region", "spot", filter_region)
-        src = DocumentModel.make_source(data_item, None, "src", _("Source"), regions=[in_region], requirements=[requirement])
-        return self.__get_processing_new("real(ifft(fourier_mask(src.data, region_mask(src.data, region))))", [src], [], _("Filter"), "filter")
+        return self.__make_computation("filter", [(data_item, crop_region)], {"src": [filter_region]})
