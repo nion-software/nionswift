@@ -94,7 +94,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
     if part_name == "top-left" and not "shape" in constraints:  # top left
         new_top_left = old_top + delta[0], old_left + delta[1]
         if modifiers.alt or "position" in constraints:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = old_center[0] - new_top_left[0], old_center[1] - new_top_left[1]
                 if half_size[0] > half_size[1]:  # size will be width
@@ -112,7 +112,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
             new_bottom_right = 2*old_center[0] - new_top_left[0], 2*old_center[1] - new_top_left[1]
             new_bounds = new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1])
         else:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-right from origin and opposite corner of data
                     min_from_00 = min(old_bottom, old_right)
@@ -137,7 +137,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
     elif part_name == "top-right" and not "shape" in constraints:  # top right
         new_top_right = old_top + delta[0], old_right + delta[1]
         if modifiers.alt or "position" in constraints:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = old_center[0] - new_top_right[0], new_top_right[1] - old_center[1]
                 if half_size[0] > half_size[1]:  # size will be width
@@ -155,7 +155,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
             new_bottom_left = 2*old_center[0] - new_top_right[0], 2*old_center[1] - new_top_right[1]
             new_bounds = (new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1])
         else:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-left from bottom-left and opposite corner of data
                     min_from_10 = min(data_height - old_bottom, old_left)
@@ -180,7 +180,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
     elif part_name == "bottom-right" and not "shape" in constraints:  # bottom right
         new_bottom_right = old_bottom + delta[0], old_right + delta[1]
         if modifiers.alt or "position" in constraints:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = new_bottom_right[0] - old_center[0], new_bottom_right[1] - old_center[1]
                 if half_size[0] > half_size[1]:  # size will be width
@@ -198,7 +198,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
             new_top_left = 2*old_center[0] - new_bottom_right[0], 2*old_center[1] - new_bottom_right[1]
             new_bounds = new_top_left, (new_bottom_right[0] - new_top_left[0], new_bottom_right[1] - new_top_left[1])
         else:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of bottom-right from bottom-right and opposite corner of data
                     min_from_00 = min(old_top, old_left)
@@ -223,7 +223,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
     elif part_name == "bottom-left" and not "shape" in constraints:  # bottom left
         new_bottom_left = old_bottom + delta[0], old_left + delta[1]
         if modifiers.alt or "position" in constraints:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 # shape constrained to square; hold center constant
                 half_size = new_bottom_left[0] - old_center[0], old_center[1] - new_bottom_left[1]
                 if half_size[0] > half_size[1]:  # size will be width
@@ -241,7 +241,7 @@ def adjust_rectangle_like(mapping, original, current, part, modifiers, constrain
             new_top_right = 2*old_center[0] - new_bottom_left[0], 2*old_center[1] - new_bottom_left[1]
             new_bounds = (new_top_right[0], new_bottom_left[1]), (new_bottom_left[0] - new_top_right[0], new_top_right[1] - new_bottom_left[1])
         else:
-            if modifiers.shift:
+            if modifiers.shift or "square" in constraints:
                 if "bounds" in constraints:
                     # find the minimum distance of top-right from top-right and opposite corner of data
                     min_from_01 = min(old_top, data_width - old_right)
@@ -1359,7 +1359,7 @@ class SpotGraphic(Graphic):
     def adjust_part(self, mapping, original, current, part, modifiers):
         constraints = self._constraints
         if part[0] not in ("all", "inverted-all"):
-            constraints = constraints.union({"position"})
+            constraints = constraints.union({"position", "square"})
         self.bounds = adjust_rectangle_like(mapping, original, current, part, modifiers, constraints)
 
     def nudge(self, mapping, delta):
