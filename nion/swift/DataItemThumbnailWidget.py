@@ -74,7 +74,6 @@ class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
         self.__detach_listeners()
 
         self.__data_item = data_item
-        self._update_thumbnail(data_item)
 
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         if display_specifier.display:
@@ -85,6 +84,8 @@ class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
                 self._update_thumbnail(data_item)
 
             self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
+
+        self._update_thumbnail(data_item)
 
 
 class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
@@ -104,10 +105,6 @@ class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
         self.__data_item_changed_event_listener.close()
         self.__data_item_changed_event_listener = None
         super().close()
-
-    @property
-    def data_item(self):
-        return self.__data_item
 
 
 class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
@@ -222,8 +219,9 @@ class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
                 if display_specifier.data_item is not None:
                     mime_data = ui.create_mime_data()
                     mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
-                    thumbnail_data = display_specifier.display.thumbnail_data
-                    on_drag(mime_data, Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(thumbnail_data), (size.width, size.height))), x, y)
+                    rgba_image_data = self.__thumbnail_source.thumbnail_data
+                    on_drag(mime_data, Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height))), x, y)
+
 
         def data_item_drop(data_item_uuid):
             on_data_item_drop = self.on_data_item_drop
