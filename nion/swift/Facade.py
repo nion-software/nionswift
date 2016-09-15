@@ -491,10 +491,9 @@ class Region:
 
 
 class DataItem:
-
-    release = ["data", "set_data", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations", "set_dimensional_calibrations",
-        "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "display", "add_point_region", "add_rectangle_region",
-        "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
+    release = ["data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
+        "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "display", "add_point_region",
+        "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
 
     def __init__(self, data_item: DataItemModule.DataItem):
         self.__data_item = data_item
@@ -529,6 +528,18 @@ class DataItem:
         """
         with self.__data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.data = data
+
+    @property
+    def xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_item.maybe_data_source.data_and_metadata
+
+    @xdata.setter
+    def xdata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
+        self.__data_item.maybe_data_source.set_data_and_metadata(data_and_metadata)
+
+    @property
+    def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_item.maybe_data_source.displays[0].display_data_and_metadata
 
     @property
     def intensity_calibration(self) -> CalibrationModule.Calibration:
