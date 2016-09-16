@@ -788,12 +788,104 @@ class Graphic:
         self.__graphic = graphic
 
     @property
+    def _graphic(self):
+        return self.__graphic
+
+    @property
     def specifier(self):
         return ObjectSpecifier("graphic", self.__graphic.uuid)
 
     @property
     def region(self) -> Region:
         return Region(self.__graphic.region)
+
+    @property
+    def label(self) -> str:
+        return self.__graphic.label
+
+    @label.setter
+    def label(self, value: str) -> None:
+        self.__graphic.label = value
+
+    def get_property(self, property: str):
+        return getattr(self.__graphic, property)
+
+    def set_property(self, property: str, value):
+        setattr(self.__graphic, property, value)
+
+    # position, start, end, vector, center, size, bounds, angle
+
+    @property
+    def angle(self):
+        return self.get_property("angle")
+
+    @angle.setter
+    def angle(self, value):
+        self.set_property("angle", value)
+
+    @property
+    def bounds(self):
+        return self.get_property("bounds")
+
+    @bounds.setter
+    def bounds(self, value):
+        self.set_property("bounds", value)
+
+    @property
+    def center(self):
+        return self.get_property("center")
+
+    @center.setter
+    def center(self, value):
+        self.set_property("center", value)
+
+    @property
+    def end(self):
+        return self.get_property("end")
+
+    @end.setter
+    def end(self, value):
+        self.set_property("end", value)
+
+    @property
+    def position(self):
+        return self.get_property("position")
+
+    @position.setter
+    def position(self, value):
+        self.set_property("position", value)
+
+    @property
+    def size(self):
+        return self.get_property("size")
+
+    @size.setter
+    def size(self, value):
+        self.set_property("size", value)
+
+    @property
+    def start(self):
+        return self.get_property("start")
+
+    @start.setter
+    def start(self, value):
+        self.set_property("start", value)
+
+    @property
+    def vector(self):
+        return self.get_property("vector")
+
+    @vector.setter
+    def vector(self, value):
+        self.set_property("vector", value)
+
+    @property
+    def width(self):
+        return self.get_property("width")
+
+    @width.setter
+    def width(self, value):
+        self.set_property("width", value)
 
 
 class Display:
