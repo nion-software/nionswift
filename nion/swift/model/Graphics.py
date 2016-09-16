@@ -343,7 +343,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
             constraints.add("bounds")
         return constraints
 
-    def get_mask(self, data_shape: typing.Tuple[int]):
+    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
         return numpy.zeros(data_shape)
 
     # test whether points are close
@@ -505,7 +505,7 @@ class RectangleTypeGraphic(Graphic):
         self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
         self.size = bounds[1]
 
-    def get_mask(self, data_shape: typing.Tuple[int]):
+    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
@@ -632,7 +632,7 @@ class EllipseGraphic(RectangleTypeGraphic):
     def __init__(self):
         super().__init__("ellipse-graphic", _("Ellipse"))
 
-    def get_mask(self, data_shape: typing.Tuple[int]):
+    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
@@ -1262,7 +1262,7 @@ class SpotGraphic(Graphic):
         self.center = bounds[0][0] + bounds[1][0] * 0.5, bounds[0][1] + bounds[1][1] * 0.5
         self.size = bounds[1]
 
-    def get_mask(self, data_shape: typing.Tuple[int]):
+    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
@@ -1548,7 +1548,7 @@ class WedgeGraphic(Graphic):
             self.__inverted_drag = not self.__inverted_drag
         return None, None
 
-    def get_mask(self, data_shape: typing.Tuple[int]):
+    def get_mask(self, data_shape: typing.Sequence[int]) -> numpy.ndarray:
         mask1 = numpy.zeros(data_shape)
         mask2 = numpy.zeros(data_shape)
         bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))

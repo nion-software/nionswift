@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import copy
@@ -12,12 +9,9 @@ import unittest
 import numpy
 
 # local libraries
-from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Symbolic
-
 
 class TestRegionClass(unittest.TestCase):
 
@@ -123,18 +117,16 @@ class TestRegionClass(unittest.TestCase):
         point_graphic = Graphics.PointGraphic()
         point_graphic.position = (0.25, 0.25)
         wedge_graphic = Graphics.WedgeGraphic()
-        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((255, 255), 1, dtype=numpy.int32))
-        Symbolic.region_mask(data, line_graphic)
-        Symbolic.region_mask(data, spot_graphic)
-        Symbolic.region_mask(data, ellipse_graphic)
-        Symbolic.region_mask(data, rect_graphic)
-        Symbolic.region_mask(data, point_graphic)
+        line_graphic.get_mask((256, 256))
+        spot_graphic.get_mask((256, 256))
+        ellipse_graphic.get_mask((256, 256))
+        rect_graphic.get_mask((256, 256))
+        point_graphic.get_mask((256, 256))
 
     def test_region_mask_ellipse(self):
         ellipse_graphic = Graphics.EllipseGraphic()
         ellipse_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
-        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
-        mask = Symbolic.region_mask(data, ellipse_graphic)
+        mask = ellipse_graphic.get_mask((1000, 1000))
         self.assertEqual(mask.data[200, 200], 0)  # top left
         self.assertEqual(mask.data[200, 300], 0)  # bottom left
         self.assertEqual(mask.data[300, 300], 0)  # bottom right
@@ -147,8 +139,7 @@ class TestRegionClass(unittest.TestCase):
     def test_region_mask_spot(self):
         spot_graphic = Graphics.SpotGraphic()
         spot_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
-        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
-        mask = Symbolic.region_mask(data, spot_graphic)
+        mask = spot_graphic.get_mask((1000, 1000))
         self.assertEqual(mask.data[200, 200], 0)  # top left
         self.assertEqual(mask.data[200, 300], 0)  # bottom left
         self.assertEqual(mask.data[300, 300], 0)  # bottom right
@@ -170,8 +161,7 @@ class TestRegionClass(unittest.TestCase):
     def test_region_mask_rect(self):
         rect_graphic = Graphics.RectangleGraphic()
         rect_graphic.bounds = (0.2, 0.2), (0.1, 0.1)
-        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
-        mask = Symbolic.region_mask(data, rect_graphic)
+        mask = rect_graphic.get_mask((1000, 1000))
         self.assertEqual(mask.data[200, 200], 1)  # top left
         self.assertEqual(mask.data[200, 300], 1)  # bottom left
         self.assertEqual(mask.data[300, 300], 1)  # bottom right
@@ -184,8 +174,7 @@ class TestRegionClass(unittest.TestCase):
     def test_region_mask_wedge(self):
         rect_graphic = Graphics.WedgeGraphic()
         rect_graphic.angle_interval = -math.pi / 2, 0
-        data = DataAndMetadata.DataAndMetadata.from_data(numpy.full((1000, 1000), 1, dtype=numpy.int32))
-        mask = Symbolic.region_mask(data, rect_graphic)
+        mask = rect_graphic.get_mask((1000, 1000))
         self.assertTrue(mask.data[600, 600])  # bottom right
         self.assertFalse(mask.data[600, 400])  # top right
         self.assertTrue(mask.data[400, 400])  # top left
