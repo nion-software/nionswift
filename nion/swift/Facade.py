@@ -517,6 +517,19 @@ class DataItem:
         with self.__data_item.maybe_data_source.data_ref() as data_ref:
             return data_ref.data
 
+    @data.setter
+    def data(self, data: numpy.ndarray) -> None:
+        """Set the data.
+
+        :param data: A numpy ndarray.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        with self.__data_item.maybe_data_source.data_ref() as data_ref:
+            data_ref.data = data
+
     def set_data(self, data: numpy.ndarray) -> None:
         """Set the data.
 
@@ -782,7 +795,7 @@ class DisplayPanel:
 
 class Graphic:
 
-    release = ["region"]
+    release = ["type", "label", "get_property", "set_property", "region", "mask_xdata_with_shape"]
 
     def __init__(self, graphic):
         self.__graphic = graphic
@@ -812,6 +825,10 @@ class Graphic:
 
     def set_property(self, property: str, value):
         setattr(self.__graphic, property, value)
+
+    def mask_xdata_with_shape(self, shape: DataAndMetadata.ShapeType) -> DataAndMetadata.DataAndMetadata:
+        mask = self._graphic.get_mask(shape)
+        return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     # position, start, end, vector, center, size, bounds, angle
 
@@ -1459,7 +1476,7 @@ class Instrument:
 class Library:
 
     release = ["data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
-        "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source"]
+        "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source", "get_data_item_by_uuid", "get_graphic_by_uuid"]
 
     def __init__(self, document_model: DocumentModelModule.DocumentModel):
         self.__document_model = document_model
@@ -1650,6 +1667,33 @@ class Library:
             data_item.session_id = document_model.session_id
             data_item = document_model.get_data_item_reference(data_item_reference_key).data_item
         return DataItem(data_item) if data_item else None
+
+    def get_data_item_by_uuid(self, data_item_uuid: uuid.UUID) -> DataItem:
+        """Get the data item with the given UUID.
+
+        .. versionadded:: 1.0
+
+        Status: Provisional
+        Scriptable: Yes
+        """
+        data_item = self._document_model.get_data_item_by_uuid(data_item_uuid)
+        return DataItem(data_item) if data_item else None
+
+    def get_graphic_by_uuid(self, graphic_uuid: uuid.UUID) -> Graphic:
+        """Get the graphic with the given UUID.
+
+        .. versionadded:: 1.0
+
+        Status: Provisional
+        Scriptable: Yes
+        """
+        for data_item in self._document_model.data_items:
+            for data_source in data_item.data_sources:
+                for display in data_source.displays:
+                    for graphic in display.graphics:
+                        if graphic.uuid == graphic_uuid:
+                            return Graphic(graphic)
+        return None
 
 
 class DocumentController:
