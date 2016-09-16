@@ -8,9 +8,13 @@ import numpy
 # local libraries
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.ui import TestUI
+
+
+Facade.initialize()
 
 
 class TestComputationPanelClass(unittest.TestCase):

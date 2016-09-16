@@ -62,7 +62,7 @@ class ObjectSpecifier:
     @classmethod
     def resolve(cls, d):
         if d is None:
-            return get_api("1", "1")
+            return get_api("~1.0", "~1.0")
         object_type = d.get("object_type")
         object_uuid_str = d.get("object_uuid")
         object_id = d.get("object_id")
@@ -2344,7 +2344,17 @@ def get_api(version: str, ui_version: str) -> API_1:
     return _get_api_with_app(version, ui_version, ApplicationModule.app)
 
 
+def get_data_item(version: str, data_item: DataItemModule.DataItem) -> DataItem:
+    return DataItem(data_item)
+
+
+def get_graphic(version: str, graphic: Graphics.Graphic) -> Graphic:
+    return Graphic(graphic)
+
+
 # this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
 # for this to work, Facade must be imported early in the startup process.
 def initialize():
     PlugInManager.register_api_broker_fn(get_api)
+    DataItemModule.register_api_data_item_fn(get_data_item)
+    Graphics.register_api_graphic_fn(get_graphic)

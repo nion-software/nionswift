@@ -15,12 +15,16 @@ from nion.data import Core
 from nion.data import Image
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import TestUI
 from nion.utils import Geometry
+
+
+Facade.initialize()
 
 
 class TestSymbolicClass(unittest.TestCase):

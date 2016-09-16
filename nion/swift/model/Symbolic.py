@@ -532,7 +532,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             for variable_name, object_specifier in computation_variable_map.items():
                 resolved_object = computation_context.resolve_object_specifier(object_specifier)
                 g[variable_name] = resolved_object.value if resolved_object else None
-            expression_lines = expression_lines[:-1] + ["target.data_and_metadata = {0}".format(expression_lines[-1]), ]
+            expression_lines = expression_lines[:-1] + ["target.set_data_and_metadata({0})".format(expression_lines[-1]), ]
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
             try:

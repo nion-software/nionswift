@@ -1643,17 +1643,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation = computation_queue_item.computation
         if computation:
             try:
-                class DataHolder:
-                    def __init__(self):
-                        self.data_and_metadata = None
-                data_item = DataHolder()
+                api_data_item = DataItem.new_api_data_item("1.0", DataItem.new_data_item())
                 if computation.needs_update:
-                    computation.evaluate_with_target(data_item)
+                    computation.evaluate_with_target(api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                 if computation_queue_item.valid:  # TODO: race condition for 'valid'
-                    if data_item.data_and_metadata:
-                        buffered_data_source.set_data_and_metadata(data_item.data_and_metadata)
+                    if api_data_item.data_and_metadata:
+                        buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
