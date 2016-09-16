@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import copy
 import datetime
@@ -9,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import typing
 
 # third party libraries
 # None
@@ -53,6 +51,7 @@ class Application(object):
         self.ui.persistence_root = "3"  # sets of preferences
         self.__resources_path = resources_path
         self.version_str = "0.9.0"
+        self.workspace_dir = None
 
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
@@ -403,17 +402,16 @@ class Application(object):
         del self.__create_new_event_listeners[document_controller]
         self.__document_controllers.remove(document_controller)
 
-    def __register_document_controller(self, document_window):
-        assert document_window not in self.__document_controllers
-        self.__document_controllers.append(document_window)
+    def __register_document_controller(self, document_controller: DocumentController.DocumentController) -> None:
+        assert document_controller not in self.__document_controllers
+        self.__document_controllers.append(document_controller)
         # when a document window is registered, tell the menu handlers
         for menu_handler in self.__menu_handlers:  # use 'handler' to avoid name collision
-            menu_handler(document_window)
-        return document_window
+            menu_handler(document_controller)
 
-    def __get_document_controllers(self):
+    @property
+    def document_controllers(self) -> typing.List[DocumentController.DocumentController]:
         return copy.copy(self.__document_controllers)
-    document_controllers = property(__get_document_controllers)
 
     def register_menu_handler(self, new_menu_handler):
         assert new_menu_handler not in self.__menu_handlers
@@ -427,9 +425,9 @@ class Application(object):
     def unregister_menu_handler(self, menu_handler):
         self.__menu_handlers.remove(menu_handler)
 
-    def __get_menu_handlers(self):
+    @property
+    def menu_handlers(self) -> typing.List:
         return copy.copy(self.__menu_handlers)
-    menu_handlers = property(__get_menu_handlers)
 
     def run_all_tests(self):
         Test.run_all_tests()
