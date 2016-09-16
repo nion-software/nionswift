@@ -80,7 +80,9 @@ class DocumentController:
         self.document_window.on_about_to_show = self.about_to_show
         self.document_window.on_about_to_close = self.about_to_close
         if app:
-            self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), os.path.splitext(os.path.split(app.workspace_dir)[1])[0])
+            workspace_dir = app.workspace_dir
+            workspace_name = os.path.splitext(os.path.split(workspace_dir)[1])[0] if workspace_dir else _("Workspace")
+            self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), workspace_name)
         self.__workspace_controller = None
         self.app = app
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
