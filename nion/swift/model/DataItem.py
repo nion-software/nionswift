@@ -24,6 +24,7 @@ from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import Display
+from nion.swift.model import PlugInManager
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.utils import Event
@@ -1466,6 +1467,7 @@ def new_api_data_item(version: str, data_item: DataItem):
     raise Exception("Facade not initialized")
 
 def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
+    api = PlugInManager.api_broker_fn("~1.0", None)
     api_data_item = new_api_data_item("~1.0", new_data_item(None))
-    computation.evaluate_with_target(api_data_item)
+    computation.evaluate_with_target(api, api_data_item)
     return api_data_item.data_and_metadata

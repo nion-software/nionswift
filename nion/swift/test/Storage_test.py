@@ -25,6 +25,7 @@ from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
 
@@ -405,10 +406,10 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
-            computation1 = document_model.create_computation("target.xdata = ifft(a.xdata)")
+            computation1 = document_model.create_computation(Symbolic.xdata_expression("xd.ifft(a.xdata)"))
             computation1.create_object("a", document_model.get_object_specifier(data_item2))
             data_item1.maybe_data_source.set_computation(computation1)
-            computation2 = document_model.create_computation("target.xdata = fft(a.xdata)")
+            computation2 = document_model.create_computation(Symbolic.xdata_expression("xd.fft(a.xdata)"))
             computation2.create_object("a", document_model.get_object_specifier(data_item2))
             data_item3.maybe_data_source.set_computation(computation2)
         memory_persistent_storage_system.properties["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
@@ -1389,7 +1390,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "fft")
-            self.assertEqual(computation.expression, "target.xdata = fft(src.display_xdata)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.fft(src.display_xdata)"))
             self.assertEqual(len(computation.variables), 1)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             data = numpy.arange(64).reshape((8, 8))
@@ -1457,7 +1458,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 3)
             computation = document_model.data_items[2].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "cross-correlate")
-            self.assertEqual(computation.expression, "target.xdata = crosscorrelate(src1.display_xdata, src2.display_xdata)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.crosscorrelate(src1.display_xdata, src2.display_xdata)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value._data_item, document_model.data_items[1])
@@ -1528,7 +1529,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "gaussian-blur")
-            self.assertEqual(computation.expression, "target.xdata = gaussian_blur(crop(src.display_xdata, crop_region.bounds), sigma)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.gaussian_blur(xd.crop(src.display_xdata, crop_region.bounds), sigma)"))
             self.assertEqual(len(computation.variables), 3)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value._graphic, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
@@ -1586,7 +1587,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "median-filter")
-            self.assertEqual(computation.expression, "target.xdata = median_filter(src.display_xdata, filter_size)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.median_filter(src.display_xdata, filter_size)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertAlmostEqual(computation.variables[1].bound_variable.value, 5)
@@ -1639,7 +1640,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "slice")
-            self.assertEqual(computation.expression, "target.xdata = slice_sum(src.xdata, center, width)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.slice_sum(src.xdata, center, width)"))
             self.assertEqual(len(computation.variables), 3)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertAlmostEqual(computation.variables[1].bound_variable.value, 3)
@@ -1695,7 +1696,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "crop")
-            self.assertEqual(computation.expression, "target.xdata = crop(src.display_xdata, crop_region.bounds)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.crop(src.display_xdata, crop_region.bounds)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value._graphic, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
@@ -1763,7 +1764,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "sum")
-            self.assertEqual(computation.expression, "target.xdata = sum(crop(src.xdata, crop_region.bounds), 0)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.sum(xd.crop(src.xdata, crop_region.bounds), 0)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value._graphic, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
@@ -1835,7 +1836,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "convert-to-scalar")
-            self.assertEqual(computation.expression, "target.xdata = crop(src.display_xdata, crop_region.bounds)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.crop(src.display_xdata, crop_region.bounds)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value._graphic, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
@@ -1892,7 +1893,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "resample")
-            self.assertEqual(computation.expression, "target.xdata = resample_image(src.display_xdata, shape(height, width))")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.resample_image(src.display_xdata, (height, width))"))
             self.assertEqual(len(computation.variables), 3)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertAlmostEqual(computation.variables[1].bound_variable.value, 200)
@@ -1948,7 +1949,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "pick-point")
-            self.assertEqual(computation.expression, "target.xdata = pick(src.xdata, pick_region.position)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.pick(src.xdata, pick_region.position)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value._graphic, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
@@ -2010,7 +2011,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "line-profile")
-            self.assertEqual(computation.expression, "target.xdata = line_profile(src.display_xdata, line_region.vector, line_region.width)")
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.line_profile(src.display_xdata, line_region.vector, line_region.width)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value._data_item, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value._graphic, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])
@@ -2508,7 +2509,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("target.xdata = -a.xdata")
+            computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
@@ -2531,7 +2532,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("target.xdata = -a.xdata")
+            computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
@@ -2556,7 +2557,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("target.xdata = column(a.xdata)")
+            computation = document_model.create_computation(Symbolic.xdata_expression("xd.column(a.xdata)"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
@@ -2576,7 +2577,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("target.xdata = a.xdata[2:4, :, :] + a.xdata[5]")
+            computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata[2:4, :, :] + a.xdata[5]"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
@@ -2598,7 +2599,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("target.xdata = a.xdata")
+            computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             x = computation.create_variable("x")  # value is intentionally None
             computed_data_item = DataItem.DataItem(data.copy())
@@ -2619,7 +2620,7 @@ class TestStorageClass(unittest.TestCase):
             data = numpy.ones((8, 4, 4), numpy.double)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation("target.xdata = a.xdata + x + y")
+            computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x + y"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computation.create_variable("x", value_type="integral", value=3)
             computation.create_variable("y", value_type="integral", value=4)

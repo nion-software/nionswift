@@ -19,26 +19,10 @@ import weakref
 # third party libraries
 
 # local libraries
-from nion.data import Context
-from nion.data import DataAndMetadata
 from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
-
-
-def data_item_by_uuid(context, data_item_uuid):
-    return context.resolve_object_specifier(context.get_data_item_specifier(data_item_uuid)).value
-
-
-def region_by_uuid(context, region_uuid):
-    return context.resolve_object_specifier(context.get_region_specifier(region_uuid)).value
-
-
-def region_mask(data_and_metadata, region):
-    dimensional_shape = data_and_metadata.dimensional_shape[0:2]  # signal_index
-    mask = region._graphic.get_mask(dimensional_shape)
-    return DataAndMetadata.DataAndMetadata.from_data(mask)
 
 
 class ComputationVariableType:
@@ -508,7 +492,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             pass
         return names
 
-    def evaluate_with_target(self, target) -> None:
+    def evaluate_with_target(self, api, target) -> None:
         assert target is not None
         expression = self.original_expression
         if self.needs_update and expression:
@@ -523,11 +507,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             Computation.parse_names(expression)
 
             code_lines = []
-            code_lines.append("import uuid")
-            g = Context.context().g
-            g["data_item_by_uuid"] = functools.partial(data_item_by_uuid, computation_context)
-            g["region_by_uuid"] = functools.partial(region_by_uuid, computation_context)
-            g["region_mask"] = region_mask
+            g = dict()
+            g["api"] = api
             g["target"] = target
             l = dict()
             for variable_name, object_specifier in computation_variable_map.items():
@@ -624,3 +605,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             if variable.name == variable_name:
                 return True
         return False
+
+# for testing
+
+def xdata_expression(expression: str=None) -> str:
+    return "import numpy\nimport uuid\nfrom nion.data import xdata_1_0 as xd\ntarget.xdata = " + expression
+
+def data_expression(expression: str=None) -> str:
+    return "import numpy\nimport uuid\nfrom nion.data import xdata_1_0 as xd\ntarget.data = " + expression

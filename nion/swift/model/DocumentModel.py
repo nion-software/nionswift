@@ -27,6 +27,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
+from nion.swift.model import PlugInManager
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
@@ -581,36 +582,36 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     data_source_dicts = properties.get("data_sources", list())
                     ExpressionInfo = collections.namedtuple("ExpressionInfo", ["label", "expression", "processing_id", "src_labels", "src_names", "variables", "use_display_data"])
                     info = dict()
-                    info["fft-operation"] = ExpressionInfo(_("FFT"), "fft({src})", "fft", [_("Source")], ["src"], list(), True)
-                    info["inverse-fft-operation"] = ExpressionInfo(_("Inverse FFT"), "ifft({src})", "inverse-fft", [_("Source")], ["src"], list(), False)
-                    info["auto-correlate-operation"] = ExpressionInfo(_("Auto Correlate"), "autocorrelate({src})", "auto-correlate", [_("Source")], ["src"], list(), True)
-                    info["cross-correlate-operation"] = ExpressionInfo(_("Cross Correlate"), "crosscorrelate({src1}, {src2})", "cross-correlate", [_("Source1"), _("Source2")], ["src1", "src2"], list(), True)
-                    info["invert-operation"] = ExpressionInfo(_("Invert"), "invert({src})", "invert", [_("Source")], ["src"], list(), True)
-                    info["sobel-operation"] = ExpressionInfo(_("Sobel"), "sobel({src})", "sobel", [_("Source")], ["src"], list(), True)
-                    info["laplace-operation"] = ExpressionInfo(_("Laplace"), "laplace({src})", "laplace", [_("Source")], ["src"], list(), True)
+                    info["fft-operation"] = ExpressionInfo(_("FFT"), "xd.fft({src})", "fft", [_("Source")], ["src"], list(), True)
+                    info["inverse-fft-operation"] = ExpressionInfo(_("Inverse FFT"), "xd.ifft({src})", "inverse-fft", [_("Source")], ["src"], list(), False)
+                    info["auto-correlate-operation"] = ExpressionInfo(_("Auto Correlate"), "xd.autocorrelate({src})", "auto-correlate", [_("Source")], ["src"], list(), True)
+                    info["cross-correlate-operation"] = ExpressionInfo(_("Cross Correlate"), "xd.crosscorrelate({src1}, {src2})", "cross-correlate", [_("Source1"), _("Source2")], ["src1", "src2"], list(), True)
+                    info["invert-operation"] = ExpressionInfo(_("Invert"), "xd.invert({src})", "invert", [_("Source")], ["src"], list(), True)
+                    info["sobel-operation"] = ExpressionInfo(_("Sobel"), "xd.sobel({src})", "sobel", [_("Source")], ["src"], list(), True)
+                    info["laplace-operation"] = ExpressionInfo(_("Laplace"), "xd.laplace({src})", "laplace", [_("Source")], ["src"], list(), True)
                     sigma_var = {'control_type': 'slider', 'label': _('Sigma'), 'name': 'sigma', 'type': 'variable', 'value': 3.0, 'value_default': 3.0, 'value_max': 100.0, 'value_min': 0.0, 'value_type': 'real'}
-                    info["gaussian-blur-operation"] = ExpressionInfo(_("Gaussian Blur"), "gaussian_blur({src}, sigma)", "gaussian-blur", [_("Source")], ["src"], [sigma_var], True)
+                    info["gaussian-blur-operation"] = ExpressionInfo(_("Gaussian Blur"), "xd.gaussian_blur({src}, sigma)", "gaussian-blur", [_("Source")], ["src"], [sigma_var], True)
                     filter_size_var = {'label': _("Size"), 'op_name': 'size', 'name': 'filter_size', 'type': 'variable', 'value': 3, 'value_default': 3, 'value_max': 100, 'value_min': 1, 'value_type': 'integral'}
-                    info["median-filter-operation"] = ExpressionInfo(_("Median Filter"), "median_filter({src}, filter_size)", "median-filter", [_("Source")], ["src"], [filter_size_var], True)
-                    info["uniform-filter-operation"] = ExpressionInfo(_("Uniform Filter"), "uniform_filter({src}, filter_size)", "uniform-filter", [_("Source")], ["src"], [filter_size_var], True)
+                    info["median-filter-operation"] = ExpressionInfo(_("Median Filter"), "xd.median_filter({src}, filter_size)", "median-filter", [_("Source")], ["src"], [filter_size_var], True)
+                    info["uniform-filter-operation"] = ExpressionInfo(_("Uniform Filter"), "xd.uniform_filter({src}, filter_size)", "uniform-filter", [_("Source")], ["src"], [filter_size_var], True)
                     do_transpose_var = {'label': _("Tranpose"), 'op_name': 'transpose', 'name': 'do_transpose', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
                     do_flip_v_var = {'label': _("Flip Vertical"), 'op_name': 'flip_horizontal', 'name': 'do_flip_v', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
                     do_flip_h_var = {'label': _("Flip Horizontal"), 'op_name': 'flip_vertical', 'name': 'do_flip_h', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
-                    info["transpose-flip-operation"] = ExpressionInfo(_("Transpose/Flip"), "transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", "transpose-flip", [_("Source")], ["src"], [do_transpose_var, do_flip_v_var, do_flip_h_var], True)
-                    info["crop-operation"] = ExpressionInfo(_("Crop"), "crop({src}, crop_region.bounds)", "crop", [_("Source")], ["src"], list(), True)
+                    info["transpose-flip-operation"] = ExpressionInfo(_("Transpose/Flip"), "xd.transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", "transpose-flip", [_("Source")], ["src"], [do_transpose_var, do_flip_v_var, do_flip_h_var], True)
+                    info["crop-operation"] = ExpressionInfo(_("Crop"), "xd.crop({src}, crop_region.bounds)", "crop", [_("Source")], ["src"], list(), True)
                     center_var = {'label': _("Center"), 'op_name': 'slice_center', 'name': 'center', 'type': 'variable', 'value': 0, 'value_default': 0, 'value_min': 0, 'value_type': 'integral'}
                     width_var = {'label': _("Width"), 'op_name': 'slice_width', 'name': 'width', 'type': 'variable', 'value': 1, 'value_default': 1, 'value_min': 1, 'value_type': 'integral'}
-                    info["slice-operation"] = ExpressionInfo(_("Slice"), "slice_sum({src}, center, width)", "slice", [_("Source")], ["src"], [center_var, width_var], False)
+                    info["slice-operation"] = ExpressionInfo(_("Slice"), "xd.slice_sum({src}, center, width)", "slice", [_("Source")], ["src"], [center_var, width_var], False)
                     pt_var = {'label': _("Pick Point"), 'name': 'pick_region', 'type': 'variable', 'value_type': 'point'}
-                    info["pick-operation"] = ExpressionInfo(_("Pick"), "pick({src}, pick_region.position)", "pick-point", [_("Source")], ["src"], [pt_var], False)
-                    info["projection-operation"] = ExpressionInfo(_("Sum"), "sum({src}, 0)", "sum", [_("Source")], ["src"], list(), False)
+                    info["pick-operation"] = ExpressionInfo(_("Pick"), "xd.pick({src}, pick_region.position)", "pick-point", [_("Source")], ["src"], [pt_var], False)
+                    info["projection-operation"] = ExpressionInfo(_("Sum"), "xd.sum({src}, 0)", "sum", [_("Source")], ["src"], list(), False)
                     width_var = {'label': _("Width"), 'name': 'width', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
                     height_var = {'label': _("Height"), 'name': 'height', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
-                    info["resample-operation"] = ExpressionInfo(_("Reshape"), "resample_image({src}, shape(height, width))", "resample", [_("Source")], ["src"], [width_var, height_var], True)
+                    info["resample-operation"] = ExpressionInfo(_("Reshape"), "xd.resample_image({src}, (height, width))", "resample", [_("Source")], ["src"], [width_var, height_var], True)
                     bins_var = {'label': _("Bins"), 'name': 'bins', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 2, 'value_type': 'integral'}
-                    info["histogram-operation"] = ExpressionInfo(_("Histogram"), "histogram({src}, bins)", "histogram", [_("Source")], ["src"], [bins_var], True)
+                    info["histogram-operation"] = ExpressionInfo(_("Histogram"), "xd.histogram({src}, bins)", "histogram", [_("Source")], ["src"], [bins_var], True)
                     line_var = {'label': _("Line Profile"), 'name': 'line_region', 'type': 'variable', 'value_type': 'line'}
-                    info["line-profile-operation"] = ExpressionInfo(_("Line Profile"), "line_profile({src}, line_region.vector, line_region.width)", "line-profile", [_("Source")], ["src"], [line_var], True)
+                    info["line-profile-operation"] = ExpressionInfo(_("Line Profile"), "xd.line_profile({src}, line_region.vector, line_region.width)", "line-profile", [_("Source")], ["src"], [line_var], True)
                     info["convert-to-scalar-operation"] = ExpressionInfo(_("Scalar"), "{src}", "convert-to-scalar", [_("Source")], ["src"], list(), True)
                     # node-operation
                     for data_source_dict in data_source_dicts:
@@ -649,7 +650,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                         variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "region", "uuid": src_data_source["region_connections"]["crop"], "version": 1}
                                         variables_list.append(variable_src)
-                                        kws[srcs[i]] = "crop({}, crop_region.bounds)".format(kws[srcs[i]])
+                                        kws[srcs[i]] = "xd.crop({}, crop_region.bounds)".format(kws[srcs[i]])
                                 for rc_k, rc_v in operation_dict.get("region_connections", dict()).items():
                                     if rc_k == 'pick':
                                         variable_src = {"cascade_delete": True, "name": "pick_region", "type": "variable", "uuid": str(uuid.uuid4())}
@@ -1645,9 +1646,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation = computation_queue_item.computation
         if computation:
             try:
+                api = PlugInManager.api_broker_fn("~1.0", None)
                 api_data_item = DataItem.new_api_data_item("~1.0", DataItem.new_data_item())
                 if computation.needs_update:
-                    computation.evaluate_with_target(api_data_item)
+                    computation.evaluate_with_target(api, api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                 if computation_queue_item.valid:  # TODO: race condition for 'valid'
@@ -2014,7 +2016,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 src_name = source.name if source.name else "src{}".format(suffix)
                 src_text = "{}.{}".format(src_name, "display_xdata" if source.use_display_data else "xdata")
                 crop_name = "crop_region{}".format(suffix) if source.crop_region else ""
-                src_text = src_text if not source.crop_region else "crop({}, {}.bounds)".format(src_text, crop_name)
+                src_text = src_text if not source.crop_region else "xd.crop({}, {}.bounds)".format(src_text, crop_name)
                 src_names.append(src_name)
                 src_texts.append(src_text)
                 crop_names.append(crop_name)
@@ -2087,7 +2089,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         regions.append((region.name, channel_region, region_params.get("label")))
                         region_map[region.name] = channel_region
             expression = fn_template.format(**dict(zip(src_names, src_texts)))
-            computation = self.create_computation(expression)
+            computation = self.create_computation(Symbolic.xdata_expression(expression))
             for src_name, display_specifier, source in zip(src_names, display_specifiers, sources):
                 computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=source.label, cascade_delete=True)
             for crop_name, source in zip(crop_names, sources):
@@ -2177,79 +2179,79 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     if source_dict.get("croppable", False):
                         crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
                         if computation._has_variable(crop_region_variable_name):
-                            data_expression = "crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
+                            data_expression = "xd.crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
                     src_texts.append(data_expression)
                 expression = processing_description["script"].format(**dict(zip(src_names, src_texts)))
-                computation._get_persistent_property("original_expression").value = expression
+                computation._get_persistent_property("original_expression").value = Symbolic.xdata_expression(expression)
 
     def __get_processing_descriptions(self):
         vs = dict()
-        vs["fft"] = {"title": _("FFT"), "script": "target.xdata = fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["inverse-fft"] = {"title": _("Inverse FFT"), "script": "target.xdata = ifft({src})",
+        vs["fft"] = {"title": _("FFT"), "script": "xd.fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["inverse-fft"] = {"title": _("Inverse FFT"), "script": "xd.ifft({src})",
             "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
-        vs["auto-correlate"] = {"title": _("Auto Correlate"), "script": "target.xdata = autocorrelate({src})",
+        vs["auto-correlate"] = {"title": _("Auto Correlate"), "script": "xd.autocorrelate({src})",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["cross-correlate"] = {"title": _("Cross Correlate"), "script": "target.xdata = crosscorrelate({src1}, {src2})",
+        vs["cross-correlate"] = {"title": _("Cross Correlate"), "script": "xd.crosscorrelate({src1}, {src2})",
             "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-        vs["sobel"] = {"title": _("Sobel"), "script": "target.xdata = sobel({src})",
+        vs["sobel"] = {"title": _("Sobel"), "script": "xd.sobel({src})",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["laplace"] = {"title": _("Laplace"), "script": "target.xdata = laplace({src})",
+        vs["laplace"] = {"title": _("Laplace"), "script": "xd.laplace({src})",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
         sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 3, "value_default": 3, "value_min": 0, "value_max": 100,
             "control_type": "slider"}
-        vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "script": "target.xdata = gaussian_blur({src}, sigma)",
+        vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "script": "xd.gaussian_blur({src}, sigma)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [sigma_param]}
         filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integral", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
-        vs["median-filter"] = {"title": _("Median Filter"), "script": "target.xdata = median_filter({src}, filter_size)",
+        vs["median-filter"] = {"title": _("Median Filter"), "script": "xd.median_filter({src}, filter_size)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
-        vs["uniform-filter"] = {"title": _("Uniform Filter"), "script": "target.xdata = uniform_filter({src}, filter_size)",
+        vs["uniform-filter"] = {"title": _("Uniform Filter"), "script": "xd.uniform_filter({src}, filter_size)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
         do_transpose_param = {"name": "do_transpose", "label": _("Transpose"), "type": "boolean", "value": False, "value_default": False}
         do_flip_v_param = {"name": "do_flip_v", "label": _("Flip Vertical"), "type": "boolean", "value": False, "value_default": False}
         do_flip_h_param = {"name": "do_flip_h", "label": _("Flip Horizontal"), "type": "boolean", "value": False, "value_default": False}
-        vs["transpose-flip"] = {"title": _("Transpose/Flip"), "script": "target.xdata = transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)",
+        vs["transpose-flip"] = {"title": _("Transpose/Flip"), "script": "xd.transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
         width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
         height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
-        vs["resample"] = {"title": _("Resample"), "script": "target.xdata = resample_image({src}, shape(height, width))",
+        vs["resample"] = {"title": _("Resample"), "script": "xd.resample_image({src}, (height, width))",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
         bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
-        vs["histogram"] = {"title": _("Histogram"), "script": "target.xdata = histogram({src}, bins)",
+        vs["histogram"] = {"title": _("Histogram"), "script": "xd.histogram({src}, bins)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [bins_param]}
-        vs["invert"] = {"title": _("Invert"), "script": "target.xdata = invert({src})",
+        vs["invert"] = {"title": _("Invert"), "script": "xd.invert({src})",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["convert-to-scalar"] = {"title": _("Scalar"), "script": "target.xdata = {src}",
+        vs["convert-to-scalar"] = {"title": _("Scalar"), "script": "{src}",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
         requirement_2d = {"type": "dimensionality", "mn": 2, "mx": 2}
         requirement_3d = {"type": "dimensionality", "mn": 3, "mx": 3}
         crop_in_region = {"name": "crop_region", "type": "rectangle", "params": {"label": _("Crop Region")}}
-        vs["crop"] = {"title": _("Crop"), "script": "target.xdata = crop({src}, crop_region.bounds)",
+        vs["crop"] = {"title": _("Crop"), "script": "xd.crop({src}, crop_region.bounds)",
             "sources": [{"name": "src", "label": _("Source"), "regions": [crop_in_region], "requirements": [requirement_2d]}]}
-        vs["sum"] = {"title": _("Sum"), "script": "target.xdata = sum({src}, 0)",
+        vs["sum"] = {"title": _("Sum"), "script": "xd.sum({src}, 0)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_2d]}]}
         slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
         slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
-        vs["slice"] = {"title": _("Slice"), "script": "target.xdata = slice_sum({src}, center, width)",
+        vs["slice"] = {"title": _("Slice"), "script": "xd.slice_sum({src}, center, width)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_3d]}],
             "parameters": [slice_center_param, slice_width_param]}
         pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
         pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
         pick_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-        vs["pick-point"] = {"title": _("Pick"), "script": "target.xdata = pick({src}, pick_region.position)",
+        vs["pick-point"] = {"title": _("Pick"), "script": "xd.pick({src}, pick_region.position)",
             "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_in_region], "requirements": [requirement_3d]}],
             "out_regions": [pick_out_region], "connections": [pick_connection]}
         pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
         pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
         pick_sum_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-        vs["pick-mask-sum"] = {"title": _("Pick Sum"), "script": "target.xdata = sum_region({src}, region_mask({src}, region))",
+        vs["pick-mask-sum"] = {"title": _("Pick Sum"), "script": "xd.sum_region({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))",
             "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
             "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
         line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
         line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
-        vs["line-profile"] = {"title": _("Line Profile"), "script": "target.xdata = line_profile({src}, line_region.vector, line_region.width)",
+        vs["line-profile"] = {"title": _("Line Profile"), "script": "xd.line_profile({src}, line_region.vector, line_region.width)",
             "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
         filter_in_region = {"name": "region", "type": "spot"}
-        vs["filter"] = {"title": _("Filter"), "script": "target.xdata = real(ifft(fourier_mask({src}, region_mask({src}, region))))",
+        vs["filter"] = {"title": _("Filter"), "script": "xd.real(xd.ifft(xd.fourier_mask({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))))",
             "sources": [{"name": "src", "label": _("Source"), "regions": [filter_in_region], "requirements": [requirement_2d]}]}
         return vs
 
