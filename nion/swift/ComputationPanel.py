@@ -220,7 +220,7 @@ class ComputationPanelSection:
             name_text_edit = ui.create_line_edit_widget()
             name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
 
-            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("data", _("Data")), ("display_data", _("Display Data")), ("region", _("Region"))]
+            type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("region", _("Region"))]
             type_items.extend(Symbolic.ComputationVariable.get_extension_type_items())
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
@@ -323,7 +323,7 @@ class ComputationPanelSection:
 
             return column
 
-        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, specifier_type, on_change_type_fn, on_remove_fn):
+        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
             column = ui.create_column_widget()
 
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
@@ -386,12 +386,12 @@ class ComputationPanelSection:
                 stack.add(make_number_row(ui, variable, Converter.IntegerToStringConverter(), change_type, on_remove))
             elif variable_type == "real":
                 stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
-            elif variable_type in ("data_item", "data", "display_data"):
-                stack.add(make_specifier_row(ui, variable, "data_item", change_type, on_remove))
+            elif variable_type == "data_item":
+                stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             elif variable_type == "region":
-                stack.add(make_specifier_row(ui, variable, "region", change_type, on_remove))
+                stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             elif variable_type in Symbolic.ComputationVariable.get_extension_types():
-                stack.add(make_specifier_row(ui, variable, variable_type, change_type, on_remove))
+                stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             else:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))
 

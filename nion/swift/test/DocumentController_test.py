@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import gc
@@ -15,11 +12,15 @@ import numpy
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
+from nion.swift import Facade
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
+
+
+Facade.initialize()
 
 
 def construct_test_document(app, workspace_id=None):
@@ -341,7 +342,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             data_item_r = document_controller.assign_r_value_to_data_item(data_item)
-            computed_data_item = document_controller.processing_computation("{0}.data * 2".format(data_item_r))
+            computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2".format(data_item_r))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data*2))
 
@@ -359,7 +360,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item_r = document_controller.assign_r_value_to_data_item(data_item)
             data_item_r2 = document_controller.assign_r_value_to_data_item(data_item2)
             document_controller.assign_r_value_to_data_item(data_item3)
-            computed_data_item = document_controller.processing_computation("{0}.data * 2 + {1}.data".format(data_item_r, data_item_r2))
+            computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2 + {1}.xdata".format(data_item_r, data_item_r2))
             self.assertEqual(len(computed_data_item.maybe_data_source.computation.variables), 2)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data*2 + data))
@@ -513,8 +514,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotEqual(data_item_dup.maybe_data_source.computation, data_item.maybe_data_source.computation)
             self.assertNotEqual(data_item_dup.maybe_data_source.computation.variables[0], data_item.maybe_data_source.computation.variables[0])
             self.assertEqual(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier["uuid"], data_item.maybe_data_source.computation.variables[0].variable_specifier["uuid"])
-            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier).data_item,
-                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item)
+            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier).value._data_item,
+                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()

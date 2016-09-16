@@ -34,13 +34,13 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
-            computation = document_model.create_computation("-a")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
+            computation = document_model.create_computation("target.xdata = -a.xdata")
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             data_item2.maybe_data_source.set_computation(computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # execute queue
             text1 = panel._text_edit_for_testing.text
-            data_item2.maybe_data_source.computation.expression = "-a+1"
+            data_item2.maybe_data_source.computation.expression = "target.xdata = -a.xdata + 1"
             document_controller.periodic()  # execute queue
             text2 = panel._text_edit_for_testing.text
             self.assertNotEqual(text2, text1)
@@ -54,8 +54,8 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
-            computation = document_model.create_computation("-a")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
+            computation = document_model.create_computation("target.xdata = -a.xdata")
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             data_item2.maybe_data_source.set_computation(computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # execute queue
@@ -75,19 +75,19 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
-            computation = document_model.create_computation("-a")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
+            computation = document_model.create_computation("target.xdata = -a.xdata")
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             data_item2.maybe_data_source.set_computation(computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # let the inspector see the computation
             document_controller.periodic()  # and update the computation
             expression = panel._text_edit_for_testing.text
             self.assertIsNone(panel._error_label_for_testing.text)
-            panel._text_edit_for_testing.text = "xyz(a)"
+            panel._text_edit_for_testing.text = "target.xdata = xyz(a.xdata)"
             panel._update_button.on_clicked()
             document_model.recompute_all()
             document_controller.periodic()
-            self.assertEqual(panel._text_edit_for_testing.text, "xyz(a)")
+            self.assertEqual(panel._text_edit_for_testing.text, "target.xdata = xyz(a.xdata)")
             self.assertTrue(len(panel._error_label_for_testing.text) > 0)
             panel._text_edit_for_testing.text = expression
             panel._update_button.on_clicked()
@@ -105,8 +105,8 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item2)
-            computation = document_model.create_computation("a + x")
-            computation.create_object("a", document_model.get_object_specifier(data_item1, "data"))
+            computation = document_model.create_computation("target.xdata = a.xdata + x")
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
             computation.create_variable("x", value_type="integral", value=5)
             data_item2.maybe_data_source.set_computation(computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))

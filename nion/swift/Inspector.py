@@ -1583,23 +1583,17 @@ class ComputationInspectorSection(InspectorSection):
                     label_column.add_stretch()
                     row.add(label_column)
                     row.add_spacing(8)
-                    property_name_ref = [None]
                     base_variable_specifier = copy.copy(variable.specifier)
-                    property_name_ref[0] = base_variable_specifier.pop("property", None)
                     bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-                    data_item = bound_data_item.data_item if bound_data_item else None
+                    data_item = bound_data_item.value._data_item if bound_data_item else None
 
                     def data_item_drop(data_item_uuid):
                         data_item = document_model.get_data_item_by_key(data_item_uuid)
                         variable_specifier = document_model.get_object_specifier(data_item)
-                        if property_name_ref[0]:
-                            variable_specifier["property"] = property_name_ref[0]
                         variable.specifier = variable_specifier
 
                     def data_item_delete():
                         variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
-                        if property_name_ref[0]:
-                            variable_specifier["property"] = property_name_ref[0]
                         variable.specifier = variable_specifier
 
                     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(document_model.dispatch_task, ui, data_item)
@@ -1618,9 +1612,8 @@ class ComputationInspectorSection(InspectorSection):
                     def property_changed(key, value):
                         if key == "specifier":
                             base_variable_specifier = copy.copy(variable.specifier)
-                            property_name_ref[0] = base_variable_specifier.pop("property", None)
                             bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-                            data_item = bound_data_item.data_item if bound_data_item else None
+                            data_item = bound_data_item.value._data_item if bound_data_item else None
                             data_item_thumbnail_source.set_data_item(data_item)
 
                     property_changed_listener = variable.property_changed_event.listen(property_changed)
@@ -1641,7 +1634,7 @@ class ComputationInspectorSection(InspectorSection):
                         return make_slider_float(variable, Converter.FloatToStringConverter())
                     elif variable.variable_type == "real":
                         return make_field(variable, Converter.FloatToStringConverter())
-                    elif variable.variable_type in ("data_item", "data", "display_data"):
+                    elif variable.variable_type == "data_item":
                         return make_image_chooser(variable)
                     elif variable.variable_type == "region":
                         return WidgetWrapper(self.ui.create_row_widget())

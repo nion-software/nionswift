@@ -40,7 +40,7 @@ from nion.utils import ThreadPool
 _ = gettext.gettext
 
 
-class FilePersistentStorage(object):
+class FilePersistentStorage:
 
     def __init__(self, filepath=None, create=True):
         self.__filepath = filepath
@@ -122,7 +122,7 @@ class FilePersistentStorage(object):
         self.update_properties()
 
 
-class DataItemPersistentStorage(object):
+class DataItemPersistentStorage:
 
     """
         Manages persistent storage for data items by caching properties and data, maintaining the PersistentObjectContext
@@ -231,14 +231,14 @@ class DataItemPersistentStorage(object):
         self.__persistent_storage_handler.remove()
 
 
-class MemoryPersistentStorageSystem(object):
+class MemoryPersistentStorageSystem:
 
     def __init__(self):
         self.data = dict()
         self.properties = dict()
         self._test_data_read_event = Event.Event()
 
-    class MemoryStorageHandler(object):
+    class MemoryStorageHandler:
 
         def __init__(self, uuid, properties, data, data_read_event):
             self.__uuid = uuid
@@ -1299,7 +1299,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __remove_region_specifier(self, region_specifier) -> None:
         bound_region = self.resolve_object_specifier(region_specifier)
         if bound_region:
-            region = bound_region.value
+            region = bound_region.value._graphic
             for data_item in self.data_items:
                 for data_source in data_item.data_sources:
                     for display in data_source.displays:
@@ -1319,6 +1319,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.end_data_item_live(target_data_item)
 
     def __add_dependency(self, source_data_item, target_data_item):
+        assert isinstance(source_data_item, DataItem.DataItem)
+        assert isinstance(target_data_item, DataItem.DataItem)
         with self.__dependent_data_items_lock:
             self.__dependent_data_items.setdefault(weakref.ref(source_data_item), list()).append(target_data_item)
             self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).append(source_data_item)
@@ -1339,8 +1341,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     specifier = variable.specifier
                     if specifier:
                         object = self.resolve_object_specifier(variable.specifier)
-                        if hasattr(object, "data_item"):
-                            source_data_item = object.data_item
+                        if object and hasattr(object.value, "_data_item"):
+                            source_data_item = object.value._data_item
                             if not source_data_item in source_data_item_set:
                                 source_data_item_set.add(source_data_item)
                                 self.__add_dependency(source_data_item, data_item)
@@ -1384,7 +1386,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def data_item_transaction(self, data_item):
         """ Return a context manager to put the data item under a 'transaction'. """
-        class TransactionContextManager(object):
+        class TransactionContextManager:
             def __init__(self, manager, object):
                 self.__manager = manager
                 self.__object = object
@@ -1443,7 +1445,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def data_item_live(self, data_item):
         """ Return a context manager to put the data item in a 'live state'. """
-        class LiveContextManager(object):
+        class LiveContextManager:
             def __init__(self, manager, object):
                 self.__manager = manager
                 self.__object = object
@@ -1643,7 +1645,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation = computation_queue_item.computation
         if computation:
             try:
-                api_data_item = DataItem.new_api_data_item("1.0", DataItem.new_data_item())
+                api_data_item = DataItem.new_api_data_item("~1.0", DataItem.new_data_item())
                 if computation.needs_update:
                     computation.evaluate_with_target(api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
@@ -1698,12 +1700,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         computation_queue_item.valid = False
                         return
 
-    def get_object_specifier(self, object, property_name: str=None):
+    def get_object_specifier(self, object):
         if isinstance(object, DataItem.DataItem):
-            if property_name:
-                return {"version": 1, "type": "data_item", "uuid": str(object.uuid), "property": property_name}
-            else:
-                return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+            return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
         elif isinstance(object, Graphics.Graphic):
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
         return Symbolic.ComputationVariable.get_extension_object_specifier(object)
@@ -1716,8 +1715,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                property_name = specifier.get("property")
-                class BoundDataItemAndMetadata(object):
+                class BoundDataItem:
                     def __init__(self, data_item):
                         self.__data_item = data_item
                         self.__buffered_data_source = data_item.maybe_data_source
@@ -1732,82 +1730,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                     @property
                     def value(self):
-                        return self.__buffered_data_source.data_and_metadata
-                    @property
-                    def data_item(self):
-                        return self.__data_item
+                        return DataItem.new_api_data_item("~1.0", self.__data_item)
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None
-                        self.__data_item_will_be_removed_event_listener.close()
-                        self.__data_item_will_be_removed_event_listener = None
-                class BoundDataItem(object):
-                    def __init__(self, data_item):
-                        self.__data_item = data_item
-                        self.__buffered_data_source = data_item.maybe_data_source
-                        self.changed_event = Event.Event()
-                        self.deleted_event = Event.Event()
-                        def data_and_metadata_changed():
-                            self.changed_event.fire()
-                        def data_item_will_be_removed(data_item):
-                            if data_item == self.__data_item:
-                                self.deleted_event.fire()
-                        self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed)
-                        self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
-                    @property
-                    def data(self):
-                        return self.__data_item.maybe_data_source.data_and_metadata
-                    @property
-                    def display_data(self):
-                        return self.__data_item.maybe_data_source.displays[0].display_data_and_metadata
-                    @property
-                    def data_item(self):
-                        return self.__data_item
-                    @property
-                    def value(self):
-                        return self
-                    def close(self):
-                        self.__data_and_metadata_changed_event_listener.close()
-                        self.__data_and_metadata_changed_event_listener = None
-                        self.__data_item_will_be_removed_event_listener.close()
-                        self.__data_item_will_be_removed_event_listener = None
-                class BoundDataItemDisplay(object):
-                    def __init__(self, data_item):
-                        self.__data_item = data_item
-                        self.__buffered_data_source = data_item.maybe_data_source
-                        self.changed_event = Event.Event()
-                        self.deleted_event = Event.Event()
-                        def display_changed():
-                            self.changed_event.fire()
-                        def data_item_will_be_removed(data_item):
-                            if data_item == self.__data_item:
-                                self.deleted_event.fire()
-                        self.__display_changed_event_listener = self.__buffered_data_source.displays[0].display_changed_event.listen(display_changed)
-                        self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
-                    @property
-                    def value(self):
-                        return self.__buffered_data_source.displays[0].display_data_and_metadata
-                    def close(self):
-                        self.__display_changed_event_listener.close()
-                        self.__display_changed_event_listener = None
                         self.__data_item_will_be_removed_event_listener.close()
                         self.__data_item_will_be_removed_event_listener = None
                 if data_item:
-                    if property_name == "data":
-                        return BoundDataItemAndMetadata(data_item)
-                    elif property_name == "display_data":
-                        return BoundDataItemDisplay(data_item)
-                    else:
-                        return BoundDataItem(data_item)
+                    return BoundDataItem(data_item)
             elif specifier_type == "region":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
                 for data_item in self.data_items:
                     for data_source in data_item.data_sources:
                         for display in data_source.displays:
-                            for region in display.graphics:
-                                if region.uuid == object_uuid:
-                                    class BoundRegion(object):
+                            for graphic in display.graphics:
+                                if graphic.uuid == object_uuid:
+                                    class BoundGraphic:
                                         def __init__(self, display, object):
                                             self.__object = object
                                             self.changed_event = Event.Event()
@@ -1826,9 +1765,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                             self.__remove_region_listener = None
                                         @property
                                         def value(self):
-                                            return self.__object
-                                    if region:
-                                        return BoundRegion(display, region)
+                                            return Graphics.new_api_graphic("~1.0", self.__object)
+                                    if graphic:
+                                        return BoundGraphic(display, graphic)
         return Symbolic.ComputationVariable.resolve_extension_object_specifier(specifier)
 
     class DataItemReference:
@@ -2073,7 +2012,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for i, (source, display) in enumerate(zip(sources, displays)):
                 suffix = i if len(sources) > 1 else ""
                 src_name = source.name if source.name else "src{}".format(suffix)
-                src_text = "{}.{}".format(src_name, "display_data" if source.use_display_data else "data")
+                src_text = "{}.{}".format(src_name, "display_xdata" if source.use_display_data else "xdata")
                 crop_name = "crop_region{}".format(suffix) if source.crop_region else ""
                 src_text = src_text if not source.crop_region else "crop({}, {}.bounds)".format(src_text, crop_name)
                 src_names.append(src_name)
@@ -2234,7 +2173,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 source_dicts = processing_description["sources"]
                 for i, source_dict in enumerate(source_dicts):
                     src_names.append(source_dict["name"])
-                    data_expression = source_dict["name"] + (".display_data" if source_dict.get("use_display_data", True) else ".data")
+                    data_expression = source_dict["name"] + (".display_xdata" if source_dict.get("use_display_data", True) else ".xdata")
                     if source_dict.get("croppable", False):
                         crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
                         if computation._has_variable(crop_region_variable_name):
@@ -2245,67 +2184,72 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __get_processing_descriptions(self):
         vs = dict()
-        vs["fft"] = {"title": _("FFT"), "script": "fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["inverse-fft"] = {"title": _("Inverse FFT"), "script": "ifft({src})", "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
-        vs["auto-correlate"] = {"title": _("Auto Correlate"), "script": "autocorrelate({src})",
+        vs["fft"] = {"title": _("FFT"), "script": "target.xdata = fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["inverse-fft"] = {"title": _("Inverse FFT"), "script": "target.xdata = ifft({src})",
+            "sources": [{"name": "src", "label": _("Source"), "use_display_data": False}]}
+        vs["auto-correlate"] = {"title": _("Auto Correlate"), "script": "target.xdata = autocorrelate({src})",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["cross-correlate"] = {"title": _("Cross Correlate"), "script": "crosscorrelate({src1}, {src2})",
+        vs["cross-correlate"] = {"title": _("Cross Correlate"), "script": "target.xdata = crosscorrelate({src1}, {src2})",
             "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
-        vs["sobel"] = {"title": _("Sobel"), "script": "sobel({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["laplace"] = {"title": _("Laplace"), "script": "laplace({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["sobel"] = {"title": _("Sobel"), "script": "target.xdata = sobel({src})",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["laplace"] = {"title": _("Laplace"), "script": "target.xdata = laplace({src})",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
         sigma_param = {"name": "sigma", "label": _("Sigma"), "type": "real", "value": 3, "value_default": 3, "value_min": 0, "value_max": 100,
             "control_type": "slider"}
-        vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "script": "gaussian_blur({src}, sigma)",
+        vs["gaussian-blur"] = {"title": _("Gaussian Blur"), "script": "target.xdata = gaussian_blur({src}, sigma)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [sigma_param]}
         filter_size_param = {"name": "filter_size", "label": _("Size"), "type": "integral", "value": 3, "value_default": 3, "value_min": 1, "value_max": 100}
-        vs["median-filter"] = {"title": _("Median Filter"), "script": "median_filter({src}, filter_size)",
+        vs["median-filter"] = {"title": _("Median Filter"), "script": "target.xdata = median_filter({src}, filter_size)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
-        vs["uniform-filter"] = {"title": _("Uniform Filter"), "script": "uniform_filter({src}, filter_size)",
+        vs["uniform-filter"] = {"title": _("Uniform Filter"), "script": "target.xdata = uniform_filter({src}, filter_size)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [filter_size_param]}
         do_transpose_param = {"name": "do_transpose", "label": _("Transpose"), "type": "boolean", "value": False, "value_default": False}
         do_flip_v_param = {"name": "do_flip_v", "label": _("Flip Vertical"), "type": "boolean", "value": False, "value_default": False}
         do_flip_h_param = {"name": "do_flip_h", "label": _("Flip Horizontal"), "type": "boolean", "value": False, "value_default": False}
-        vs["transpose-flip"] = {"title": _("Transpose/Flip"), "script": "transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)",
+        vs["transpose-flip"] = {"title": _("Transpose/Flip"), "script": "target.xdata = transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [do_transpose_param, do_flip_v_param, do_flip_h_param]}
         width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
         height_param = {"name": "height", "label": _("Height"), "type": "integral", "value": 256, "value_default": 256, "value_min": 1}
-        vs["resample"] = {"title": _("Resample"), "script": "resample_image({src}, shape(height, width))",
+        vs["resample"] = {"title": _("Resample"), "script": "target.xdata = resample_image({src}, shape(height, width))",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [width_param, height_param]}
         bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
-        vs["histogram"] = {"title": _("Histogram"), "script": "histogram({src}, bins)", "sources": [{"name": "src", "label": _("Source"), "croppable": True}],
-            "parameters": [bins_param]}
-        vs["invert"] = {"title": _("Invert"), "script": "invert({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-        vs["convert-to-scalar"] = {"title": _("Scalar"), "script": "{src}", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["histogram"] = {"title": _("Histogram"), "script": "target.xdata = histogram({src}, bins)",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [bins_param]}
+        vs["invert"] = {"title": _("Invert"), "script": "target.xdata = invert({src})",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+        vs["convert-to-scalar"] = {"title": _("Scalar"), "script": "target.xdata = {src}",
+            "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
         requirement_2d = {"type": "dimensionality", "mn": 2, "mx": 2}
         requirement_3d = {"type": "dimensionality", "mn": 3, "mx": 3}
         crop_in_region = {"name": "crop_region", "type": "rectangle", "params": {"label": _("Crop Region")}}
-        vs["crop"] = {"title": _("Crop"), "script": "crop({src}, crop_region.bounds)",
+        vs["crop"] = {"title": _("Crop"), "script": "target.xdata = crop({src}, crop_region.bounds)",
             "sources": [{"name": "src", "label": _("Source"), "regions": [crop_in_region], "requirements": [requirement_2d]}]}
-        vs["sum"] = {"title": _("Sum"), "script": "sum({src}, 0)",
+        vs["sum"] = {"title": _("Sum"), "script": "target.xdata = sum({src}, 0)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_2d]}]}
         slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
         slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
-        vs["slice"] = {"title": _("Slice"), "script": "slice_sum({src}, center, width)",
+        vs["slice"] = {"title": _("Slice"), "script": "target.xdata = slice_sum({src}, center, width)",
             "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_3d]}],
             "parameters": [slice_center_param, slice_width_param]}
         pick_in_region = {"name": "pick_region", "type": "point", "params": {"label": _("Pick Point")}}
         pick_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
         pick_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-        vs["pick-point"] = {"title": _("Pick"), "script": "pick({src}, pick_region.position)",
+        vs["pick-point"] = {"title": _("Pick"), "script": "target.xdata = pick({src}, pick_region.position)",
             "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_in_region], "requirements": [requirement_3d]}],
             "out_regions": [pick_out_region], "connections": [pick_connection]}
         pick_sum_in_region = {"name": "region", "type": "rectangle", "params": {"label": _("Pick Region")}}
         pick_sum_out_region = {"name": "interval_region", "type": "interval", "params": {"label": _("Display Slice")}}
         pick_sum_connection = {"type": "property", "src": "display", "src_prop": "slice_interval", "dst": "interval_region", "dst_prop": "interval"}
-        vs["pick-mask-sum"] = {"title": _("Pick Sum"), "script": "sum_region({src}, region_mask({src}, region))",
+        vs["pick-mask-sum"] = {"title": _("Pick Sum"), "script": "target.xdata = sum_region({src}, region_mask({src}, region))",
             "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [pick_sum_in_region], "requirements": [requirement_3d]}],
             "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
         line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
         line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
-        vs["line-profile"] = {"title": _("Line Profile"), "script": "line_profile({src}, line_region.vector, line_region.width)",
+        vs["line-profile"] = {"title": _("Line Profile"), "script": "target.xdata = line_profile({src}, line_region.vector, line_region.width)",
             "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
         filter_in_region = {"name": "region", "type": "spot"}
-        vs["filter"] = {"title": _("Filter"), "script": "real(ifft(fourier_mask(src.data, region_mask(src.data, region))))",
+        vs["filter"] = {"title": _("Filter"), "script": "target.xdata = real(ifft(fourier_mask({src}, region_mask({src}, region))))",
             "sources": [{"name": "src", "label": _("Source"), "regions": [filter_in_region], "requirements": [requirement_2d]}]}
         return vs
 

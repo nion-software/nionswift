@@ -1463,9 +1463,9 @@ def new_api_data_item(version: str, data_item: DataItem):
     global api_data_item_fn
     if callable(api_data_item_fn):
         return api_data_item_fn(version, data_item)
-    return None
+    raise Exception("Facade not initialized")
 
 def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
-    api_data_item = new_api_data_item("1.0", new_data_item(None))
+    api_data_item = new_api_data_item("~1.0", new_data_item(None))
     computation.evaluate_with_target(api_data_item)
     return api_data_item.data_and_metadata

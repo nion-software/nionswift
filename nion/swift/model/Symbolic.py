@@ -27,8 +27,8 @@ from nion.utils import Observable
 from nion.utils import Persistence
 
 
-def data_by_uuid(context, data_item_uuid):
-    return context.resolve_object_specifier(context.get_data_item_specifier(data_item_uuid, "data")).value
+def data_item_by_uuid(context, data_item_uuid):
+    return context.resolve_object_specifier(context.get_data_item_specifier(data_item_uuid)).value
 
 
 def region_by_uuid(context, region_uuid):
@@ -37,7 +37,7 @@ def region_by_uuid(context, region_uuid):
 
 def region_mask(data_and_metadata, region):
     dimensional_shape = data_and_metadata.dimensional_shape[0:2]  # signal_index
-    mask = region.get_mask(dimensional_shape)
+    mask = region._graphic.get_mask(dimensional_shape)
     return DataAndMetadata.DataAndMetadata.from_data(mask)
 
 
@@ -352,9 +352,9 @@ class ComputationContext(object):
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def get_data_item_specifier(self, data_item_uuid, property_name: str=None):
+    def get_data_item_specifier(self, data_item_uuid):
         """Supports data item lookup by uuid."""
-        return self.__context.get_object_specifier(self.__context.get_data_item_by_uuid(data_item_uuid), property_name)
+        return self.__context.get_object_specifier(self.__context.get_data_item_by_uuid(data_item_uuid))
 
     def get_region_specifier(self, region_uuid):
         """Supports region lookup by uuid."""
@@ -509,6 +509,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return names
 
     def evaluate_with_target(self, target) -> None:
+        assert target is not None
         expression = self.original_expression
         if self.needs_update and expression:
             computation_variable_map = dict()
@@ -524,7 +525,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             code_lines = []
             code_lines.append("import uuid")
             g = Context.context().g
-            g["data_by_uuid"] = functools.partial(data_by_uuid, computation_context)
+            g["data_item_by_uuid"] = functools.partial(data_item_by_uuid, computation_context)
             g["region_by_uuid"] = functools.partial(region_by_uuid, computation_context)
             g["region_mask"] = region_mask
             g["target"] = target
@@ -532,10 +533,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             for variable_name, object_specifier in computation_variable_map.items():
                 resolved_object = computation_context.resolve_object_specifier(object_specifier)
                 g[variable_name] = resolved_object.value if resolved_object else None
-            expression_lines = expression_lines[:-1] + ["target.set_data_and_metadata({0})".format(expression_lines[-1]), ]
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
             try:
+                # print(code)
                 compiled = compile(code, "expr", "exec")
                 exec(compiled, g, l)
                 self._evaluation_count_for_test += 1

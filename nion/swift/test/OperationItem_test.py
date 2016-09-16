@@ -12,12 +12,16 @@ import numpy
 from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift import Facade
 from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
 from nion.utils import Geometry
+
+
+Facade.initialize()
 
 
 class TestProcessingClass(unittest.TestCase):
@@ -65,7 +69,7 @@ class TestProcessingClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                 self.assertEqual(src_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -103,7 +107,7 @@ class TestProcessingClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                 self.assertEqual(src_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -129,7 +133,7 @@ class TestProcessingClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                 self.assertEqual(src_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -165,7 +169,7 @@ class TestProcessingClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                 self.assertEqual(src_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -201,7 +205,7 @@ class TestProcessingClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                 self.assertEqual(src_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -226,7 +230,7 @@ class TestProcessingClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                 self.assertEqual(src_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -251,7 +255,7 @@ class TestProcessingClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.document_model.recompute_all()
             with display_specifier.buffered_data_source.data_ref() as data_ref:
-                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                 self.assertEqual(src_data_item, source_data_item)
                 self.assertIsNotNone(data_ref.data)
                 self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -340,7 +344,7 @@ class TestProcessingClass(unittest.TestCase):
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 self.document_model.recompute_all()
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
-                    src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                    src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                     self.assertEqual(src_data_item, source_data_item)
                     self.assertIsNone(data_ref.data)
                     self.assertIsNone(display_specifier.buffered_data_source.dimensional_calibrations)
@@ -381,7 +385,7 @@ class TestProcessingClass(unittest.TestCase):
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 self.document_model.recompute_all()
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
-                    src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).data_item
+                    src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item
                     self.assertEqual(src_data_item, source_data_item)
                     self.assertIsNone(data_ref.data)
                     self.assertEqual(display_specifier.buffered_data_source.dimensional_calibrations, [])
@@ -631,7 +635,7 @@ class TestProcessingClass(unittest.TestCase):
         data_item.maybe_data_source.displays[0].add_graphic(crop_region)
         display_specifier.display.graphic_selection.set(0)
         projection_data_item = document_controller.processing_projection().data_item
-        document_controller.periodic()  # TODO: remove need to let the inspector catch up
+        document_controller.periodic()
         self.assertTrue(projection_data_item in document_model.data_items)
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)

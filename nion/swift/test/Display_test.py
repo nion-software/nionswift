@@ -11,10 +11,14 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
+from nion.swift import Facade
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Utility
 from nion.ui import TestUI
+
+
+Facade.initialize()
 
 
 class TestDisplayClass(unittest.TestCase):
@@ -139,8 +143,8 @@ class TestDisplayClass(unittest.TestCase):
             d = numpy.random.randn(4, 4, 12)
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
-            map = {"a": document_model.get_object_specifier(data_item, "data")}
-            data_item2 = document_controller.processing_computation("a[:,:,0:8]", map)
+            map = {"a": document_model.get_object_specifier(data_item)}
+            data_item2 = document_controller.processing_computation("target.xdata = a.xdata[:,:,0:8]", map)
             document_model.recompute_all()
             assert numpy.array_equal(data_item2.maybe_data_source.data, d[:, :, 0:8])
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item2)
@@ -148,7 +152,7 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier.display.slice_width = 4
             self.assertEqual(display_specifier.display.slice_center, 6)
             self.assertEqual(display_specifier.display.slice_width, 4)
-            display_specifier.buffered_data_source.computation.expression = "a[:, :, 0:4]"
+            display_specifier.buffered_data_source.computation.expression = "target.xdata = a.xdata[:, :, 0:4]"
             document_model.recompute_all()
             self.assertEqual(display_specifier.display.slice_center, 3)
             self.assertEqual(display_specifier.display.slice_width, 2)

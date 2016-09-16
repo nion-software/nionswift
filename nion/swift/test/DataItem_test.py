@@ -18,11 +18,15 @@ import numpy
 from nion.data import Calibration
 from nion.data import Image
 from nion.swift import Application
+from nion.swift import Facade
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
+
+
+Facade.initialize()
 
 
 class TestDataItemClass(unittest.TestCase):
@@ -93,8 +97,8 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
             data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
@@ -108,8 +112,8 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
             data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
@@ -128,8 +132,8 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
             data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
@@ -147,8 +151,8 @@ class TestDataItemClass(unittest.TestCase):
             # setup by adding data item and a dependent data item
             data_item2 = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             data_item2a = DataItem.DataItem()
-            computation = document_model.create_computation("resample_image(src, shape(12, 12)")
-            computation.create_object("src", document_model.get_object_specifier(data_item2, "data"))
+            computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
+            computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
             data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
@@ -171,8 +175,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item2a_copy = copy.deepcopy(data_item2a)
             document_model.append_data_item(data_item2a_copy)
             # verify data source
-            self.assertEqual(document_model.resolve_object_specifier(data_item2a.maybe_data_source.computation.variables[0].variable_specifier).data_item, data_item2)
-            self.assertEqual(document_model.resolve_object_specifier(data_item2a_copy.maybe_data_source.computation.variables[0].variable_specifier).data_item, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(data_item2a.maybe_data_source.computation.variables[0].variable_specifier).value._data_item, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(data_item2a_copy.maybe_data_source.computation.variables[0].variable_specifier).value._data_item, data_item2)
 
     def test_copy_data_item_with_crop(self):
         document_model = DocumentModel.DocumentModel()
@@ -187,8 +191,8 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item_copy)
             self.assertNotEqual(data_item_copy.maybe_data_source.computation, data_item.maybe_data_source.computation)
             document_model.recompute_all()
-            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.maybe_data_source.computation.variables[1].variable_specifier).value,
-                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[1].variable_specifier).value)
+            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.maybe_data_source.computation.variables[1].variable_specifier).value._graphic,
+                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[1].variable_specifier).value._graphic)
 
     def test_copy_data_item_with_transaction(self):
         document_model = DocumentModel.DocumentModel()
