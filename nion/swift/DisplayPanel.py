@@ -3,7 +3,6 @@ import copy
 import functools
 import gettext
 import math
-import operator
 import random
 import string
 import uuid
@@ -14,6 +13,7 @@ from nion.swift import DataPanel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import Panel
+from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import Graphics
@@ -1048,7 +1048,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             root_canvas_item = self.canvas_item.root_container
-            thumbnail_data = display_specifier.display.thumbnail_data
+            document_controller = self.document_controller
+            # force thumbnail calculation
+            Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.document_model.dispatch_task, document_controller.ui, display_specifier.display).recompute_data()
+            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(display_specifier.display)
             on_begin_drag = self.on_begin_drag
             if callable(on_begin_drag):
                 on_begin_drag(root_canvas_item.canvas_widget, mime_data, thumbnail_data)
