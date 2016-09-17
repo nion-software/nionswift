@@ -795,7 +795,7 @@ class DisplayPanel:
 
 class Graphic:
 
-    release = ["type", "label", "get_property", "set_property", "region", "mask_xdata_with_shape"]
+    release = ["type", "label", "graphic_id", "get_property", "set_property", "region", "mask_xdata_with_shape"]
 
     def __init__(self, graphic):
         self.__graphic = graphic
@@ -819,6 +819,14 @@ class Graphic:
     @label.setter
     def label(self, value: str) -> None:
         self.__graphic.label = value
+
+    @property
+    def graphic_id(self) -> str:
+        return self.__graphic.graphic_id
+
+    @graphic_id.setter
+    def graphic_id(self, value: str) -> None:
+        self.__graphic.graphic_id = value
 
     def get_property(self, property: str):
         return getattr(self.__graphic, property)
@@ -907,7 +915,7 @@ class Graphic:
 
 class Display:
 
-    release = ["display_type", "selected_graphics", "graphics", "data_item"]
+    release = ["display_type", "selected_graphics", "graphics", "data_item", "get_graphic_by_id"]
 
     def __init__(self, display):
         self.__display = display
@@ -939,6 +947,18 @@ class Display:
     @property
     def data_item_list(self):
         raise AttributeError()
+
+    def add_point_graphic(self, y: float, x: float) -> Graphic:
+        graphic = Graphics.PointGraphic()
+        graphic.position = Geometry.FloatPoint(y, x)
+        self.__display.add_graphic(graphic)
+        return Graphic(graphic)
+
+    def get_graphic_by_id(self, graphic_id: str) -> Graphic:
+        for graphic in self.__display.graphics:
+            if graphic.graphic_id == graphic_id:
+                return Graphic(graphic)
+        return None
 
 
 class DataGroup:
