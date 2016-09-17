@@ -1641,20 +1641,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if len(self.__computation_pending_queue) > 0:
                 computation_queue_item = self.__computation_pending_queue.pop(0)
                 self.__computation_active_items.append(computation_queue_item)
-        # data_item = computation_queue_item.data_item
+        data_item = computation_queue_item.data_item
         buffered_data_source = computation_queue_item.buffered_data_source
         computation = computation_queue_item.computation
         if computation:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
-                api_data_item = DataItem.new_api_data_item("~1.0", DataItem.new_data_item())
+                data_item_clone = data_item.clone()
+                api_data_item = DataItem.new_api_data_item("~1.0", data_item_clone)
                 if computation.needs_update:
                     computation.evaluate_with_target(api, api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                 if computation_queue_item.valid:  # TODO: race condition for 'valid'
-                    if api_data_item.data_and_metadata:
+                    data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
+                    data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
+                    if data_item_data_clone_modified > data_item_data_modified:
                         buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
+                    data_item.merge_from_clone(data_item_clone)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
