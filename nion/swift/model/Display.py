@@ -11,6 +11,7 @@ import numbers
 import operator
 import threading
 import typing
+import uuid
 
 import numpy
 
@@ -149,6 +150,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
+        self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
         self.__display_data_and_metadata = None
@@ -609,12 +611,14 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __insert_graphic(self, name, before_index, graphic):
         graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, graphic))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
+        self.__graphics_map[graphic.uuid] = graphic
         self.graphic_selection.insert_index(before_index)
         self.display_changed_event.fire()
         self.notify_insert_item("graphics", graphic, before_index)
 
     def __remove_graphic(self, name, index, graphic):
         graphic.about_to_be_removed()
+        self.__graphics_map.pop(graphic.uuid)
         self.__disconnect_graphic(graphic, index)
         self.display_graphic_will_remove_event.fire(graphic)
         graphic.close()
@@ -642,6 +646,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def extend_graphics(self, graphics):
         """ Extend the graphics array with the list of graphics """
         self.extend_items("graphics", graphics)
+
+    def get_graphic_by_uuid(self, graphic_uuid: uuid.UUID) -> Graphics.Graphic:
+        return self.__graphics_map.get(graphic_uuid)
 
     # this message comes from the graphic. the connection is established when a graphic
     # is added or removed from this object.
