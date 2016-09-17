@@ -131,7 +131,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __init__(self):
         super(Display, self).__init__()
         self.__cache = Cache.ShadowCache()
-        self.__graphics = list()
+        self.__color_map_data = None
         self.define_property("display_type", changed=self.__display_type_changed)
         self.define_property("complex_display_type", changed=self.__display_type_changed)
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
@@ -148,8 +148,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
-
-        self.__lookup = None
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
@@ -268,7 +266,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                         else:
                             stride = round(data_2d.shape[1]/target_size)
                         data_2d = data_2d[0:data_2d.shape[0]:stride, 0:data_2d.shape[1]:stride]
-                    self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__lookup)
+                    self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__color_map_data)
             return self.__preview
 
     @property
@@ -480,10 +478,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__property_changed(property_name, value)
         if value:
             lookup_table_options = ColorMaps.color_maps
-            self.__lookup = lookup_table_options.get(value)
+            self.__color_map_data = lookup_table_options.get(value)
         else:
-            self.__lookup = None
-        self.__property_changed("color_map_data", self.__lookup)
+            self.__color_map_data = None
+        self.__property_changed("color_map_data", self.__color_map_data)
 
     @property
     def color_map_data(self) -> numpy.ndarray:
@@ -493,7 +491,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if self.preview_2d_shape is None:  # is there display data?
             return None
         else:
-            return self.__lookup if self.__lookup is not None else ColorMaps.color_maps.get("grayscale")
+            return self.__color_map_data if self.__color_map_data is not None else ColorMaps.color_maps.get("grayscale")
 
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called
@@ -608,12 +606,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if not self._is_reading:
             self.thumbnail_changed_event.fire()
 
-    def __insert_graphic(self, name, before_index, item):
-        graphic_changed_listener = item.graphic_changed_event.listen(functools.partial(self.graphic_changed, item))
+    def __insert_graphic(self, name, before_index, graphic):
+        graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, graphic))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
         self.graphic_selection.insert_index(before_index)
         self.display_changed_event.fire()
-        self.notify_insert_item("graphics", item, before_index)
+        self.notify_insert_item("graphics", graphic, before_index)
 
     def __remove_graphic(self, name, index, graphic):
         graphic.about_to_be_removed()
