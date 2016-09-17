@@ -197,6 +197,31 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
+    def clone(self) -> "Display":
+        display = Display()
+        display.uuid = self.uuid
+        for graphic in self.graphics:
+            display.add_graphic(graphic.clone())
+        return display
+
+    def merge_from_clone(self, display_clone: "Display") -> None:
+        assert display_clone.uuid == self.uuid
+        removed_uuids = [graphic.uuid for graphic in self.graphics]
+        added_uuids = [graphic.uuid for graphic in display_clone.graphics]
+        common_uuids = list()
+        for graphic_uuid in copy.copy(added_uuids):
+            if graphic_uuid in removed_uuids:
+                common_uuids.append(graphic_uuid)
+                added_uuids.remove(graphic_uuid)
+                removed_uuids.remove(graphic_uuid)
+        for graphic_uuid in removed_uuids:
+            self.remove_graphic(self.get_graphic_by_uuid(graphic_uuid))
+        for graphic_clone in display_clone.graphics:
+            if graphic_clone.uuid in common_uuids:
+                self.get_graphic_by_uuid(graphic_clone.uuid).merge_from_clone(graphic_clone)
+            else:
+                self.add_graphic(graphic_clone.clone())
+
     @property
     def _display_cache(self):
         return self.__cache

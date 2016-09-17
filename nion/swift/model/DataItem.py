@@ -252,6 +252,19 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             for display in buffered_data_source.displays:
                 self.add_display(copy.deepcopy(display))
 
+    def clone(self) -> "BufferedDataSource":
+        data_source = BufferedDataSource(create_display=False)
+        data_source.uuid = self.uuid
+        for display in self.displays:
+            data_source.add_display(display.clone())
+        return data_source
+
+    def merge_from_clone(self, data_source_clone: "BufferedDataSource") -> None:
+        assert data_source_clone.uuid == self.uuid
+        assert len(data_source_clone.displays) == len(self.displays)
+        for display, clone_display in zip(self.displays, data_source_clone.displays):
+            display.merge_from_clone(clone_display)
+
     def snapshot(self):
         """
             Take a snapshot and return a new buffered data source. A snapshot is a copy of everything
@@ -886,6 +899,19 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             data_source.about_to_be_removed()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
+
+    def clone(self) -> "DataItem":
+        data_item = DataItem()
+        data_item.uuid = self.uuid
+        for data_source in self.data_sources:
+            data_item.append_data_source(data_source.clone())
+        return data_item
+
+    def merge_from_clone(self, data_item_clone: "DataItem") -> None:
+        assert data_item_clone.uuid == self.uuid
+        assert len(data_item_clone.data_sources) == len(self.data_sources)
+        for data_source, clone_data_source in zip(self.data_sources, data_item_clone.data_sources):
+            data_source.merge_from_clone(clone_data_source)
 
     def snapshot(self):
         """

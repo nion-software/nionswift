@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import gettext
 import math
 
@@ -321,6 +322,15 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.about_to_be_removed_event.fire()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
+
+    def clone(self) -> "Graphic":
+        graphic = copy.deepcopy(self)
+        graphic.uuid = self.uuid
+        return graphic
+
+    def merge_from_clone(self, graphic_clone: "Graphic") -> None:
+        assert graphic_clone.uuid == self.uuid
+        self.deepcopy_from(graphic_clone, None)
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
