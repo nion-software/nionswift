@@ -57,7 +57,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # execute queue
             panel._text_edit_for_testing.text = ""
-            panel._text_edit_for_testing.on_return_pressed()
+            panel._update_button.on_clicked()
             document_controller.periodic()
             self.assertIsNone(data_item2.maybe_data_source.computation)
             text2 = panel._text_edit_for_testing.text
@@ -81,13 +81,13 @@ class TestComputationPanelClass(unittest.TestCase):
             expression = panel._text_edit_for_testing.text
             self.assertIsNone(panel._error_label_for_testing.text)
             panel._text_edit_for_testing.text = "xyz(a)"
-            panel._text_edit_for_testing.on_return_pressed()
+            panel._update_button.on_clicked()
             document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(panel._text_edit_for_testing.text, "xyz(a)")
             self.assertTrue(len(panel._error_label_for_testing.text) > 0)
             panel._text_edit_for_testing.text = expression
-            panel._text_edit_for_testing.on_return_pressed()
+            panel._update_button.on_clicked()
             document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(panel._text_edit_for_testing.text, expression)

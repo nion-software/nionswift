@@ -506,8 +506,6 @@ class ComputationPanel(Panel.Panel):
         def clear():
             text_edit.text = None
 
-        text_edit.on_escape_pressed = clear
-        text_edit.on_return_pressed = update_pressed
         new_button.on_clicked = new_pressed
         update_button.on_clicked = update_pressed
         def editing_finished(text):
@@ -547,6 +545,10 @@ class ComputationPanel(Panel.Panel):
 
         self.__variable_inserted_event_listener = self.__computation_model.variable_inserted_event.listen(variable_inserted)
         self.__variable_removed_event_listener = self.__computation_model.variable_removed_event.listen(variable_removed)
+
+        # for testing
+        self._new_button = new_button
+        self._update_button = update_button
 
         self.widget = column
 
