@@ -1598,6 +1598,184 @@ class WedgeGraphic(Graphic):
         return Geometry.FloatPoint(y=p1.y, x=p1.x)
 
 
+class RingGraphic(Graphic):
+    def __init__(self):
+        super().__init__("ring-graphic")
+        self.title = _("Annular Ring")
+
+        def validate_angles(value: float) -> float:
+            return abs(float(value))
+
+        self.define_property("radius_1", 0.2, validate=validate_angles, changed=self._property_changed)
+        self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed)
+        self.define_property("mode", "band-pass", changed=self._property_changed)
+
+    # test is required for Graphic interface
+    def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
+        # first convert to widget coordinates since test distances
+        # are specified in widget coordinates
+        length = 10000  # safe line length
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        top_marker_outer = mapping.map_point_image_norm_to_widget((0.5, 0.5 - self.radius_1))
+        left_marker_outer = mapping.map_point_image_norm_to_widget((0.5 - self.radius_1, 0.5))
+        right_marker_outer = mapping.map_point_image_norm_to_widget((0.5 + self.radius_1, 0.5))
+        bottom_marker_outer = mapping.map_point_image_norm_to_widget((0.5, 0.5 + self.radius_1))
+        top_marker_inner = mapping.map_point_image_norm_to_widget((0.5, 0.5 - self.radius_2))
+        left_marker_inner = mapping.map_point_image_norm_to_widget((0.5 - self.radius_2, 0.5))
+        right_marker_inner = mapping.map_point_image_norm_to_widget((0.5 + self.radius_2, 0.5))
+        bottom_marker_inner = mapping.map_point_image_norm_to_widget((0.5, 0.5 + self.radius_2))
+        image_norm_test_point = mapping.map_point_widget_to_image_norm(test_point)
+        test_radius = math.sqrt((image_norm_test_point[0] - 0.5) ** 2 + (image_norm_test_point[1] - 0.5) ** 2)
+        if self.test_point(top_marker_outer, test_point, 4):
+            return "radius_1", True
+        if self.test_point(bottom_marker_outer, test_point, 4):
+            return "radius_1", True
+        if self.test_point(left_marker_outer, test_point, 4):
+            return "radius_1", True
+        if self.test_point(right_marker_outer, test_point, 4):
+            return "radius_1", True
+        if self.mode == "band-pass":
+            if self.test_point(top_marker_inner, test_point, 4):
+                return "radius_2", True
+            if self.test_point(bottom_marker_inner, test_point, 4):
+                return "radius_2", True
+            if self.test_point(left_marker_inner, test_point, 4):
+                return "radius_2", True
+            if self.test_point(right_marker_inner, test_point, 4):
+                return "radius_2", True
+        if self.mode == "band-pass":
+            outer = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
+            inner = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
+            if test_radius < outer and test_radius > inner:
+                return "all", True
+        elif self.mode == "high-pass":
+            if test_radius < self.radius_1:
+                return "all", True
+        elif self.mode == "low-pass":
+            if test_radius > self.radius_1:
+                return "all", True
+
+        # didn't find anything
+        return None, None
+
+    def begin_drag(self):
+        return self.radius_1, self.radius_2
+
+    def end_drag(self, part_data):
+        pass
+
+    def adjust_part(self, mapping, original, current, part, modifiers):
+        current_norm = mapping.map_point_widget_to_image_norm(current)
+        radius = math.sqrt((current_norm[1] - 0.5) ** 2 + (current_norm[0] - 0.5) ** 2)
+        if part[0] == "radius_1":
+            self.radius_1 = radius
+        if part[0] == "radius_2":
+            self.radius_2 = radius
+        return None, None
+
+    def get_mask(self, data_shape: typing.Tuple[int]):
+        mask = numpy.zeros(data_shape, dtype=numpy.float)
+        bounds_int = ((0, 0), (int(data_shape[0]), int(data_shape[1])))
+        a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
+        y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
+        outer_radius = self.radius_1 if self.radius_1 > self.radius_2 else self.radius_2
+        inner_radius = self.radius_1 if self.radius_1 < self.radius_2 else self.radius_2
+        outer_eq = x * x + y * y <= (bounds_int[1][0] * outer_radius) ** 2
+        inner_eq = x * x + y * y <= (bounds_int[1][0] * inner_radius) ** 2
+        if self.mode == "band-pass":
+            mask[outer_eq] = 1
+            mask[inner_eq] = 0
+        elif self.mode == "low-pass":
+            not_outer_eq = numpy.logical_not(outer_eq)
+            mask[not_outer_eq] = 1
+        elif self.mode == "high-pass":
+            mask[inner_eq] = 1
+        else:
+            mask = numpy.ones(data_shape)
+        return mask
+
+    def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
+        # origin is top left
+        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        bounds = mapping.map_point_image_norm_to_widget((1.0, 1.0))
+        radius_1_widget = mapping.map_size_image_norm_to_widget((self.radius_1, self.radius_1))
+        radius_2_widget = mapping.map_size_image_norm_to_widget((self.radius_2, self.radius_2))
+        with ctx.saver():
+            ctx.line_width = 1
+            ctx.stroke_style = self.color
+            self.draw_ellipse(ctx, center[1], center[0], radius_1_widget[1] * 2, radius_1_widget[0] * 2)
+            if is_selected:
+                self.draw_marker(ctx, (center[0] + radius_1_widget[0], center[1]))
+                self.draw_marker(ctx, (center[0] - radius_1_widget[0], center[1]))
+                self.draw_marker(ctx, (center[0], center[1] + radius_1_widget[1]))
+                self.draw_marker(ctx, (center[0], center[1] - radius_1_widget[1]))
+            if not self.mode == "low-pass" and not self.mode == "high-pass":
+                ctx.line_width = 1
+                ctx.stroke_style = self.color
+                self.draw_ellipse(ctx, center[1], center[0], radius_2_widget[1] * 2, radius_2_widget[0] * 2)
+                if is_selected:
+                    self.draw_marker(ctx, (center[0] + radius_2_widget[0], center[1]))
+                    self.draw_marker(ctx, (center[0] - radius_2_widget[0], center[1]))
+                    self.draw_marker(ctx, (center[0], center[1] + radius_2_widget[1]))
+                    self.draw_marker(ctx, (center[0], center[1] - radius_2_widget[1]))
+            # draw 2 thick arcs
+            ctx.fill_style = "rgba(255, 0, 127, 0.1)"
+            # ctx.stroke_style = "#0000FF"
+            # ra = 0.0  # rotation angle
+            if self.mode == "band-pass":
+                ctx.begin_path()
+                for i in numpy.arange(0, 2 * math.pi, 0.1):
+                    x = center[1] + radius_1_widget[1] * math.cos(i)
+                    y = center[0] + radius_1_widget[0] * math.sin(i)
+                    if i == 0:
+                        ctx.move_to(x, y)
+                    else:
+                        ctx.line_to(x, y)
+                for i in numpy.arange(0, 2 * math.pi, 0.1):
+                    x = center[1] + radius_2_widget[1] * math.cos(2 * math.pi - i)
+                    y = center[0] + radius_2_widget[0] * math.sin(2 * math.pi - i)
+                    if i == 0:
+                        ctx.move_to(x, y)
+                    else:
+                        ctx.line_to(x, y)
+                ctx.close_path()
+                ctx.fill()
+            elif self.mode == "low-pass":
+                ctx.begin_path()
+                for i in numpy.arange(0, 2 * math.pi, 0.1):
+                    x = center[1] + radius_1_widget[1] * math.cos(i)
+                    y = center[0] + radius_1_widget[0] * math.sin(i)
+                    if i == 0:
+                        ctx.move_to(x, y)
+                    else:
+                        ctx.line_to(x, y)
+                ctx.line_to(bounds[1], center[0])
+                ctx.line_to(bounds[1], bounds[0])
+                ctx.line_to(0, bounds[0])
+                ctx.line_to(0, 0)
+                ctx.line_to(bounds[1], 0)
+                ctx.line_to(bounds[1], center[0])
+                ctx.line_to(center[1] + radius_1_widget[1] * math.cos(6.2), center[0] + radius_1_widget[0] * math.sin(6.2))
+                ctx.close_path()
+                ctx.fill()
+            elif self.mode == "high-pass":
+                ctx.begin_path()
+                for i in numpy.arange(0, 2 * math.pi, 0.1):
+                    x = center[1] + radius_1_widget[1] * math.cos(i)
+                    y = center[0] + radius_1_widget[0] * math.sin(i)
+                    if i == 0:
+                        ctx.move_to(x, y)
+                    else:
+                        ctx.line_to(x, y)
+                ctx.close_path()
+                ctx.fill()
+        self.draw_label(ctx, get_font_metrics_fn, mapping)
+
+    def label_position(self, mapping, font_metrics, padding):
+        p1 = mapping.map_point_image_norm_to_widget((0.5, 0.5))
+        return Geometry.FloatPoint(y=p1.y, x=p1.x)
+
+
 def factory(lookup_id):
     build_map = {
         "line-graphic": LineGraphic,
@@ -1608,7 +1786,8 @@ def factory(lookup_id):
         "interval-graphic": IntervalGraphic,
         "channel-graphic": ChannelGraphic,
         "spot-graphic": SpotGraphic,
-        "wedge-graphic": WedgeGraphic
+        "wedge-graphic": WedgeGraphic,
+        "ring-graphic": RingGraphic
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else None
