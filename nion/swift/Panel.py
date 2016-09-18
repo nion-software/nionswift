@@ -119,11 +119,9 @@ class ConsolePanel(Panel):
         super().__init__(document_controller, panel_id, "Console")
         properties["min-height"] = 180
         properties["stylesheet"] = "background: black; color: white; font: 12px courier, monospace"
-        # sys.ps1/2 is not always defined, we'll use it if it is
-        self.ps1 = getattr(sys, "ps1", ">>> ")
-        self.ps2 = getattr(sys, "ps2", "... ")
+        self.prompt = ">>> "
+        self.continuation_prompt = "... "
         self.widget = self.ui.create_text_edit_widget(properties)
-        self.widget.text = self.ps1
         self.widget.on_cursor_position_changed = self.__cursor_position_changed
         self.widget.on_selection_changed = self.__selection_changed
         self.widget.on_return_pressed = self.__return_pressed
@@ -144,6 +142,8 @@ class ConsolePanel(Panel):
             ]
         for l in lines:
             self.interpret_command(l)
+        self.widget.append_text(self.prompt)
+        self.widget.move_cursor_position("end")
         self.document_controller.register_console(self)
 
     def close(self):
@@ -153,9 +153,13 @@ class ConsolePanel(Panel):
     def insert_lines(self, lines):
         for l in lines:
             self.widget.move_cursor_position("end")
-            self.widget.append_text(l)
+            self.widget.insert_text(l)
             result, error_code, prompt = self.interpret_command(l)
-            self.widget.append_text(result + prompt)
+            if len(result) > 0:
+                self.widget.set_text_color("red" if error_code else "green")
+                self.widget.append_text(result[:-1])
+                self.widget.set_text_color("white")
+            self.widget.append_text(prompt)
             self.widget.move_cursor_position("end")
 
     # interpretCommand is called from the intrinsic widget.
@@ -164,7 +168,7 @@ class ConsolePanel(Panel):
         error = io.StringIO()
         with reassign_stdout(output, error):
             incomplete = self.console.push(command)
-        prompt = self.ps2 if incomplete else self.ps1
+        prompt = self.continuation_prompt if incomplete else self.prompt
         if error.getvalue():
             result =  error.getvalue()
             error_code = -1
@@ -175,12 +179,16 @@ class ConsolePanel(Panel):
 
     def __return_pressed(self):
         command = self.widget.text.split('\n')[-1]
-        if command.startswith(self.ps1):
-            command = command[len(self.ps1):]
-        elif command.startswith(self.ps2):
-            command = command[len(self.ps2):]
+        if command.startswith(self.prompt):
+            command = command[len(self.prompt):]
+        elif command.startswith(self.continuation_prompt):
+            command = command[len(self.continuation_prompt):]
         result, error_code, prompt = self.interpret_command(command)
-        self.widget.append_text(result + prompt)
+        if len(result) > 0:
+            self.widget.set_text_color("red" if error_code else "green")
+            self.widget.append_text(result[:-1])
+            self.widget.set_text_color("white")
+        self.widget.append_text(prompt)
         self.widget.move_cursor_position("end")
         return True
 
