@@ -1964,229 +1964,142 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_data_item(data_item_copy)
         return data_item_copy
 
-    Requirement = collections.namedtuple("Requirement", ["type", "mn", "mx"])
+    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
+        """Create a new data item with computation specified by processing_id and inputs and region_list_map.
 
-    @staticmethod
-    def make_requirement(type, mn=None, mx=None):
-        return DocumentModel.Requirement(type, mn, mx)
-
-    Source = collections.namedtuple("Source", ["data_item", "crop_region", "name", "label", "use_display_data", "requirements", "regions"])
-
-    @staticmethod
-    def make_source(data_item, crop_region=None, name=None, label=None, use_display_data=True, requirements=None, regions=None):
-        return DocumentModel.Source(data_item, crop_region, name, label, use_display_data, requirements, regions)
-
-    Parameter = collections.namedtuple("Parameter", ["name", "label", "type", "value", "value_default", "value_min", "value_max", "control_type"])
-
-    @staticmethod
-    def make_parameter(name, label, type, value, value_default=None, value_min=None, value_max=None, control_type=None):
-        return DocumentModel.Parameter(name, label, type, value, value_default, value_min, value_max, control_type)
-
-    Region_ = collections.namedtuple("Region", ["name", "type", "region", "params"])
-
-    @staticmethod
-    def make_region(name, type, region=None, params=None):
-        return DocumentModel.Region_(name, type, region, params)
-
-    Connection = collections.namedtuple("Connection", ["type", "src", "src_prop", "dst", "dst_prop"])
-
-    @staticmethod
-    def make_connection(type, src=None, src_prop=None, dst=None, dst_prop=None):
-        return DocumentModel.Connection(type, src, src_prop, dst, dst_prop)
-
-    def __get_processing_new(self, fn_template: str, sources: typing.List, params: typing.List, label: str, processing_id: str, prefix: str=None, out_regions=None, connections=None) -> DataItem.DataItem:
-        data_items = [source.data_item for source in sources]
-        display_specifiers = [DataItem.DisplaySpecifier.from_data_item(data_item) for data_item in data_items]
-        buffered_data_sources = [display_specifier.buffered_data_source for display_specifier in display_specifiers]
-        displays = [display_specifier.display for display_specifier in display_specifiers]
-        for source, buffered_data_source in zip(sources, buffered_data_sources):
-            for requirement in source.requirements or list():
-                if requirement.type == "dimensionality":
-                    dimensionality = len(buffered_data_source.dimensional_shape) if buffered_data_source else 0
-                    if requirement.mn is not None and dimensionality < requirement.mn:
-                        return None
-                    if requirement.mx is not None and dimensionality > requirement.mx:
-                        return None
-        if len(buffered_data_sources) > 0 and all(buffered_data_sources):
-            new_data_item = DataItem.DataItem()
-            prefix = prefix if prefix else "{} of ".format(label)
-            new_data_item.title = prefix + data_items[0].title
-            new_data_item.category = data_items[0].category
-            src_names = list()
-            src_texts = list()
-            crop_names = list()
-            regions = list()
-            region_map = dict()
-            for i, (source, display) in enumerate(zip(sources, displays)):
-                suffix = i if len(sources) > 1 else ""
-                src_name = source.name if source.name else "src{}".format(suffix)
-                src_text = "{}.{}".format(src_name, "display_xdata" if source.use_display_data else "xdata")
-                crop_name = "crop_region{}".format(suffix) if source.crop_region else ""
-                src_text = src_text if not source.crop_region else "xd.crop({}, {}.bounds)".format(src_text, crop_name)
-                src_names.append(src_name)
-                src_texts.append(src_text)
-                crop_names.append(crop_name)
-                for region in source.regions or list():
-                    region_params = region.params or dict()
-                    if region.type == "point":
-                        if region.region:
-                            point_region = region.region
-                        else:
-                            point_region = Graphics.PointGraphic()
-                            for k, v in region_params.items():
-                                setattr(point_region, k, v)
-                            display.add_graphic(point_region)
-                        regions.append((region.name, point_region, region_params.get("label")))
-                        region_map[region.name] = point_region
-                    elif region.type == "line":
-                        if region.region:
-                            line_region = region.region
-                        else:
-                            line_region = Graphics.LineProfileGraphic()
-                            line_region.start = 0.25, 0.25
-                            line_region.end = 0.75, 0.75
-                            for k, v in region_params.items():
-                                setattr(line_region, k, v)
-                            display.add_graphic(line_region)
-                        regions.append((region.name, line_region, region_params.get("label")))
-                        region_map[region.name] = line_region
-                    elif region.type == "rectangle":
-                        if region.region:
-                            rect_region = region.region
-                        else:
-                            rect_region = Graphics.RectangleGraphic()
-                            rect_region.center = 0.5, 0.5
-                            rect_region.size = 0.5, 0.5
-                            for k, v in region_params.items():
-                                setattr(rect_region, k, v)
-                            display.add_graphic(rect_region)
-                        regions.append((region.name, rect_region, region_params.get("label")))
-                        region_map[region.name] = rect_region
-                    elif region.type == "spot":
-                        if region.region:
-                            spot_region = region.region
-                        else:
-                            spot_region = Graphics.SpotGraphic()
-                            spot_region.center = 0.25, 0.75
-                            spot_region.size = 0.1, 0.1
-                            for k, v in region_params.items():
-                                setattr(spot_region, k, v)
-                            display.add_graphic(spot_region)
-                        regions.append((region.name, spot_region, region_params.get("label")))
-                        region_map[region.name] = spot_region
-                    elif region.type == "interval":
-                        if region.region:
-                            interval_region = region.region
-                        else:
-                            interval_region = Graphics.IntervalGraphic()
-                            for k, v in region_params.items():
-                                setattr(interval_region, k, v)
-                            display.add_graphic(interval_region)
-                        regions.append((region.name, interval_region, region_params.get("label")))
-                        region_map[region.name] = interval_region
-                    elif region.type == "channel":
-                        if region.region:
-                            channel_region = region.region
-                        else:
-                            channel_region = Graphics.ChannelGraphic()
-                            for k, v in region_params.items():
-                                setattr(channel_region, k, v)
-                            display.add_graphic(channel_region)
-                        regions.append((region.name, channel_region, region_params.get("label")))
-                        region_map[region.name] = channel_region
-            script = fn_template.format(**dict(zip(src_names, src_texts)))
-            computation = self.create_computation(script)
-            for src_name, display_specifier, source in zip(src_names, display_specifiers, sources):
-                computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=source.label, cascade_delete=True)
-            for crop_name, source in zip(crop_names, sources):
-                if crop_name:
-                    computation.create_object(crop_name, self.get_object_specifier(source.crop_region), label=_("Crop Region"), cascade_delete=True)
-            for region_name, region, region_label in regions:
-                computation.create_object(region_name, self.get_object_specifier(region), label=region_label, cascade_delete=True)
-            for param in params:
-                computation.create_variable(param.name, param.type, param.value, value_default=param.value_default, value_min=param.value_min, value_max=param.value_max,
-                                            control_type=param.control_type, label=param.label)
-            computation.label = label
-            computation.processing_id = processing_id
-            buffered_data_source = DataItem.BufferedDataSource()
-            new_data_item.append_data_source(buffered_data_source)
-            buffered_data_source.set_computation(computation)
-            self.append_data_item(new_data_item)
-            display = buffered_data_source.displays[0]
-            new_regions = dict()
-            for region in out_regions or list():
-                region_params = region.params or dict()
-                if region.type == "interval":
-                    interval_region = Graphics.IntervalGraphic()
-                    for k, v in region_params.items():
-                        setattr(interval_region, k, v)
-                    display.add_graphic(interval_region)
-                    new_regions[region.name] = interval_region
-            for connection in connections or list():
-                if connection.type == "property":
-                    if connection.src == "display":
-                        # TODO: how to refer to the buffered_data_sources?
-                        new_data_item.add_connection(Connection.PropertyConnection(buffered_data_sources[0].displays[0], connection.src_prop, new_regions[connection.dst], connection.dst_prop))
-                elif connection.type == "interval_list":
-                    new_data_item.add_connection(Connection.IntervalListConnection(display, region_map[connection.dst]))
-            return new_data_item
-        return None
-
-    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
-        """Create a new data item with computation specified by processing_id and inputs and region_map.
-
-        This method translates the processing description referred to by processing_id combined with inputs and the region_map to produce another processing
+        This method translates the processing description referred to by processing_id combined with inputs and the region_list_map to produce another processing
         description for get_processing_new.
         """
+        region_list_map = region_list_map or dict()
+
         processing_descriptions = self.__get_processing_descriptions()
-        region_map = region_map or dict()
         processing_description = processing_descriptions[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
         src_dicts = processing_description.get("sources", list())
         assert len(inputs) == len(src_dicts)
-        src_list = list()
-        for src_dict, input in zip(src_dicts, inputs):
+        src_names = list()
+        src_texts = list()
+        src_labels = list()
+        crop_names = list()
+        regions = list()
+        region_map = dict()
+        for i, (src_dict, input) in enumerate(zip(src_dicts, inputs)):
 
-            # each source can have a list of requirements
-            requirement_list = list()
-            for requirement_dict in src_dict.get("requirements", list()):
-                requirement = DocumentModel.make_requirement(requirement_dict["type"], mn=requirement_dict["mn"], mx=requirement_dict["mx"])
-                requirement_list.append(requirement)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(input[0])
+            buffered_data_source = display_specifier.buffered_data_source
+            display = display_specifier.display
+
+            if not buffered_data_source:
+                return None
+
+            # each source can have a list of requirements, check through them
+            requirements = src_dict.get("requirements", list())
+            for requirement in requirements:
+                requirement_type = requirement["type"]
+                if requirement_type == "dimensionality":
+                    min_dimension = requirement.get("min")
+                    max_dimension = requirement.get("max")
+                    dimensionality = len(buffered_data_source.dimensional_shape) if buffered_data_source else 0
+                    if min_dimension is not None and dimensionality < min_dimension:
+                        return None
+                    if max_dimension is not None and dimensionality > max_dimension:
+                        return None
+
+            suffix = i if len(src_dicts) > 1 else ""
+            src_name = src_dict["name"]
+            src_label = src_dict["label"]
+            use_display_data = src_dict.get("use_display_data", True)
+            src_text = "{}.{}".format(src_name, "display_xdata" if use_display_data else "xdata")
+            crop_region = input[1] if src_dict.get("croppable", False) else None
+            crop_name = "crop_region{}".format(suffix) if crop_region else None
+            src_text = src_text if not crop_region else "xd.crop({}, {}.bounds)".format(src_text, crop_name)
+            src_names.append(src_name)
+            src_texts.append(src_text)
+            src_labels.append(src_label)
+            crop_names.append(crop_name)
 
             # each source can have a list of regions to be matched to arguments or created on the source
-            region_list = list()
             region_dict_list = src_dict.get("regions", list())
-            src_name = src_dict["name"]
-            src_region_list = region_map.get(src_name, list())
+            src_region_list = region_list_map.get(src_name, list())
             assert len(region_dict_list) == len(src_region_list)
             for region_dict, region in zip(region_dict_list, src_region_list):
-                region_desc = DocumentModel.make_region(region_dict["name"], region_dict["type"], region, region_dict.get("params"))
-                region_list.append(region_desc)
-
-            # create the source descriptor
-            src = DocumentModel.make_source(input[0], input[1] if src_dict.get("croppable", False) else None, src_name, src_dict["label"], src_dict.get("use_display_data", True), requirement_list, region_list)
-            src_list.append(src)
-
-        # next process the parameters
-        param_list = list()
-        for param_dict in processing_description.get("parameters", list()):
-            param = DocumentModel.make_parameter(param_dict["name"], param_dict["label"], param_dict["type"], param_dict["value"],
-                                                 param_dict.get("value_default"), param_dict.get("value_min"), param_dict.get("value_max"),
-                                                 param_dict.get("control_type"))
-            param_list.append(param)
-
-        # next come the output regions that get created on the target itself
-        out_region_list = list()
-        for out_region_dict in processing_description.get("out_regions", list()):
-            out_region = DocumentModel.make_region(out_region_dict["name"], out_region_dict["type"], params=out_region_dict.get("params"))
-            out_region_list.append(out_region)
-
-        # now come the connections between the source and target
-        connection_list = list()
-        for connection_dict in processing_description.get("connections", list()):
-            connection = DocumentModel.make_connection(connection_dict["type"], src=connection_dict["src"], src_prop=connection_dict.get("src_prop"), dst=connection_dict["dst"], dst_prop=connection_dict.get("dst_prop"))
-            connection_list.append(connection)
+                region_params = region_dict.get("params", dict())
+                region_type = region_dict["type"]
+                region_name = region_dict["name"]
+                region_label = region_params.get("label")
+                if region_type == "point":
+                    if region:
+                        assert isinstance(region, Graphics.PointGraphic)
+                        point_region = region
+                    else:
+                        point_region = Graphics.PointGraphic()
+                        for k, v in region_params.items():
+                            setattr(point_region, k, v)
+                        display.add_graphic(point_region)
+                    regions.append((region_name, point_region, region_label))
+                    region_map[region_name] = point_region
+                elif region_type == "line":
+                    if region:
+                        assert isinstance(region, Graphics.LineProfileGraphic)
+                        line_region = region
+                    else:
+                        line_region = Graphics.LineProfileGraphic()
+                        line_region.start = 0.25, 0.25
+                        line_region.end = 0.75, 0.75
+                        for k, v in region_params.items():
+                            setattr(line_region, k, v)
+                        display.add_graphic(line_region)
+                    regions.append((region_name, line_region, region_params.get("label")))
+                    region_map[region_name] = line_region
+                elif region_type == "rectangle":
+                    if region:
+                        assert isinstance(region, Graphics.RectangleGraphic)
+                        rect_region = region
+                    else:
+                        rect_region = Graphics.RectangleGraphic()
+                        rect_region.center = 0.5, 0.5
+                        rect_region.size = 0.5, 0.5
+                        for k, v in region_params.items():
+                            setattr(rect_region, k, v)
+                        display.add_graphic(rect_region)
+                    regions.append((region_name, rect_region, region_params.get("label")))
+                    region_map[region_name] = rect_region
+                elif region_type == "spot":
+                    if region:
+                        assert isinstance(region, Graphics.SpotGraphic)
+                        spot_region = region
+                    else:
+                        spot_region = Graphics.SpotGraphic()
+                        spot_region.center = 0.25, 0.75
+                        spot_region.size = 0.1, 0.1
+                        for k, v in region_params.items():
+                            setattr(spot_region, k, v)
+                        display.add_graphic(spot_region)
+                    regions.append((region_name, spot_region, region_params.get("label")))
+                    region_map[region_name] = spot_region
+                elif region_type == "interval":
+                    if region:
+                        assert isinstance(region, Graphics.IntervalGraphic)
+                        interval_region = region
+                    else:
+                        interval_region = Graphics.IntervalGraphic()
+                        for k, v in region_params.items():
+                            setattr(interval_region, k, v)
+                        display.add_graphic(interval_region)
+                    regions.append((region_name, interval_region, region_params.get("label")))
+                    region_map[region_name] = interval_region
+                elif region_type == "channel":
+                    if region:
+                        assert isinstance(region, Graphics.ChannelGraphic)
+                        channel_region = region
+                    else:
+                        channel_region = Graphics.ChannelGraphic()
+                        for k, v in region_params.items():
+                            setattr(channel_region, k, v)
+                        display.add_graphic(channel_region)
+                    regions.append((region_name, channel_region, region_params.get("label")))
+                    region_map[region_name] = channel_region
 
         # now extract the script (full script) or expression (implied imports and return statement)
         script = processing_description.get("script")
@@ -2194,9 +2107,84 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             expression = processing_description.get("expression")
             if expression:
                 script = Symbolic.xdata_expression(expression)
+        assert script
 
-        # create the data item and return it
-        return self.__get_processing_new(script, src_list, param_list, processing_description["title"], processing_id, out_regions=out_region_list, connections=connection_list)
+        # construct the computation
+        script = script.format(**dict(zip(src_names, src_texts)))
+        computation = self.create_computation(script)
+        computation.label = processing_description["title"]
+        computation.processing_id = processing_id
+        # process the data item inputs
+        for src_name, src_label, input in zip(src_names, src_labels, inputs):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(input[0])
+            computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=src_label, cascade_delete=True)
+        # next process the crop regions
+        for crop_name, input in zip(crop_names, inputs):
+            if crop_name:
+                assert input[1] is not None
+                computation.create_object(crop_name, self.get_object_specifier(input[1]), label=_("Crop Region"), cascade_delete=True)
+        # process the regions
+        for region_name, region, region_label in regions:
+            computation.create_object(region_name, self.get_object_specifier(region), label=region_label, cascade_delete=True)
+        # next process the parameters
+        for param_dict in processing_description.get("parameters", list()):
+            computation.create_variable(param_dict["name"], param_dict["type"], param_dict["value"], value_default=param_dict.get("value_default"),
+                                        value_min=param_dict.get("value_min"), value_max=param_dict.get("value_max"),
+                                        control_type=param_dict.get("control_type"), label=param_dict["label"])
+
+        data_item0 = inputs[0][0]
+        new_data_item = DataItem.new_data_item()
+        prefix = "{} of ".format(processing_description["title"])
+        new_data_item.title = prefix + data_item0.title
+        new_data_item.category = data_item0.category
+
+        self.append_data_item(new_data_item)
+
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
+        buffered_data_source = display_specifier.buffered_data_source
+        display = display_specifier.display
+
+        # next come the output regions that get created on the target itself
+        new_regions = dict()
+        for out_region_dict in processing_description.get("out_regions", list()):
+            region_type = out_region_dict["type"]
+            region_name = out_region_dict["name"]
+            region_params = out_region_dict.get("params", dict())
+            if region_type == "interval":
+                interval_region = Graphics.IntervalGraphic()
+                for k, v in region_params.items():
+                    setattr(interval_region, k, v)
+                display.add_graphic(interval_region)
+                new_regions[region_name] = interval_region
+
+        # now come the connections between the source and target
+        for connection_dict in processing_description.get("connections", list()):
+            connection_type = connection_dict["type"]
+            connection_src = connection_dict["src"]
+            connection_src_prop = connection_dict.get("src_prop")
+            connection_dst = connection_dict["dst"]
+            connection_dst_prop = connection_dict.get("dst_prop")
+            if connection_type == "property":
+                if connection_src == "display":
+                    # TODO: how to refer to the buffered_data_sources? hardcode to data_item0 for now.
+                    new_data_item.add_connection(Connection.PropertyConnection(data_item0.data_sources[0].displays[0], connection_src_prop, new_regions[connection_dst], connection_dst_prop))
+            elif connection_type == "interval_list":
+                new_data_item.add_connection(Connection.IntervalListConnection(display, region_map[connection_dst]))
+
+        # save setting the computation until last to work around threaded clone/merge operation bug.
+        # the bug is that setting the computation triggers the recompute to occur on a thread.
+        # the recompute clones the data item and runs the operation. meanwhile this thread
+        # updates the connection. now the recompute finishes and merges back the data item
+        # which was cloned before the connection was established, effectively reversing the
+        # update that matched the graphic interval to the slice interval on the display.
+        # the result is that the slice interval on the display would get set to the default
+        # value of the graphic interval. so don't actually update the computation until after
+        # everything is configured. permanent solution would be to improve the clone/merge to
+        # only update data that had been changed. alternative implementation would only track
+        # changes to the data item and then apply them again to the original during merge.
+        buffered_data_source.set_computation(computation)
+
+        return new_data_item
 
     def update_computation(self, computation: Symbolic.Computation) -> None:
         if computation:
@@ -2274,8 +2262,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
-            requirement_2d = {"type": "dimensionality", "mn": 2, "mx": 2}
-            requirement_3d = {"type": "dimensionality", "mn": 3, "mx": 3}
+            requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
+            requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
             crop_in_region = {"name": "crop_region", "type": "rectangle", "params": {"label": _("Crop Region")}}
             vs["crop"] = {"title": _("Crop"), "expression": "xd.crop({src}, crop_region.bounds)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [crop_in_region], "requirements": [requirement_2d]}]}
