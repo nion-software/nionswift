@@ -1018,9 +1018,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
         self.__computation_active_items = list()  # type: typing.List[ComputationQueueItem]
-        self.__processing_descriptions = dict()
-        self.__builtin_processing_descriptions = None
-        self.register_processing_descriptions(self.__get_builtin_processing_descriptions())
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -1145,8 +1142,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.about_to_be_removed()
             data_item.close()
         self.storage_cache.close()
-
-        self.unregister_processing_descriptions(self.__get_builtin_processing_descriptions().keys())
 
     def about_to_delete(self):
         # override from ReferenceCounted. several DocumentControllers may retain references
@@ -1964,15 +1959,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_data_item(data_item_copy)
         return data_item_copy
 
-    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
-        """Create a new data item with computation specified by processing_id and inputs and region_list_map.
+    def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
+        return self.__make_computation(processing_id, inputs, region_list_map)
 
-        This method translates the processing description referred to by processing_id combined with inputs and the region_list_map to produce another processing
-        description for get_processing_new.
+    def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
+        """Create a new data item with computation specified by processing_id, inputs, and region_list_map.
         """
         region_list_map = region_list_map or dict()
 
-        processing_descriptions = self.__get_processing_descriptions()
+        processing_descriptions = self._processing_descriptions
         processing_description = processing_descriptions[processing_id]
 
         # first process the sources in the description. match them to the inputs (which are data item/crop graphic tuples)
@@ -2188,7 +2183,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def update_computation(self, computation: Symbolic.Computation) -> None:
         if computation:
-            processing_descriptions = self.__get_processing_descriptions()
+            processing_descriptions = self._processing_descriptions
             processing_id = computation.processing_id
             processing_description = processing_descriptions.get(processing_id)
             if processing_description:
@@ -2211,20 +2206,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 script = script.format(**dict(zip(src_names, src_texts)))
                 computation._get_persistent_property("original_expression").value = script
 
-    def register_processing_descriptions(self, processing_descriptions: typing.Dict) -> None:
-        assert len(set(self.__processing_descriptions.keys()).intersection(set(processing_descriptions.keys()))) == 0
-        self.__processing_descriptions.update(processing_descriptions)
+    _processing_descriptions = dict()
+    _builtin_processing_descriptions = None
 
-    def unregister_processing_descriptions(self, processing_ids: typing.Sequence[str]):
-        assert len(set(self.__get_builtin_processing_descriptions().keys()).intersection(set(processing_ids))) == len(processing_ids)
+    @classmethod
+    def register_processing_descriptions(cls, processing_descriptions: typing.Dict) -> None:
+        assert len(set(cls._processing_descriptions.keys()).intersection(set(processing_descriptions.keys()))) == 0
+        cls._processing_descriptions.update(processing_descriptions)
+
+    @classmethod
+    def unregister_processing_descriptions(cls, processing_ids: typing.Sequence[str]):
+        assert len(set(cls.__get_builtin_processing_descriptions().keys()).intersection(set(processing_ids))) == len(processing_ids)
         for processing_id in processing_ids:
-            self.__processing_descriptions.pop(processing_id)
+            cls._processing_descriptions.pop(processing_id)
 
-    def __get_processing_descriptions(self) -> typing.Dict:
-        return self.__processing_descriptions
-
-    def __get_builtin_processing_descriptions(self) -> typing.Dict:
-        if not self.__builtin_processing_descriptions:
+    @classmethod
+    def _get_builtin_processing_descriptions(cls) -> typing.Dict:
+        if not cls._builtin_processing_descriptions:
             vs = dict()
             vs["fft"] = {"title": _("FFT"), "expression": "xd.fft({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["inverse-fft"] = {"title": _("Inverse FFT"), "expression": "xd.ifft({src})",
@@ -2293,8 +2291,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             filter_in_region = {"name": "region", "type": "spot"}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft(xd.fourier_mask({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))))",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [filter_in_region], "requirements": [requirement_2d]}]}
-            self.__builtin_processing_descriptions = vs
-        return self.__builtin_processing_descriptions
+            cls._builtin_processing_descriptions = vs
+        return cls._builtin_processing_descriptions
 
     def get_fft_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("fft", [(data_item, crop_region)])
@@ -2358,3 +2356,5 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, filter_region: Graphics.Graphic=None) -> DataItem.DataItem:
         return self.__make_computation("filter", [(data_item, crop_region)], {"src": [filter_region]})
+
+DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
