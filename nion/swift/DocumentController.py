@@ -779,10 +779,12 @@ class DocumentController:
     def export_file(self, data_item):
         # present a loadfile dialog to the user
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
-        name_writer_set = set()
+        name_writer_dict = dict()
         for writer in writers:
-            name_writer_set.add((writer.name, " ".join(["*." + extension for extension in writer.extensions]), writer))
-        name_writer_list = sorted(name_writer_set)
+            writer_key = (writer.name, " ".join(["*." + extension for extension in writer.extensions]))
+            name_writer_dict.setdefault(writer_key, writer)
+        # make a list of tuples (writer name, writer extensions, writer) from the name_writer_dict
+        name_writer_list = (key + (name_writer_dict[key],) for key in sorted(name_writer_dict.keys()))
         filter_line_to_writer_map = dict()
         filter_lines = list()
         for writer_name, writer_extensions, writer in name_writer_list:
