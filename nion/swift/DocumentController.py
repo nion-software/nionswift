@@ -48,12 +48,6 @@ class DocumentController(Window.Window):
 
         self.__closed = False  # debugging
 
-        logger = logging.getLogger()
-        old_level = logger.level
-        logger.setLevel(logging.INFO)
-        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
-        logger.setLevel(old_level)
-
         self.uuid = uuid.uuid4()
 
         self.task_created_event = Event.Event()
@@ -186,13 +180,7 @@ class DocumentController(Window.Window):
         self.document_model = None
         self.did_close_event.fire(self)
         self.did_close_event = None
-        # give cancelled tasks a chance to finish
-        self.__event_loop.stop()
-        self.__event_loop.run_forever()
-        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
-        # now close
-        self.__event_loop.close()
-        self.__event_loop = None
+        super().close()
 
     def about_to_show(self):
         geometry, state = self.workspace_controller.restore_geometry_state()
@@ -493,8 +481,6 @@ class DocumentController(Window.Window):
         # t0 = time.time()
         # logging.debug("t start %s ", t0)
         # perform any pending operations
-        self.__event_loop.stop()
-        self.__event_loop.run_forever()
         with self.__weak_periodic_listeners_mutex:
             periodic_listeners = copy.copy(self.__weak_periodic_listeners)
         current_time = time.time()
@@ -518,10 +504,6 @@ class DocumentController(Window.Window):
         # self.filter_controller.periodic()
         # t3 = time.time()
         # logging.debug("t end %s %s %s", t1-t0, t2-t1, t3-t2)
-
-    @property
-    def event_loop(self) -> asyncio.AbstractEventLoop:
-        return self.__event_loop
 
     @property
     def workspace_controller(self):
