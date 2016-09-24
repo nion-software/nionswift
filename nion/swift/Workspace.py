@@ -61,7 +61,7 @@ class Workspace:
         self.__message_boxes = dict()
 
         # configure the document window (central widget)
-        document_controller.document_window.attach(root_widget)
+        document_controller.attach_widget(root_widget)
 
         visible_panels = []
         if self.workspace_id == "library":
@@ -95,7 +95,7 @@ class Workspace:
         self.__content_column = None
         self.filter_row = None
         self.image_row = None
-        self.document_controller.document_window.detach()
+        self.document_controller.detach_widget()
 
     def periodic(self):
         for dock_widget in self.dock_widgets if self.dock_widgets else list():
@@ -151,14 +151,14 @@ class Workspace:
         console_dock_widget = self._find_dock_widget("console-panel")
         output_dock_widget = self._find_dock_widget("output-panel")
         if console_dock_widget is not None and output_dock_widget is not None:
-            document_controller.document_window.tabify_dock_widgets(console_dock_widget, output_dock_widget)
+            document_controller.tabify_dock_widgets(console_dock_widget, output_dock_widget)
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties):
         try:
             panel = self.workspace_manager.create_panel_content(panel_id, document_controller, properties)
             assert panel is not None, "panel is None [%s]" % panel_id
             assert panel.widget is not None, "panel widget is None [%s]" % panel_id
-            dock_widget = document_controller.document_window.create_dock_widget(panel.widget, panel_id, title, positions, position)
+            dock_widget = document_controller.create_dock_widget(panel.widget, panel_id, title, positions, position)
             dock_widget.panel = panel
             self.dock_widgets.append(dock_widget)
             return dock_widget

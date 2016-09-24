@@ -63,13 +63,12 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model)
         document_model = None
         weak_document_model = weakref.ref(document_controller.document_model)
-        weak_document_window = weakref.ref(document_controller.document_window)
+        weak_document_window = weakref.ref(document_controller._document_window)
         weak_document_controller = weakref.ref(document_controller)
         self.assertIsNotNone(weak_document_controller())
         self.assertIsNotNone(weak_document_window())
         self.assertIsNotNone(weak_document_model())
         document_controller.request_close()
-        # document_controller.close()
         document_controller = None
         self.assertIsNone(weak_document_controller())
         self.assertIsNone(weak_document_window())

@@ -282,7 +282,7 @@ class BaseDisplayPanelContent:
         self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
 
         def handle_context_menu_event(x, y, gx, gy):
-            menu = document_controller.ui.create_context_menu(document_controller.document_window)
+            menu = document_controller.create_context_menu()
             return self.show_context_menu(menu, gx, gy)
 
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
@@ -1104,7 +1104,7 @@ class EmptyDisplayPanelContent(BaseDisplayPanelContent):
 
         class ContextMenuCanvasItem(CanvasItem.EmptyCanvasItem):
             def context_menu_event(self, x, y, gx, gy):
-                menu = document_controller.ui.create_context_menu(document_controller.document_window)
+                menu = document_controller.create_context_menu()
                 return enclosing_self.show_context_menu(menu, gx, gy)
 
         empty_canvas_item = ContextMenuCanvasItem()

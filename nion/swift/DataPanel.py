@@ -651,7 +651,7 @@ class DataBrowserController(object):
         if display_item is not None:
             return self.document_controller.create_context_menu_for_data_item(display_item.data_item)
         else:
-            return self.document_controller.ui.create_context_menu(self.document_controller.document_window)
+            return self.document_controller.create_context_menu()
 
     def display_item_double_clicked(self, display_item):
         self.document_controller.new_window_with_data_item("data", data_item=display_item.data_item)

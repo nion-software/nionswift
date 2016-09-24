@@ -139,7 +139,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         def add_clicked() -> None:
             add_dir = self.ui.get_persistent_string("import_directory", "")
-            file_paths, filter_str, directory = self.document_window.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
+            file_paths, filter_str, directory = self.get_file_paths_dialog(_("Add Scripts"), add_dir, "Python Files (*.py)", "Python Files (*.py)")
             self.ui.set_persistent_string("import_directory", directory)
             items.extend(file_paths)
             items.sort()

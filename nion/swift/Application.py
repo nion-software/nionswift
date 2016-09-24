@@ -391,7 +391,7 @@ class Application(object):
             display_panel = document_controller.selected_display_panel
             if display_panel:
                 display_panel.set_displayed_data_item(data_item)
-        document_controller.document_window.show()
+        document_controller.show()
         return document_controller
 
     def __document_controller_did_close(self, document_controller):

@@ -73,9 +73,9 @@ class DocumentController(UIDocumentController.DocumentController):
         if app:
             workspace_dir = app.workspace_dir
             workspace_name = os.path.splitext(os.path.split(workspace_dir)[1])[0] if workspace_dir else _("Workspace")
-            self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), workspace_name)
+            self.title = "{0} Workspace - {1}".format(_("Nion Swift"), workspace_name)
         else:
-            self.document_window.title = _("Nion Swift")
+            self.title = _("Nion Swift")
         self.__workspace_controller = None
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
@@ -143,9 +143,7 @@ class DocumentController(UIDocumentController.DocumentController):
         """
         assert self.__closed == False
         self.__closed = True
-        # recognize when we're running as test and finish out periodic operations
-        if not self.document_window.has_event_loop:
-            self.periodic()
+        self.finish_periodic()  # required to finish periodic operations during tests
         # dialogs
         for weak_dialog in self.__dialogs:
             dialog = weak_dialog()
@@ -199,7 +197,7 @@ class DocumentController(UIDocumentController.DocumentController):
 
     def about_to_show(self):
         geometry, state = self.workspace_controller.restore_geometry_state()
-        self.document_window.restore(geometry, state)
+        self.restore(geometry, state)
 
     def about_to_close(self, geometry, state):
         if self.workspace_controller:
@@ -214,19 +212,19 @@ class DocumentController(UIDocumentController.DocumentController):
 
     def create_menus(self):
 
-        self.file_menu = self.document_window.add_menu(_("File"))
+        self.file_menu = self.add_menu(_("File"))
 
-        self.edit_menu = self.document_window.add_menu(_("Edit"))
+        self.edit_menu = self.add_menu(_("Edit"))
 
-        self.processing_menu = self.document_window.add_menu(_("Processing"))
+        self.processing_menu = self.add_menu(_("Processing"))
 
-        self.view_menu = self.document_window.add_menu(_("View"))
+        self.view_menu = self.add_menu(_("View"))
 
-        self.window_menu = self.document_window.add_menu(_("Window"))
+        self.window_menu = self.add_menu(_("Window"))
 
-        self.help_menu = self.document_window.add_menu(_("Help"))
+        self.help_menu = self.add_menu(_("Help"))
 
-        self.library_menu = self.ui.create_sub_menu(self.document_window)
+        self.library_menu = self.create_sub_menu()
 
         if self.app:
             recent_workspace_file_paths = self.app.get_recent_workspace_file_paths()
@@ -339,7 +337,7 @@ class DocumentController(UIDocumentController.DocumentController):
 
             self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self.display_type_menu, selected_display_panel))
 
-        self.display_type_menu = self.ui.create_sub_menu(self.document_window)
+        self.display_type_menu = self.create_sub_menu()
         self.display_type_menu.on_about_to_show = about_to_show_display_type_menu
 
         # these are temporary menu items, so don't need to assign them to variables, for now
@@ -416,7 +414,7 @@ class DocumentController(UIDocumentController.DocumentController):
         assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
         if not hasattr(self, menu_id):
             before_menu = getattr(self, before_menu_id) if before_menu_id is not None else None
-            menu = self.document_window.insert_menu(menu_title, before_menu)
+            menu = self.insert_menu(menu_title, before_menu)
             setattr(self, menu_id, menu)
         return getattr(self, menu_id)
 
@@ -751,7 +749,7 @@ class DocumentController(UIDocumentController.DocumentController):
              + ")" for reader in readers])
         filter += ";;All Files (*.*)"
         import_dir = self.ui.get_persistent_string("import_directory", "")
-        paths, selected_filter, selected_directory = self.document_window.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
+        paths, selected_filter, selected_directory = self.get_file_paths_dialog(_("Import File(s)"), import_dir, filter)
         self.ui.set_persistent_string("import_directory", selected_directory)
         def import_complete(data_items):
             if len(data_items) > 0:
@@ -783,7 +781,7 @@ class DocumentController(UIDocumentController.DocumentController):
         export_dir = self.ui.get_persistent_string("export_directory", self.ui.get_document_location())
         export_dir = os.path.join(export_dir, data_item.title)
         selected_filter = self.ui.get_persistent_string("export_filter")
-        path, selected_filter, selected_directory = self.document_window.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+        path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
         if not os.path.splitext(path)[1]:
             if selected_filter in filter_line_to_writer_map:
                 path = path + os.path.extsep + filter_line_to_writer_map[selected_filter].extensions[0]
@@ -1275,7 +1273,7 @@ class DocumentController(UIDocumentController.DocumentController):
         return SelectedDataItemBinding(self)
 
     def create_context_menu_for_data_item(self, data_item: DataItem.DataItem, container=None):
-        menu = self.ui.create_context_menu(self.document_window)
+        menu = self.create_context_menu()
         if data_item:
             if not container:
                 container = self.data_items_binding.container
