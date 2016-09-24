@@ -36,7 +36,6 @@ from nion.ui import Dialog
 from nion.ui import DocumentController as UIDocumentController
 from nion.ui import Selection
 from nion.utils import Event
-from nion.utils import Process
 
 _ = gettext.gettext
 
@@ -45,7 +44,7 @@ class DocumentController(UIDocumentController.DocumentController):
     """Manage a document window."""
 
     def __init__(self, ui, document_model, workspace_id=None, app=None):
-        super(DocumentController, self).__init__(ui, app)
+        super().__init__(ui, app)
 
         self.__closed = False  # debugging
 
@@ -460,21 +459,6 @@ class DocumentController(UIDocumentController.DocumentController):
         """ Return the dock widget by id. """
         return self.workspace_controller._find_dock_widget(dock_widget_id)
 
-    # tasks can be added in two ways, queued or added
-    # queued tasks are guaranteed to be executed in the order queued.
-    # added tasks are only executed if not replaced before execution.
-    # added tasks do not guarantee execution order or execution at all.
-
-    def add_task(self, key, task):
-        self.__periodic_set.add_task(key + str(id(self)), task)
-
-    def clear_task(self, key):
-        self.__periodic_set.clear_task(key + str(id(self)))
-
-    def queue_task(self, task):
-        assert task
-        self.__periodic_queue.put(task)
-
     def add_periodic(self, interval: float, listener_fn):
         """Add a listener function and return listener token. Token can be closed or deleted to unlisten."""
         class PeriodicListener:
@@ -525,10 +509,7 @@ class DocumentController(UIDocumentController.DocumentController):
                     traceback.print_exc()
                     traceback.print_stack()
                 periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
-        self.__periodic_queue.perform_tasks()
-        if self.__periodic_queue is None:  # handle special case where we queue'd a close
-            return
-        self.__periodic_set.perform_tasks()
+        super().periodic()
         # t1 = time.time()
         # workspace
         if self.workspace_controller:
