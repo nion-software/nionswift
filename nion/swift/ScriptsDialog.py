@@ -180,7 +180,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__error_label = ui.create_label_widget(properties={"stylesheet": "color: red"})
 
         close_button_widget = ui.create_push_button_widget(_("Close"))
-        close_button_widget.on_clicked = self.document_window.request_close
+        close_button_widget.on_clicked = self.request_close
 
         button_row = ui.create_row_widget()
         button_row.add_spacing(12)
@@ -323,12 +323,8 @@ class RunScriptDialog(Dialog.ActionDialog):
             if not self.__skip_finished:
                 self.alert("Finished")
 
-            def request_close():
-                self.document_window.request_close()
-                self.document_window = None
-
             with self.__lock:
-                self.__q.append(request_close)
+                self.__q.append(self.request_close)
                 self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
 
         self.__thread = threading.Thread(target=func_run, args=(func,))

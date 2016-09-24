@@ -104,8 +104,7 @@ class Application(object):
             # closing the document window will trigger the about_to_close event to be called which
             # will then call document controller close which will fire its did_close_event which will
             # remove the document controller from the list of document controllers.
-            document_controller.document_window.request_close()
-            document_controller.document_window = None
+            document_controller.request_close()
         # document model is reference counted; when the no document controller holds a reference to the
         # document model, it will be closed.
 

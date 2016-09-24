@@ -33,6 +33,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
+from nion.ui import DocumentController as UIDocumentController
 from nion.ui import Selection
 from nion.utils import Event
 from nion.utils import Process
@@ -40,13 +41,11 @@ from nion.utils import Process
 _ = gettext.gettext
 
 
-class DocumentController:
+class DocumentController(UIDocumentController.DocumentController):
     """Manage a document window."""
 
-    # document_window is passed from the application container.
-    # the next method to be called will be initialize.
     def __init__(self, ui, document_model, workspace_id=None, app=None):
-        super(DocumentController, self).__init__()
+        super(DocumentController, self).__init__(ui, app)
 
         self.__closed = False  # debugging
 
@@ -56,7 +55,6 @@ class DocumentController:
         self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
         logger.setLevel(old_level)
 
-        self.ui = ui
         self.uuid = uuid.uuid4()
 
         self.task_created_event = Event.Event()
@@ -72,25 +70,17 @@ class DocumentController:
         # to determine when to close it.
         self.document_model = document_model
         self.document_model.add_ref()
-        self.document_window = self.ui.create_document_window(_("Nion Swift"))
-        self.document_window.on_periodic = self.periodic
-        self.document_window.on_queue_task = self.queue_task
-        self.document_window.on_add_task = self.add_task
-        self.document_window.on_clear_task = self.clear_task
-        self.document_window.on_about_to_show = self.about_to_show
-        self.document_window.on_about_to_close = self.about_to_close
         if app:
             workspace_dir = app.workspace_dir
             workspace_name = os.path.splitext(os.path.split(workspace_dir)[1])[0] if workspace_dir else _("Workspace")
             self.document_window.title = "{0} Workspace - {1}".format(_("Nion Swift"), workspace_name)
+        else:
+            self.document_window.title = _("Nion Swift")
         self.__workspace_controller = None
-        self.app = app
         self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_selected_display_panel = None
         self.__tool_mode = "pointer"
-        self.__periodic_queue = Process.TaskQueue()
-        self.__periodic_set = Process.TaskSet()
         self.__weak_periodic_listeners = []
         self.__weak_periodic_listeners_mutex = threading.RLock()
 
@@ -161,7 +151,7 @@ class DocumentController:
             dialog = weak_dialog()
             if dialog:
                 try:
-                    dialog.document_window.request_close()
+                    dialog.request_close()
                 except Exception as e:
                     pass
         # menus
@@ -199,9 +189,6 @@ class DocumentController:
         self.document_model = None
         self.did_close_event.fire(self)
         self.did_close_event = None
-        self.ui.destroy_document_window(self)
-        self.__periodic_queue = None
-        self.__periodic_set = None
         # give cancelled tasks a chance to finish
         self.__event_loop.stop()
         self.__event_loop.run_forever()
@@ -217,7 +204,7 @@ class DocumentController:
     def about_to_close(self, geometry, state):
         if self.workspace_controller:
             self.workspace_controller.save_geometry_state(geometry, state)
-        self.close()
+        super().about_to_close(geometry, state)
 
     def register_console(self, console):
         self.console = console
@@ -254,7 +241,7 @@ class DocumentController:
 
         self.new_action = self.file_menu.add_menu_item(_("New Window"), lambda: self.new_window_with_data_item("library"), key_sequence="new")
         #self.open_action = self.file_menu.add_menu_item(_("Open"), lambda: self.no_operation(), key_sequence="open")
-        self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.document_window.request_close(), key_sequence="close")
+        self.close_action = self.file_menu.add_menu_item(_("Close Window"), lambda: self.request_close(), key_sequence="close")
         self.file_menu.add_separator()
         self.new_action = self.file_menu.add_sub_menu(_("Switch Library"), self.library_menu)
         self.file_menu.add_separator()
