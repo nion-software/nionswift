@@ -33,14 +33,14 @@ from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
-from nion.ui import DocumentController as UIDocumentController
 from nion.ui import Selection
+from nion.ui import Window
 from nion.utils import Event
 
 _ = gettext.gettext
 
 
-class DocumentController(UIDocumentController.DocumentController):
+class DocumentController(Window.Window):
     """Manage a document window."""
 
     def __init__(self, ui, document_model, workspace_id=None, app=None):
