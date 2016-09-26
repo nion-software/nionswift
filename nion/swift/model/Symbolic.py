@@ -512,8 +512,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             g["target"] = target
             l = dict()
             for variable_name, object_specifier in computation_variable_map.items():
-                resolved_object = computation_context.resolve_object_specifier(object_specifier)
-                g[variable_name] = resolved_object.value if resolved_object else None
+                bound_object = computation_context.resolve_object_specifier(object_specifier)
+                resolved_object = bound_object.value if bound_object else None
+                # in the ideal world, we could clone the object/data and computations would not be
+                # able to modify the input objects; reality, though, dictates that performance is
+                # more important than this protection. so use the resolved object directly.
+                api_object = api._new_api_object(resolved_object) if resolved_object else None
+                g[variable_name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
             code_lines.extend(expression_lines)
             code = "\n".join(code_lines)
             try:

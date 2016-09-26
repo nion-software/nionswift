@@ -2321,6 +2321,15 @@ class API_1:
     def resolve_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
 
+    def _new_api_object(self, object):
+        if isinstance(object, DocumentModelModule.DocumentModel):
+            return Library(object)
+        if isinstance(object, DataItemModule.DataItem):
+            return DataItem(object)
+        if isinstance(object, Graphics.Graphic):
+            return Graphic(object)
+        return None
+
     # provisional
     def queue_task(self, fn) -> None:
         self.__app.document_controllers[0].queue_task(fn)
@@ -2351,10 +2360,7 @@ def get_data_item(version: str, data_item: DataItemModule.DataItem) -> DataItem:
 def get_graphic(version: str, graphic: Graphics.Graphic) -> Graphic:
     return Graphic(graphic)
 
-
 # this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
 # for this to work, Facade must be imported early in the startup process.
 def initialize():
     PlugInManager.register_api_broker_fn(get_api)
-    DataItemModule.register_api_data_item_fn(get_data_item)
-    Graphics.register_api_graphic_fn(get_graphic)

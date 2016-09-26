@@ -175,8 +175,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item2a_copy = copy.deepcopy(data_item2a)
             document_model.append_data_item(data_item2a_copy)
             # verify data source
-            self.assertEqual(document_model.resolve_object_specifier(data_item2a.maybe_data_source.computation.variables[0].variable_specifier).value._data_item, data_item2)
-            self.assertEqual(document_model.resolve_object_specifier(data_item2a_copy.maybe_data_source.computation.variables[0].variable_specifier).value._data_item, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(data_item2a.maybe_data_source.computation.variables[0].variable_specifier).value, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(data_item2a_copy.maybe_data_source.computation.variables[0].variable_specifier).value, data_item2)
 
     def test_copy_data_item_with_crop(self):
         document_model = DocumentModel.DocumentModel()
@@ -191,8 +191,8 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item_copy)
             self.assertNotEqual(data_item_copy.maybe_data_source.computation, data_item.maybe_data_source.computation)
             document_model.recompute_all()
-            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.maybe_data_source.computation.variables[1].variable_specifier).value._graphic,
-                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[1].variable_specifier).value._graphic)
+            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.maybe_data_source.computation.variables[1].variable_specifier).value,
+                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[1].variable_specifier).value)
 
     def test_copy_data_item_with_transaction(self):
         document_model = DocumentModel.DocumentModel()

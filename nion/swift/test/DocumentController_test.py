@@ -514,8 +514,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotEqual(data_item_dup.maybe_data_source.computation, data_item.maybe_data_source.computation)
             self.assertNotEqual(data_item_dup.maybe_data_source.computation.variables[0], data_item.maybe_data_source.computation.variables[0])
             self.assertEqual(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier["uuid"], data_item.maybe_data_source.computation.variables[0].variable_specifier["uuid"])
-            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier).value._data_item,
-                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value._data_item)
+            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier).value,
+                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()

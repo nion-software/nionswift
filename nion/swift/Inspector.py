@@ -1585,7 +1585,7 @@ class ComputationInspectorSection(InspectorSection):
                     row.add_spacing(8)
                     base_variable_specifier = copy.copy(variable.specifier)
                     bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-                    data_item = bound_data_item.value._data_item if bound_data_item else None
+                    data_item = bound_data_item.value if bound_data_item else None
 
                     def data_item_drop(data_item_uuid):
                         data_item = document_model.get_data_item_by_key(data_item_uuid)
@@ -1613,7 +1613,7 @@ class ComputationInspectorSection(InspectorSection):
                         if key == "specifier":
                             base_variable_specifier = copy.copy(variable.specifier)
                             bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-                            data_item = bound_data_item.value._data_item if bound_data_item else None
+                            data_item = bound_data_item.value if bound_data_item else None
                             data_item_thumbnail_source.set_data_item(data_item)
 
                     property_changed_listener = variable.property_changed_event.listen(property_changed)

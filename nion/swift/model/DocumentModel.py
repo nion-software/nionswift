@@ -19,6 +19,7 @@ import weakref
 import scipy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import Connection
@@ -1300,7 +1301,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __remove_region_specifier(self, region_specifier) -> None:
         bound_region = self.resolve_object_specifier(region_specifier)
         if bound_region:
-            region = bound_region.value._graphic
+            region = bound_region.value
             for data_item in self.data_items:
                 for data_source in data_item.data_sources:
                     for display in data_source.displays:
@@ -1342,11 +1343,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     specifier = variable.specifier
                     if specifier:
                         object = self.resolve_object_specifier(variable.specifier)
-                        if object and hasattr(object.value, "_data_item"):
-                            source_data_item = object.value._data_item
-                            if not source_data_item in source_data_item_set:
-                                source_data_item_set.add(source_data_item)
-                                self.__add_dependency(source_data_item, data_item)
+                        if hasattr(object, "value"):
+                            source_data_item = object.value
+                            if isinstance(source_data_item, DataItem.DataItem):
+                                if not source_data_item in source_data_item_set:
+                                    source_data_item_set.add(source_data_item)
+                                    self.__add_dependency(source_data_item, data_item)
 
     def rebind_computations(self):
         """Call this to rebind all computations.
@@ -1648,7 +1650,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 data_item_clone = data_item.clone()
-                api_data_item = DataItem.new_api_data_item("~1.0", data_item_clone)
+                api_data_item = api._new_api_object(data_item_clone)
                 if computation.needs_update:
                     computation.evaluate_with_target(api, api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
@@ -1670,7 +1672,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # this can be called on the UI thread; but it can also take time. use sparingly.
         # need the data to make connect_explorer_interval work; so do this here. ugh.
         buffered_data_source = data_item.maybe_data_source
-        data_and_metadata = DataItem.evaluate_data(buffered_data_source.computation)
+        data_and_metadata = evaluate_data(buffered_data_source.computation)
         if data_and_metadata:
             with buffered_data_source._changes():
                 with buffered_data_source.data_ref() as data_ref:
@@ -1736,7 +1738,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                     @property
                     def value(self):
-                        return DataItem.new_api_data_item("~1.0", self.__data_item)
+                        return self.__data_item
                     def close(self):
                         self.__data_and_metadata_changed_event_listener.close()
                         self.__data_and_metadata_changed_event_listener = None
@@ -1771,7 +1773,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                             self.__remove_region_listener = None
                                         @property
                                         def value(self):
-                                            return Graphics.new_api_graphic("~1.0", self.__object)
+                                            return self.__object
                                     if graphic:
                                         return BoundGraphic(display, graphic)
         return Symbolic.ComputationVariable.resolve_extension_object_specifier(specifier)
@@ -2358,3 +2360,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("filter", [(data_item, crop_region)], {"src": [filter_region]})
 
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
+
+def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
+    api = PlugInManager.api_broker_fn("~1.0", None)
+    api_data_item = api._new_api_object(DataItem.new_data_item(None))
+    computation.evaluate_with_target(api, api_data_item)
+    return api_data_item.data_and_metadata

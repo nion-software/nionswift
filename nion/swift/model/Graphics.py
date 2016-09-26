@@ -1802,14 +1802,3 @@ def factory(lookup_id):
     }
     type = lookup_id("type")
     return build_map[type]() if type in build_map else None
-
-api_graphic_fn = None
-def register_api_graphic_fn(new_api_graphic_fn):
-    global api_graphic_fn
-    api_graphic_fn = new_api_graphic_fn
-
-def new_api_graphic(version: str, graphic: Graphic):
-    global api_graphic_fn
-    if callable(api_graphic_fn):
-        return api_graphic_fn(version, graphic)
-    return None

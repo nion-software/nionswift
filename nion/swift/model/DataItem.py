@@ -1454,20 +1454,3 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
     data_item.append_data_source(buffered_data_source)
     buffered_data_source.set_data_and_metadata(data_and_metadata)
     return data_item
-
-api_data_item_fn = None
-def register_api_data_item_fn(new_api_data_item_fn):
-    global api_data_item_fn
-    api_data_item_fn = new_api_data_item_fn
-
-def new_api_data_item(version: str, data_item: DataItem):
-    global api_data_item_fn
-    if callable(api_data_item_fn):
-        return api_data_item_fn(version, data_item)
-    raise Exception("Facade not initialized")
-
-def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
-    api = PlugInManager.api_broker_fn("~1.0", None)
-    api_data_item = new_api_data_item("~1.0", new_data_item(None))
-    computation.evaluate_with_target(api, api_data_item)
-    return api_data_item.data_and_metadata
