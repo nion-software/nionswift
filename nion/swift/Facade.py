@@ -875,9 +875,9 @@ class RecordTask:
         self.__hardware_source = hardware_source
         if frame_parameters:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
-        if channels_enabled:
+        if channels_enabled is not None:
             for channel_index, channel_enabled in enumerate(channels_enabled):
-                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
+                self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
 
         self.__data_and_metadata_list = None
 
@@ -916,7 +916,7 @@ class RecordTask:
 
         This method will wait until the task finishes.
 
-        :return: The array of data and metadata items that were read.
+        :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
         self.__thread.join()
@@ -935,9 +935,9 @@ class ViewTask:
         self.__was_playing = self.__hardware_source.is_playing
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
-        if channels_enabled:
+        if channels_enabled is not None:
             for channel_index, channel_enabled in enumerate(channels_enabled):
-                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
+                self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
         if not self.__was_playing:
             self.__hardware_source.start_playing()
         self.__data_channel_buffer = HardwareSourceModule.DataChannelBuffer(self.__hardware_source.data_channels, buffer_size)
@@ -965,7 +965,7 @@ class ViewTask:
 
         This method will return immediately if data is available.
 
-        :return: The array of data and metadata items that were read.
+        :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
         return self.__data_channel_buffer.grab_latest()
@@ -977,7 +977,7 @@ class ViewTask:
 
         This method will wait until the current frame completes.
 
-        :return: The array of data and metadata items that were read.
+        :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
         return self.__data_channel_buffer.grab_next()
@@ -989,7 +989,7 @@ class ViewTask:
 
         This method will wait until the current frame completes and the next one finishes.
 
-        :return: The array of data and metadata items that were read.
+        :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
         return self.__data_channel_buffer.grab_following()
@@ -1001,7 +1001,7 @@ class ViewTask:
 
         This method will return the earliest item in the buffer or wait for the next one to finish.
 
-        :return: The array of data and metadata items that were read.
+        :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
         return self.__data_channel_buffer.grab_earliest()
@@ -1063,9 +1063,9 @@ class HardwareSource:
     def start_playing(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None) -> None:
         if frame_parameters:
             self.__hardware_source.set_current_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
-        if channels_enabled:
+        if channels_enabled is not None:
             for channel_index, channel_enabled in enumerate(channels_enabled):
-                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
+                self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
         self.__hardware_source.start_playing()
 
     def stop_playing(self) -> None:
@@ -1083,7 +1083,7 @@ class HardwareSource:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
         if channels_enabled is not None:
             for channel_index, channel_enabled in enumerate(channels_enabled):
-                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
+                self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
         self.__hardware_source.start_recording()
 
     def abort_recording(self) -> None:
@@ -1101,16 +1101,16 @@ class HardwareSource:
         :param frame_parameters: The frame parameters for the record. Pass None for defaults.
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the record. Pass None for defaults.
-        :type channels_enabled: Array of booleans.
+        :type channels_enabled: List of booleans.
         :param timeout: The timeout in seconds. Pass None to use default.
-        :return: The array of data and metadata items that were read.
+        :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
         """
         if frame_parameters:
             self.__hardware_source.set_record_frame_parameters(self.__hardware_source.get_frame_parameters_from_dict(frame_parameters))
-        if channels_enabled:
+        if channels_enabled is not None:
             for channel_index, channel_enabled in enumerate(channels_enabled):
-                self.__hardware_source.set_channel_enabled(channel_index, channels_enabled)
+                self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
         self.__hardware_source.start_recording()
         data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
         return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
@@ -1123,7 +1123,7 @@ class HardwareSource:
         :param frame_parameters: The frame parameters for the record. Pass None for defaults.
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the record. Pass None for defaults.
-        :type channels_enabled: Array of booleans.
+        :type channels_enabled: List of booleans.
         :return: The :py:class:`RecordTask` object.
         :rtype: :py:class:`RecordTask`
 
@@ -1141,7 +1141,7 @@ class HardwareSource:
         :param frame_parameters: The frame parameters for the view. Pass None for defaults.
         :type frame_parameters: :py:class:`FrameParameters`
         :param channels_enabled: The enabled channels for the view. Pass None for defaults.
-        :type channels_enabled: Array of booleans.
+        :type channels_enabled: List of booleans.
         :param buffer_size: The buffer size if using the grab_earliest method. Default is 1.
         :type buffer_size: int
         :return: The :py:class:`ViewTask` object.
@@ -1159,7 +1159,7 @@ class HardwareSource:
         .. versionadded:: 1.0
 
         :param timeout: The timeout in seconds. Pass None to use default.
-        :return: The array of data and metadata items that were read.
+        :return: The list of data and metadata items that were read.
         :rtype: list of :py:class:`DataAndMetadata`
 
         If the view is not already started, it will be started automatically.
