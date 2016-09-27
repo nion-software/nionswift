@@ -873,6 +873,14 @@ class Graphic:
         self.set_property("end", value)
 
     @property
+    def interval(self):
+        return self.get_property("interval")
+
+    @interval.setter
+    def interval(self, value):
+        self.set_property("interval", value)
+
+    @property
     def position(self):
         return self.get_property("position")
 
