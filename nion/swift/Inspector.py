@@ -35,7 +35,7 @@ class InspectorPanel(Panel.Panel):
     """
 
     def __init__(self, document_controller, panel_id, properties):
-        super(InspectorPanel, self).__init__(document_controller, panel_id, _("Inspector"))
+        super().__init__(document_controller, panel_id, _("Inspector"))
 
         # the currently selected display
         self.__display_specifier = DataItem.DisplaySpecifier()
@@ -75,7 +75,7 @@ class InspectorPanel(Panel.Panel):
         self.document_controller.clear_task("update_display" + str(id(self)))
         self.document_controller.clear_task("update_display_inspector" + str(id(self)))
         # finish closing
-        super(InspectorPanel, self).close()
+        super().close()
 
     def _get_inspector_sections(self):
         return self.__display_inspector._get_inspectors() if self.__display_inspector else None
@@ -200,7 +200,7 @@ class InfoInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, data_item):
-        super(InfoInspectorSection, self).__init__(ui, "info", _("Info"))
+        super().__init__(ui, "info", _("Info"))
         # title
         self.info_section_title_row = self.ui.create_row_widget()
         self.info_section_title_row.add(self.ui.create_label_widget(_("Title"), properties={"width": 60}))
@@ -473,7 +473,7 @@ class CalibrationsInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, data_item, buffered_data_source, display):
-        super(CalibrationsInspectorSection, self).__init__(ui, "calibrations", _("Calibrations"))
+        super().__init__(ui, "calibrations", _("Calibrations"))
         # get streams
         dimensional_calibrations_stream = Stream.PropertyStream(buffered_data_source, "dimensional_calibrations")
         self.__intensity_calibration_stream = Stream.PropertyStream(buffered_data_source, "intensity_calibration").add_ref()
@@ -557,6 +557,7 @@ class CalibrationsInspectorSection(InspectorSection):
 
     # not thread safe.
     def __create_list_item_widget(self, calibration):
+        """Called when an item (calibration) is inserted into the list widget. Returns a widget."""
         calibration_row = self.ui.create_row_widget()
         row_label = self.ui.create_label_widget(properties={"width": 60})
         offset_field = self.ui.create_line_edit_widget(properties={"width": 60})
@@ -1301,9 +1302,8 @@ class GraphicsInspectorSection(InspectorSection):
         """
 
     def __init__(self, ui, data_item, buffered_data_source, display, selected_only=False):
-        super(GraphicsInspectorSection, self).__init__(ui, "graphics", _("Graphics"))
+        super().__init__(ui, "graphics", _("Graphics"))
         self.__image_size = buffered_data_source.dimensional_shape
-        self.__calibrations = buffered_data_source.dimensional_calibrations
         self.__graphics = display.graphics
         self.__display_specifier = DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
         # ui
@@ -1387,7 +1387,7 @@ class ComputationInspectorSection(InspectorSection):
     """
 
     def __init__(self, ui, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, buffered_data_source: DataItem.BufferedDataSource):
-        super(ComputationInspectorSection, self).__init__(ui, "computation", _("Computation"))
+        super().__init__(ui, "computation", _("Computation"))
         computation = buffered_data_source.computation
         self.__widget_wrappers = list()
         if computation:
@@ -1609,7 +1609,7 @@ class ComputationInspectorSection(InspectorSection):
         if self.__computation_variable_removed_event_listener:
             self.__computation_variable_removed_event_listener.close()
             self.__computation_variable_removed_event_listener = None
-        super(ComputationInspectorSection, self).close()
+        super().close()
 
 
 class DataItemInspector:

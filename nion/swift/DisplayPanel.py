@@ -1228,7 +1228,6 @@ class DisplayPanel:
         document_controller.register_display_panel(self)
         self.__display_panel_content = None
         self.__canvas_item = CanvasItem.CanvasItemComposition()
-        # self.__canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__canvas_item.wants_mouse_events = True
         self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
         self.identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
