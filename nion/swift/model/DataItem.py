@@ -446,6 +446,9 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
                     self.__data_and_metadata.unloadable = True
             self.__change_changed = True
 
+    def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
+        self.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data, data_modified))
+
     @property
     def data_shape_and_dtype(self) -> typing.Tuple[typing.Iterable[int], numpy.dtype]:
         return self.__data_and_metadata.data_shape_and_dtype if self.__data_and_metadata else None
