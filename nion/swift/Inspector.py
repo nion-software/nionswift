@@ -4,6 +4,7 @@ import functools
 import gettext
 import math
 import operator
+import threading
 import uuid
 
 # third party libraries
@@ -22,7 +23,6 @@ from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Observable
-from nion.utils import Stream
 
 _ = gettext.gettext
 
@@ -373,9 +373,10 @@ class SessionInspectorSection(InspectorSection):
     def close(self):
         self.__property_changed_listener.close()
         self.__property_changed_listener = None
+        super().close()
 
 
-class CalibrationStreamToObservable(Observable.Observable):
+class CalibrationToObservable(Observable.Observable):
     """Provides observable calibration object.
 
     Clients can get/set/observer offset, scale, and unit properties.
@@ -386,9 +387,9 @@ class CalibrationStreamToObservable(Observable.Observable):
     data_source.set_dimensional_calibration(0, calibration).
     """
 
-    def __init__(self, calibration_stream, setter_fn):
+    def __init__(self, calibration, setter_fn):
         super().__init__()
-        self.__calibration_stream = calibration_stream
+        self.__calibration = calibration
         self.__cached_value = Calibration.Calibration()
         self.__setter_fn = setter_fn
         def update_calibration(calibration):
@@ -400,15 +401,18 @@ class CalibrationStreamToObservable(Observable.Observable):
                 if calibration.units != self.__cached_value.units:
                     self.notify_set_property("units", calibration.units)
             self.__cached_value = calibration
-        self.__listener = calibration_stream.value_stream.listen(update_calibration)
-        update_calibration(calibration_stream.value)
+        update_calibration(calibration)
 
     def close(self):
         self.__calibration_stream = None
-        self.__listener.close()
-        self.__listener = None
         self.__cached_value = None
         self.__setter_fn = None
+
+    def copy_from(self, calibration):
+        self.__cached_value = calibration
+        self.notify_set_property("offset", calibration.offset)
+        self.notify_set_property("scale", calibration.scale)
+        self.notify_set_property("units", calibration.units)
 
     @property
     def offset(self):
@@ -474,37 +478,33 @@ class CalibrationsInspectorSection(InspectorSection):
 
     def __init__(self, ui, data_item, buffered_data_source, display):
         super().__init__(ui, "calibrations", _("Calibrations"))
-        # get streams
-        dimensional_calibrations_stream = Stream.PropertyStream(buffered_data_source, "dimensional_calibrations")
-        self.__intensity_calibration_stream = Stream.PropertyStream(buffered_data_source, "intensity_calibration").add_ref()
-        # configure the bindings to dimension calibrations
-        self.__calibrations = list()
-        self.__dimensional_calibration_streams = list()
-        for index in range(len(buffered_data_source.dimensional_calibrations)):
-            # select the indexed dimensional calibration and form a new stream
-            dimensional_calibration_stream = Stream.MapStream(dimensional_calibrations_stream, operator.itemgetter(index))
-            # then convert it to an observable so that we can bind to offset/scale/units and add it to calibrations list
-            self.__calibrations.append(CalibrationStreamToObservable(dimensional_calibration_stream, functools.partial(buffered_data_source.set_dimensional_calibration, index)))
-            self.__dimensional_calibration_streams.append(dimensional_calibration_stream.add_ref())
-        # ui. create the spatial calibrations list.
+        self.__buffered_data_source = buffered_data_source
+        self.__calibration_observables = list()
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
-        list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
-        for index, spatial_calibration in enumerate(self.__calibrations):
-            list_widget.insert_item(spatial_calibration, index)
-        self.add_widget_to_content(list_widget)
+        self.__list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
+        self.add_widget_to_content(self.__list_widget)
+        def handle_data_and_metadata_changed():
+            # handle threading specially for tests
+            if threading.current_thread() != threading.main_thread():
+                self.widget.add_task("update_calibration_list" + str(id(self)), self.__build_calibration_list)
+            else:
+                self.__build_calibration_list()
+        self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(handle_data_and_metadata_changed)
+        self.__build_calibration_list()
         # create the intensity row
-        intensity_calibration = CalibrationStreamToObservable(self.__intensity_calibration_stream, buffered_data_source.set_intensity_calibration)
-        if intensity_calibration is not None:
+        intensity_calibration = self.__buffered_data_source.intensity_calibration or Calibration.Calibration()
+        intensity_calibration_observable = CalibrationToObservable(intensity_calibration, self.__buffered_data_source.set_intensity_calibration)
+        if intensity_calibration_observable is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})
             offset_field = self.ui.create_line_edit_widget(properties={"width": 60})
             scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
             units_field = self.ui.create_line_edit_widget(properties={"width": 60})
             float_point_4_converter = Converter.FloatToStringConverter(format="{0:.4f}")
-            offset_field.bind_text(Binding.PropertyBinding(intensity_calibration, "offset", converter=float_point_4_converter))
-            scale_field.bind_text(Binding.PropertyBinding(intensity_calibration, "scale", float_point_4_converter))
-            units_field.bind_text(Binding.PropertyBinding(intensity_calibration, "units"))
+            offset_field.bind_text(Binding.PropertyBinding(intensity_calibration_observable, "offset", converter=float_point_4_converter))
+            scale_field.bind_text(Binding.PropertyBinding(intensity_calibration_observable, "scale", float_point_4_converter))
+            units_field.bind_text(Binding.PropertyBinding(intensity_calibration_observable, "units"))
             intensity_row.add(row_label)
             intensity_row.add_spacing(12)
             intensity_row.add(offset_field)
@@ -523,14 +523,36 @@ class CalibrationsInspectorSection(InspectorSection):
         self.finish_widget_content()
 
     def close(self):
+        self.__data_and_metadata_changed_event_listener.close()
+        self.__data_and_metadata_changed_event_listener = None
         # close the bound calibrations
-        for spatial_calibration in self.__calibrations:
-            spatial_calibration.close()
-        self.__intensity_calibration_stream.remove_ref()
-        self.__intensity_calibration_stream = None
-        for dimensional_calibration_stream in self.__dimensional_calibration_streams:
-            dimensional_calibration_stream.remove_ref()
-        self.__dimensional_calibration_streams = None
+        for calibration_observable in self.__calibration_observables:
+            calibration_observable.close()
+        self.__calibration_observables = list()
+        super().close()
+
+    # not thread safe
+    def __build_calibration_list(self):
+        dimensional_calibrations = self.__buffered_data_source.dimensional_calibrations or list()
+        while len(dimensional_calibrations) < self.__list_widget.list_item_count:
+            self.__list_widget.remove_item(len(self.__calibration_observables) - 1)
+            self.__calibration_observables[-1].close()
+            self.__calibration_observables.pop(-1)
+        while len(dimensional_calibrations) > self.__list_widget.list_item_count:
+            index = self.__list_widget.list_item_count
+            calibration_observable = CalibrationToObservable(dimensional_calibrations[index], functools.partial(self.__buffered_data_source.set_dimensional_calibration, index))
+            self.__calibration_observables.append(calibration_observable)
+            self.__list_widget.insert_item(calibration_observable, index)
+        assert len(dimensional_calibrations) == self.__list_widget.list_item_count
+        for index, (dimensional_calibration, calibration_observable) in enumerate(zip(dimensional_calibrations, self.__calibration_observables)):
+            calibration_observable.copy_from(dimensional_calibration)
+            if self.__list_widget.list_item_count == 1:
+                row_label_text = _("Channel")
+            elif self.__list_widget.list_item_count == 2:
+                row_label_text = (_("Y"), _("X"))[index]
+            else:
+                row_label_text = str(index)
+            self.__list_widget.list_items[index].children[0].children[0].text = row_label_text
 
     # not thread safe
     def __create_header_widget(self):
@@ -556,25 +578,17 @@ class CalibrationsInspectorSection(InspectorSection):
         return header_for_empty_list_row
 
     # not thread safe.
-    def __create_list_item_widget(self, calibration):
-        """Called when an item (calibration) is inserted into the list widget. Returns a widget."""
+    def __create_list_item_widget(self, calibration_observable):
+        """Called when an item (calibration_observable) is inserted into the list widget. Returns a widget."""
         calibration_row = self.ui.create_row_widget()
         row_label = self.ui.create_label_widget(properties={"width": 60})
         offset_field = self.ui.create_line_edit_widget(properties={"width": 60})
         scale_field = self.ui.create_line_edit_widget(properties={"width": 60})
         units_field = self.ui.create_line_edit_widget(properties={"width": 60})
-        # convert list item to index string
-        if len(self.__calibrations) == 1:
-            row_label_text = _("Channel")
-        elif len(self.__calibrations) == 2:
-            row_label_text = (_("Y"), _("X"))[self.__calibrations.index(calibration)]
-        else:
-            row_label_text = str(self.__calibrations.index(calibration))
-        row_label.text = row_label_text
         float_point_4_converter = Converter.FloatToStringConverter(format="{0:.4f}")
-        offset_field.bind_text(Binding.PropertyBinding(calibration, "offset", converter=float_point_4_converter))
-        scale_field.bind_text(Binding.PropertyBinding(calibration, "scale", float_point_4_converter))
-        units_field.bind_text(Binding.PropertyBinding(calibration, "units"))
+        offset_field.bind_text(Binding.PropertyBinding(calibration_observable, "offset", converter=float_point_4_converter))
+        scale_field.bind_text(Binding.PropertyBinding(calibration_observable, "scale", float_point_4_converter))
+        units_field.bind_text(Binding.PropertyBinding(calibration_observable, "units"))
         # notice the binding of calibration_index below.
         calibration_row.add(row_label)
         calibration_row.add_spacing(12)

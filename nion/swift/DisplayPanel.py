@@ -1358,6 +1358,9 @@ class DisplayPanel:
         if is_focused:
             self.__display_panel_content.canvas_item.request_focus()
 
+        if is_selected:
+            document_controller.notify_selected_data_item_changed(self.data_item)
+
         self.__display_panel_type = d.get("display-panel-type")
         self.__controller_type = d.get("controller_type")
 
