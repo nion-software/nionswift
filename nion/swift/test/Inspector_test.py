@@ -474,6 +474,66 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual("40.0 eV", graphic_widget.children[0].children[1].text)  # energy
         self.assertEqual("80.0 eV", graphic_widget.children[1].children[1].text)  # energy
 
+    def test_calibration_inspector_updates_for_when_data_shape_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((10, 10, 10)))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertIn(Inspector.SliceInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
+            data_item.maybe_data_source.set_data(numpy.zeros((10, 10)))
+            document_controller.periodic()
+            self.assertNotIn(Inspector.SliceInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
+
+    def test_inspector_updates_for_new_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            # configure workspace
+            d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
+                {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True},
+                {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
+            workspace_2x1 = document_controller.workspace_controller.new_workspace("2x1", d)
+            document_controller.workspace_controller.change_workspace(workspace_2x1)
+            # put data item in first area
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            # print("data_item {}".format(data_item))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
+            # process to add new data item
+            new_data_item = document_controller.processing_invert().data_item
+            # print("new_data_item {}".format(new_data_item))
+            document_model.recompute_all()
+            document_controller.periodic()
+            new_display_panel = document_controller.selected_display_panel
+            self.assertNotEqual(new_display_panel, display_panel)
+            self.assertEqual(new_display_panel.data_item, new_data_item)
+            actual_inspector_section_count = len(inspector_panel._get_inspector_sections())
+            self.assertEqual(expected_inspector_section_count, actual_inspector_section_count)
+
+    def test_data_item_with_no_data_displays_as_line_plot(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem()
+            data_item.append_data_source(DataItem.BufferedDataSource())
+            data_item.maybe_data_source.displays[0].display_type = "line_plot"
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

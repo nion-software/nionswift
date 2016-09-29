@@ -58,6 +58,11 @@ class InspectorPanel(Panel.Panel):
         scroll_area.content = self.column
         self.widget = scroll_area
 
+        self.__display_changed_listener = None
+        self.__display_graphic_selection_changed_event_listener = None
+        self.__display_type = None
+        self.__display_data_shape = None
+
     def close(self):
         # disconnect self as listener
         self.__data_item_changed_event_listener.close()
@@ -85,9 +90,11 @@ class InspectorPanel(Panel.Panel):
     def __update_display_inspector(self):
         self.column.remove_all()
         if self.__display_inspector:
-            if self.__display_type_changed_listener:
-                self.__display_type_changed_listener.close()
-                self.__display_type_changed_listener = None
+            if self.__display_changed_listener:
+                self.__display_changed_listener.close()
+                self.__display_changed_listener = None
+                self.__display_type = None
+                self.__display_data_shape = None
             if self.__display_graphic_selection_changed_event_listener:
                 self.__display_graphic_selection_changed_event_listener.close()
                 self.__display_graphic_selection_changed_event_listener = None
@@ -107,16 +114,24 @@ class InspectorPanel(Panel.Panel):
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
                 self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
-            def display_type_changed():
+            def display_changed():
                 # not really a recursive call; only delayed
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
-                self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
+                new_display_data_shape = display.preview_2d_shape if display else ()
+                new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
+                new_display_type = display.display_type
+                if self.__display_type != new_display_type or self.__display_data_shape != new_display_data_shape:
+                    self.__display_type = new_display_type
+                    self.__display_data_shape = new_display_data_shape
+                    self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
-            self.__display_type_changed_listener = display.display_type_changed_event.listen(display_type_changed)
+            self.__display_changed_listener = display.display_changed_event.listen(display_changed)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
         else:
-            self.__display_type_changed_listener = None
+            self.__display_changed_listener = None
             self.__display_graphic_selection_changed_event_listener = None
+            self.__display_type = None
+            self.__display_data_shape = None
 
         self.column.add(self.__display_inspector.widget)
         stretch_column = self.ui.create_column_widget()
