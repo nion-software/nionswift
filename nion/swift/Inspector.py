@@ -60,6 +60,7 @@ class InspectorPanel(Panel.Panel):
 
         self.__display_changed_listener = None
         self.__display_graphic_selection_changed_event_listener = None
+        self.__data_shape = None
         self.__display_type = None
         self.__display_data_shape = None
 
@@ -93,8 +94,6 @@ class InspectorPanel(Panel.Panel):
             if self.__display_changed_listener:
                 self.__display_changed_listener.close()
                 self.__display_changed_listener = None
-                self.__display_type = None
-                self.__display_data_shape = None
             if self.__display_graphic_selection_changed_event_listener:
                 self.__display_graphic_selection_changed_event_listener.close()
                 self.__display_graphic_selection_changed_event_listener = None
@@ -103,11 +102,22 @@ class InspectorPanel(Panel.Panel):
 
         self.__display_inspector = DataItemInspector(self.ui, self.document_controller.document_model, self.__display_specifier)
 
+        buffered_data_source = self.__display_specifier.buffered_data_source
+        display = self.__display_specifier.display
+
+        new_data_shape = buffered_data_source.data_shape if buffered_data_source else ()
+        new_display_data_shape = display.preview_2d_shape if display else ()
+        new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
+        new_display_type = display.display_type if display else None
+
+        self.__data_shape = new_data_shape
+        self.__display_type = new_display_type
+        self.__display_data_shape = new_display_data_shape
+
         # this ugly item below, which adds a listener for a changing selection and then calls
         # back to this very method, is here to make sure the inspectors get updated when the
         # user changes the selection.
-        if self.__display_specifier.display:
-            display = self.__display_specifier.display
+        if display:
 
             def display_graphic_selection_changed(graphic_selection):
                 # not really a recursive call; only delayed
@@ -117,21 +127,15 @@ class InspectorPanel(Panel.Panel):
             def display_changed():
                 # not really a recursive call; only delayed
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
+                new_data_shape = buffered_data_source.data_shape if buffered_data_source else ()
                 new_display_data_shape = display.preview_2d_shape if display else ()
                 new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
-                new_display_type = display.display_type
-                if self.__display_type != new_display_type or self.__display_data_shape != new_display_data_shape:
-                    self.__display_type = new_display_type
-                    self.__display_data_shape = new_display_data_shape
+                new_display_type = display.display_type if display else None
+                if self.__data_shape != new_data_shape or self.__display_type != new_display_type or self.__display_data_shape != new_display_data_shape:
                     self.document_controller.add_task("update_display_inspector" + str(id(self)), self.__update_display_inspector)
 
             self.__display_changed_listener = display.display_changed_event.listen(display_changed)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
-        else:
-            self.__display_changed_listener = None
-            self.__display_graphic_selection_changed_event_listener = None
-            self.__display_type = None
-            self.__display_data_shape = None
 
         self.column.add(self.__display_inspector.widget)
         stretch_column = self.ui.create_column_widget()
