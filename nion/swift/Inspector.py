@@ -153,12 +153,13 @@ class InspectorPanel(Panel.Panel):
     # thread safe.
     def __data_item_changed(self, data_item):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        def data_item_will_be_removed(data_item):
-            self.document_controller.clear_task("update_display" + str(id(self)))
-            self.document_controller.clear_task("update_display_inspector" + str(id(self)))
-            if self.__data_item_will_be_removed_event_listener:
-                self.__data_item_will_be_removed_event_listener.close()
-                self.__data_item_will_be_removed_event_listener = None
+        def data_item_will_be_removed(data_item_to_be_removed):
+            if data_item_to_be_removed == data_item:
+                self.document_controller.clear_task("update_display" + str(id(self)))
+                self.document_controller.clear_task("update_display_inspector" + str(id(self)))
+                if self.__data_item_will_be_removed_event_listener:
+                    self.__data_item_will_be_removed_event_listener.close()
+                    self.__data_item_will_be_removed_event_listener = None
         def update_display():
             self.__set_display_specifier(display_specifier)
             if self.__data_item_will_be_removed_event_listener:

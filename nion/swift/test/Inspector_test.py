@@ -532,6 +532,32 @@ class TestInspectorClass(unittest.TestCase):
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
 
+    def test_inspector_updates_when_graphic_associated_with_pick_is_deleted(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((16, 16, 64)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
+            # add the point graphic, ensure that inspector is updated with just a section for point graphic
+            self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
+            document_model.get_pick_new(data_item)
+            self.assertEqual(document_controller.selected_display_specifier.data_item, data_item)
+            document_controller.selected_display_specifier.display.graphic_selection.add(0)
+            document_controller.periodic()
+            graphic_inspector_section_count = len(inspector_panel._get_inspector_sections())
+            self.assertNotEqual(expected_inspector_section_count, graphic_inspector_section_count)
+            # now remove the point graphic and ensure that inspector inspecting data item again
+            self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 1)  # make sure graphic is selected
+            document_controller.remove_graphic()
+            document_controller.periodic()
+            self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
+            actual_inspector_section_count = len(inspector_panel._get_inspector_sections())
+            self.assertEqual(expected_inspector_section_count, actual_inspector_section_count)
 
 
 if __name__ == '__main__':
