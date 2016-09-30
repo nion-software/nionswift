@@ -16,6 +16,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
+from nion.utils import Recorder
 
 
 class TestDocumentModelClass(unittest.TestCase):
@@ -161,6 +162,20 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
+
+    def test_data_item_recording(self):
+        data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+        data_item_recorder = Recorder.Recorder(data_item)
+        data_item.maybe_data_source.displays[0].display_type = "line_plot"
+        point_graphic = Graphics.PointGraphic()
+        point_graphic.position = 0.2, 0.3
+        data_item.maybe_data_source.displays[0].add_graphic(point_graphic)
+        point_graphic.position = 0.21, 0.31
+        new_data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+        self.assertNotEqual(data_item.maybe_data_source.displays[0].display_type, new_data_item.maybe_data_source.displays[0].display_type)
+        data_item_recorder.apply(new_data_item)
+        self.assertEqual(data_item.maybe_data_source.displays[0].display_type, new_data_item.maybe_data_source.displays[0].display_type)
+        self.assertEqual(new_data_item.maybe_data_source.displays[0].graphics[0].position, point_graphic.position)
 
 
 if __name__ == '__main__':

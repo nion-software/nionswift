@@ -153,17 +153,17 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
         self.define_property("data_shape", data_shape, hidden=True)
         self.define_property("data_dtype", data_dtype, hidden=True, converter=DtypeToStringConverter())
-        self.define_property("is_sequence", False, changed=self.__data_description_changed)
+        self.define_property("is_sequence", False, recordable=False, changed=self.__data_description_changed)
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
         collection_dimension_count = (2 if len(dimensional_shape) == 3 else 0) if dimensional_shape is not None else None
         datum_dimension_count = len(dimensional_shape) - collection_dimension_count if dimensional_shape is not None else None
-        self.define_property("collection_dimension_count", collection_dimension_count, changed=self.__data_description_changed)
-        self.define_property("datum_dimension_count", datum_dimension_count, changed=self.__data_description_changed)
+        self.define_property("collection_dimension_count", collection_dimension_count, recordable=False, changed=self.__data_description_changed)
+        self.define_property("datum_dimension_count", datum_dimension_count, recordable=False, changed=self.__data_description_changed)
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("source_data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
-        self.define_property("data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        self.define_property("data_modified", recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
@@ -259,12 +259,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         for display in self.displays:
             data_source.add_display(display.clone())
         return data_source
-
-    def merge_from_clone(self, data_source_clone: "BufferedDataSource") -> None:
-        assert data_source_clone.uuid == self.uuid
-        assert len(data_source_clone.displays) == len(self.displays)
-        for display, clone_display in zip(self.displays, data_source_clone.displays):
-            display.merge_from_clone(clone_display)
 
     def snapshot(self):
         """
@@ -909,13 +903,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item.uuid = self.uuid
         for data_source in self.data_sources:
             data_item.append_data_source(data_source.clone())
+        for connection in self.connections:
+            data_item.add_connection(connection.clone())
         return data_item
-
-    def merge_from_clone(self, data_item_clone: "DataItem") -> None:
-        assert data_item_clone.uuid == self.uuid
-        assert len(data_item_clone.data_sources) == len(self.data_sources)
-        for data_source, clone_data_source in zip(self.data_sources, data_item_clone.data_sources):
-            data_source.merge_from_clone(clone_data_source)
 
     def snapshot(self):
         """

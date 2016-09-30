@@ -328,10 +328,6 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         graphic.uuid = self.uuid
         return graphic
 
-    def merge_from_clone(self, graphic_clone: "Graphic") -> None:
-        assert graphic_clone.uuid == self.uuid
-        self.deepcopy_from(graphic_clone, None)
-
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
 

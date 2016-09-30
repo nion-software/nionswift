@@ -3,7 +3,7 @@
 """
 
 # standard libraries
-# None
+import copy
 
 # third party libraries
 # None
@@ -27,6 +27,11 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
     def close(self):
         assert not self._closed
         self._closed = True
+
+    def clone(self) -> "Connection":
+        connection = copy.deepcopy(self)
+        connection.uuid = self.uuid
+        return connection
 
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)

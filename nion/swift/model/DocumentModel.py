@@ -36,6 +36,7 @@ from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
+from nion.utils import Recorder
 from nion.utils import ReferenceCounting
 from nion.utils import ThreadPool
 
@@ -1650,6 +1651,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 data_item_clone = data_item.clone()
+                data_item_clone_recorder = Recorder.Recorder(data_item_clone)
                 api_data_item = api._new_api_object(data_item_clone)
                 if computation.needs_update:
                     computation.evaluate_with_target(api, api_data_item)
@@ -1660,7 +1662,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
                     if data_item_data_clone_modified > data_item_data_modified:
                         buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
-                    data_item.merge_from_clone(data_item_clone)
+                    data_item_clone_recorder.apply(data_item)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
