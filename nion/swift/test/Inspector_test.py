@@ -489,6 +489,20 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.periodic()
             self.assertNotIn(Inspector.SliceInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
 
+    def test_calibration_inspector_updates_for_when_empty_data_item_displayed_as_line_plot_gets_data(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem()
+            data_item.append_data_source(DataItem.BufferedDataSource())
+            data_item.maybe_data_source.displays[0].add_graphic(Graphics.IntervalGraphic())
+            data_item.maybe_data_source.displays[0].display_type = "line_plot"
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.periodic()
+            data_item.maybe_data_source.set_data(numpy.zeros((10, )))
+
     def test_inspector_updates_for_new_data_item(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

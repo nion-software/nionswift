@@ -904,24 +904,43 @@ class CalibratedValueFloatToStringConverter:
         self.__buffered_data_source = buffered_data_source
         self.__display = display
         self.__index = index
+    def __get_calibration(self):
+        index = self.__index
+        dimension_count = len(self.__display.displayed_dimensional_calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return self.__display.displayed_dimensional_calibrations[index]
+        else:
+            return Calibration.Calibration()
+    def __get_data_size(self):
+        index = self.__index
+        dimensional_shape = self.__buffered_data_source.dimensional_shape
+        dimension_count = len(dimensional_shape) if dimensional_shape is not None else 0
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return dimensional_shape[index]
+        else:
+            return 1.0
     def convert_calibrated_value_to_str(self, calibrated_value):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        calibration = self.__get_calibration()
         return calibration.convert_calibrated_value_to_str(calibrated_value)
     def convert_to_calibrated_value(self, value):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
         return calibration.convert_to_calibrated_value(data_size * value)
     def convert_from_calibrated_value(self, calibrated_value):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
         return calibration.convert_from_calibrated_value(calibrated_value) / data_size
     def convert(self, value):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
         return calibration.convert_to_calibrated_value_str(data_size * value, value_range=(0, data_size), samples=data_size)
     def convert_back(self, str):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
         return calibration.convert_from_calibrated_value(Converter.FloatToStringConverter().convert_back(str)) / data_size
 
 
@@ -934,20 +953,38 @@ class CalibratedSizeFloatToStringConverter:
         self.__display = display
         self.__index = index
         self.__factor = factor
+    def __get_calibration(self):
+        index = self.__index
+        dimension_count = len(self.__display.displayed_dimensional_calibrations)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return self.__display.displayed_dimensional_calibrations[index]
+        else:
+            return Calibration.Calibration()
+    def __get_data_size(self):
+        index = self.__index
+        dimension_count = len(self.__buffered_data_source.dimensional_shape)
+        if index < 0:
+            index = dimension_count + index
+        if index >= 0 and index < dimension_count:
+            return self.__buffered_data_source.dimensional_shape[index]
+        else:
+            return 1.0
     def convert_calibrated_value_to_str(self, calibrated_value):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
+        calibration = self.__get_calibration()
         return calibration.convert_calibrated_size_to_str(calibrated_value)
     def convert_to_calibrated_value(self, size):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
         return calibration.convert_to_calibrated_size(data_size * size * self.__factor)
     def convert(self, size):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
         return calibration.convert_to_calibrated_size_str(data_size * size * self.__factor, value_range=(0, data_size), samples=data_size)
     def convert_back(self, str):
-        calibration = self.__display.displayed_dimensional_calibrations[self.__index]
-        data_size = self.__buffered_data_source.dimensional_shape[self.__index]
+        calibration = self.__get_calibration()
+        data_size = self.__get_data_size()
         return calibration.convert_from_calibrated_size(Converter.FloatToStringConverter().convert_back(str)) / data_size / self.__factor
 
 
