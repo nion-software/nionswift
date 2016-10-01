@@ -1024,7 +1024,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = document_model.get_invert_new(data_item)
             data_item3 = document_model.get_invert_new(data_item2)
             display_specifier3 = DataItem.DisplaySpecifier.from_data_item(data_item3)
-            document_model.recompute_all()
+            document_model.recompute_one()
+            document_model.recompute_one()  # need two explicitly
             self.assertIsNotNone(display_specifier3.buffered_data_source.dimensional_calibrations)
 
     def test_spatial_calibration_on_rgb(self):

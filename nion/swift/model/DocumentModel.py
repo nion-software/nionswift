@@ -1050,6 +1050,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__pending_data_item_updates = list()
         self.perform_data_item_updates_event = Event.Event()
 
+        self.__pending_data_item_merges_lock = threading.RLock()
+        self.__pending_data_item_merges = list()
+        self.perform_data_item_merges_event = Event.Event()
+
         self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(functools.partial(self.__hardware_source_added, append_data_item))
         self.__hardware_source_removed_event_listener = HardwareSource.HardwareSourceManager().hardware_source_removed_event.listen(self.__hardware_source_removed)
 
@@ -1630,9 +1634,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def recompute_all(self):
         self.__computation_thread_pool.run_all()
+        self.perform_data_item_merges()
 
     def recompute_one(self):
         self.__computation_thread_pool.run_one()
+        self.perform_data_item_merges()
 
     def start_dispatcher(self):
         self.__thread_pool.start()
@@ -1658,17 +1664,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                 if computation_queue_item.valid:  # TODO: race condition for 'valid'
-                    data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
-                    data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
-                    if data_item_data_clone_modified > data_item_data_modified:
-                        buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
-                    data_item_clone_recorder.apply(data_item)
+                    def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
+                        data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
+                        data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
+                        if data_item_data_clone_modified > data_item_data_modified:
+                            buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
+                        data_item_clone_recorder.apply(data_item)
+                    with self.__pending_data_item_merges_lock:
+                        self.__pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
+                    self.perform_data_item_merges_event.fire()
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 computation.error_text = _("Unable to compute data")
         with self.__computation_queue_lock:
             self.__computation_active_items.remove(computation_queue_item)
+
+    def perform_data_item_merges(self):
+        with self.__pending_data_item_merges_lock:
+            pending_data_item_merges = self.__pending_data_item_merges
+            self.__pending_data_item_merges = list()
+        for pending_data_item_merge in pending_data_item_merges:
+            pending_data_item_merge()
 
     def recompute_immediate(self, data_item: DataItem.DataItem) -> None:
         # this can be called on the UI thread; but it can also take time. use sparingly.
