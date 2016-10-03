@@ -496,7 +496,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_and_metadata = DocumentModel.evaluate_data(computation)
             assert numpy.array_equal(data_and_metadata.data, d[20:80, 30:70])
 
-    def test_computation_copies_metadata_during_computation(self):
+    def test_computation_does_not_copy_metadata_during_computation(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -510,7 +510,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata / numpy.average(a.data) * 5"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             data_and_metadata = DocumentModel.evaluate_data(computation)
-            self.assertEqual(data_and_metadata.metadata, data_item.maybe_data_source.metadata)
+            self.assertEqual(data_and_metadata.metadata, dict())
             self.assertEqual(data_and_metadata.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
             self.assertEqual(data_and_metadata.dimensional_calibrations, data_item.maybe_data_source.dimensional_calibrations)
 
