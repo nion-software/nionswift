@@ -90,7 +90,9 @@ def annotation_to_str(annotation):
     if annotation.__name__ == "ndarray":
         return "numpy.ndarray"
     if issubclass(annotation, typing.List):
-        return "List[{}]".format(annotation_to_str(annotation.__args__[0]))
+        return "typing.List[{}]".format(annotation_to_str(annotation.__args__[0]))
+    if issubclass(annotation, typing.Sequence):
+        return "typing.Sequence[{}]".format(annotation_to_str(annotation.__args__[0]))
     if isinstance(annotation, type):
         class_ = annotation.__class__
         if class_ is not None:
@@ -102,7 +104,7 @@ def default_to_str(default):
     return "={}".format(default)
 
 print("import numpy")
-print("from typing import List")
+print("import typing")
 print("from nion.data import Calibration")
 print("from nion.data import DataAndMetadata")
 print("from nion.utils import Geometry")
