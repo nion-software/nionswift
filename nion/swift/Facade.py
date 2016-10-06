@@ -312,6 +312,60 @@ class LineEditWidget:
         self.__line_edit_widget.select_all()
 
 
+class TextEditWidget:
+
+    def __init__(self, ui):
+        self.__ui = ui
+        self.__text_edit_widget = self.__ui.create_text_edit_widget()
+
+    @property
+    def _widget(self):
+        return self.__text_edit_widget
+
+    @property
+    def text(self):
+        return self.__text_edit_widget.text
+
+    @text.setter
+    def text(self, value):
+        self.__text_edit_widget.text = value
+
+    @property
+    def on_editing_finished(self):
+        return self.__text_edit_widget.on_editing_finished
+
+    @on_editing_finished.setter
+    def on_editing_finished(self, value):
+        self.__text_edit_widget.on_editing_finished = value
+
+    def select_all(self):
+        self.__text_edit_widget.select_all()
+
+    def append_text(self, text):
+        self.__text_edit_widget.append_text(text)
+
+    def insert_text(self, text):
+        self.__text_edit_widget.insert_text(text)
+
+    @property
+    def selected_text(self):
+        return self.__text_edit_widget.selected_text
+
+    @property
+    def cursor_position(self):
+        return self.__text_edit_widget.cursor_position
+
+    @property
+    def selection(self):
+        return self.__text_edit_widget.selection
+
+    def clear_selection(self):
+        self.__text_edit_widget.clear_selection()
+
+    def move_cursor_position(self, operation, mode=None, n=1):
+        self.__text_edit_widget.move_cursor_position(operation, mode, n)
+
+
 class PushButtonWidget:
 
     def __init__(self, ui):
@@ -466,8 +520,10 @@ class UserInterface:
     def create_slider_widget(self):
         raise NotImplemented()
 
-    def create_text_edit_widget(self):
-        raise NotImplemented()
+    def create_text_edit_widget(self, text=None):
+        text_edit_widget = TextEditWidget(self.__ui)
+        text_edit_widget.text = text
+        return text_edit_widget
 
     @property
     def data_file_path(self):
