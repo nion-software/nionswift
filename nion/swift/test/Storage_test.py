@@ -2011,7 +2011,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             computation = document_model.data_items[1].maybe_data_source.computation
             self.assertEqual(computation.processing_id, "line-profile")
-            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.line_profile(src.display_xdata, line_region.vector, line_region.width)"))
+            self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.line_profile(src.display_xdata, line_region.vector, line_region.line_width)"))
             self.assertEqual(len(computation.variables), 2)
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[0].variable_specifier).value, document_model.data_items[0])
             self.assertEqual(document_model.resolve_object_specifier(computation.variables[1].variable_specifier).value, document_model.data_items[0].maybe_data_source.displays[0].graphics[0])

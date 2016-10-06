@@ -336,20 +336,6 @@ class ComputationContext(object):
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def get_data_item_specifier(self, data_item_uuid):
-        """Supports data item lookup by uuid."""
-        return self.__context.get_object_specifier(self.__context.get_data_item_by_uuid(data_item_uuid))
-
-    def get_region_specifier(self, region_uuid):
-        """Supports region lookup by uuid."""
-        for data_item in self.__context.data_items:
-            for data_source in data_item.data_sources:
-                for display in data_source.displays:
-                    for region in display.graphics:
-                        if region.uuid == region_uuid:
-                            return self.__context.get_object_specifier(region)
-        return None
-
     def resolve_object_specifier(self, object_specifier):
         """Resolve the object specifier.
 

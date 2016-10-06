@@ -840,7 +840,7 @@ class TestSymbolicClass(unittest.TestCase):
             line_region.end = 0.75, 0.75
             data_item.maybe_data_source.displays[0].add_graphic(line_region)
             document_model.append_data_item(data_item)
-            computation = document_model.create_computation(Symbolic.xdata_expression("xd.line_profile(src.display_xdata, line_region.vector, line_region.width)"))
+            computation = document_model.create_computation(Symbolic.xdata_expression("xd.line_profile(src.display_xdata, line_region.vector, line_region.line_width)"))
             computation.create_object("src", document_model.get_object_specifier(data_item))
             computation.create_object("line_region", document_model.get_object_specifier(line_region))
             computed_data_item = DataItem.DataItem(src_data.copy())

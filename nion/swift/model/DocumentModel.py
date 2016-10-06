@@ -613,7 +613,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     bins_var = {'label': _("Bins"), 'name': 'bins', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 2, 'value_type': 'integral'}
                     info["histogram-operation"] = ExpressionInfo(_("Histogram"), "xd.histogram({src}, bins)", "histogram", [_("Source")], ["src"], [bins_var], True)
                     line_var = {'label': _("Line Profile"), 'name': 'line_region', 'type': 'variable', 'value_type': 'line'}
-                    info["line-profile-operation"] = ExpressionInfo(_("Line Profile"), "xd.line_profile({src}, line_region.vector, line_region.width)", "line-profile", [_("Source")], ["src"], [line_var], True)
+                    info["line-profile-operation"] = ExpressionInfo(_("Line Profile"), "xd.line_profile({src}, line_region.vector, line_region.line_width)", "line-profile", [_("Source")], ["src"], [line_var], True)
                     info["convert-to-scalar-operation"] = ExpressionInfo(_("Scalar"), "{src}", "convert-to-scalar", [_("Source")], ["src"], list(), True)
                     # node-operation
                     for data_source_dict in data_source_dicts:
@@ -2307,7 +2307,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "out_regions": [pick_sum_out_region], "connections": [pick_sum_connection]}
             line_profile_in_region = {"name": "line_region", "type": "line", "params": {"label": _("Line Profile")}}
             line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
-            vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}, line_region.vector, line_region.width)",
+            vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}, line_region.vector, line_region.line_width)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
             filter_in_region = {"name": "region", "type": "spot"}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft(xd.fourier_mask({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))))",
