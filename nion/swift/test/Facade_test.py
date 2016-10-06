@@ -189,6 +189,11 @@ class TestFacadeClass(unittest.TestCase):
             self.assertIsNone(document_controller.workspace_controller.display_panels[1].data_item)
             self.assertEqual(document_controller.workspace_controller.display_panels[0], display_panal_ref._display_panel)
 
+    def test_lookup_unknown_instrument_or_hardware_source_returns_none(self):
+        api = Facade.get_api("~1.0", "~1.0")
+        self.assertIsNone(api.get_hardware_source_by_id("nonexistent_hardware", "~1.0"))
+        self.assertIsNone(api.get_instrument_by_id("nonexistent_instrument", "~1.0"))
+
 
 if __name__ == '__main__':
     unittest.main()

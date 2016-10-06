@@ -6,6 +6,32 @@
     events are used when a callback is optional and may have multiple listeners.
 
     Versions numbering follows semantic version numbering: http://semver.org/
+       * Backward compatible changes increment minor revision
+       * Incompatible changes increment major revision
+       * Ideally old API can be implemented in terms of new API
+
+    Maintain backwards compatibility:
+       * Prefer backwards compatibility rather than new API
+       * Breaking backward compatibility will cause clients to defer upgrading.
+       * Behavior with same parameters should not change.
+       * Weakened preconditions or strengthened post conditions are ok.
+       * Write strong tests at introduction to codify as many assumptions as possible.
+       * Deprecation is a warning that a part of the API will not be available in the future.
+       * Delegation is the reimplementation of backwards compatible code in terms of new code.
+
+    Plan for evolution:
+       * Choose objects, methods, and properties that can be maintained in the long term.
+       * Avoid API versioning when possible as this limits backward compatibility.
+       * Only expose what is absolutely necessary for functionality.
+       * Keep API as small as possible.
+
+    When are new objects needed?
+       * Items in containers, e.g. Graphic items within the Data Item
+       * If they represent typing information, e.g. a Data Item vs . Display Item
+
+    Notes:
+       * API (application programming interface) is a client calling into this application.
+       * SPI (service programming interface) is this application calling into a client.
 """
 
 # standard libraries
@@ -43,8 +69,17 @@ __all__ = ["get_api"]
 _ = gettext.gettext
 
 
+NormIntervalType = typing.Tuple[float, float]
+NormRectangleType = typing.Tuple[typing.Tuple[float, float], typing.Tuple[float, float]]
+NormPointType = typing.Tuple[float, float]
+NormSizeType = typing.Tuple[float, float]
+NormVectorType = typing.Tuple[NormPointType, NormPointType]
+
+
+# ideally these can be alphabetical, but some orders may need to be switched to ensure that
+# a class is defined before it is used as a type annotation.
 api_public = [
-    "Region", "DataItem", "DisplayPanel", "Graphic", "Display", "DataGroup",
+    "Graphic", "DataItem", "DisplayPanel", "Display", "DataGroup",
     "Instrument", "Library", "DocumentController", "Application", "API_1"]
 hardware_source_public = [
     "RecordTask", "ViewTask", "HardwareSource"
@@ -58,6 +93,10 @@ class ObjectSpecifier:
         self.object_type = object_type
         self.object_uuid = str(object_uuid) if object_uuid else None
         self.object_id = str(object_id) if object_id else None
+
+    @property
+    def rpc_dict(self):
+        return {"object_type": self.object_type, "object_uuid": self.object_uuid, "object_id": self.object_id}
 
     @classmethod
     def resolve(cls, d):
@@ -89,9 +128,9 @@ class ObjectSpecifier:
             for data_item in document_model.data_items:
                 for data_source in data_item.data_sources:
                     for display in data_source.displays:
-                        for region in display.graphics:
-                            if region.uuid == object_uuid:
-                                return region
+                        for graphic in display.graphics:
+                            if graphic.uuid == object_uuid:
+                                return graphic
         elif object_type == "display":
             for data_item in document_model.data_items:
                 for data_source in data_item.data_sources:
@@ -444,11 +483,12 @@ class Panel(PanelModule.Panel):
             self.on_close()
 
 
-class Region:
+class Graphic:
 
-    release = ["type", "label", "get_property", "set_property"]
+    release = ["type", "label", "graphic_type", "graphic_id", "get_property", "set_property", "region", "mask_xdata_with_shape", "angle", "bounds", "center", "end",
+        "interval", "position", "size", "start", "vector", "width"]
 
-    region_to_graphic_type_map = {
+    graphic_to_region_type_map = {
         "point-graphic": "point-region",
         "rect-graphic": "rectangle-region",
         "ellipse-graphic": "ellipse-region",
@@ -458,42 +498,238 @@ class Region:
         "channel-graphic": "channel-region",
     }
 
-    def __init__(self, region):
-        self.__region = region
+    def __init__(self, graphic):
+        self.__graphic = graphic
 
     @property
-    def _region(self):
-        return self.__region
+    def _graphic(self):
+        return self.__graphic
 
     @property
     def specifier(self):
-        return ObjectSpecifier("region", self.__region.uuid)
+        return ObjectSpecifier("graphic", self.__graphic.uuid)
 
     @property
     def type(self) -> str:
-        return Region.region_to_graphic_type_map.get(self.__region.type)
+        """Return the region type property.
+
+        The region type is different from the preferred 'graphic_type' in that it is backwards compatible with older versions.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return Graphic.graphic_to_region_type_map.get(self.__graphic.type)
+
+    @property
+    def graphic_type(self) -> str:
+        """Return the type of this graphic.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__graphic.type
+
+    @property
+    def region(self) -> "Graphic":
+        return self
 
     @property
     def label(self) -> str:
-        return self.__region.label
+        """Return the graphic label.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__graphic.label
 
     @label.setter
     def label(self, value: str) -> None:
-        self.__region.label = value
+        """Set the graphic label.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__graphic.label = value
+
+    @property
+    def graphic_id(self) -> str:
+        """Return the graphic identifier.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__graphic.graphic_id
+
+    @graphic_id.setter
+    def graphic_id(self, value: str) -> None:
+        """Set the graphic identifier.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__graphic.graphic_id = value
 
     def get_property(self, property: str):
-        return getattr(self.__region, property)
+        return getattr(self.__graphic, property)
 
     def set_property(self, property: str, value):
-        setattr(self.__region, property, value)
+        setattr(self.__graphic, property, value)
+
+    def mask_xdata_with_shape(self, shape: DataAndMetadata.ShapeType) -> DataAndMetadata.DataAndMetadata:
+        """Return the mask created by this graphic as extended data.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        mask = self._graphic.get_mask(shape)
+        return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     # position, start, end, vector, center, size, bounds, angle
+
+    @property
+    def angle(self) -> float:
+        """Return the angle (radians) property."""
+        return self.get_property("angle")
+
+    @angle.setter
+    def angle(self, value: float) -> None:
+        """Set the angle (radians) property."""
+        self.set_property("angle", value)
+
+    @property
+    def bounds(self) -> NormRectangleType:
+        """Return the bounds property in relative coordinates.
+
+        Bounds is a tuple ((top, left), (height, width))"""
+        return self.get_property("bounds")
+
+    @bounds.setter
+    def bounds(self, value: NormRectangleType) -> None:
+        """Set the bounds property in relative coordinates.
+
+        Bounds is a tuple ((top, left), (height, width))"""
+        self.set_property("bounds", value)
+
+    @property
+    def center(self) -> NormPointType:
+        """Return the center property in relative coordinates.
+
+        Center is a tuple (y, x)."""
+        return self.get_property("center")
+
+    @center.setter
+    def center(self, value) -> None:
+        """Set the center in relative coordinates.
+
+        Center is a tuple (y, x)."""
+        self.set_property("center", value)
+
+    @property
+    def end(self) -> typing.Union[float, NormPointType]:
+        """Return the end property in relative coordinates.
+
+        End may be a float when graphic is an Interval or a tuple (y, x) when graphic is a Line."""
+        return self.get_property("end")
+
+    @end.setter
+    def end(self, value: typing.Union[float, NormPointType]) -> None:
+        """Set the end property in relative coordinates.
+
+        End may be a float when graphic is an Interval or a tuple (y, x) when graphic is a Line."""
+        self.set_property("end", value)
+
+    @property
+    def interval(self) -> NormIntervalType:
+        """Return the interval property in relative coordinates.
+
+        Interval is a tuple of floats (start, end)."""
+        return self.get_property("interval")
+
+    @interval.setter
+    def interval(self, value: NormIntervalType) -> None:
+        """Set the interval property in relative coordinates.
+
+        Interval is a tuple of floats (start, end)."""
+        self.set_property("interval", value)
+
+    @property
+    def position(self) -> NormPointType:
+        """Return the position property in relative coordinates.
+
+        Position is a tuple of floats (y, x)."""
+        return self.get_property("position")
+
+    @position.setter
+    def position(self, value: NormPointType) -> None:
+        """Set the position property in relative coordinates.
+
+        Position is a tuple of floats (y, x)."""
+        self.set_property("position", value)
+
+    @property
+    def size(self) -> NormSizeType:
+        """Return the size property in relative coordinates.
+
+        Size is a tuple of floats (height, width)."""
+        return self.get_property("size")
+
+    @size.setter
+    def size(self, value: NormSizeType) -> None:
+        """Set the size property in relative coordinates.
+
+        Size is a tuple of floats (height, width)."""
+        self.set_property("size", value)
+
+    @property
+    def start(self) -> typing.Union[float, NormPointType]:
+        """Return the start property in relative coordinates.
+
+        Start may be a float when graphic is an Interval or a tuple (y, x) when graphic is a Line."""
+        return self.get_property("start")
+
+    @start.setter
+    def start(self, value: typing.Union[float, NormPointType]) -> None:
+        """Set the end property in relative coordinates.
+
+        End may be a float when graphic is an Interval or a tuple (y, x) when graphic is a Line."""
+        self.set_property("start", value)
+
+    @property
+    def vector(self) -> NormVectorType:
+        """Return the vector property in relative coordinates.
+
+        Vector will be a tuple of tuples ((y_start, x_start), (y_end, x_end))."""
+        return self.get_property("vector")
+
+    @vector.setter
+    def vector(self, value: NormVectorType) -> None:
+        """Set the vector property in relative coordinates.
+
+        Vector will be a tuple of tuples ((y_start, x_start), (y_end, x_end))."""
+        self.set_property("vector", value)
+
+    @property
+    def line_width(self) -> float:
+        """Return the line width property in pixel coordinates."""
+        return self.get_property("width")
+
+    @line_width.setter
+    def line_width(self, value: float) -> None:
+        """Set the line width property in pixel coordinates."""
+        self.set_property("width", value)
 
 
 class DataItem:
     release = ["data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
-        "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "display", "add_point_region",
-        "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
+        "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "graphics", "display",
+        "add_point_region", "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
 
     def __init__(self, data_item: DataItemModule.DataItem):
         self.__data_item = data_item
@@ -544,14 +780,34 @@ class DataItem:
 
     @property
     def xdata(self) -> DataAndMetadata.DataAndMetadata:
+        """Return the extended data of this data item.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return self.__data_item.maybe_data_source.data_and_metadata
 
     @xdata.setter
     def xdata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
+        """Set the extended data of this data item.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         self.__data_item.maybe_data_source.set_data_and_metadata(data_and_metadata)
 
     @property
     def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        """Return the extended data of this data item display.
+
+        Display data will always be 1d or 2d and either int, float, or RGB data type.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
         return self.__data_item.maybe_data_source.displays[0].display_data_and_metadata
 
     @property
@@ -621,8 +877,11 @@ class DataItem:
 
     @property
     def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
-        """Return the data and metadata object.
+        """Return the extended data.
 
+        Deprecated. Use xdata instead.
+
+        .. deprecated:: 1.1
         .. versionadded:: 1.0
 
         Scriptable: Yes
@@ -641,66 +900,85 @@ class DataItem:
         self.__data_item.maybe_data_source.set_data_and_metadata(data_and_metadata)
 
     @property
-    def regions(self) -> typing.List[Region]:
-        return [Region(region) for region in self.__data_item.maybe_data_source.displays[0].graphics]
+    def regions(self) -> typing.List[Graphic]:
+        """Return the graphics attached to this data item.
+
+        Deprecated. Use graphics accessor instead.
+
+        .. deprecated:: 1.1
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.graphics
+
+    @property
+    def graphics(self) -> typing.List[Graphic]:
+        """Return the graphics attached to this data item.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return [Graphic(graphic) for graphic in self.__data_item.maybe_data_source.displays[0].graphics]
 
     @property
     def display(self) -> "Display":
         display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
         return Display(display_specifier.display)
 
-    def add_point_region(self, y: float, x: float) -> Region:
-        """Add a point region to the data item.
+    def add_point_region(self, y: float, x: float) -> Graphic:
+        """Add a point graphic to the data item.
 
         :param x: The x coordinate, in relative units [0.0, 1.0]
         :param y: The y coordinate, in relative units [0.0, 1.0]
-        :return: The :py:class:`nion.swift.Facade.Region` object that was added.
+        :return: The :py:class:`nion.swift.Facade.Graphic` object that was added.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        region = Graphics.PointGraphic()
-        region.position = Geometry.FloatPoint(y, x)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
-        return Region(region)
+        graphic = Graphics.PointGraphic()
+        graphic.position = Geometry.FloatPoint(y, x)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        return Graphic(graphic)
 
-    def add_rectangle_region(self, center_y: float, center_x: float, height: float, width: float) -> Region:
-        region = Graphics.RectangleGraphic()
-        region.center = Geometry.FloatPoint(center_y, center_x)
-        region.size = Geometry.FloatSize(height, width)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
-        return Region(region)
+    def add_rectangle_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
+        graphic = Graphics.RectangleGraphic()
+        graphic.center = Geometry.FloatPoint(center_y, center_x)
+        graphic.size = Geometry.FloatSize(height, width)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        return Graphic(graphic)
 
-    def add_ellipse_region(self, center_y: float, center_x: float, height: float, width: float) -> Region:
-        region = Graphics.EllipseGraphic()
-        region.center = Geometry.FloatPoint(center_y, center_x)
-        region.size = Geometry.FloatSize(height, width)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
-        return Region(region)
+    def add_ellipse_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
+        graphic = Graphics.EllipseGraphic()
+        graphic.center = Geometry.FloatPoint(center_y, center_x)
+        graphic.size = Geometry.FloatSize(height, width)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        return Graphic(graphic)
 
-    def add_line_region(self, start_y: float, start_x: float, end_y: float, end_x: float) -> Region:
-        region = Graphics.LineGraphic()
-        region.start = Geometry.FloatPoint(start_y, start_x)
-        region.end = Geometry.FloatPoint(end_y, end_x)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
-        return Region(region)
+    def add_line_region(self, start_y: float, start_x: float, end_y: float, end_x: float) -> Graphic:
+        graphic = Graphics.LineGraphic()
+        graphic.start = Geometry.FloatPoint(start_y, start_x)
+        graphic.end = Geometry.FloatPoint(end_y, end_x)
+        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        return Graphic(graphic)
 
-    def add_interval_region(self, start: float, end: float) -> Region:
-        region = Graphics.IntervalGraphic()
-        region.start = start
-        region.end = end
-        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
-        return Region(region)
+    def add_interval_region(self, start: float, end: float) -> Graphic:
+        graphic = Graphics.IntervalGraphic()
+        graphic.start = start
+        graphic.end = end
+        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        return Graphic(graphic)
 
-    def add_channel_region(self, position: float) -> Region:
-        region = Graphics.ChannelGraphic()
-        region.position = position
-        self.__data_item.maybe_data_source.displays[0].add_graphic(region)
-        return Region(region)
+    def add_channel_region(self, position: float) -> Graphic:
+        graphic = Graphics.ChannelGraphic()
+        graphic.position = position
+        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        return Graphic(graphic)
 
-    def remove_region(self, region: Region) -> None:
-        self.__data_item.maybe_data_source.displays[0].remove_graphic(region._region)
+    def remove_region(self, graphic: Graphic) -> None:
+        self.__data_item.maybe_data_source.displays[0].remove_graphic(graphic._graphic)
 
     def data_item_to_svg(self):
 
@@ -764,7 +1042,7 @@ class DisplayPanel:
 
     @property
     def data_item(self) -> DataItem:
-        """Return the data item, if any, associated with this display panel.
+        """Return the data item associated with this display panel.
 
         .. versionadded:: 1.0
 
@@ -791,134 +1069,6 @@ class DisplayPanel:
         display_panel = self.__display_panel
         if display_panel:
             display_panel.set_displayed_data_item(data_item._data_item)
-
-
-class Graphic:
-
-    release = ["type", "label", "graphic_id", "get_property", "set_property", "region", "mask_xdata_with_shape"]
-
-    def __init__(self, graphic):
-        self.__graphic = graphic
-
-    @property
-    def _graphic(self):
-        return self.__graphic
-
-    @property
-    def specifier(self):
-        return ObjectSpecifier("graphic", self.__graphic.uuid)
-
-    @property
-    def region(self) -> Region:
-        return Region(self.__graphic.region)
-
-    @property
-    def label(self) -> str:
-        return self.__graphic.label
-
-    @label.setter
-    def label(self, value: str) -> None:
-        self.__graphic.label = value
-
-    @property
-    def graphic_id(self) -> str:
-        return self.__graphic.graphic_id
-
-    @graphic_id.setter
-    def graphic_id(self, value: str) -> None:
-        self.__graphic.graphic_id = value
-
-    def get_property(self, property: str):
-        return getattr(self.__graphic, property)
-
-    def set_property(self, property: str, value):
-        setattr(self.__graphic, property, value)
-
-    def mask_xdata_with_shape(self, shape: DataAndMetadata.ShapeType) -> DataAndMetadata.DataAndMetadata:
-        mask = self._graphic.get_mask(shape)
-        return DataAndMetadata.DataAndMetadata.from_data(mask)
-
-    # position, start, end, vector, center, size, bounds, angle
-
-    @property
-    def angle(self):
-        return self.get_property("angle")
-
-    @angle.setter
-    def angle(self, value):
-        self.set_property("angle", value)
-
-    @property
-    def bounds(self):
-        return self.get_property("bounds")
-
-    @bounds.setter
-    def bounds(self, value):
-        self.set_property("bounds", value)
-
-    @property
-    def center(self):
-        return self.get_property("center")
-
-    @center.setter
-    def center(self, value):
-        self.set_property("center", value)
-
-    @property
-    def end(self):
-        return self.get_property("end")
-
-    @end.setter
-    def end(self, value):
-        self.set_property("end", value)
-
-    @property
-    def interval(self):
-        return self.get_property("interval")
-
-    @interval.setter
-    def interval(self, value):
-        self.set_property("interval", value)
-
-    @property
-    def position(self):
-        return self.get_property("position")
-
-    @position.setter
-    def position(self, value):
-        self.set_property("position", value)
-
-    @property
-    def size(self):
-        return self.get_property("size")
-
-    @size.setter
-    def size(self, value):
-        self.set_property("size", value)
-
-    @property
-    def start(self):
-        return self.get_property("start")
-
-    @start.setter
-    def start(self, value):
-        self.set_property("start", value)
-
-    @property
-    def vector(self):
-        return self.get_property("vector")
-
-    @vector.setter
-    def vector(self, value):
-        self.set_property("vector", value)
-
-    @property
-    def width(self):
-        return self.get_property("width")
-
-    @width.setter
-    def width(self, value):
-        self.set_property("width", value)
 
 
 class Display:
@@ -1000,19 +1150,6 @@ class DataGroup:
     @property
     def data_items(self) -> typing.List[DataItem]:
         raise AttributeError()
-
-
-class Monitor:
-
-    def __init__(self):
-        self.on_data_and_metadata_list_available = None  # frame_index, data_and_metadata_list, frame_parameters
-        self.on_start_playing = None
-        self.on_stop_playing = None
-        self.on_start_recording = None
-        self.on_stop_recording = None
-
-    def close(self):
-        pass
 
 
 class RecordTask:
@@ -1886,7 +2023,7 @@ class Application:
 
     @property
     def specifier(self):
-        return ObjectSpecifier("library")
+        return ObjectSpecifier("application")
 
     @property
     def library(self) -> Library:
@@ -2014,6 +2151,10 @@ class API_1:
         super().__init__()
         self.__ui_version = ui_version
         self.__app = app
+
+    @property
+    def rpc_dict(self):
+        return None
 
     def create_calibration(self, offset: float=None, scale: float=None, units: str=None) -> CalibrationModule.Calibration:
         """Create a calibration object with offset, scale, and units.
@@ -2289,14 +2430,15 @@ class API_1:
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
         hardware_source = HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
-        return HardwareSource(hardware_source)
+        return HardwareSource(hardware_source) if hardware_source else None
 
     def get_instrument_by_id(self, instrument_id: str, version: str) -> Instrument:
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
         instrument = HardwareSourceModule.HardwareSourceManager().get_instrument_by_id(instrument_id)
-        return Instrument(instrument)
+        print("lookup instrument {}: {}".format(instrument_id, instrument))
+        return Instrument(instrument) if instrument else None
 
     @property
     def application(self) -> Application:
@@ -2359,6 +2501,7 @@ def get_data_item(version: str, data_item: DataItemModule.DataItem) -> DataItem:
 
 def get_graphic(version: str, graphic: Graphics.Graphic) -> Graphic:
     return Graphic(graphic)
+
 
 # this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
 # for this to work, Facade must be imported early in the startup process.
