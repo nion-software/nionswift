@@ -80,14 +80,14 @@ NormVectorType = typing.Tuple[NormPointType, NormPointType]
 # a class is defined before it is used as a type annotation.
 api_public = [
     "Graphic", "DataItem", "DisplayPanel", "Display", "DataGroup",
-    "Library", "DocumentController", "Application", "API_1",
+    "Library", "DocumentWindow", "Application", "API_1",
 ]
 hardware_source_public = [
     "RecordTask", "ViewTask", "HardwareSource", "Instrument",
 ]
 nionlib_public = [
     "Graphic", "DataItem", "DisplayPanel", "Display", "DataGroup",
-    "Library", "DocumentController", "Application", "API_1",
+    "Library", "DocumentWindow", "Application", "API_1",
     "HardwareSource", "Instrument",
 ]
 alias = {"API_1": "API"}
@@ -119,7 +119,7 @@ class ObjectSpecifier:
             return Library(document_model)
         elif object_type == "document_controller":
             document_controller = next(iter(filter(lambda x: x.uuid == object_uuid, ApplicationModule.app.document_controllers)), None)
-            return DocumentController(document_controller) if document_controller else None
+            return DocumentWindow(document_controller) if document_controller else None
         elif object_type == "display_panel":
             for document_controller in ApplicationModule.app.document_controllers:
                 display_panel = next(iter(filter(lambda x: x.uuid == object_uuid, document_controller.workspace_controller.display_panels)), None)
@@ -885,10 +885,9 @@ class DataItem:
     def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
         """Return the extended data.
 
-        Deprecated. Use xdata instead.
-
-        .. deprecated:: 1.1
         .. versionadded:: 1.0
+        .. deprecated:: 1.1
+           Use :py:attr:`~nion.swift.Facade.DataItem.xdata` instead.
 
         Scriptable: Yes
         """
@@ -909,10 +908,9 @@ class DataItem:
     def regions(self) -> typing.List[Graphic]:
         """Return the graphics attached to this data item.
 
-        Deprecated. Use graphics accessor instead.
-
-        .. deprecated:: 1.1
         .. versionadded:: 1.0
+        .. deprecated:: 1.1
+           Use :py:attr:`~nion.swift.Facade.DataItem.graphics` instead.
 
         Scriptable: Yes
         """
@@ -1870,7 +1868,7 @@ class Library:
         return None
 
 
-class DocumentController:
+class DocumentWindow:
 
     release = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display", "target_data_item",
         "show_get_string_message_box", "show_confirmation_message_box", "queue_task", "add_data", "create_data_item_from_data",
@@ -1969,7 +1967,7 @@ class DocumentController:
 
         .. versionadded:: 1.0
         .. deprecated:: 1.1
-           Use :py:meth:`nion.swift.Facade.Library.create_data_item_from_data` instead.
+           Use :py:meth:`~nion.swift.Facade.Library.create_data_item_from_data` instead.
 
         Scriptable: No
         """
@@ -1980,7 +1978,7 @@ class DocumentController:
 
         .. versionadded:: 1.0
         .. deprecated:: 1.1
-           Use library.create_data_item_from_data instead.
+           Use :py:meth:`~nion.swift.Facade.Library.create_data_item_from_data` instead.
 
         Scriptable: No
         """
@@ -1991,7 +1989,7 @@ class DocumentController:
 
         .. versionadded:: 1.0
         .. deprecated:: 1.1
-           Use library.create_data_item_from_data_and_metadata instead.
+           Use :py:meth:`~nion.swift.Facade.Library.create_data_item_from_data_and_metadata` instead.
 
         Scriptable: No
         """
@@ -2012,7 +2010,7 @@ class DocumentController:
 
         .. versionadded:: 1.0
         .. deprecated:: 1.1
-           Use library.create_data_item_from_data instead.
+           Use :py:meth:`~nion.swift.Facade.Library.create_data_item_from_data` instead.
 
         Scriptable: No
         """
@@ -2021,7 +2019,7 @@ class DocumentController:
 
 class Application:
 
-    release = ["library", "document_controllers"]
+    release = ["library", "document_controllers", "document_windows"]
 
     def __init__(self, application):
         self.__application = application
@@ -2045,14 +2043,26 @@ class Application:
         return Library(self.__application.document_controllers[0].document_model)
 
     @property
-    def document_controllers(self) -> typing.List[DocumentController]:
+    def document_controllers(self) -> typing.List[DocumentWindow]:
         """Return the document controllers.
+
+        .. versionadded:: 1.0
+        .. deprecated:: 1.1
+           Use :py:attr:`~nion.swift.Facade.Application.document_windows` instead.
+
+        Scriptable: Yes
+        """
+        return self.document_windows
+
+    @property
+    def document_windows(self) -> typing.List[DocumentWindow]:
+        """Return the document windows.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        return [DocumentController(document_controller) for document_controller in self.__application.document_controllers]
+        return [DocumentWindow(document_controller) for document_controller in self.__application.document_controllers]
 
 
 class DataAndMetadataIOHandlerInterface:
@@ -2213,7 +2223,7 @@ class API_1:
 
         .. versionadded:: 1.0
         .. deprecated:: 1.1
-           Use api.create_data_and_metadata instead.
+           Use :py:meth:`~nion.swift.Facade.DataItem.create_data_and_metadata` instead.
 
         Scriptable: No
         """
@@ -2293,7 +2303,7 @@ class API_1:
                 menu = document_controller.get_menu(menu_id)
             key_sequence = getattr(menu_item_handler, "menu_item_key_sequence", None)
             if menu:
-                facade_document_controller = DocumentController(document_controller)
+                facade_document_controller = DocumentWindow(document_controller)
                 menu.add_menu_item(menu_item_handler.menu_item_name, lambda: menu_item_handler.menu_item_execute(
                     facade_document_controller), key_sequence=key_sequence)
 
@@ -2396,7 +2406,7 @@ class API_1:
         def create_facade_panel(document_controller, panel_id, properties):
             panel = Panel(document_controller, panel_id, properties)
             ui = UserInterface(self.__ui_version, document_controller.ui)
-            document_controller = DocumentController(document_controller)
+            document_controller = DocumentWindow(document_controller)
             panel.widget = panel_delegate.create_panel_widget(ui, document_controller)._widget
             return panel
 
@@ -2441,7 +2451,7 @@ class API_1:
         hardware_source = HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
         return HardwareSource(hardware_source) if hardware_source else None
 
-    def get_instrument_by_id(self, instrument_id: str, version: str) -> Instrument:
+    def get_instrument_by_id(self, instrument_id: str, version: str):
         actual_version = "1.0.0"
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))

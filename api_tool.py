@@ -91,7 +91,7 @@ def annotation_to_str(annotation):
     if annotation.__name__ == "FloatPoint":
         return "Geometry.FloatPoint"
 
-    classes = ["Application", "DataGroup", "DataItem", "Display", "DisplayPanel", "DocumentController", "Graphic", "HardwareSource", "Instrument",
+    classes = ["Application", "DataGroup", "DataItem", "Display", "DisplayPanel", "DocumentWindow", "Graphic", "HardwareSource", "Instrument",
         "Library", "RecordTask", "Region", "ViewTask"]
 
     if annotation.__name__ in classes:
