@@ -1,6 +1,7 @@
 # python api_tool.py --classes api_public --level release > ../typeshed/nion/typeshed/API_1_0.py
 # python api_tool.py --classes api_public --level release prerelease > ../typeshed/nion/typeshed/API_1_0_prerelease.py
 # python api_tool.py --classes hardware_source_public --level release > ../typeshed/nion/typeshed/HardwareSource_1_0.py
+# python api_tool.py --classes nionlib_public --level release --proxy > ../PlugIns/Connection/NionLib/nionlib/Classes.py
 
 import argparse
 import importlib
@@ -10,25 +11,33 @@ import typing
 parser = argparse.ArgumentParser(description='Generate API type stub files.')
 parser.add_argument('--classes', dest='class_list_property', required=True, help='Class list property')
 parser.add_argument('--levels', dest='levels', required=True, nargs='+', help='Level property')
+parser.add_argument('--proxy', dest='is_proxy', required=False, nargs='?', const=True, default=False, help='Whether to generate proxy function bodies')
 args = parser.parse_args()
 
 module = importlib.import_module("nion.swift.Facade")
 class_list_property = args.class_list_property
 levels = args.levels
+is_proxy = args.is_proxy
 
 class_dicts = dict()
 
+# find members of the module which are classes
 for member in inspect.getmembers(module, predicate=inspect.isclass):
     class_name = member[0]
     # print("### {}".format(class_name))
+    # check to see whether the class_name is in the exported classes (class_list_property)
     if class_name in getattr(module, class_list_property):
         # print("### getattr(module, class_list_property) {}".format(class_name))
+        # create a dict to represent this class
         class_dict = dict()
         class_dict["name"] = class_name
         class_dict["doc"] = member[1].__doc__
+        # build a list of members that are listed at the appropriate 'level' for export
         members = list()
         for level in levels:
             members.extend(getattr(member[1], level, list()))
+        class_dict["threadsafe"] = getattr(member[1], "threadsafe", list())
+        # scan through the properties of the class and add their info to the member info
         for member_member in inspect.getmembers(member[1], predicate=lambda x: isinstance(x, property)):
             if member_member[0] in members:
                 property_dict = class_dict.setdefault("properties", dict()).setdefault(member_member[0], dict())
@@ -44,6 +53,7 @@ for member in inspect.getmembers(module, predicate=inspect.isclass):
                         property_dict.setdefault("set", dict())["annotations"] = function_set.__annotations__
                     if function_set.__doc__:
                         property_dict.setdefault("set", dict())["doc"] = function_set.__doc__
+        # scan through the functions of the class and add their info to the member info
         for method_member in inspect.getmembers(member[1], predicate=lambda x: inspect.isfunction):
             function_name = method_member[0]
             if function_name in members and function_name not in class_dict.get("properties", dict()):
@@ -107,27 +117,37 @@ def annotation_to_str(annotation):
 def default_to_str(default):
     return "={}".format(default)
 
-print("import numpy")
-print("import typing")
-print("from nion.data import Calibration")
-print("from nion.data import DataAndMetadata")
-print("from nion.utils import Geometry")
+if is_proxy:
+    print("from .Pickler import Unpickler")
+else:
+    print("import numpy")
+    print("import typing")
+    print("from nion.data import Calibration")
+    print("from nion.data import DataAndMetadata")
+    print("from nion.utils import Geometry")
 
 for class_name in getattr(module, class_list_property):
     class_dict = class_dicts[class_name]
     class_name = class_dict["name"]
     class_name = getattr(module, "alias", dict()).get(class_name, class_name)
     doc = class_dict.get("doc")
+    threadsafe = class_dict.get("threadsafe")
     print("")
     print("")
     print("class {}:".format(class_name))
-    if doc:
+    if doc and not is_proxy:
         print("    \"\"\"{}\"\"\"".format(doc))
+    if is_proxy:
+        print("")
+        print("    def __init__(self, proxy, specifier):")
+        print("        self.__proxy = proxy")
+        print("        self.specifier = specifier")
     class_functions_dict = class_dict.get("functions", dict())
     for member_name in sorted(class_functions_dict.keys()):
         argspec = class_functions_dict[member_name]["fullargspec"]
         # print("    ### {}".format(argspec))
         doc = class_functions_dict[member_name].get("doc")
+        raw_arg_strings = list()
         arg_strings = list()
         for arg in argspec.args:
             annotation = argspec.annotations.get(arg)
@@ -135,19 +155,39 @@ for class_name in getattr(module, class_list_property):
                 arg_strings.append("{}: {}".format(arg, annotation_to_str(annotation)))
             else:
                 arg_strings.append("{}".format(arg))
+            raw_arg_strings.append("{}".format(arg))
         default_count = len(argspec.defaults) if argspec.defaults else 0
         for index in range(default_count):
             arg_index = -default_count + index
             arg_strings[arg_index] = "{}{}".format(arg_strings[arg_index], default_to_str(argspec.defaults[index]))
         if "return" in argspec.annotations:
             return_type = " -> {}".format(annotation_to_str(argspec.annotations["return"]))
+            is_return_none = argspec.annotations["return"] is None
         else:
             return_type = ""
+            is_return_none = False
         print("")
-        print("    def {}({}){}:".format(member_name, ", ".join(arg_strings), return_type))
-        if doc:
+        if is_proxy:
+            print("    def {}({}):".format(member_name, ", ".join(raw_arg_strings)))
+        else:
+            print("    def {}({}){}:".format(member_name, ", ".join(arg_strings), return_type))
+        if doc and not is_proxy:
             print("        \"\"\"{}\"\"\"".format(doc))
-        print("        ...")
+        if is_proxy:
+            arg_str = "".join(", " + raw_arg_string for raw_arg_string in raw_arg_strings[1:])
+            is_threadsafe = member_name in threadsafe
+            if is_return_none:
+                if is_threadsafe:
+                    print("        Unpickler.call_threadsafe_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+                else:
+                    print("        Unpickler.call_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+            else:
+                if is_threadsafe:
+                    print("        return Unpickler.call_threadsafe_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+                else:
+                    print("        return Unpickler.call_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+        else:
+            print("        ...")
     class_properties_dict = class_dict.get("properties", dict())
     for property_name in sorted(class_properties_dict.keys()):
         get_dict = class_properties_dict[property_name].get("get")
@@ -159,10 +199,16 @@ for class_name in getattr(module, class_list_property):
                 property_return_str = " -> {}".format(annotation_to_str(annotations["return"]))
             print("")
             print("    @property")
-            print("    def {}(self){}:".format(property_name, property_return_str))
-            if doc:
+            if is_proxy:
+                print("    def {}(self):".format(property_name))
+            else:
+                print("    def {}(self){}:".format(property_name, property_return_str))
+            if doc and not is_proxy:
                 print("        \"\"\"{}\"\"\"".format(doc))
-            print("        ...")
+            if is_proxy:
+                print("        return Unpickler.get_property(self.__proxy, self, '{}')".format(property_name))
+            else:
+                print("        ...")
         set_dict = class_properties_dict[property_name].get("set")
         if set_dict:
             doc = set_dict.get("doc")
@@ -174,9 +220,16 @@ for class_name in getattr(module, class_list_property):
             print("")
             # print("    ### {}".format(annotations))
             print("    @{}.setter".format(property_name))
-            print("    def {}(self, value{}) -> None:".format(property_name, property_type_str))
-            if doc:
+            if is_proxy:
+                print("    def {}(self, value):".format(property_name))
+            else:
+                print("    def {}(self, value{}) -> None:".format(property_name, property_type_str))
+            if doc and not is_proxy:
                 print("        \"\"\"{}\"\"\"".format(doc))
-            print("        ...")
-print("")
-print("version = \"~1.0\"")
+            if is_proxy:
+                print("        Unpickler.set_property(self.__proxy, self, '{}', value)".format(property_name))
+            else:
+                print("        ...")
+if not is_proxy:
+    print("")
+    print("version = \"~1.0\"")

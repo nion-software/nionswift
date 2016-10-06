@@ -80,9 +80,15 @@ NormVectorType = typing.Tuple[NormPointType, NormPointType]
 # a class is defined before it is used as a type annotation.
 api_public = [
     "Graphic", "DataItem", "DisplayPanel", "Display", "DataGroup",
-    "Instrument", "Library", "DocumentController", "Application", "API_1"]
+    "Library", "DocumentController", "Application", "API_1",
+]
 hardware_source_public = [
-    "RecordTask", "ViewTask", "HardwareSource"
+    "RecordTask", "ViewTask", "HardwareSource", "Instrument",
+]
+nionlib_public = [
+    "Graphic", "DataItem", "DisplayPanel", "Display", "DataGroup",
+    "Library", "DocumentController", "Application", "API_1",
+    "HardwareSource", "Instrument",
 ]
 alias = {"API_1": "API"}
 
@@ -1299,6 +1305,9 @@ class HardwareSource:
         "start_recording", "abort_recording", "is_recording", "record", "create_record_task", "create_view_task", "grab_next_to_finish",
         "grab_next_to_start", "get_property_as_float", "set_property_as_float", "get_property_as_int", "set_property_as_int", "get_property_as_bool",
         "set_property_as_bool", "get_property_as_str", "set_property_as_str", "get_property_as_float_point", "set_property_as_float_point"]
+
+    threadsafe = ["record", "grab_next_to_finish", "grab_next_to_start", "set_property_as_float", "set_property_as_int", "set_property_as_bool",
+        "set_property_as_str", "set_property_as_float_point"]
 
     def __init__(self, hardware_source):
         self.__hardware_source = hardware_source
