@@ -93,6 +93,10 @@ def annotation_to_str(annotation):
         return "typing.List[{}]".format(annotation_to_str(annotation.__args__[0]))
     if issubclass(annotation, typing.Sequence):
         return "typing.Sequence[{}]".format(annotation_to_str(annotation.__args__[0]))
+    if issubclass(annotation, typing.Tuple):
+        return "typing.Tuple[{}]".format(", ".join(annotation_to_str(tuple_param) for tuple_param in annotation.__tuple_params__))
+    if issubclass(annotation, typing.Union):
+        return "typing.Union[{}]".format(", ".join(annotation_to_str(union_param) for union_param in annotation.__union_params__))
     if isinstance(annotation, type):
         class_ = annotation.__class__
         if class_ is not None:
