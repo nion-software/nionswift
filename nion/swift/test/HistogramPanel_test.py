@@ -94,6 +94,28 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.assertNotEqual(stats1_text, self.histogram_panel._statistics_widget._stats1_property.value)
         self.assertNotEqual(stats2_text, self.histogram_panel._statistics_widget._stats2_property.value)
 
+    def test_histogram_updates_when_crop_region_changes(self):
+        data = numpy.zeros((100, 100))
+        data[20:40, 20:40] = 1
+        data[40:60, 40:60] = 2
+        self.display_specifier.buffered_data_source.set_data(data)
+        self.document_controller.event_loop.run_until_complete(self.histogram_panel._statistics_widget._task)
+        stats1_text = self.histogram_panel._statistics_widget._stats1_property.value
+        stats2_text = self.histogram_panel._statistics_widget._stats2_property.value
+        rect_region = Graphics.RectangleGraphic()
+        rect_region.bounds = (0.2, 0.2), (0.2, 0.2)
+        self.display_specifier.display.add_graphic(rect_region)
+        self.display_specifier.display.graphic_selection.set(0)
+        self.document_controller.event_loop.run_until_complete(self.histogram_panel._statistics_widget._task)
+        stats1_new_text = self.histogram_panel._statistics_widget._stats1_property.value
+        stats2_new_text = self.histogram_panel._statistics_widget._stats2_property.value
+        self.assertNotEqual(stats1_text, stats1_new_text)
+        self.assertNotEqual(stats2_text, stats2_new_text)
+        rect_region.bounds = (0.4, 0.4), (0.2, 0.2)
+        self.document_controller.event_loop.run_until_complete(self.histogram_panel._statistics_widget._task)
+        self.assertNotEqual(stats1_new_text, self.histogram_panel._statistics_widget._stats1_property.value)
+        self.assertNotEqual(stats2_new_text, self.histogram_panel._statistics_widget._stats2_property.value)
+
     def test_cursor_histogram_of_empty_data_displays_without_exception(self):
         self.data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), numpy.float)))
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)

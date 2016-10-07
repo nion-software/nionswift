@@ -734,6 +734,7 @@ class TargetRegionStream(Stream.AbstractStream):
         self.__value = None
         # listen for display changes
         self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
+        self.__graphic_changed_event_listener = None
         self.__display_changed(display_stream.value)
 
     def close(self):
@@ -755,10 +756,20 @@ class TargetRegionStream(Stream.AbstractStream):
                 new_value = display.graphics[current_index]
                 if new_value != self.__value:
                     self.__value = new_value
-                    self.value_stream.fire(self.__value)
+                    def graphic_changed():
+                        self.value_stream.fire(self.__value)
+                    if self.__graphic_changed_event_listener:
+                        self.__graphic_changed_event_listener.close()
+                        self.__graphic_changed_event_listener = None
+                    if self.__value:
+                        self.__graphic_changed_event_listener = self.__value.graphic_changed_event.listen(graphic_changed)
+                    graphic_changed()
             elif self.__value is not None:
                 self.__value = None
                 self.value_stream.fire(None)
+        if self.__graphic_changed_event_listener:
+            self.__graphic_changed_event_listener.close()
+            self.__graphic_changed_event_listener = None
         if self.__display_graphic_selection_changed_event_listener:
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
