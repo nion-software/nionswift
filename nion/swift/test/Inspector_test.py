@@ -366,11 +366,6 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(count[0], 0)
             property_changed_listener.close()
 
-    def disabled_test_corrupt_data_item_should_not_completely_disable_the_inspector(self):
-        # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
-        # panels; nor should it affect the focus functionality
-        raise Exception()
-
     def test_rectangle_dimensions_show_calibrated_units(self):
         data_item = DataItem.DataItem(numpy.full((256, 256, 37), 0, dtype=numpy.uint32))  # z, y, x
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -572,6 +567,58 @@ class TestInspectorClass(unittest.TestCase):
             self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
             actual_inspector_section_count = len(inspector_panel._get_inspector_sections())
             self.assertEqual(expected_inspector_section_count, actual_inspector_section_count)
+
+    def test_graphic_inspector_updates_for_when_data_shape_changes(self):
+        # change from 2d item with a rectangle to a 1d item. what happens?
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertNotIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
+            data_item.maybe_data_source.set_data(numpy.zeros((10, )))
+            document_controller.periodic()
+            self.assertIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
+            data_item.maybe_data_source.set_data(numpy.zeros((10, 10)))
+            document_controller.periodic()
+            self.assertNotIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
+
+    def test_calibration_inspector_shows_correct_labels_for_1d(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, )))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        content_section = inspector_section._section_content_for_test.children[0].content_section
+        self.assertEqual(len(content_section.children), 1)
+        calibration_row = content_section.children[0].children[0]
+        self.assertEqual(calibration_row.children[0].text, "Channel")
+
+    def test_calibration_inspector_shows_correct_labels_for_2d(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        content_section = inspector_section._section_content_for_test.children[0].content_section
+        self.assertEqual(len(content_section.children), 2)
+        calibration_row = content_section.children[0].children[0]
+        self.assertEqual(calibration_row.children[0].text, "Y")
+        calibration_row = content_section.children[1].children[0]
+        self.assertEqual(calibration_row.children[0].text, "X")
+
+    def test_calibration_inspector_shows_correct_labels_for_3d(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8, 16)))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
+        content_section = inspector_section._section_content_for_test.children[0].content_section
+        self.assertEqual(len(content_section.children), 3)
+        calibration_row = content_section.children[0].children[0]
+        self.assertEqual(calibration_row.children[0].text, "0")
+        calibration_row = content_section.children[1].children[0]
+        self.assertEqual(calibration_row.children[0].text, "1")
+        calibration_row = content_section.children[2].children[0]
+        self.assertEqual(calibration_row.children[0].text, "2")
 
 
 if __name__ == '__main__':
