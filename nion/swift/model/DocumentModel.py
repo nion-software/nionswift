@@ -2081,6 +2081,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         display.add_graphic(rect_region)
                     regions.append((region_name, rect_region, region_params.get("label")))
                     region_map[region_name] = rect_region
+                elif region_type == "ellipse":
+                    if region:
+                        assert isinstance(region, Graphics.EllipseGraphic)
+                        ellipse_region = region
+                    else:
+                        ellipse_region = Graphics.RectangleGraphic()
+                        ellipse_region.center = 0.5, 0.5
+                        ellipse_region.size = 0.5, 0.5
+                        for k, v in region_params.items():
+                            setattr(ellipse_region, k, v)
+                        display.add_graphic(ellipse_region)
+                    regions.append((region_name, ellipse_region, region_params.get("label")))
+                    region_map[region_name] = ellipse_region
                 elif region_type == "spot":
                     if region:
                         assert isinstance(region, Graphics.SpotGraphic)
