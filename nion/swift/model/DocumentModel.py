@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import collections
 import copy
 import datetime
@@ -978,6 +979,39 @@ class ComputationQueueItem:
         self.computation = computation
         self.valid = True
 
+    def recompute(self) -> typing.Sequence[typing.Callable[[], None]]:
+        # evaluate the computation in a thread safe manner
+        # returns a list of functions that must be called on the main thread to finish the recompute action
+        # threadsafe
+        pending_data_item_merges = list()
+        data_item = self.data_item
+        buffered_data_source = self.buffered_data_source
+        computation = self.computation
+        if computation:
+            try:
+                api = PlugInManager.api_broker_fn("~1.0", None)
+                data_item_clone = data_item.clone()
+                data_item_clone_recorder = Recorder.Recorder(data_item_clone)
+                api_data_item = api._new_api_object(data_item_clone)
+                if computation.needs_update:
+                    computation.evaluate_with_target(api, api_data_item)
+                    throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
+                    time.sleep(max(throttle_time, 0.0))
+                if self.valid:  # TODO: race condition for 'valid'
+                    def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
+                        data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
+                        data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
+                        if data_item_data_clone_modified > data_item_data_modified:
+                            buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
+                        data_item_clone_recorder.apply(data_item)
+                    pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                computation.error_text = _("Unable to compute data")
+        return pending_data_item_merges
+
+
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject):
 
@@ -1650,33 +1684,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if len(self.__computation_pending_queue) > 0:
                 computation_queue_item = self.__computation_pending_queue.pop(0)
                 self.__computation_active_items.append(computation_queue_item)
-        data_item = computation_queue_item.data_item
-        buffered_data_source = computation_queue_item.buffered_data_source
-        computation = computation_queue_item.computation
-        if computation:
-            try:
-                api = PlugInManager.api_broker_fn("~1.0", None)
-                data_item_clone = data_item.clone()
-                data_item_clone_recorder = Recorder.Recorder(data_item_clone)
-                api_data_item = api._new_api_object(data_item_clone)
-                if computation.needs_update:
-                    computation.evaluate_with_target(api, api_data_item)
-                    throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
-                    time.sleep(max(throttle_time, 0.0))
-                if computation_queue_item.valid:  # TODO: race condition for 'valid'
-                    def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
-                        data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
-                        data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
-                        if data_item_data_clone_modified > data_item_data_modified:
-                            buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
-                        data_item_clone_recorder.apply(data_item)
-                    with self.__pending_data_item_merges_lock:
-                        self.__pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
-                    self.perform_data_item_merges_event.fire()
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                computation.error_text = _("Unable to compute data")
+        pending_data_item_merges = computation_queue_item.recompute()
+        with self.__pending_data_item_merges_lock:
+            self.__pending_data_item_merges.extend(pending_data_item_merges)
+        self.perform_data_item_merges_event.fire()
         with self.__computation_queue_lock:
             self.__computation_active_items.remove(computation_queue_item)
 
@@ -1687,18 +1698,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for pending_data_item_merge in pending_data_item_merges:
             pending_data_item_merge()
 
-    def recompute_immediate(self, data_item: DataItem.DataItem) -> None:
-        # this can be called on the UI thread; but it can also take time. use sparingly.
-        # need the data to make connect_explorer_interval work; so do this here. ugh.
-        buffered_data_source = data_item.maybe_data_source
-        data_and_metadata = evaluate_data(buffered_data_source.computation)
-        if data_and_metadata:
-            with buffered_data_source._changes():
-                with buffered_data_source.data_ref() as data_ref:
-                    data_ref.data = data_and_metadata.data
-                    buffered_data_source.update_metadata(data_and_metadata.metadata)
-                    buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-                    buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
+    async def recompute_immediate(self, event_loop: asyncio.AbstractEventLoop, data_item: DataItem.DataItem) -> None:
+        computation_queue_item = ComputationQueueItem(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
+        pending_data_item_merges = await event_loop.run_in_executor(None, computation_queue_item.recompute)
+        for pending_data_item_merge in pending_data_item_merges:
+            pending_data_item_merge()
 
     def computation_changed(self, data_item, buffered_data_source, computation):
         existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
