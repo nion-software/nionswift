@@ -2512,7 +2512,6 @@ class API_1:
         if Utility.compare_versions(version, actual_version) > 0:
             raise NotImplementedError("Hardware API requested version %s is greater than %s." % (version, actual_version))
         instrument = HardwareSourceModule.HardwareSourceManager().get_instrument_by_id(instrument_id)
-        print("lookup instrument {}: {}".format(instrument_id, instrument))
         return Instrument(instrument) if instrument else None
 
     @property
