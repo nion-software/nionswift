@@ -3,6 +3,7 @@ import contextlib
 import copy
 import logging
 import random
+import threading
 import unittest
 
 # third party libraries
@@ -1314,6 +1315,29 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(data_and_metadata.collection_dimension_count, 1)
             self.assertEqual(data_and_metadata.datum_dimension_count, 1)
 
+    def test_computaton_evaluates_on_thread(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            src_data = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            continue_event = threading.Event()
+            def do_continue():
+                continue_event.set()
+            listener = document_model.perform_data_item_merges_event.listen(do_continue)
+            document_model.start_dispatcher()
+            continue_event.wait(10.0)
+            listener.close()
+            listener = None
+            document_controller.periodic()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -src_data))
+
     def disabled_test_reshape_rgb(self):
         assert False
 
@@ -1342,7 +1366,7 @@ class TestSymbolicClass(unittest.TestCase):
     def disabled_test_function_to_modify_metadata(self):
         assert False
 
-    def test_data_slice_calibration_with_step(self):
+    def disabled_test_data_slice_calibration_with_step(self):
         # d[::2, :, :]
         pass
 

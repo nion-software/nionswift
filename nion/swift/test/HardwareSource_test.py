@@ -17,6 +17,9 @@ from nion.swift import Facade
 from nion.ui import TestUI
 
 
+Facade.initialize()
+
+
 class SimpleAcquisitionTask(HardwareSource.AcquisitionTask):
 
     def __init__(self, is_continuous, sleep, image=None):

@@ -478,8 +478,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             pass
         return names
 
-    def evaluate_with_target(self, api, target) -> None:
+    def evaluate_with_target(self, api, target) -> str:
         assert target is not None
+        error_text = None
         expression = self.original_expression
         if self.needs_update and expression:
             computation_variable_map = dict()
@@ -512,16 +513,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 compiled = compile(code, "expr", "exec")
                 exec(compiled, g, l)
                 self._evaluation_count_for_test += 1
-                error_text = None
             except Exception as e:
                 # import sys, traceback
                 # traceback.print_exc()
                 # traceback.format_exception(*sys.exc_info())
                 error_text = str(e)  # a stack trace would be too much information right now
 
-            self.error_text = error_text
             self.needs_update = False
             self.last_evaluate_data_time = time.perf_counter()
+        return error_text
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
         def needs_update():

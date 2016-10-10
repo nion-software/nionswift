@@ -993,8 +993,9 @@ class ComputationQueueItem:
                 data_item_clone = data_item.clone()
                 data_item_clone_recorder = Recorder.Recorder(data_item_clone)
                 api_data_item = api._new_api_object(data_item_clone)
+                error_text = None
                 if computation.needs_update:
-                    computation.evaluate_with_target(api, api_data_item)
+                    error_text = computation.evaluate_with_target(api, api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                 if self.valid:  # TODO: race condition for 'valid'
@@ -1004,11 +1005,13 @@ class ComputationQueueItem:
                         if data_item_data_clone_modified > data_item_data_modified:
                             buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
                         data_item_clone_recorder.apply(data_item)
+                        if computation.error_text != error_text:
+                            computation.error_text = error_text
                     pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                computation.error_text = _("Unable to compute data")
+                # computation.error_text = _("Unable to compute data")
         return pending_data_item_merges
 
 
@@ -1087,6 +1090,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__pending_data_item_merges_lock = threading.RLock()
         self.__pending_data_item_merges = list()
         self.perform_data_item_merges_event = Event.Event()
+
+        self.call_soon_event = Event.Event()
 
         self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(functools.partial(self.__hardware_source_added, append_data_item))
         self.__hardware_source_removed_event_listener = HardwareSource.HardwareSourceManager().hardware_source_removed_event.listen(self.__hardware_source_removed)
@@ -1852,12 +1857,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.update_data_and_metadata(data_and_metadata, sub_area)
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
-        data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
-        if data_item:
-            data_item_references_dict[key] = str(data_item.uuid)
-        else:
-            del data_item_references_dict[key]
-        self._set_persistent_property_value("data_item_references", data_item_references_dict)
+        def update_data_reference_inner():
+            data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
+            if data_item:
+                data_item_references_dict[key] = str(data_item.uuid)
+            else:
+                del data_item_references_dict[key]
+            self._set_persistent_property_value("data_item_references", data_item_references_dict)
+        self.call_soon_event.fire(update_data_reference_inner)
 
     def make_data_item_reference_key(self, *components) -> str:
         return "_".join([str(component) for component in list(components) if component is not None])
@@ -1896,11 +1903,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.begin_data_item_live(data_item)
                 append_data_item_fn(data_item)
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
-            if data_item.session_id != session_id:
-                data_item.session_id = session_id
-            session_metadata = self.session_metadata
-            if data_item.session_metadata != session_metadata:
-                data_item.session_metadata = session_metadata
+            def update_session_info():
+                if data_item.session_id != session_id:
+                    data_item.session_id = session_id
+                session_metadata = self.session_metadata
+                if data_item.session_metadata != session_metadata:
+                    data_item.session_metadata = session_metadata
+            self.call_soon_event.fire(update_session_info)
             if data_channel.processor:
                 src_data_channel = hardware_source.data_channels[data_channel.src_channel_index]
                 src_data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_data_channel.channel_id)).data_item
@@ -2400,5 +2409,6 @@ DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_proces
 def evaluate_data(computation) -> DataAndMetadata.DataAndMetadata:
     api = PlugInManager.api_broker_fn("~1.0", None)
     api_data_item = api._new_api_object(DataItem.new_data_item(None))
-    computation.evaluate_with_target(api, api_data_item)
+    error_text = computation.evaluate_with_target(api, api_data_item)
+    computation.error_text = error_text
     return api_data_item.data_and_metadata
