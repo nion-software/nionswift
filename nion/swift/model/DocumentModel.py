@@ -1054,6 +1054,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_changed_or_mutated_listeners = dict()
         self.__data_item_request_remove_data_item_listeners = dict()
         self.__data_item_references = dict()
+        self.__recompute_lock = threading.RLock()
+        self.__recompute_finished_event = Event.Event()
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
         self.__computation_active_items = list()  # type: typing.List[ComputationQueueItem]
@@ -1684,17 +1686,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_thread_pool.start(1)
 
     def __recompute(self):
-        computation_queue_item = None
-        with self.__computation_queue_lock:
-            if len(self.__computation_pending_queue) > 0:
-                computation_queue_item = self.__computation_pending_queue.pop(0)
-                self.__computation_active_items.append(computation_queue_item)
-        pending_data_item_merges = computation_queue_item.recompute()
-        with self.__pending_data_item_merges_lock:
-            self.__pending_data_item_merges.extend(pending_data_item_merges)
-        self.perform_data_item_merges_event.fire()
-        with self.__computation_queue_lock:
-            self.__computation_active_items.remove(computation_queue_item)
+        with self.__recompute_lock:
+            computation_queue_item = None
+            with self.__computation_queue_lock:
+                if len(self.__computation_pending_queue) > 0:
+                    computation_queue_item = self.__computation_pending_queue.pop(0)
+                    self.__computation_active_items.append(computation_queue_item)
+            pending_data_item_merges = computation_queue_item.recompute()
+            with self.__pending_data_item_merges_lock:
+                self.__pending_data_item_merges.extend(pending_data_item_merges)
+            self.perform_data_item_merges_event.fire()
+            with self.__computation_queue_lock:
+                self.__computation_active_items.remove(computation_queue_item)
 
     def perform_data_item_merges(self):
         with self.__pending_data_item_merges_lock:
@@ -1704,10 +1707,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             pending_data_item_merge()
 
     async def recompute_immediate(self, event_loop: asyncio.AbstractEventLoop, data_item: DataItem.DataItem) -> None:
-        computation_queue_item = ComputationQueueItem(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
-        pending_data_item_merges = await event_loop.run_in_executor(None, computation_queue_item.recompute)
-        for pending_data_item_merge in pending_data_item_merges:
-            pending_data_item_merge()
+        buffered_data_source = data_item.maybe_data_source
+        computation = buffered_data_source.computation if buffered_data_source else None
+        if computation:
+            def sync_recompute():
+                with self.__recompute_lock:
+                    pass
+            await event_loop.run_in_executor(None, sync_recompute)
+            self.perform_data_item_merges()
 
     def computation_changed(self, data_item, buffered_data_source, computation):
         existing_computation_changed_listener = self.__computation_changed_listeners.get(buffered_data_source.uuid)
