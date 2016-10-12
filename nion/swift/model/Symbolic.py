@@ -389,7 +389,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__bound_item_changed_event_listeners = dict()
         self.__bound_item_deleted_event_listeners = dict()
         self.__variable_property_changed_listener = dict()
-        self.__evaluate_lock = threading.RLock()
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
         self.needs_update_event = Event.Event()
@@ -482,24 +481,16 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         assert target is not None
         error_text = None
         needs_update = self.needs_update
-        expression = self.original_expression
         self.needs_update = False
-        if needs_update and expression:
+        if needs_update:
             computation_variable_map = dict()
             for variable in self.variables:
                 variable_specifier = variable.variable_specifier
                 if variable_specifier:
                     computation_variable_map[variable.name] = variable_specifier
-            expression_lines = expression.split("\n")
             computation_context = self.__computation_context
 
-            Computation.parse_names(expression)
-
-            code_lines = []
-            g = dict()
-            g["api"] = api
-            g["target"] = target
-            l = dict()
+            variables = dict()
             for variable_name, object_specifier in computation_variable_map.items():
                 bound_object = computation_context.resolve_object_specifier(object_specifier)
                 resolved_object = bound_object.value if bound_object else None
@@ -507,22 +498,35 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 # able to modify the input objects; reality, though, dictates that performance is
                 # more important than this protection. so use the resolved object directly.
                 api_object = api._new_api_object(resolved_object) if resolved_object else None
-                g[variable_name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
-            code_lines.extend(expression_lines)
-            code = "\n".join(code_lines)
-            try:
-                # print(code)
-                compiled = compile(code, "expr", "exec")
-                exec(compiled, g, l)
-                self._evaluation_count_for_test += 1
-            except Exception as e:
-                # import sys, traceback
-                # traceback.print_exc()
-                # traceback.format_exception(*sys.exc_info())
-                error_text = str(e)  # a stack trace would be too much information right now
+                variables[variable_name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
 
+            expression = self.original_expression
+            if expression:
+                error_text = self.__execute_code(api, expression, target, variables)
+
+            self._evaluation_count_for_test += 1
             self.last_evaluate_data_time = time.perf_counter()
         return error_text
+
+    def __execute_code(self, api, expression, target, variables) -> str:
+        code_lines = []
+        g = variables
+        g["api"] = api
+        g["target"] = target
+        l = dict()
+        expression_lines = expression.split("\n")
+        code_lines.extend(expression_lines)
+        code = "\n".join(code_lines)
+        try:
+            # print(code)
+            compiled = compile(code, "expr", "exec")
+            exec(compiled, g, l)
+        except Exception as e:
+            # import sys, traceback
+            # traceback.print_exc()
+            # traceback.format_exception(*sys.exc_info())
+            return str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+        return None
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
         def needs_update():
