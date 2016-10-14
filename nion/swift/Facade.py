@@ -1228,9 +1228,7 @@ class RecordTask:
 
         def record_thread():
             self.__hardware_source.start_recording()
-            data_elements = self.__hardware_source.get_next_data_elements_to_finish()
-            self.__data_and_metadata_list = [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for
-                data_element in data_elements]
+            self.__data_and_metadata_list = self.__hardware_source.get_next_xdatas_to_finish()
 
         self.__thread = threading.Thread(target=record_thread)
         self.__thread.start()
@@ -1460,8 +1458,7 @@ class HardwareSource:
             for channel_index, channel_enabled in enumerate(channels_enabled):
                 self.__hardware_source.set_channel_enabled(channel_index, channel_enabled)
         self.__hardware_source.start_recording()
-        data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
-        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return self.__hardware_source.get_next_xdatas_to_finish(timeout)
 
     def create_record_task(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None) -> RecordTask:
         """Create a record task for this hardware source.
@@ -1501,7 +1498,7 @@ class HardwareSource:
         """
         return ViewTask(self.__hardware_source, frame_parameters, channels_enabled, buffer_size)
 
-    def grab_next_to_finish(self, timeout: float=None) -> DataAndMetadata.DataAndMetadata:
+    def grab_next_to_finish(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grabs the next frame to finish and returns it as data and metadata.
 
         .. versionadded:: 1.0
@@ -1515,13 +1512,11 @@ class HardwareSource:
         Scriptable: Yes
         """
         self.start_playing()
-        data_elements = self.__hardware_source.get_next_data_elements_to_finish(timeout)
-        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return self.__hardware_source.get_next_xdatas_to_finish(timeout)
 
-    def grab_next_to_start(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, timeout: float=None) -> DataAndMetadata.DataAndMetadata:
+    def grab_next_to_start(self, frame_parameters: dict=None, channels_enabled: typing.List[bool]=None, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         self.start_playing(frame_parameters, channels_enabled)
-        data_elements = self.__hardware_source.get_next_data_elements_to_start(timeout)
-        return [HardwareSourceModule.convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+        return self.__hardware_source.get_next_xdatas_to_start(timeout)
 
     def execute_command(self, command, args_str, kwargs_str):
         args = pickle.loads(args_str)

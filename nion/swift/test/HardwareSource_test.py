@@ -49,10 +49,26 @@ class SimpleAcquisitionTask(HardwareSource.AcquisitionTask):
 class SimpleHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.05):
-        super(SimpleHardwareSource, self).__init__("simple_hardware_source", "SimpleHardwareSource")
+        super().__init__("simple_hardware_source", "SimpleHardwareSource")
         self.add_data_channel()
         self.sleep = sleep
         self.image = numpy.zeros(256)
+
+    def _create_acquisition_view_task(self) -> SimpleAcquisitionTask:
+        return SimpleAcquisitionTask(True, self.sleep, self.image)
+
+    def _create_acquisition_record_task(self) -> SimpleAcquisitionTask:
+        return SimpleAcquisitionTask(False, self.sleep, self.image)
+
+
+class SummedHardwareSource(HardwareSource.HardwareSource):
+
+    def __init__(self, sleep=0.05):
+        super().__init__("summed_hardware_source", "SummedHardwareSource")
+        self.add_data_channel()
+        self.add_channel_processor(0, HardwareSource.SumProcessor(((0.0, 0.0), (1.0, 1.0))))
+        self.sleep = sleep
+        self.image = numpy.zeros((256, 256))
 
     def _create_acquisition_view_task(self) -> SimpleAcquisitionTask:
         return SimpleAcquisitionTask(True, self.sleep, self.image)
@@ -152,7 +168,7 @@ class ScanAcquisitionTask(HardwareSource.AcquisitionTask):
 class ScanHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.02):
-        super(ScanHardwareSource, self).__init__("scan_hardware_source", "ScanHardwareSource")
+        super().__init__("scan_hardware_source", "ScanHardwareSource")
         self.add_data_channel("a", "A")
         self.add_data_channel("b", "B")
         self.sleep = sleep
@@ -188,10 +204,10 @@ class ScanHardwareSource(HardwareSource.HardwareSource):
 def _test_acquiring_frames_with_generator_produces_correct_frame_numbers(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
     try:
-        frame0 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
-        frame1 = hardware_source.get_next_data_elements_to_finish()[0]["properties"]["frame_index"]
-        frame3 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
-        frame5 = hardware_source.get_next_data_elements_to_start()[0]["properties"]["frame_index"]
+        frame0 = hardware_source.get_next_xdatas_to_finish()[0].metadata["hardware_source"]["frame_index"]
+        frame1 = hardware_source.get_next_xdatas_to_finish()[0].metadata["hardware_source"]["frame_index"]
+        frame3 = hardware_source.get_next_xdatas_to_start()[0].metadata["hardware_source"]["frame_index"]
+        frame5 = hardware_source.get_next_xdatas_to_start()[0].metadata["hardware_source"]["frame_index"]
         testcase.assertEqual((1, 3, 5), (frame1 - frame0, frame3 - frame0, frame5 - frame0))
     finally:
         hardware_source.abort_playing(sync_timeout=3.0)
@@ -200,10 +216,10 @@ def _test_acquire_multiple_frames_reuses_same_data_item(testcase, hardware_sourc
     hardware_source.start_playing()
     try:
         testcase.assertTrue(hardware_source.is_playing)
-        hardware_source.get_next_data_elements_to_finish()
-        hardware_source.get_next_data_elements_to_finish()
-        hardware_source.get_next_data_elements_to_finish()
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
     finally:
         hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()  # data items queued to be added from background thread get added here
@@ -231,7 +247,7 @@ def _test_record_only_acquires_one_item(testcase, hardware_source, document_cont
     try:
         testcase.assertFalse(hardware_source.is_playing)
         testcase.assertTrue(hardware_source.is_recording)
-        data_elements = hardware_source.get_next_data_elements_to_finish(timeout=3.0)
+        hardware_source.get_next_xdatas_to_finish(timeout=3.0)
     finally:
         hardware_source.abort_recording(sync_timeout=3.0)
     testcase.assertFalse(hardware_source.is_playing)
@@ -244,10 +260,10 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
     hardware_source.start_playing()
     try:
         # start playing, grab a few frames
-        hardware_source.get_next_data_elements_to_finish()
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
         hardware_source.start_recording(sync_timeout=3.0)
-        data_elements = hardware_source.get_next_data_elements_to_start()
+        extended_data_list = hardware_source.get_next_xdatas_to_start()
         testcase.assertTrue(hardware_source.is_playing)
         # wait for recording to stop
         start_time = time.time()
@@ -255,24 +271,24 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
             time.sleep(0.01)
             testcase.assertTrue(time.time() - start_time < 3.0)
         testcase.assertTrue(hardware_source.is_playing)
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
     finally:
         hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 1)
     # ensure the recorded data is different from the view data.
-    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.metadata["hardware_source"]["frame_index"], data_elements[0]["properties"]["frame_index"])
+    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.metadata["hardware_source"]["frame_index"], extended_data_list[0].metadata["hardware_source"]["frame_index"])
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
         document_controller.periodic()
         # now start recording
         hardware_source.start_recording(sync_timeout=3.0)
         hardware_source.abort_recording()
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
     finally:
         # clean up
         hardware_source.abort_playing(sync_timeout=3.0)
@@ -284,7 +300,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     # play the first time
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
     finally:
         hardware_source.stop_playing(sync_timeout=3.0)
     document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
@@ -297,7 +313,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     document_model.append_data_item(new_data_item)
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_start()
+        hardware_source.get_next_xdatas_to_start()
     finally:
         hardware_source.stop_playing(sync_timeout=3.0)
     document_controller.periodic()  # data items get added on the ui thread. give it a time slice.
@@ -312,17 +328,17 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
 def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
     try:
-        data_elements = hardware_source.get_next_data_elements_to_finish()
+        extended_data_list = hardware_source.get_next_xdatas_to_finish()
     finally:
         hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()
-    testcase.assertNotEqual(data_elements[0]["data"][0, 0], 0)
-    testcase.assertNotEqual(data_elements[0]["data"][-1, -1], 0)
+    testcase.assertNotEqual(extended_data_list[0].data[0, 0], 0)
+    testcase.assertNotEqual(extended_data_list[0].data[-1, -1], 0)
 
 def _test_get_next_data_elements_to_finish_produces_data_item_full_frames(testcase, hardware_source, document_controller):
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_finish()
+        hardware_source.get_next_xdatas_to_finish()
     finally:
         hardware_source.abort_playing(sync_timeout=3.0)
     document_controller.periodic()
@@ -339,7 +355,7 @@ def _test_exception_during_view_halts_playback(testcase, hardware_source, exposu
     hardware_source.start_playing()
     try:
         try:
-            hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+            hardware_source.get_next_xdatas_to_finish(timeout=10.0)
         finally:
             pass
         testcase.assertTrue(hardware_source.is_playing)
@@ -392,10 +408,10 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     hardware_source._test_acquire_exception = lambda *args: None
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        hardware_source.get_next_xdatas_to_finish(timeout=10.0)
         testcase.assertTrue(hardware_source.is_playing)
         enabled[0] = True
-        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        hardware_source.get_next_xdatas_to_finish(timeout=10.0)
         # avoid a race condition and wait for is_playing to go false.
         start_time = time.time()
         while hardware_source.is_playing:
@@ -406,8 +422,8 @@ def _test_able_to_restart_view_after_exception(testcase, hardware_source, exposu
     enabled[0] = False
     hardware_source.start_playing()
     try:
-        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
-        hardware_source.get_next_data_elements_to_finish(timeout=10.0)
+        hardware_source.get_next_xdatas_to_finish(timeout=10.0)
+        hardware_source.get_next_xdatas_to_finish(timeout=10.0)
     finally:
         hardware_source.abort_playing(sync_timeout=3.0)
 
@@ -448,6 +464,14 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=persistent_storage_systems)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SimpleHardwareSource()
+        hardware_source.exposure = 0.01
+        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
+        return document_controller, document_model, hardware_source
+
+    def __setup_summed_hardware_source(self, persistent_storage_systems=None):
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=persistent_storage_systems)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source = SummedHardwareSource()
         hardware_source.exposure = 0.01
         HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
         return document_controller, document_model, hardware_source
@@ -903,6 +927,21 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(document_model.data_items[0], data_item._data_item)
             self.assertIsNotNone(document_model.data_items[0].maybe_data_source.data)
+
+    def test_hardware_source_api_grabs_summed_data(self):
+        document_controller, document_model, _hardware_source = self.__setup_summed_hardware_source()
+        with contextlib.closing(document_controller):
+            library = Facade.Library(document_model)  # hack to build Facade.Library directly
+            hardware_source = Facade.HardwareSource(_hardware_source)
+            data_item = library.get_data_item_for_hardware_source(hardware_source, create_if_needed=True)
+            hardware_source.start_playing()
+            try:
+                xdata_list = hardware_source.grab_next_to_finish()
+                self.assertEqual(len(xdata_list), 2)
+                self.assertEqual(len(xdata_list[0].dimensional_shape), 2)
+                self.assertEqual(len(xdata_list[1].dimensional_shape), 1)
+            finally:
+                hardware_source.abort_playing()
 
 
 if __name__ == '__main__':

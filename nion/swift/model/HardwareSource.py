@@ -22,11 +22,9 @@ import logging
 import os
 import threading
 import time
+import typing
 import traceback
 import uuid
-
-# typing
-from typing import Dict, List
 
 # local imports
 from nion.data import Calibration
@@ -559,16 +557,16 @@ class HardwareSource:
         super().__init__()
         self.hardware_source_id = hardware_source_id
         self.display_name = display_name
-        self.__data_channels = list()  # type: List[DataChannel]
+        self.__data_channels = list()  # type: typing.List[DataChannel]
         self.features = dict()
         self.data_channel_states_updated = Event.Event()
-        self.data_elements_available_event = Event.Event()
+        self.xdatas_available_event = Event.Event()
         self.abort_event = Event.Event()
         self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
         self.__break_for_closing = False
         self.__acquire_thread_trigger = threading.Event()
-        self.__tasks = dict()  # type: Dict[str, AcquisitionTask]
+        self.__tasks = dict()  # type: typing.Dict[str, AcquisitionTask]
         self.__data_elements_changed_event_listeners = dict()
         self.__start_event_listeners = dict()
         self.__stop_event_listeners = dict()
@@ -673,6 +671,7 @@ class HardwareSource:
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
     def __data_elements_changed(self, data_elements, view_id, is_complete, is_stopping):
+        xdatas = list()
         data_channels = list()
         for data_element in data_elements:
             assert data_element is not None
@@ -687,21 +686,24 @@ class HardwareSource:
             data_channel = self.__data_channels[channel_index]
             data_channel.update(data_and_metadata, channel_state, sub_area, view_id)
             data_channels.append(data_channel)
+            xdatas.append(data_and_metadata)
         # update channel buffers with processors
         for data_channel in self.__data_channels:
             src_channel_index = data_channel.src_channel_index
             if src_channel_index is not None:
                 src_data_channel = self.__data_channels[src_channel_index]
                 if src_data_channel.is_dirty and src_data_channel.state == "complete":
-                    data_channel.update(data_channel.processor.process(src_data_channel.data_and_metadata), "complete", None, view_id)
+                    processed_data_and_metadata = data_channel.processor.process(src_data_channel.data_and_metadata)
+                    data_channel.update(processed_data_and_metadata, "complete", None, view_id)
                 data_channels.append(data_channel)
+                xdatas.append(data_channel.data_and_metadata)
         # all channel buffers are clean now
         for data_channel in self.__data_channels:
             data_channel.is_dirty = False
 
         self.data_channel_states_updated.fire(data_channels)
         if is_complete:
-            self.data_elements_available_event.fire(data_elements)
+            self.xdatas_available_event.fire(xdatas)
 
     def __start(self):
         for data_channel in self.__data_channels:
@@ -828,37 +830,37 @@ class HardwareSource:
                 time.sleep(0.01)  # 10 msec
                 assert time.time() - start < float(sync_timeout)
 
-    def get_next_data_elements_to_finish(self, timeout=None):
+    def get_next_xdatas_to_finish(self, timeout=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         new_data_event = threading.Event()
-        new_data_elements = list()
+        new_xdatas = list()
 
-        def receive_new_data_elements(data_elements):
-            new_data_elements[:] = data_elements
+        def receive_new_xdatas(xdatas):
+            new_xdatas[:] = xdatas
             new_data_event.set()
 
         def abort():
             new_data_event.set()
 
-        with contextlib.closing(self.data_elements_available_event.listen(receive_new_data_elements)):
+        with contextlib.closing(self.xdatas_available_event.listen(receive_new_xdatas)):
             with contextlib.closing(self.abort_event.listen(abort)):
                 # wait for the current frame to finish
                 if not new_data_event.wait(timeout):
                     raise Exception("Could not start data_source " + str(self.hardware_source_id))
 
-                return new_data_elements
+                return new_xdatas
 
-    def get_next_data_elements_to_start(self, timeout=None):
+    def get_next_xdatas_to_start(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         new_data_event = threading.Event()
-        new_data_elements = list()
+        new_xdatas = list()
 
-        def receive_new_data_elements(data_elements):
-            new_data_elements[:] = data_elements
+        def receive_new_xdatas(xdatas):
+            new_xdatas[:] = xdatas
             new_data_event.set()
 
         def abort():
             new_data_event.set()
 
-        with contextlib.closing(self.data_elements_available_event.listen(receive_new_data_elements)):
+        with contextlib.closing(self.xdatas_available_event.listen(receive_new_xdatas)):
             with contextlib.closing(self.abort_event.listen(abort)):
                 # wait for the current frame to finish
                 if not new_data_event.wait(timeout):
@@ -866,25 +868,17 @@ class HardwareSource:
 
                 new_data_event.clear()
 
-                if len(new_data_elements) > 0:
+                if len(new_xdatas) > 0:
                     new_data_event.wait(timeout)
 
-                return new_data_elements
-
-    def get_next_data_and_metadata_list_to_finish(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
-        data_elements = self.get_next_data_elements_to_finish(timeout)
-        return [convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
-
-    def get_next_data_and_metadata_list_to_start(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
-        data_elements = self.get_next_data_elements_to_start(timeout)
-        return [convert_data_element_to_data_and_metadata(data_element) for data_element in data_elements]
+                return new_xdatas
 
     @property
     def channel_count(self) -> int:
         return len(self.__data_channels)
 
     @property
-    def data_channels(self) -> List[DataChannel]:
+    def data_channels(self) -> typing.List[DataChannel]:
         return self.__data_channels
 
     def add_data_channel(self, channel_id: str=None, name: str=None):
@@ -999,7 +993,7 @@ def get_data_generator_by_id(hardware_source_id, sync=True):
     """
     hardware_source = HardwareSourceManager().get_hardware_source_for_hardware_source_id(hardware_source_id)
     def get_last_data():
-        return hardware_source.get_next_data_elements_to_finish()[0]["data"].copy()
+        return hardware_source.get_next_xdatas_to_finish()[0].data.copy()
     yield get_last_data
 
 
@@ -1091,7 +1085,7 @@ class DataChannelBuffer:
         started = 1
         paused = 2
 
-    def __init__(self, data_channels: List[DataChannel], buffer_size=16):
+    def __init__(self, data_channels: typing.List[DataChannel], buffer_size=16):
         self.__state_lock = threading.RLock()
         self.__state = DataChannelBuffer.State.idle
         self.__buffer_size = buffer_size
@@ -1149,7 +1143,7 @@ class DataChannelBuffer:
     def __data_channel_stop(self, data_channel: DataChannel) -> None:
         self.__active_channel_ids.remove(data_channel.channel_id)
 
-    def grab_latest(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_latest(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab the most recent data from the buffer, blocking until one is available. Clear earlier data."""
         timeout = timeout if timeout is not None else 10.0
         with self.__buffer_lock:
@@ -1165,7 +1159,7 @@ class DataChannelBuffer:
             self.__buffer = list()
             return result
 
-    def grab_earliest(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_earliest(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab the earliest data from the buffer, blocking until one is available."""
         timeout = timeout if timeout is not None else 10.0
         with self.__buffer_lock:
@@ -1179,13 +1173,13 @@ class DataChannelBuffer:
                     raise Exception("Could not grab latest.")
             return self.__buffer.pop(0)
 
-    def grab_next(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_next(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab the next data to finish from the buffer, blocking until one is available."""
         with self.__buffer_lock:
             self.__buffer = list()
         return self.grab_latest(timeout)
 
-    def grab_following(self, timeout: float=None) -> List[DataAndMetadata.DataAndMetadata]:
+    def grab_following(self, timeout: float=None) -> typing.List[DataAndMetadata.DataAndMetadata]:
         """Grab the next data to start from the buffer, blocking until one is available."""
         self.grab_next(timeout)
         return self.grab_next(timeout)
