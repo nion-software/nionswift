@@ -485,20 +485,6 @@ class HistogramPanel(Panel.Panel):
         # create a binding that updates whenever the selected data item changes
         self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
 
-        # async def hello_world(n, event_loop):
-        #     print(n)
-        #     await asyncio.sleep(n, loop=event_loop)
-        #     print("Hello World! " + str(n))
-        #
-        # async def do_it_baby(t, event_loop):
-        #     await asyncio.sleep(1, loop=event_loop)
-        #     t.cancel()
-        #     print("YEA")
-        #
-        # document_controller.event_loop.create_task(hello_world(3, document_controller.event_loop))
-        # t = document_controller.event_loop.create_task(hello_world(5, document_controller.event_loop))
-        # document_controller.event_loop.create_task(do_it_baby(t, document_controller.event_loop))
-
         def calculate_region_data(display_data_and_metadata_promise, region):
             def provide_data():
                 display_data_and_metadata = display_data_and_metadata_promise.value if display_data_and_metadata_promise else None
