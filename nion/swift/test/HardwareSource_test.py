@@ -931,9 +931,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_hardware_source_api_grabs_summed_data(self):
         document_controller, document_model, _hardware_source = self.__setup_summed_hardware_source()
         with contextlib.closing(document_controller):
-            library = Facade.Library(document_model)  # hack to build Facade.Library directly
             hardware_source = Facade.HardwareSource(_hardware_source)
-            data_item = library.get_data_item_for_hardware_source(hardware_source, create_if_needed=True)
             hardware_source.start_playing()
             try:
                 xdata_list = hardware_source.grab_next_to_finish()
@@ -942,6 +940,22 @@ class TestHardwareSourceClass(unittest.TestCase):
                 self.assertEqual(len(xdata_list[1].dimensional_shape), 1)
             finally:
                 hardware_source.abort_playing()
+
+    def test_hardware_source_api_records_on_thread(self):
+        document_controller, document_model, _hardware_source = self.__setup_simple_hardware_source()
+        with contextlib.closing(document_controller):
+            hardware_source = Facade.HardwareSource(_hardware_source)
+            done_event = threading.Event()
+            def do_record():
+                try:
+                    xdata_list = hardware_source.record()
+                    self.assertEqual(len(xdata_list), 1)
+                    xdata_list = hardware_source.record()
+                    self.assertEqual(len(xdata_list), 1)
+                finally:
+                    done_event.set()
+            threading.Thread(target=do_record).start()
+            done_event.wait(3.0)
 
 
 if __name__ == '__main__':
