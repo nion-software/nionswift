@@ -620,6 +620,29 @@ class TestInspectorClass(unittest.TestCase):
         calibration_row = content_section.children[2].children[0]
         self.assertEqual(calibration_row.children[0].text, "2")
 
+    def test_computation_inspector_updates_when_computation_variable_type_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            computation = document_model.create_computation()
+            x = computation.create_variable("x", "integral", 0)
+            data_item.maybe_data_source.computation = computation
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
+            line_edit_widget1 = inspector_section._variables_column_widget.children[0].content_widget.children[0].children[0].children[1]
+            line_edit_widget1.editing_finished("1")
+            self.assertEqual(x.value, 1)
+            x.value_type = "real"
+            document_controller.periodic()
+            line_edit_widget2 = inspector_section._variables_column_widget.children[0].content_widget.children[0].children[0].children[1]
+            line_edit_widget2.editing_finished("1.1")
+            self.assertEqual(x.value, 1.1)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

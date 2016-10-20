@@ -1451,6 +1451,198 @@ class GraphicsInspectorSection(InspectorSection):
         return column
 
 
+# boolean (label)
+# integer, slider (label, minimum, maximum)
+# float, slider (label, minimum, maximum)
+# integer, field (label, minimum, maximum)
+# float, field (label, minimum, maximum, significant digits)
+# complex, fields (label, significant digits)
+# float, angle
+# color, control
+# choices, combo box
+# point, region
+# vector, region
+# interval, region
+# rectangle, region
+# string, field
+# float, distance
+# float, duration (units)
+# image
+
+def make_checkbox(ui, variable):
+    column = ui.create_column_widget()
+    row = ui.create_row_widget()
+    check_box_widget = ui.create_check_box_widget(variable.display_label)
+    check_box_widget.bind_checked(Binding.PropertyBinding(variable, "value"))
+    row.add(check_box_widget)
+    row.add_stretch()
+    column.add(row)
+    column.add_spacing(4)
+    return column, []
+
+def make_slider_int(ui, variable, converter):
+    column = ui.create_column_widget()
+    row = ui.create_row_widget()
+    label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
+    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+    slider_widget = ui.create_slider_widget()
+    slider_widget.minimum = int(variable.value_min)
+    slider_widget.maximum = int(variable.value_max)
+    slider_widget.bind_value(Binding.PropertyBinding(variable, "value"))
+    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
+    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+    row.add(label_widget)
+    row.add_spacing(8)
+    row.add(slider_widget)
+    row.add_spacing(8)
+    row.add(line_edit_widget)
+    row.add_spacing(8)
+    column.add(row)
+    column.add_spacing(4)
+    return column, []
+
+def make_slider_float(ui, variable, converter):
+    column = ui.create_column_widget()
+    row = ui.create_row_widget()
+    label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
+    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+    f_converter = Converter.FloatToScaledIntegerConverter(1000, variable.value_min, variable.value_max)
+    slider_widget = ui.create_slider_widget()
+    slider_widget.minimum = 0
+    slider_widget.maximum = 1000
+    slider_widget.bind_value(Binding.PropertyBinding(variable, "value", converter=f_converter))
+    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
+    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+    row.add(label_widget)
+    row.add_spacing(8)
+    row.add(slider_widget)
+    row.add_spacing(8)
+    row.add(line_edit_widget)
+    row.add_spacing(8)
+    column.add(row)
+    column.add_spacing(4)
+    return column, []
+
+def make_field(ui, variable, converter):
+    column = ui.create_column_widget()
+    row = ui.create_row_widget()
+    label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
+    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+    line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
+    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+    row.add(label_widget)
+    row.add_spacing(8)
+    row.add(line_edit_widget)
+    row.add_stretch()
+    column.add(row)
+    column.add_spacing(4)
+    return column, []
+
+def make_image_chooser(ui, document_model, variable):
+    column = ui.create_column_widget()
+    row = ui.create_row_widget()
+    label_column = ui.create_column_widget()
+    label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
+    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+    label_column.add(label_widget)
+    label_column.add_stretch()
+    row.add(label_column)
+    row.add_spacing(8)
+    base_variable_specifier = copy.copy(variable.specifier)
+    bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
+    data_item = bound_data_item.value if bound_data_item else None
+
+    def data_item_drop(data_item_uuid):
+        data_item = document_model.get_data_item_by_key(data_item_uuid)
+        variable_specifier = document_model.get_object_specifier(data_item)
+        variable.specifier = variable_specifier
+
+    def data_item_delete():
+        variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+        variable.specifier = variable_specifier
+
+    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(document_model.dispatch_task, ui, data_item)
+    data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(ui,
+                                                                               data_item_thumbnail_source,
+                                                                               Geometry.IntSize(80, 80))
+
+    def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+        # use this convoluted base object for drag so that it doesn't disappear after the drag.
+        column.root_container.widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+
+    data_item_chooser_widget.on_drag = thumbnail_widget_drag
+    data_item_chooser_widget.on_data_item_drop = data_item_drop
+    data_item_chooser_widget.on_data_item_delete = data_item_delete
+
+    def property_changed(key, value):
+        if key == "specifier":
+            base_variable_specifier = copy.copy(variable.specifier)
+            bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
+            data_item = bound_data_item.value if bound_data_item else None
+            data_item_thumbnail_source.set_data_item(data_item)
+
+    property_changed_listener = variable.property_changed_event.listen(property_changed)
+    row.add(data_item_chooser_widget)
+    row.add_stretch()
+    column.add(row)
+    column.add_spacing(4)
+    return column, [property_changed_listener]
+
+
+class VariableWidget(Widgets.CompositeWidgetBase):
+    """A composite widget for displaying a 'variable' control.
+
+    Also watches for changes to the variable that require a different UI and rebuilds
+    the UI if necessary.
+
+    The content_widget for the CompositeWidgetBase is a column widget and always has
+    a single child which is the UI for the variable. The child is replaced if necessary.
+    """
+
+    def __init__(self, ui, document_model, variable):
+        super().__init__(ui.create_column_widget())
+        self.closeables = list()
+        self.__make_widget_from_variable(ui, document_model, variable)
+
+        def rebuild_variable():
+            self.content_widget.remove_all()
+            self.__make_widget_from_variable(ui, document_model, variable)
+
+        self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
+
+    def close(self):
+        for closeable in self.closeables:
+            closeable.close()
+        self.__variable_needs_rebuild_event_listener.close()
+        self.__variable_needs_rebuild_event_listener = None
+
+    def __make_widget_from_variable(self, ui, document_model, variable):
+        if variable.variable_type == "boolean":
+            widget, closeables = make_checkbox(ui, variable)
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
+        elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
+            widget, closeables = make_slider_int(ui, variable, Converter.IntegerToStringConverter())
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
+        elif variable.variable_type == "integral":
+            widget, closeables = make_field(ui, variable, Converter.IntegerToStringConverter())
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
+        elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
+            widget, closeables = make_slider_float(ui, variable, Converter.FloatToStringConverter())
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
+        elif variable.variable_type == "real":
+            widget, closeables = make_field(ui, variable, Converter.FloatToStringConverter())
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
+        elif variable.variable_type == "data_item":
+            widget, closeables = make_image_chooser(ui, document_model, variable)
+            self.content_widget.add(widget)
+            self.closeables.extend(closeables)
+
+
 class ComputationInspectorSection(InspectorSection):
 
     """
@@ -1460,7 +1652,6 @@ class ComputationInspectorSection(InspectorSection):
     def __init__(self, ui, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, buffered_data_source: DataItem.BufferedDataSource):
         super().__init__(ui, "computation", _("Computation"))
         computation = buffered_data_source.computation
-        self.__widget_wrappers = list()
         if computation:
             label_row = self.ui.create_row_widget()
             label_widget = self.ui.create_label_widget()
@@ -1468,187 +1659,21 @@ class ComputationInspectorSection(InspectorSection):
             label_row.add(label_widget)
             label_row.add_stretch()
 
-            column = self.ui.create_column_widget()
+            self._variables_column_widget = self.ui.create_column_widget()
 
             stretch_column = self.ui.create_column_widget()
             stretch_column.add_stretch()
 
             self.add_widget_to_content(label_row)
-            self.add_widget_to_content(column)
+            self.add_widget_to_content(self._variables_column_widget)
             self.add_widget_to_content(stretch_column)
 
             def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
-                # boolean (label)
-                # integer, slider (label, minimum, maximum)
-                # float, slider (label, minimum, maximum)
-                # integer, field (label, minimum, maximum)
-                # float, field (label, minimum, maximum, significant digits)
-                # complex, fields (label, significant digits)
-                # float, angle
-                # color, control
-                # choices, combo box
-                # point, region
-                # vector, region
-                # interval, region
-                # rectangle, region
-                # string, field
-                # float, distance
-                # float, duration (units)
-                # image
-
-                class WidgetWrapper:
-                    def __init__(self, widget, closeables=[]):
-                        self.widget = widget
-                        self.__closeables = copy.copy(closeables)
-                    def close(self):
-                        for closeable in self.__closeables:
-                            closeable.close()
-
-                def make_checkbox(variable):
-                    column = self.ui.create_column_widget()
-                    row = self.ui.create_row_widget()
-                    check_box_widget = self.ui.create_check_box_widget(variable.display_label)
-                    check_box_widget.bind_checked(Binding.PropertyBinding(variable, "value"))
-                    row.add(check_box_widget)
-                    row.add_stretch()
-                    column.add(row)
-                    column.add_spacing(4)
-                    return WidgetWrapper(column)
-
-                def make_slider_int(variable, converter):
-                    column = self.ui.create_column_widget()
-                    row = self.ui.create_row_widget()
-                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
-                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
-                    slider_widget = self.ui.create_slider_widget()
-                    slider_widget.minimum = variable.value_min
-                    slider_widget.maximum = variable.value_max
-                    slider_widget.bind_value(Binding.PropertyBinding(variable, "value"))
-                    line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-                    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
-                    row.add(label_widget)
-                    row.add_spacing(8)
-                    row.add(slider_widget)
-                    row.add_spacing(8)
-                    row.add(line_edit_widget)
-                    row.add_spacing(8)
-                    column.add(row)
-                    column.add_spacing(4)
-                    return WidgetWrapper(column)
-
-                def make_slider_float(variable, converter):
-                    column = self.ui.create_column_widget()
-                    row = self.ui.create_row_widget()
-                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
-                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
-                    f_converter = Converter.FloatToScaledIntegerConverter(1000, variable.value_min, variable.value_max)
-                    slider_widget = self.ui.create_slider_widget()
-                    slider_widget.minimum = 0
-                    slider_widget.maximum = 1000
-                    slider_widget.bind_value(Binding.PropertyBinding(variable, "value", converter=f_converter))
-                    line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-                    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
-                    row.add(label_widget)
-                    row.add_spacing(8)
-                    row.add(slider_widget)
-                    row.add_spacing(8)
-                    row.add(line_edit_widget)
-                    row.add_spacing(8)
-                    column.add(row)
-                    column.add_spacing(4)
-                    return WidgetWrapper(column)
-
-                def make_field(variable, converter):
-                    column = self.ui.create_column_widget()
-                    row = self.ui.create_row_widget()
-                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
-                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
-                    line_edit_widget = self.ui.create_line_edit_widget(properties={"width": 60})
-                    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
-                    row.add(label_widget)
-                    row.add_spacing(8)
-                    row.add(line_edit_widget)
-                    row.add_stretch()
-                    column.add(row)
-                    column.add_spacing(4)
-                    return WidgetWrapper(column)
-
-                def make_image_chooser(variable):
-                    column = self.ui.create_column_widget()
-                    row = self.ui.create_row_widget()
-                    label_column = self.ui.create_column_widget()
-                    label_widget = self.ui.create_label_widget(variable.display_label, properties={"width": 80})
-                    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
-                    label_column.add(label_widget)
-                    label_column.add_stretch()
-                    row.add(label_column)
-                    row.add_spacing(8)
-                    base_variable_specifier = copy.copy(variable.specifier)
-                    bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-                    data_item = bound_data_item.value if bound_data_item else None
-
-                    def data_item_drop(data_item_uuid):
-                        data_item = document_model.get_data_item_by_key(data_item_uuid)
-                        variable_specifier = document_model.get_object_specifier(data_item)
-                        variable.specifier = variable_specifier
-
-                    def data_item_delete():
-                        variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
-                        variable.specifier = variable_specifier
-
-                    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(document_model.dispatch_task, ui, data_item)
-                    data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(self.ui,
-                                                                                               data_item_thumbnail_source,
-                                                                                               Geometry.IntSize(80, 80))
-
-                    def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
-                        # use this convoluted base object for drag so that it doesn't disappear after the drag.
-                        column.root_container.widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
-
-                    data_item_chooser_widget.on_drag = thumbnail_widget_drag
-                    data_item_chooser_widget.on_data_item_drop = data_item_drop
-                    data_item_chooser_widget.on_data_item_delete = data_item_delete
-
-                    def property_changed(key, value):
-                        if key == "specifier":
-                            base_variable_specifier = copy.copy(variable.specifier)
-                            bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-                            data_item = bound_data_item.value if bound_data_item else None
-                            data_item_thumbnail_source.set_data_item(data_item)
-
-                    property_changed_listener = variable.property_changed_event.listen(property_changed)
-                    row.add(data_item_chooser_widget)
-                    row.add_stretch()
-                    column.add(row)
-                    column.add_spacing(4)
-                    return WidgetWrapper(column, [property_changed_listener])
-
-                def make_widget_from_variable(variable):
-                    if variable.variable_type == "boolean":
-                        return make_checkbox(variable)
-                    elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
-                        return make_slider_int(variable, Converter.IntegerToStringConverter())
-                    elif variable.variable_type == "integral":
-                        return make_field(variable, Converter.IntegerToStringConverter())
-                    elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
-                        return make_slider_float(variable, Converter.FloatToStringConverter())
-                    elif variable.variable_type == "real":
-                        return make_field(variable, Converter.FloatToStringConverter())
-                    elif variable.variable_type == "data_item":
-                        return make_image_chooser(variable)
-                    elif variable.variable_type == "region":
-                        return WidgetWrapper(self.ui.create_row_widget())
-                    else:
-                        return WidgetWrapper(self.ui.create_row_widget())
-
-                widget_wrapper = make_widget_from_variable(variable)
-                self.__widget_wrappers.insert(index, widget_wrapper)
-                column.insert(widget_wrapper.widget, index)
+                widget_wrapper = VariableWidget(self.ui, document_model, variable)
+                self._variables_column_widget.insert(widget_wrapper, index)
 
             def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
-                column.remove(column.children[index])
-                self.__widget_wrappers[index].close()
-                del self.__widget_wrappers[index]
+                self._variables_column_widget.remove(self._variables_column_widget.children[index])
 
             self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(variable_inserted)
             self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(variable_removed)
@@ -1664,9 +1689,6 @@ class ComputationInspectorSection(InspectorSection):
         self.finish_widget_content()
 
     def close(self):
-        for widget_wrapper in self.__widget_wrappers:
-            widget_wrapper.close()
-        self.__widget_wrappers = None
         if self.__computation_variable_inserted_event_listener:
             self.__computation_variable_inserted_event_listener.close()
             self.__computation_variable_inserted_event_listener = None

@@ -72,6 +72,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("cascade_delete", changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
+        self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
 
     def __repr__(self):
         return "{} ({} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier)
@@ -157,6 +158,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if name in ("specifier"):
             self.notify_set_property("specifier_uuid_str", self.specifier_uuid_str)
         self.changed_event.fire()
+        if name in ["value_type", "value_min", "value_max", "control_type"]:
+            self.needs_rebuild_event.fire()
 
     def control_type_default(self, value_type: str) -> None:
         mapping = {"boolean": "checkbox", "integral": "slider", "real": "field", "complex": "field", "string": "field"}
