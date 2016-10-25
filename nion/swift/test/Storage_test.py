@@ -453,13 +453,6 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(data_ref.data[0,0], 2)
         document_controller.close()
 
-    def update_data(self, data_item):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        data2 = numpy.zeros((16, 16), numpy.uint32)
-        data2[0,0] = 2
-        with display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = data2
-
     # test whether we can update the db from a thread
     def test_db_storage_write_on_thread(self):
         cache_name = ":memory:"
@@ -474,7 +467,16 @@ class TestStorageClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
         document_controller.document_model.append_data_group(data_group)
-        thread = threading.Thread(target=self.update_data, args=[data_item])
+
+        def update_data(event_loop, data_item):
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            data2 = numpy.zeros((16, 16), numpy.uint32)
+            data2[0,0] = 2
+            def update_data_soon():
+                display_specifier.buffered_data_source.set_data(data2)
+            event_loop.call_soon_threadsafe(update_data_soon)
+
+        thread = threading.Thread(target=update_data, args=[document_controller.event_loop, data_item])
         thread.start()
         thread.join()
         document_controller.close()
