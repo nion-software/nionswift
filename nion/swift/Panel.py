@@ -126,6 +126,7 @@ class ConsolePanel(Panel):
         self.widget.on_selection_changed = self.__selection_changed
         self.widget.on_return_pressed = self.__return_pressed
         self.widget.on_key_pressed = self.__key_pressed
+        self.widget.on_insert_mime_data = self.__insert_mime_data
 
         locals = {'__name__': None, '__console__': None, '__doc__': None, '_document_controller': document_controller}
         self.console = code.InteractiveConsole(locals)
@@ -200,6 +201,15 @@ class ConsolePanel(Panel):
 
     def __selection_changed(self, selection):
         pass
+
+    def __insert_mime_data(self, mime_data):
+        text = mime_data.data_as_string("text/plain")
+        text_lines = text.split()
+        if len(text_lines) == 1 and text_lines[0] == text.rstrip():
+            # special case where text has no line terminator
+            self.widget.insert_text(text)
+        else:
+            self.insert_lines(text_lines)
 
 
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
