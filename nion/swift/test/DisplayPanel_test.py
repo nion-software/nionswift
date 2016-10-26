@@ -648,6 +648,66 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(self.display_specifier.display.left_channel, int(round(512 - int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
         self.assertEqual(self.display_specifier.display.right_channel, int(round(512 + int(plot_width * 0.5) * 0.1 * channel_per_pixel)))
 
+    def test_mouse_tracking_expand_scale_by_high_amount(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        modifiers = CanvasItem.KeyboardModifiers(control=True)
+        offset = Geometry.IntSize(width=1024, height=0)
+        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
+        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        line_plot_canvas_item._repaint(drawing_context)
+
+    def test_mouse_tracking_contract_scale_by_high_amount(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        modifiers = CanvasItem.KeyboardModifiers(control=True)
+        offset = Geometry.IntSize(width=-1024, height=0)
+        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
+        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        line_plot_canvas_item._repaint(drawing_context)
+
+    def test_mouse_tracking_expand_scale_by_high_amount_with_interval(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        interval_graphic = Graphics.IntervalGraphic()
+        self.document_model.data_items[1].maybe_data_source.displays[0].add_graphic(interval_graphic)
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        modifiers = CanvasItem.KeyboardModifiers(control=True)
+        offset = Geometry.IntSize(width=1024, height=0)
+        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
+        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        line_plot_canvas_item._repaint(drawing_context)
+
+    def test_mouse_tracking_contract_scale_by_high_amount_with_interval(self):
+        line_plot_canvas_item = self.setup_line_plot()
+        interval_graphic = Graphics.IntervalGraphic()
+        self.document_model.data_items[1].maybe_data_source.displays[0].add_graphic(interval_graphic)
+        plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
+        plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
+        pos = Geometry.IntPoint(x=plot_left + plot_width*0.5, y=465)
+        modifiers = CanvasItem.KeyboardModifiers(control=True)
+        offset = Geometry.IntSize(width=-1024, height=0)
+        line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
+        line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
+        line_plot_canvas_item.end_tracking(modifiers)
+        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        line_plot_canvas_item._repaint(drawing_context)
+
     def test_mouse_tracking_shrink_scale_by_10_around_non_center(self):
         line_plot_canvas_item = self.setup_line_plot()
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)

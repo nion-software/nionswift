@@ -310,40 +310,41 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
     # TODO: optimize filled case using not-filled drawing. be careful to handle baseline crossings.
     with drawing_context.saver():
         drawing_context.begin_path()
-        if calibrated_data_range != 0.0:
+        if calibrated_data_range != 0.0 and data_width > 0.0:
             baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
             baseline = min(plot_origin_y + plot_height, baseline)
             baseline = max(plot_origin_y, baseline)
             # rebin so that data_width corresponds to plot width
             binned_length = int(data.shape[-1] * plot_width / data_width)
-            binned_data = Image.rebin_1d(data, binned_length, rebin_cache)
-            binned_left = int(data_left * plot_width / data_width)
-            # draw the plot
-            last_py = baseline
-            for i in range(0, plot_width):
-                px = plot_origin_x + i
-                binned_index = binned_left + i
-                data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
-                # plot_origin_y is the TOP of the drawing
-                # py extends DOWNWARDS
-                py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
-                py = max(plot_origin_y, py)
-                py = min(plot_origin_y + plot_height, py)
-                if fill:
-                    drawing_context.move_to(px, baseline)
-                    drawing_context.line_to(px, py)
-                else:
-                    if i == 0:
-                        drawing_context.move_to(px, py)
+            if binned_length > 0:
+                binned_data = Image.rebin_1d(data, binned_length, rebin_cache)
+                binned_left = int(data_left * plot_width / data_width)
+                # draw the plot
+                last_py = baseline
+                for i in range(0, plot_width):
+                    px = plot_origin_x + i
+                    binned_index = binned_left + i
+                    data_value = binned_data[binned_index] if binned_index >= 0 and binned_index < binned_length else 0.0
+                    # plot_origin_y is the TOP of the drawing
+                    # py extends DOWNWARDS
+                    py = plot_origin_y + plot_height - (plot_height * (data_value - calibrated_data_min) / calibrated_data_range)
+                    py = max(plot_origin_y, py)
+                    py = min(plot_origin_y + plot_height, py)
+                    if fill:
+                        drawing_context.move_to(px, baseline)
+                        drawing_context.line_to(px, py)
                     else:
-                        # only draw horizontal lines when necessary
-                        if py != last_py:
-                            # draw forward from last_px to px at last_py level
-                            drawing_context.line_to(px, last_py)
-                            drawing_context.line_to(px, py)
-                    last_py = py
-            if not fill:
-                drawing_context.line_to(plot_origin_x + plot_width, last_py)
+                        if i == 0:
+                            drawing_context.move_to(px, py)
+                        else:
+                            # only draw horizontal lines when necessary
+                            if py != last_py:
+                                # draw forward from last_px to px at last_py level
+                                drawing_context.line_to(px, last_py)
+                                drawing_context.line_to(px, py)
+                        last_py = py
+                if not fill:
+                    drawing_context.line_to(plot_origin_x + plot_width, last_py)
         else:
             drawing_context.move_to(plot_origin_x, plot_origin_y + plot_height * 0.5)
             drawing_context.line_to(plot_origin_x + plot_width, plot_origin_y + plot_height * 0.5)
@@ -554,6 +555,9 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
 
             data_left = x_properties.drawn_left_channel
             data_right = x_properties.drawn_right_channel
+
+            if data_right <= data_left:
+                return
 
             def convert_coordinate_to_pixel(c):
                 px = c * data_info.data.shape[-1]
