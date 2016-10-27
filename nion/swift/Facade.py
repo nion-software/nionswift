@@ -1804,15 +1804,9 @@ class Library:
 
         Scriptable: Yes
         """
-        data_item = DataItemModule.DataItem()
+        data_item = DataItemModule.new_data_item(data_and_metadata)
         if title is not None:
             data_item.title = title
-        buffered_data_source = DataItemModule.BufferedDataSource(data_and_metadata.data)
-        buffered_data_source.set_metadata(data_and_metadata.metadata)
-        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
-        buffered_data_source.created = data_and_metadata.timestamp
-        data_item.append_data_source(buffered_data_source)
         self.__document_model.append_data_item(data_item)
         return DataItem(data_item)
 
@@ -2044,15 +2038,9 @@ class DocumentWindow:
 
         Scriptable: No
         """
-        data_item = DataItemModule.DataItem()
+        data_item = DataItemModule.new_data_item(data_and_metadata)
         if title is not None:
             data_item.title = title
-        buffered_data_source = DataItemModule.BufferedDataSource(data_and_metadata.data)
-        buffered_data_source.set_metadata(data_and_metadata.metadata)
-        buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-        buffered_data_source.set_dimensional_calibrations(data_and_metadata.dimensional_calibrations)
-        buffered_data_source.created = data_and_metadata.timestamp
-        data_item.append_data_source(buffered_data_source)
         self.__document_controller.document_model.append_data_item(data_item)
         return DataItem(data_item)
 

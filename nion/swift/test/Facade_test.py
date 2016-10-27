@@ -7,6 +7,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import Facade
 from nion.swift.model import DocumentModel
@@ -60,6 +61,17 @@ class TestFacadeClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(document_model.data_items[1].maybe_data_source.data_and_metadata.data, data1))
             self.assertTrue(numpy.array_equal(document_model.data_items[2].maybe_data_source.data_and_metadata.data, data2))
             self.assertTrue(numpy.array_equal(document_model.data_items[3].maybe_data_source.data_and_metadata.data, data3))
+
+    def test_create_data_item_from_data_as_sequence(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0", "~1.0")
+            library = api.library
+            data_and_metadata =  DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 4, 5)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            data_item = library.create_data_item_from_data_and_metadata(data_and_metadata, "three")
+            self.assertEqual(library.data_item_count, 1)
+            self.assertTrue(document_model.data_items[0].maybe_data_source.is_sequence)
 
     def test_data_on_empty_data_item_returns_none(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
