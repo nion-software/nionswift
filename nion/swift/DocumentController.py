@@ -95,25 +95,9 @@ class DocumentController(Window.Window):
 
         self.__data_item_will_be_removed_event_listener = self.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
 
-        def queued_append_data_item(data_item):
-            self.queue_task(functools.partial(self.document_model.append_data_item, data_item))
-            return True
-
-        self.__append_data_item_event_listener = self.document_model.append_data_item_event.listen(queued_append_data_item)
-
-        def queued_perform_data_item_updates():
-            self.queue_task(functools.partial(self.document_model.perform_data_item_updates))
-
-        self.__perform_data_item_updates_event_listener = self.document_model.perform_data_item_updates_event.listen(queued_perform_data_item_updates)
-
-        def queued_perform_data_item_merges():
-            self.queue_task(self.document_model.perform_data_item_merges)
-
-        self.__perform_data_item_merges_event_listener = self.document_model.perform_data_item_merges_event.listen(queued_perform_data_item_merges)
-
         def call_soon(fn):
-            # fn()
             self.queue_task(fn)
+            return True
 
         self.__call_soon_event_listener = self.document_model.call_soon_event.listen(call_soon)
 
@@ -173,12 +157,6 @@ class DocumentController(Window.Window):
         # get rid of the bindings
         self.__data_item_will_be_removed_event_listener.close()
         self.__data_item_will_be_removed_event_listener = None
-        self.__append_data_item_event_listener.close()
-        self.__append_data_item_event_listener = None
-        self.__perform_data_item_updates_event_listener.close()
-        self.__perform_data_item_updates_event_listener = None
-        self.__perform_data_item_merges_event_listener.close()
-        self.__perform_data_item_merges_event_listener = None
         self.__call_soon_event_listener.close()
         self.__call_soon_event_listener = None
         self.__filtered_data_items_binding.close()

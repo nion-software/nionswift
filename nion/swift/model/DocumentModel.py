@@ -1080,26 +1080,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_channel_states_updated_listeners = dict()
         self.__last_data_items_dict = dict()  # maps hardware source to list of data items for that hardware source
 
-        self.append_data_item_event = Event.Event()
-
-        def append_data_item(data_item):
-            self.append_data_item_event.fire_any(data_item)
-
         self.__pending_data_item_updates_lock = threading.RLock()
         self.__pending_data_item_updates = list()
-        self.perform_data_item_updates_event = Event.Event()
 
         self.__pending_data_item_merges_lock = threading.RLock()
         self.__pending_data_item_merges = list()
-        self.perform_data_item_merges_event = Event.Event()
 
         self.call_soon_event = Event.Event()
 
-        self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(functools.partial(self.__hardware_source_added, append_data_item))
+        self.__hardware_source_added_event_listener = HardwareSource.HardwareSourceManager().hardware_source_added_event.listen(self.__hardware_source_added)
         self.__hardware_source_removed_event_listener = HardwareSource.HardwareSourceManager().hardware_source_removed_event.listen(self.__hardware_source_removed)
 
         for hardware_source in HardwareSource.HardwareSourceManager().hardware_sources:
-            self.__hardware_source_added(append_data_item, hardware_source)
+            self.__hardware_source_added(hardware_source)
 
     def __read(self):
         # first read the items
@@ -1189,6 +1182,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.about_to_be_removed()
             data_item.close()
         self.storage_cache.close()
+
+    def __call_soon(self, fn):
+        self.call_soon_event.fire_any(fn)
 
     def about_to_delete(self):
         # override from ReferenceCounted. several DocumentControllers may retain references
@@ -1379,6 +1375,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.begin_data_item_live(target_data_item)
 
     def __handle_computation_changed_or_mutated(self, data_item, data_source, computation):
+        """Establish the dependencies between data items based on the computation."""
         with self.__dependent_data_items_lock:
             source_data_item_set = self.__computation_dependency_data_items.setdefault(weakref.ref(data_item), set())
             for source_data_item in source_data_item_set:
@@ -1695,7 +1692,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             pending_data_item_merges = computation_queue_item.recompute()
             with self.__pending_data_item_merges_lock:
                 self.__pending_data_item_merges.extend(pending_data_item_merges)
-            self.perform_data_item_merges_event.fire()
+            self.__call_soon(self.perform_data_item_merges)
             with self.__computation_queue_lock:
                 self.__computation_active_items.remove(computation_queue_item)
 
@@ -1853,7 +1850,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             with self.__pending_data_item_updates_lock:
                 # TODO: optimize case where sub_area is None
                 self.__pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
-            self.perform_data_item_updates_event.fire_any()
+            self.__call_soon(self.perform_data_item_updates)
 
     def perform_data_item_updates(self):
         assert threading.current_thread() == threading.main_thread()
@@ -1871,7 +1868,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             else:
                 del data_item_references_dict[key]
             self._set_persistent_property_value("data_item_references", data_item_references_dict)
-        self.call_soon_event.fire(update_data_reference_inner)
+        self.__call_soon(update_data_reference_inner)
 
     def make_data_item_reference_key(self, *components) -> str:
         return "_".join([str(component) for component in list(components) if component is not None])
@@ -1887,7 +1884,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item_reference = self.get_data_item_reference(data_item_reference_key)
         data_item_reference.data_item = data_item
 
-    def __construct_data_item_reference(self, hardware_source: HardwareSource.HardwareSource, data_channel: HardwareSource.DataChannel, append_data_item_fn):
+    def __construct_data_item_reference(self, hardware_source: HardwareSource.HardwareSource, data_channel: HardwareSource.DataChannel):
         """Construct a data item reference.
 
         Construct a data item reference and assign a data item to it. Update data item session id and session metadata.
@@ -1908,7 +1905,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 data_item.increment_data_ref_counts()
                 self.begin_data_item_transaction(data_item)
                 self.begin_data_item_live(data_item)
-                append_data_item_fn(data_item)
+                self.__call_soon(functools.partial(self.append_data_item, data_item))
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
             def update_session_info():
                 if data_item.session_id != session_id:
@@ -1916,11 +1913,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 session_metadata = self.session_metadata
                 if data_item.session_metadata != session_metadata:
                     data_item.session_metadata = session_metadata
-            self.call_soon_event.fire(update_session_info)
+            self.__call_soon(update_session_info)
             if data_channel.processor:
                 src_data_channel = hardware_source.data_channels[data_channel.src_channel_index]
                 src_data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_data_channel.channel_id)).data_item
-                data_channel.processor.connect(src_data_item)
+                self.__call_soon(functools.partial(data_channel.processor.connect, src_data_item))
             return data_item_reference
 
     def __data_channel_start(self, hardware_source, data_channel):
@@ -1941,8 +1938,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.end_data_item_live(data_item)
             data_item.decrement_data_ref_counts()
 
-    def __data_channel_updated(self, hardware_source, data_channel, append_data_item_fn, data_and_metadata):
-        data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel, append_data_item_fn)
+    def __data_channel_updated(self, hardware_source, data_channel, data_and_metadata):
+        data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel)
         data_item_reference.update_data(data_and_metadata, data_channel.sub_area)
 
     def __data_channel_states_updated(self, hardware_source, data_channels):
@@ -1966,10 +1963,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         hardware_source.data_item_states_changed_event.fire(data_item_states)
         hardware_source.data_item_states_changed(data_item_states)
 
-    def __hardware_source_added(self, append_data_item_fn, hardware_source: HardwareSource.HardwareSource) -> None:
+    def __hardware_source_added(self, hardware_source: HardwareSource.HardwareSource) -> None:
         self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id] = hardware_source.data_channel_states_updated.listen(functools.partial(self.__data_channel_states_updated, hardware_source))
         for data_channel in hardware_source.data_channels:
-            data_channel_updated_listener = data_channel.data_channel_updated_event.listen(functools.partial(self.__data_channel_updated, hardware_source, data_channel, append_data_item_fn))
+            data_channel_updated_listener = data_channel.data_channel_updated_event.listen(functools.partial(self.__data_channel_updated, hardware_source, data_channel))
             self.__data_channel_updated_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_updated_listener)
             data_channel_start_listener = data_channel.data_channel_start_event.listen(functools.partial(self.__data_channel_start, hardware_source, data_channel))
             self.__data_channel_start_listeners.setdefault(hardware_source.hardware_source_id, list()).append(data_channel_start_listener)

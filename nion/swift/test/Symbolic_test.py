@@ -1315,8 +1315,18 @@ class TestSymbolicClass(unittest.TestCase):
             self.assertEqual(data_and_metadata.collection_dimension_count, 1)
             self.assertEqual(data_and_metadata.datum_dimension_count, 1)
 
-    def test_computaton_evaluates_on_thread(self):
+    def test_computation_evaluates_on_thread(self):
         document_model = DocumentModel.DocumentModel()
+        # in order to make this test go fast, attach the call_soon event here
+        # and handle it, setting the continue event at the same time.
+        # this must go before the document controller is created since call_soon
+        # is a 'fire_any' style event, meaning that only the first handler takes
+        # it. we return False to let the document controller eventually handle it.
+        continue_event = threading.Event()
+        def do_call_soon(fn):
+            continue_event.set()
+            return False
+        listener = document_model.call_soon_event.listen(do_call_soon)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             src_data = numpy.random.randn(2, 2)
@@ -1327,10 +1337,6 @@ class TestSymbolicClass(unittest.TestCase):
             computed_data_item = DataItem.DataItem(src_data.copy())
             computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
-            continue_event = threading.Event()
-            def do_continue():
-                continue_event.set()
-            listener = document_model.perform_data_item_merges_event.listen(do_continue)
             document_model.start_dispatcher()
             continue_event.wait(10.0)
             listener.close()
