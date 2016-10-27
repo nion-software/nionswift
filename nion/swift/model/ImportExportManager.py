@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import datetime
 import io
 import json
@@ -191,6 +192,7 @@ def update_data_item_from_data_element(data_item, data_element, data_file_path=N
     else:
         raise NotImplementedError("Data element version {:d} not supported.".format(version))
 
+
 def update_data_item_from_data_element_1(data_item, data_element, data_file_path=None):
     # assumes that data item has a single buffered_data_source
     display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -200,37 +202,14 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # master data
         if data_file_path is not None:
             data_item.source_file_path = data_file_path
-        data = data_element["data"]
-        dimensional_shape = Image.dimensional_shape_from_data(data)
-        is_sequence = data_element.get("is_sequence", False)
-        collection_dimension_count = data_element.get("collection_dimension_count", 0)
-        datum_dimension_count = data_element.get("datum_dimension_count", len(Image.dimensional_shape_from_data(data)) - collection_dimension_count - (1 if is_sequence else 0))
-        data_shape_data_dtype = (data.shape, data.dtype)
-        dimensional_calibrations = None
-        if "spatial_calibrations" in data_element:
-            dimensional_calibrations_list = data_element.get("spatial_calibrations")
-            if len(dimensional_calibrations_list) == len(dimensional_shape):
-                dimensional_calibrations = list()
-                for dimension, dimension_calibration in enumerate(dimensional_calibrations_list):
-                    offset = float(dimension_calibration.get("offset", 0.0))
-                    scale = float(dimension_calibration.get("scale", 1.0))
-                    units = dimension_calibration.get("units", "")
-                    units = str(units) if units is not None else str()
-                    if scale != 0.0:
-                        dimensional_calibrations.append(Calibration.Calibration(offset, scale, units))
-                    else:
-                        dimensional_calibrations.append(Calibration.Calibration())
-        intensity_calibration = None
-        if "intensity_calibration" in data_element:
-            intensity_calibration_dict = data_element.get("intensity_calibration")
-            offset = float(intensity_calibration_dict.get("offset", 0.0))
-            scale = float(intensity_calibration_dict.get("scale", 1.0))
-            units = intensity_calibration_dict.get("units", "")
-            units = str(units) if units is not None else str()
-            if scale != 0.0:
-                intensity_calibration = Calibration.Calibration(offset, scale, units)
-            else:
-                intensity_calibration = Calibration.Calibration()
+        data_and_metadata = convert_data_element_to_data_and_metadata(data_element)
+        data = data_and_metadata.data
+        dimensional_calibrations = data_and_metadata.dimensional_calibrations
+        intensity_calibration = data_and_metadata.intensity_calibration
+        is_sequence = data_and_metadata.is_sequence
+        collection_dimension_count = data_and_metadata.collection_dimension_count
+        datum_dimension_count = data_and_metadata.datum_dimension_count
+        data_shape_data_dtype = data_and_metadata.data_shape_and_dtype
         is_same_shape = display_specifier.buffered_data_source.data_shape_and_dtype == data_shape_data_dtype and display_specifier.buffered_data_source.is_sequence == is_sequence and display_specifier.buffered_data_source.collection_dimension_count == collection_dimension_count and display_specifier.buffered_data_source.datum_dimension_count == datum_dimension_count
         if is_same_shape:
             with display_specifier.buffered_data_source.data_ref() as data_ref:
@@ -249,18 +228,11 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                     display_specifier.buffered_data_source.set_dimensional_calibration(dimension, dimensional_calibration)
             if intensity_calibration:
                 display_specifier.buffered_data_source.set_intensity_calibration(intensity_calibration)
-        else:
-            data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
-            data_and_metadata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, data_descriptor=data_descriptor)
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
-        # properties (general tags)
-        if "properties" in data_element:
             buffered_data_source = data_item.maybe_data_source
             if buffered_data_source:
-                metadata = buffered_data_source.metadata
-                hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-                hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
-                buffered_data_source.set_metadata(metadata)
+                buffered_data_source.set_metadata(data_and_metadata.metadata)
+        else:
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
         # title
         if "title" in data_element:
             data_item.title = data_element["title"]
@@ -272,22 +244,14 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
         # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
         # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
-        datetime_item = data_element.get("datetime_modified")
-        if not datetime_item:
-            datetime_item = Utility.get_datetime_item_from_datetime(datetime.datetime.now())
-        if datetime_item:
-            dst_value = datetime_item.get("dst", "+00")
-            tz_value = datetime_item.get("tz", "+0000")
-            time_zone = { "dst": dst_value, "tz": tz_value}
-            tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
-            local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)
-            utc_datetime = local_datetime - datetime.timedelta(minutes=tz_adjust)  # tz_adjust already contains dst_adjust
-            data_item.created = utc_datetime
-            buffered_data_source = data_item.maybe_data_source
-            if buffered_data_source:
-                buffered_data_source.created = utc_datetime
+        utc_datetime = data_and_metadata.timestamp
+        data_item.created = utc_datetime
+        buffered_data_source = data_item.maybe_data_source
+        if buffered_data_source:
+            buffered_data_source.created = utc_datetime
+        if "time_zone" in data_and_metadata.metadata.get("description", dict()):
             metadata = data_item.metadata
-            metadata.setdefault("description", dict())["time_zone"] = time_zone
+            metadata.setdefault("description", dict())["time_zone"] = copy.deepcopy(data_and_metadata.metadata["description"]["time_zone"])
             data_item.set_metadata(metadata)
         # author
         # sample
@@ -307,6 +271,78 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 line_graphic.end = (float(end[0]) / dimensional_shape[0], float(end[1]) / dimensional_shape[1])
                 line_graphic.end_arrow_enabled = True
                 display_specifier.display.add_graphic(line_graphic)
+
+
+def convert_data_element_to_data_and_metadata(data_element) -> DataAndMetadata.DataAndMetadata:
+    version = data_element["version"] if "version" in data_element else 1
+    if version == 1:
+        return convert_data_element_to_data_and_metadata_1(data_element)
+    else:
+        raise NotImplementedError("Data element version {:d} not supported.".format(version))
+
+
+def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata.DataAndMetadata:
+    # data
+    data = data_element["data"]
+    dimensional_shape = Image.dimensional_shape_from_data(data)
+    is_sequence = data_element.get("is_sequence", False)
+    collection_dimension_count = data_element.get("collection_dimension_count", 0)
+    datum_dimension_count = data_element.get("datum_dimension_count", len(Image.dimensional_shape_from_data(data)) - collection_dimension_count - (1 if is_sequence else 0))
+    data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
+
+    # dimensional calibrations
+    dimensional_calibrations = None
+    if "spatial_calibrations" in data_element:
+        dimensional_calibrations_list = data_element.get("spatial_calibrations")
+        if len(dimensional_calibrations_list) == len(dimensional_shape):
+            dimensional_calibrations = list()
+            for dimension_calibration in dimensional_calibrations_list:
+                offset = float(dimension_calibration.get("offset", 0.0))
+                scale = float(dimension_calibration.get("scale", 1.0))
+                units = dimension_calibration.get("units", "")
+                units = str(units) if units is not None else str()
+                if scale != 0.0:
+                    dimensional_calibrations.append(Calibration.Calibration(offset, scale, units))
+                else:
+                    dimensional_calibrations.append(Calibration.Calibration())
+
+    # intensity calibration
+    intensity_calibration = None
+    if "intensity_calibration" in data_element:
+        intensity_calibration_dict = data_element.get("intensity_calibration")
+        offset = float(intensity_calibration_dict.get("offset", 0.0))
+        scale = float(intensity_calibration_dict.get("scale", 1.0))
+        units = intensity_calibration_dict.get("units", "")
+        units = str(units) if units is not None else str()
+        if scale != 0.0:
+            intensity_calibration = Calibration.Calibration(offset, scale, units)
+
+    # properties (general tags)
+    metadata = dict()
+    if "properties" in data_element:
+        hardware_source_metadata = metadata.setdefault("hardware_source", dict())
+        hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
+
+    # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
+    # time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
+    # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
+    # time zone name is for display only and has no specified format
+    # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
+    # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
+    # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
+    timestamp = datetime.datetime.utcnow()
+    datetime_item = data_element.get("datetime_modified")
+    if datetime_item:
+        dst_value = datetime_item.get("dst", "+00")
+        tz_value = datetime_item.get("tz", "+0000")
+        time_zone = { "dst": dst_value, "tz": tz_value}
+        tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
+        local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)
+        utc_datetime = local_datetime - datetime.timedelta(minutes=tz_adjust)  # tz_adjust already contains dst_adjust
+        timestamp = utc_datetime
+        metadata.setdefault("description", dict())["time_zone"] = time_zone
+
+    return DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata=metadata, timestamp=timestamp, data_descriptor=data_descriptor)
 
 
 def create_data_element_from_data_item(data_item, include_data=True):

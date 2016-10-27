@@ -33,6 +33,7 @@ from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
+from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
 from nion.utils import Event
 from nion.utils import Observable
@@ -678,7 +679,7 @@ class HardwareSource:
             channel_id = data_element.get("channel_id")
             # find channel_index for channel_id
             channel_index = next((data_channel.index for data_channel in self.__data_channels if data_channel.channel_id == channel_id), 0)
-            data_and_metadata = convert_data_element_to_data_and_metadata(data_element)
+            data_and_metadata = ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete" and is_stopping:
                 channel_state = "marked"
@@ -997,44 +998,9 @@ def get_data_generator_by_id(hardware_source_id, sync=True):
     yield get_last_data
 
 
-def convert_data_element_to_data_and_metadata(data_element):
-    data = data_element["data"]
-    data_shape_and_dtype = data.shape, data.dtype
-    dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(*data_shape_and_dtype)
-    # dimensional calibrations
-    dimensional_calibrations = list()
-    if "spatial_calibrations" in data_element:
-        spatial_calibrations = data_element.get("spatial_calibrations")
-        for dimension, spatial_calibration in enumerate(spatial_calibrations):
-            offset = float(spatial_calibration.get("offset", 0.0))
-            scale = float(spatial_calibration.get("scale", 1.0))
-            units = spatial_calibration.get("units", "")
-            units = str(units) if units is not None else str()
-            if scale != 0.0:
-                dimensional_calibrations.append(Calibration.Calibration(offset, scale, units))
-            else:
-                dimensional_calibrations.append(Calibration.Calibration())
-    while len(dimensional_calibrations) < len(dimensional_shape):
-        dimensional_calibrations.append(Calibration.Calibration())
-    while len(dimensional_calibrations) > len(dimensional_shape):
-        dimensional_calibrations.pop()
-    intensity_calibration = Calibration.Calibration()
-    if "intensity_calibration" in data_element:
-        intensity_calibration_dict = data_element.get("intensity_calibration")
-        offset = float(intensity_calibration_dict.get("offset", 0.0))
-        scale = float(intensity_calibration_dict.get("scale", 1.0))
-        units = intensity_calibration_dict.get("units", "")
-        units = str(units) if units is not None else str()
-        if scale != 0.0:
-            intensity_calibration = Calibration.Calibration(offset, scale, units)
-    # properties (general tags)
-    metadata = None
-    if "properties" in data_element:
-        metadata = dict()
-        hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-        hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
-    timestamp = datetime.datetime.utcnow()
-    return DataAndMetadata.DataAndMetadata.from_data(data.copy(), intensity_calibration, dimensional_calibrations, metadata, timestamp)
+def convert_data_element_to_data_and_metadata(data_element) -> DataAndMetadata.DataAndMetadata:
+    # TODO: remove this after customers have all stopped using it.
+    return ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
 
 
 def parse_hardware_aliases_config_file(config_path):

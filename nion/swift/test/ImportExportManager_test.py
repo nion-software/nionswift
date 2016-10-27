@@ -25,7 +25,7 @@ class TestImportExportManagerClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_data_element(self):
+    def test_convert_data_element_records_time_zone_in_data_item_metadata(self):
         data_element = dict()
         data_element["version"] = 1
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
@@ -83,7 +83,7 @@ class TestImportExportManagerClass(unittest.TestCase):
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
         self.assertTrue(len(writers) > 0)
 
-    def test_data_element_date(self):
+    def test_data_element_date_gets_set_as_data_item_created_date(self):
         data_element = dict()
         data_element["version"] = 1
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
