@@ -287,8 +287,9 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
     dimensional_shape = Image.dimensional_shape_from_data(data)
     is_sequence = data_element.get("is_sequence", False)
     dimension_count = len(Image.dimensional_shape_from_data(data))
-    collection_dimension_count = data_element.get("collection_dimension_count", 2 if dimension_count in (3, 4) else 0)
-    datum_dimension_count = data_element.get("datum_dimension_count", dimension_count - collection_dimension_count - (1 if is_sequence else 0))
+    adjusted_dimension_count = dimension_count - (1 if is_sequence else 0)
+    collection_dimension_count = data_element.get("collection_dimension_count", 2 if adjusted_dimension_count in (3, 4) else 0)
+    datum_dimension_count = data_element.get("datum_dimension_count", adjusted_dimension_count - collection_dimension_count)
     data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
 
     # dimensional calibrations
