@@ -1,9 +1,6 @@
 # standard libraries
-import code
 import collections
-import contextlib
 import gettext
-import io
 import logging
 import sys
 import threading
@@ -40,7 +37,7 @@ class Panel:
 
     # subclasses can override to clean up when the panel closes.
     def close(self):
-        pass
+        self.widget = None
 
     @property
     def document_controller(self):
@@ -73,6 +70,7 @@ class Panel:
 
 
 class OutputPanel(Panel):
+
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
@@ -100,116 +98,10 @@ class OutputPanel(Panel):
                         document_controller.queue_task(safe_emit)
         self.__output_panel_handler = OutputPanelHandler(document_controller.ui)
         logging.getLogger().addHandler(self.__output_panel_handler)
+
     def close(self):
         logging.getLogger().removeHandler(self.__output_panel_handler)
         super().close()
-
-
-@contextlib.contextmanager
-def reassign_stdout(new_stdout, new_stderr):
-    oldstdout, oldtsderr = sys.stdout, sys.stderr
-    sys.stdout, sys.stderr = new_stdout, new_stderr
-    yield
-    sys.stdout, sys.stderr = oldstdout, oldtsderr
-
-
-class ConsolePanel(Panel):
-
-    def __init__(self, document_controller, panel_id, properties):
-        super().__init__(document_controller, panel_id, "Console")
-        properties["min-height"] = 180
-        properties["stylesheet"] = "background: black; color: white; font: 12px courier, monospace"
-        self.prompt = ">>> "
-        self.continuation_prompt = "... "
-        self.widget = self.ui.create_text_edit_widget(properties)
-        self.widget.on_cursor_position_changed = self.__cursor_position_changed
-        self.widget.on_selection_changed = self.__selection_changed
-        self.widget.on_return_pressed = self.__return_pressed
-        self.widget.on_key_pressed = self.__key_pressed
-        self.widget.on_insert_mime_data = self.__insert_mime_data
-
-        locals = {'__name__': None, '__console__': None, '__doc__': None, '_document_controller': document_controller}
-        self.console = code.InteractiveConsole(locals)
-        lines = [
-            "from nion.swift import DocumentController",
-            "from nion.swift.model import DocumentModel, DataItem, PlugInManager, Graphics",
-            "from nion.data import Image",
-            "import logging",
-            "import numpy as np",
-            "import numpy as numpy",
-            "import uuid",
-            "_document_model = _document_controller.document_model",
-            "get_api = PlugInManager.api_broker_fn"
-            ]
-        for l in lines:
-            self.interpret_command(l)
-        self.widget.append_text(self.prompt)
-        self.widget.move_cursor_position("end")
-        self.document_controller.register_console(self)
-
-    def close(self):
-        self.document_controller.unregister_console(self)
-        super().close()
-
-    def insert_lines(self, lines):
-        for l in lines:
-            self.widget.move_cursor_position("end")
-            self.widget.insert_text(l)
-            result, error_code, prompt = self.interpret_command(l)
-            if len(result) > 0:
-                self.widget.set_text_color("red" if error_code else "green")
-                self.widget.append_text(result[:-1])
-                self.widget.set_text_color("white")
-            self.widget.append_text(prompt)
-            self.widget.move_cursor_position("end")
-
-    # interpretCommand is called from the intrinsic widget.
-    def interpret_command(self, command):
-        output = io.StringIO()
-        error = io.StringIO()
-        with reassign_stdout(output, error):
-            incomplete = self.console.push(command)
-        prompt = self.continuation_prompt if incomplete else self.prompt
-        if error.getvalue():
-            result =  error.getvalue()
-            error_code = -1
-        else:
-            result = output.getvalue()
-            error_code = 0
-        return result, error_code, prompt
-
-    def __return_pressed(self):
-        command = self.widget.text.split('\n')[-1]
-        if command.startswith(self.prompt):
-            command = command[len(self.prompt):]
-        elif command.startswith(self.continuation_prompt):
-            command = command[len(self.continuation_prompt):]
-        result, error_code, prompt = self.interpret_command(command)
-        if len(result) > 0:
-            self.widget.set_text_color("red" if error_code else "green")
-            self.widget.append_text(result[:-1])
-            self.widget.set_text_color("white")
-        self.widget.append_text(prompt)
-        self.widget.move_cursor_position("end")
-        return True
-
-    def __key_pressed(self, key):
-        return False
-
-    def __cursor_position_changed(self, cursor_position):
-        pass
-
-    def __selection_changed(self, selection):
-        pass
-
-    def __insert_mime_data(self, mime_data):
-        text = mime_data.data_as_string("text/plain")
-        text_lines = text.split()
-        if len(text_lines) == 1 and text_lines[0] == text.rstrip():
-            # special case where text has no line terminator
-            self.widget.insert_text(text)
-        else:
-            self.insert_lines(text_lines)
 
 
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):

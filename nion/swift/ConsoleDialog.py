@@ -1,0 +1,166 @@
+# system imports
+import code
+import contextlib
+import gettext
+import io
+import sys
+
+# local libraries
+from nion.swift import Panel
+from nion.ui import Dialog
+from nion.ui import Widgets
+
+_ = gettext.gettext
+
+
+@contextlib.contextmanager
+def reassign_stdout(new_stdout, new_stderr):
+    oldstdout, oldtsderr = sys.stdout, sys.stderr
+    sys.stdout, sys.stderr = new_stdout, new_stderr
+    yield
+    sys.stdout, sys.stderr = oldstdout, oldtsderr
+
+
+class ConsoleWidget(Widgets.CompositeWidgetBase):
+
+    def __init__(self, document_controller, locals=None, properties=None):
+        ui = document_controller.ui
+        super().__init__(ui.create_column_widget())
+
+        self.document_controller = document_controller
+
+        properties = properties if properties is not None else dict()
+        properties["stylesheet"] = "background: black; color: white; font: 12px courier, monospace"
+
+        self.prompt = ">>> "
+        self.continuation_prompt = "... "
+
+        self.__text_edit_widget = ui.create_text_edit_widget(properties)
+        self.__text_edit_widget.on_cursor_position_changed = self.__cursor_position_changed
+        self.__text_edit_widget.on_selection_changed = self.__selection_changed
+        self.__text_edit_widget.on_return_pressed = self.__return_pressed
+        self.__text_edit_widget.on_key_pressed = self.__key_pressed
+        self.__text_edit_widget.on_insert_mime_data = self.__insert_mime_data
+
+        locals = locals if locals is not None else dict()
+        locals.update({'__name__': None, '__console__': None, '__doc__': None})
+        self.console = code.InteractiveConsole(locals)
+        self.__text_edit_widget.append_text(self.prompt)
+        self.__text_edit_widget.move_cursor_position("end")
+        self.document_controller.register_console(self)
+
+        self.content_widget.add(self.__text_edit_widget)
+
+    def close(self):
+        self.document_controller.unregister_console(self)
+        super().close()
+
+    def insert_lines(self, lines):
+        for l in lines:
+            self.__text_edit_widget.move_cursor_position("end")
+            self.__text_edit_widget.insert_text(l)
+            result, error_code, prompt = self.interpret_command(l)
+            if len(result) > 0:
+                self.__text_edit_widget.set_text_color("red" if error_code else "green")
+                self.__text_edit_widget.append_text(result[:-1])
+                self.__text_edit_widget.set_text_color("white")
+            self.__text_edit_widget.append_text(prompt)
+            self.__text_edit_widget.move_cursor_position("end")
+
+    # interpretCommand is called from the intrinsic widget.
+    def interpret_command(self, command):
+        output = io.StringIO()
+        error = io.StringIO()
+        with reassign_stdout(output, error):
+            incomplete = self.console.push(command)
+        prompt = self.continuation_prompt if incomplete else self.prompt
+        if error.getvalue():
+            result =  error.getvalue()
+            error_code = -1
+        else:
+            result = output.getvalue()
+            error_code = 0
+        return result, error_code, prompt
+
+    def interpret_lines(self, lines):
+        for l in lines:
+            self.interpret_command(l)
+
+    def __return_pressed(self):
+        command = self.__text_edit_widget.text.split('\n')[-1]
+        if command.startswith(self.prompt):
+            command = command[len(self.prompt):]
+        elif command.startswith(self.continuation_prompt):
+            command = command[len(self.continuation_prompt):]
+        result, error_code, prompt = self.interpret_command(command)
+        if len(result) > 0:
+            self.__text_edit_widget.set_text_color("red" if error_code else "green")
+            self.__text_edit_widget.append_text(result[:-1])
+            self.__text_edit_widget.set_text_color("white")
+        self.__text_edit_widget.append_text(prompt)
+        self.__text_edit_widget.move_cursor_position("end")
+        return True
+
+    def __key_pressed(self, key):
+        return False
+
+    def __cursor_position_changed(self, cursor_position):
+        pass
+
+    def __selection_changed(self, selection):
+        pass
+
+    def __insert_mime_data(self, mime_data):
+        text = mime_data.data_as_string("text/plain")
+        text_lines = text.split()
+        if len(text_lines) == 1 and text_lines[0] == text.rstrip():
+            # special case where text has no line terminator
+            self.__text_edit_widget.insert_text(text)
+        else:
+            self.insert_lines(text_lines)
+
+
+
+class ConsoleDialog(Dialog.ActionDialog):
+
+    def __init__(self, document_controller):
+        super().__init__(document_controller.ui, _("Python Console"))
+
+        console_widget = ConsoleWidget(document_controller, properties={"min-height": 180, "min-width": 540})
+        lines = [
+            "import logging",
+            "import numpy as np",
+            "import numpy as numpy",
+            "import uuid",
+            "from nion.swift.model import PlugInManager",
+            "get_api = PlugInManager.api_broker_fn",
+            "api = get_api('~1.0', '~1.0')"
+            ]
+        for l in lines:
+            console_widget.interpret_command(l)
+
+        self.content.add(console_widget)
+
+
+
+class ConsolePanel(Panel.Panel):
+
+    def __init__(self, document_controller, panel_id, properties):
+        super().__init__(document_controller, panel_id, "Console")
+
+        console_widget = ConsoleWidget(document_controller, locals={"_document_window": document_controller}, properties={"min-height": 180, "min-width": 540})
+
+        lines = [
+            "from nion.swift import DocumentController",
+            "from nion.swift.model import DocumentModel, DataItem, PlugInManager, Graphics",
+            "from nion.data import Image",
+            "import logging",
+            "import numpy as np",
+            "import numpy as numpy",
+            "import uuid",
+            "_document_model = _document_window.document_model",
+            ]
+
+        console_widget.interpret_lines(lines)
+
+        self.widget = console_widget

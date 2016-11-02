@@ -1,5 +1,4 @@
 # standard libraries
-import asyncio
 import copy
 import functools
 import gettext
@@ -16,6 +15,7 @@ import typing
 import uuid
 import weakref
 
+from nion.swift import ConsoleDialog
 from nion.swift import DataPanel
 from nion.swift import Decorators
 from nion.swift import DisplayPanel
@@ -238,7 +238,8 @@ class DocumentController(Window.Window):
         #self.save_action = self.file_menu.add_menu_item(_("Save"), lambda: self.no_operation(), key_sequence="save")
         #self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), lambda: self.no_operation(), key_sequence="save-as")
         self.file_menu.add_separator()
-        self.add_group_action = self.file_menu.add_menu_item(_("Scripts..."), lambda: self.new_interactive_script_dialog(), key_sequence="Ctrl+R")
+        self.file_menu.add_menu_item(_("Scripts..."), self.new_interactive_script_dialog, key_sequence="Ctrl+R")
+        self.file_menu.add_menu_item(_("Console..."), self.new_console_dialog, key_sequence="Ctrl+K")
         self.file_menu.add_separator()
         self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), lambda: self.add_group(), key_sequence="Ctrl+Shift+N")
         self.file_menu.add_separator()
@@ -766,6 +767,11 @@ class DocumentController(Window.Window):
         interactive_dialog = ScriptsDialog.RunScriptDialog(self)
         interactive_dialog.show()
         self.__dialogs.append(weakref.ref(interactive_dialog))
+
+    def new_console_dialog(self):
+        console_dialog = ConsoleDialog.ConsoleDialog(self)
+        console_dialog.show()
+        self.__dialogs.append(weakref.ref(console_dialog))
 
     def add_group(self):
         data_group = DataGroup.DataGroup()
