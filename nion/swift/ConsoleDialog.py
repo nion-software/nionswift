@@ -1,6 +1,7 @@
 # system imports
 import code
 import contextlib
+import copy
 import gettext
 import io
 import sys
@@ -47,9 +48,13 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.console = code.InteractiveConsole(locals)
         self.__text_edit_widget.append_text(self.prompt)
         self.__text_edit_widget.move_cursor_position("end")
+        self.__last_position = copy.deepcopy(self.__cursor_position)
         self.document_controller.register_console(self)
 
         self.content_widget.add(self.__text_edit_widget)
+
+        self.__history = list()
+        self.__history_point = None
 
     def close(self):
         self.document_controller.unregister_console(self)
@@ -66,14 +71,17 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__text_edit_widget.set_text_color("white")
             self.__text_edit_widget.append_text(prompt)
             self.__text_edit_widget.move_cursor_position("end")
+            self.__last_position = copy.deepcopy(self.__cursor_position)
+            if l: self.__history.append(l)
+            self.__history_point = None
 
     # interpretCommand is called from the intrinsic widget.
     def interpret_command(self, command):
         output = io.StringIO()
         error = io.StringIO()
         with reassign_stdout(output, error):
-            incomplete = self.console.push(command)
-        prompt = self.continuation_prompt if incomplete else self.prompt
+            self.__incomplete = self.console.push(command)
+        prompt = self.continuation_prompt if self.__incomplete else self.prompt
         if error.getvalue():
             result =  error.getvalue()
             error_code = -1
@@ -99,13 +107,44 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.__text_edit_widget.set_text_color("white")
         self.__text_edit_widget.append_text(prompt)
         self.__text_edit_widget.move_cursor_position("end")
+        self.__last_position = copy.deepcopy(self.__cursor_position)
+        if command: self.__history.append(command)
+        self.__history_point = None
         return True
 
     def __key_pressed(self, key):
+        is_cursor_on_last_line = self.__cursor_position.block_number == self.__last_position.block_number
+        if is_cursor_on_last_line and key.is_up_arrow:
+            if self.__history_point is None:
+                self.__history_point = len(self.__history)
+            self.__history_point = max(0, self.__history_point - 1)
+            if self.__history_point < len(self.__history):
+                line = self.__history[self.__history_point]
+                self.__text_edit_widget.move_cursor_position("start_line", "move")
+                self.__text_edit_widget.move_cursor_position("end_line", "keep")
+                prompt = self.continuation_prompt if self.__incomplete else self.prompt
+                self.__text_edit_widget.insert_text("{}{}".format(prompt, line))
+                self.__text_edit_widget.move_cursor_position("end")
+                self.__last_position = copy.deepcopy(self.__cursor_position)
+            return True
+        elif key.is_down_arrow:
+            if self.__history_point is not None:
+                self.__history_point = min(len(self.__history), self.__history_point + 1)
+                if self.__history_point < len(self.__history):
+                    line = self.__history[self.__history_point]
+                else:
+                    self.__history_point = None
+                    line = ""
+                self.__text_edit_widget.move_cursor_position("start_line", "move")
+                self.__text_edit_widget.move_cursor_position("end_line", "keep")
+                prompt = self.continuation_prompt if self.__incomplete else self.prompt
+                self.__text_edit_widget.insert_text("{}{}".format(prompt, line))
+                self.__text_edit_widget.move_cursor_position("end")
+                self.__last_position = copy.deepcopy(self.__cursor_position)
         return False
 
     def __cursor_position_changed(self, cursor_position):
-        pass
+        self.__cursor_position = copy.deepcopy(cursor_position)
 
     def __selection_changed(self, selection):
         pass
