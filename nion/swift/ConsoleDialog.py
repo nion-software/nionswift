@@ -25,17 +25,16 @@ def reassign_stdout(new_stdout, new_stderr):
 
 class ConsoleWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, document_controller, locals=None, properties=None):
-        ui = document_controller.ui
+    def __init__(self, ui, locals=None, properties=None):
         super().__init__(ui.create_column_widget())
-
-        self.document_controller = document_controller
 
         properties = properties if properties is not None else dict()
         properties["stylesheet"] = "background: black; color: white; font: 12px courier, monospace"
 
         self.prompt = ">>> "
         self.continuation_prompt = "... "
+
+        self.__cursor_position = None
 
         self.__text_edit_widget = ui.create_text_edit_widget(properties)
         self.__text_edit_widget.on_cursor_position_changed = self.__cursor_position_changed
@@ -50,16 +49,11 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__text_edit_widget.append_text(self.prompt)
         self.__text_edit_widget.move_cursor_position("end")
         self.__last_position = copy.deepcopy(self.__cursor_position)
-        self.document_controller.register_console(self)
 
         self.content_widget.add(self.__text_edit_widget)
 
         self.__history = list()
         self.__history_point = None
-
-    def close(self):
-        self.document_controller.unregister_console(self)
-        super().close()
 
     def insert_lines(self, lines):
         for l in lines:
@@ -209,7 +203,10 @@ class ConsoleDialog(Dialog.ActionDialog):
     def __init__(self, document_controller):
         super().__init__(document_controller.ui, _("Python Console"))
 
-        console_widget = ConsoleWidget(document_controller, properties={"min-height": 180, "min-width": 540})
+        self.__document_controller = document_controller
+
+        self.__console_widget = ConsoleWidget(document_controller.ui, properties={"min-height": 180, "min-width": 540})
+
         lines = [
             "import logging",
             "import numpy as np",
@@ -219,11 +216,24 @@ class ConsoleDialog(Dialog.ActionDialog):
             "get_api = PlugInManager.api_broker_fn",
             "api = get_api('~1.0', '~1.0')"
             ]
-        for l in lines:
-            console_widget.interpret_command(l)
 
-        self.content.add(console_widget)
+        data_item_vars = document_controller.data_item_vars
+        for weak_data_item in data_item_vars:
+            variable_name = data_item_vars[weak_data_item]
+            lines.append("{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(variable_name, weak_data_item().uuid))
 
+        self.__console_widget.interpret_lines(lines)
+
+        self.content.add(self.__console_widget)
+
+        self.__document_controller.register_console(self)
+
+    def close(self):
+        self.__document_controller.unregister_console(self)
+        super().close()
+
+    def assign_data_item_var(self, data_item_var, data_item):
+        self.__console_widget.insert_lines(["{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(data_item_var, data_item.uuid)])
 
 
 class ConsolePanel(Panel.Panel):
@@ -231,7 +241,9 @@ class ConsolePanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, "Console")
 
-        console_widget = ConsoleWidget(document_controller, locals={"_document_window": document_controller}, properties={"min-height": 180, "min-width": 540})
+        self.__document_controller = document_controller
+
+        self.__console_widget = ConsoleWidget(document_controller.ui, locals={"_document_window": document_controller}, properties={"min-height": 180, "min-width": 540})
 
         lines = [
             "from nion.swift import DocumentController",
@@ -244,6 +256,15 @@ class ConsolePanel(Panel.Panel):
             "_document_model = _document_window.document_model",
             ]
 
-        console_widget.interpret_lines(lines)
+        self.__console_widget.interpret_lines(lines)
 
-        self.widget = console_widget
+        self.widget = self.__console_widget
+
+        self.__document_controller.register_console(self)
+
+    def close(self):
+        self.__document_controller.unregister_console(self)
+        super().close()
+
+    def assign_data_item_var(self, data_item_var, data_item):
+        self.__console_widget.insert_lines(["{} = _document_model.get_data_item_by_key(uuid.UUID(\"{}\"))".format(data_item_var, data_item.uuid)])

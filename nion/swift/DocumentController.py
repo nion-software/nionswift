@@ -105,7 +105,8 @@ class DocumentController(Window.Window):
 
         self.__data_browser_controller = DataPanel.DataBrowserController(self, selection)
 
-        self.console = None
+        self.__consoles = list()
+
         self.create_menus()
         if workspace_id:  # used only when testing reference counting
             self.__workspace_controller = Workspace.Workspace(self, workspace_id)
@@ -185,10 +186,10 @@ class DocumentController(Window.Window):
         super().about_to_close(geometry, state)
 
     def register_console(self, console):
-        self.console = console
+        self.__consoles.append(console)
 
     def unregister_console(self, console):
-        self.console = None
+        self.__consoles.remove(console)
 
     def create_menus(self):
 
@@ -1087,13 +1088,11 @@ class DocumentController(Window.Window):
         return data_item_var
 
     def prepare_data_item_script(self):
-        lines = list()
         data_item = self.selected_display_specifier.data_item
         data_item_var = self.assign_r_value_to_data_item(data_item)
-        lines.append("%s = _document_model.get_data_item_by_key(uuid.UUID(\"%s\"))" % (data_item_var, data_item.uuid))
-        logging.debug(lines)
-        if self.console:
-            self.console.insert_lines(lines)
+        logging.debug("{} = Data Item with UUID {}".format(data_item_var, data_item.uuid))
+        for console in self.__consoles:
+            console.assign_data_item_var(data_item_var, data_item)
 
     def copy_uuid(self):
         display_specifier = self.selected_display_specifier
