@@ -4,6 +4,7 @@ import contextlib
 import copy
 import gettext
 import io
+import rlcompleter
 import sys
 
 # local libraries
@@ -95,11 +96,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.interpret_command(l)
 
     def __return_pressed(self):
-        command = self.__text_edit_widget.text.split('\n')[-1]
-        if command.startswith(self.prompt):
-            command = command[len(self.prompt):]
-        elif command.startswith(self.continuation_prompt):
-            command = command[len(self.continuation_prompt):]
+        command = self.__get_partial_command()
         result, error_code, prompt = self.interpret_command(command)
         if len(result) > 0:
             self.__text_edit_widget.set_text_color("red" if error_code else "green")
@@ -112,8 +109,17 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__history_point = None
         return True
 
+    def __get_partial_command(self):
+        command = self.__text_edit_widget.text.split('\n')[-1]
+        if command.startswith(self.prompt):
+            command = command[len(self.prompt):]
+        elif command.startswith(self.continuation_prompt):
+            command = command[len(self.continuation_prompt):]
+        return command
+
     def __key_pressed(self, key):
         is_cursor_on_last_line = self.__cursor_position.block_number == self.__last_position.block_number
+
         if is_cursor_on_last_line and key.is_up_arrow:
             if self.__history_point is None:
                 self.__history_point = len(self.__history)
@@ -127,7 +133,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__text_edit_widget.move_cursor_position("end")
                 self.__last_position = copy.deepcopy(self.__cursor_position)
             return True
-        elif key.is_down_arrow:
+
+        if is_cursor_on_last_line and key.is_down_arrow:
             if self.__history_point is not None:
                 self.__history_point = min(len(self.__history), self.__history_point + 1)
                 if self.__history_point < len(self.__history):
@@ -141,6 +148,43 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 self.__text_edit_widget.insert_text("{}{}".format(prompt, line))
                 self.__text_edit_widget.move_cursor_position("end")
                 self.__last_position = copy.deepcopy(self.__cursor_position)
+
+        if is_cursor_on_last_line and key.is_delete:
+            partial_command = self.__get_partial_command()
+            if not partial_command:
+                return True
+
+        if is_cursor_on_last_line and key.is_tab:
+            partial_command = self.__get_partial_command()
+            terms = list()
+            completer = rlcompleter.Completer(namespace=self.console.locals)
+            index = 0
+            while True:
+                term = completer.complete(partial_command, index)
+                if term is None:
+                    break
+                index += 1
+                if not term.startswith(partial_command + "__"):
+                    terms.append(term)
+            if len(terms) == 1:
+                prompt = self.continuation_prompt if self.__incomplete else self.prompt
+                self.__text_edit_widget.move_cursor_position("start_line", "move")
+                self.__text_edit_widget.move_cursor_position("end_line", "keep")
+                self.__text_edit_widget.insert_text("{}{}".format(prompt, terms[0]))
+                self.__text_edit_widget.move_cursor_position("end")
+                self.__last_position = copy.deepcopy(self.__cursor_position)
+            elif len(terms) > 1:
+                prompt = self.continuation_prompt if self.__incomplete else self.prompt
+                self.__text_edit_widget.move_cursor_position("end")
+                self.__text_edit_widget.set_text_color("brown")
+                self.__text_edit_widget.append_text("   ".join(terms) + "\n")
+                self.__text_edit_widget.move_cursor_position("end")
+                self.__text_edit_widget.set_text_color("white")
+                self.__text_edit_widget.insert_text("{}{}".format(prompt, partial_command))
+                self.__text_edit_widget.move_cursor_position("end")
+                self.__last_position = copy.deepcopy(self.__cursor_position)
+            return True
+
         return False
 
     def __cursor_position_changed(self, cursor_position):
