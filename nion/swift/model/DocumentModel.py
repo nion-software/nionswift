@@ -2340,8 +2340,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}, line_region.vector, line_region.line_width)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
             filter_in_region = {"name": "region", "type": "spot"}
-            vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft(xd.fourier_mask({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))))",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [filter_in_region], "requirements": [requirement_2d]}]}
+            vs["filter"] = {"title": _("Filter"), "expression": "xd.map_function(numpy.real, xd.ifft(xd.fourier_mask({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))))",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [filter_in_region], "requirements": [requirement_2d]}]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
