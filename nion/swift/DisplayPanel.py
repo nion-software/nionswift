@@ -823,7 +823,9 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
         self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
         self.__dependent_thumbnails = CanvasItem.CanvasItemComposition()
         self.__dependent_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.__thumbnail_size = Geometry.IntSize(height=24, width=24)
         row = CanvasItem.CanvasItemComposition()
+        row.sizing.set_fixed_height(self.__thumbnail_size.height)
         row.layout = CanvasItem.CanvasItemRowLayout()
         row.add_spacing(12)
         row.add_canvas_item(self.__source_thumbnails)
@@ -856,15 +858,14 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
         self.__source_thumbnails.remove_all_canvas_items()
         self.__dependent_thumbnails.remove_all_canvas_items()
         if data_item is not None:
-            thumbnail_size = Geometry.IntSize(height=24, width=24)
             for source_data_item in self.__document_model.get_source_data_items(data_item):
                 data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.__document_model.dispatch_task, self.ui, source_data_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, thumbnail_size)
+                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
             for dependent_data_item in self.__document_model.get_dependent_data_items(data_item):
                 data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.__document_model.dispatch_task, self.ui, dependent_data_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, thumbnail_size)
+                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
 
