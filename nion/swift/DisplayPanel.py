@@ -9,6 +9,7 @@ import uuid
 import weakref
 
 from nion.data import Calibration
+from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
@@ -812,6 +813,62 @@ class DataItemDisplayTypeMonitor:
         self.__set_display_type(display_type)
 
 
+class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
+
+    def __init__(self, ui, document_model):
+        super().__init__()
+        self.ui = ui
+        self.__document_model = document_model
+        self.__source_thumbnails = CanvasItem.CanvasItemComposition()
+        self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        self.__dependent_thumbnails = CanvasItem.CanvasItemComposition()
+        self.__dependent_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
+        row = CanvasItem.CanvasItemComposition()
+        row.layout = CanvasItem.CanvasItemRowLayout()
+        row.add_spacing(12)
+        row.add_canvas_item(self.__source_thumbnails)
+        row.add_stretch()
+        row.add_canvas_item(self.__dependent_thumbnails)
+        row.add_spacing(12)
+        self.layout = CanvasItem.CanvasItemColumnLayout()
+        self.add_stretch()
+        self.add_canvas_item(row)
+        self.add_spacing(4)
+        self.on_drag = None
+        self.__data_item = None
+
+        def dependency_changed(source_data_item, target_data_item):
+            if source_data_item == self.__data_item or target_data_item == self.__data_item:
+                self.set_data_item(self.__data_item)
+
+        self.__depedency_added_event_listener = document_model.dependency_added_event.listen(dependency_changed)
+        self.__depedency_removed_event_listener = document_model.dependency_removed_event.listen(dependency_changed)
+
+    def close(self):
+        self.__depedency_added_event_listener.close()
+        self.__depedency_added_event_listener = None
+        self.__depedency_removed_event_listener.close()
+        self.__depedency_removed_event_listener = None
+        super().close()
+
+    def set_data_item(self, data_item):
+        self.__data_item = data_item
+        self.__source_thumbnails.remove_all_canvas_items()
+        self.__dependent_thumbnails.remove_all_canvas_items()
+        if data_item is not None:
+            thumbnail_size = Geometry.IntSize(height=24, width=24)
+            for source_data_item in self.__document_model.get_source_data_items(data_item):
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.__document_model.dispatch_task, self.ui, source_data_item)
+                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, thumbnail_size)
+                thumbnail_canvas_item.on_drag = self.on_drag
+                self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
+            for dependent_data_item in self.__document_model.get_dependent_data_items(data_item):
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.__document_model.dispatch_task, self.ui, dependent_data_item)
+                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, thumbnail_size)
+                thumbnail_canvas_item.on_drag = self.on_drag
+                self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
+
+
 class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
@@ -842,6 +899,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.on_image_mouse_pressed = None
         self.on_image_mouse_released = None
         self.on_image_mouse_position_changed = None
+
+        self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model)
+        self.__shortcuts_canvas_item.on_drag = document_controller.drag
+        self.content_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
 
     def close(self):
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
@@ -1035,6 +1096,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         # images.
         self.__display_type_monitor.set_data_item(None)
         self.__display_type_monitor.set_data_item(data_item)
+
+        self.__shortcuts_canvas_item.set_data_item(data_item)
 
         def metadata_changed():
             if self.header_canvas_item:  # may be closed

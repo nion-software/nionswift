@@ -1033,6 +1033,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
 
+        self.dependency_added_event = Event.Event()
+        self.dependency_removed_event = Event.Event()
+
         self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
         self.persistent_object_context = PersistentDataItemContext(persistent_storage_systems, ignore_older_files, log_migrations)
@@ -1361,6 +1364,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.end_data_item_transaction(target_data_item)
         if source_data_item.is_live:
             self.end_data_item_live(target_data_item)
+        self.dependency_removed_event.fire(source_data_item, target_data_item)
 
     def __add_dependency(self, source_data_item, target_data_item):
         assert isinstance(source_data_item, DataItem.DataItem)
@@ -1373,6 +1377,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.begin_data_item_transaction(target_data_item)
         if source_data_item.is_live:
             self.begin_data_item_live(target_data_item)
+        self.dependency_added_event.fire(source_data_item, target_data_item)
 
     def __handle_computation_changed_or_mutated(self, data_item, data_source, computation):
         """Establish the dependencies between data items based on the computation."""
