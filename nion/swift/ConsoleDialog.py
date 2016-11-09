@@ -201,7 +201,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 class ConsoleDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller):
-        super().__init__(document_controller.ui, _("Python Console"))
+        super().__init__(document_controller.ui, _("Python Console"), document_controller.app)
 
         self.__document_controller = document_controller
 
@@ -227,6 +227,8 @@ class ConsoleDialog(Dialog.ActionDialog):
         self.content.add(self.__console_widget)
 
         self.__document_controller.register_console(self)
+
+        self._create_menus()
 
     def close(self):
         self.__document_controller.unregister_console(self)

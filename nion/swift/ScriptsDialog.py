@@ -112,10 +112,12 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller):
         ui = document_controller.ui
-        super().__init__(ui, _("Interactive Dialog"))
+        super().__init__(ui, _("Interactive Dialog"), document_controller.app)
 
         self.ui = ui
         self.document_controller = document_controller
+
+        self._create_menus()
 
         self.__cancelled = False
 
