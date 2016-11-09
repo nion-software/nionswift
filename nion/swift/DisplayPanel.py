@@ -855,8 +855,12 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
 
     def set_data_item(self, data_item):
         self.__data_item = data_item
-        self.__source_thumbnails.remove_all_canvas_items()
-        self.__dependent_thumbnails.remove_all_canvas_items()
+        while len(self.__source_thumbnails.canvas_items) > 0:
+            self.__source_thumbnails._remove_canvas_item(self.__source_thumbnails.canvas_items[-1], refresh_layout=False)
+        while len(self.__dependent_thumbnails.canvas_items) > 0:
+            self.__dependent_thumbnails._remove_canvas_item(self.__dependent_thumbnails.canvas_items[-1], refresh_layout=False)
+        # self.__source_thumbnails.remove_all_canvas_items()
+        # self.__dependent_thumbnails.remove_all_canvas_items()
         if data_item is not None:
             for source_data_item in self.__document_model.get_source_data_items(data_item):
                 data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.__document_model.dispatch_task, self.ui, source_data_item)
@@ -911,10 +915,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.on_image_mouse_pressed = None
         self.on_image_mouse_released = None
         self.on_image_mouse_position_changed = None
-        self.__set_display_panel_controller(None)
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
         self.set_displayed_data_item(None)  # required before destructing display thread
+        self.__set_display_panel_controller(None)
         assert not self.__display_canvas_item_delegate
         self.__display_type_changed_event_listener.close()
         self.__display_type_changed_event_listener = None
@@ -998,7 +1002,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_panel_controller = display_panel_controller
         if not display_panel_controller:
             self.header_canvas_item.reset_header_colors()
-        self.set_displayed_data_item(self.__data_item)
+        if self.__display_panel_controller:
+            self.set_displayed_data_item(self.__data_item)
 
     def __display_type_changed(self, display_type):
         # called when the display type of the data item changes.
