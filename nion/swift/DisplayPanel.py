@@ -551,7 +551,7 @@ class DataItemDataSourceDisplay:
                 elif len(displayed_dimensional_calibrations) == 1:
                     dimensional_calibration = displayed_dimensional_calibrations[0]
                 else:
-                    dimensional_calibration = displayed_dimensional_calibrations[1]
+                    dimensional_calibration = displayed_dimensional_calibrations[-1]
                 display_canvas_item.update_image_display_state(lambda: display.preview_2d, display.preview_2d_shape, dimensional_calibration, metadata)
             elif display_type == "line_plot":
                 display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style, "left_channel": display.left_channel,
