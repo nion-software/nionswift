@@ -789,7 +789,7 @@ class Graphic:
 
 
 class DataItem:
-    release = ["data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
+    release = ["title", "data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
         "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "graphics", "display",
         "add_point_region", "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
 
@@ -803,6 +803,26 @@ class DataItem:
     @property
     def specifier(self):
         return ObjectSpecifier("data_item", self.__data_item.uuid)
+
+    @property
+    def title(self) -> str:
+        """Return the title as a string.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.title
+
+    @title.setter
+    def title(self, value: str) -> None:
+        """Set the title to a string.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        self.__data_item.title = value
 
     @property
     def data(self) -> numpy.ndarray:
@@ -1599,8 +1619,7 @@ class Instrument:
             inform: True to keep dependent control outputs constant by adjusting their internal values. False is
             default.
 
-        Default value of confirm is False. Default confirm_tolerance_factor is 0.02. Default confirm_timeout is 16.0
-        (seconds).
+        Default value of confirm is False. Default confirm_tolerance_factor is 1.0. Default confirm_timeout is 16.0 (seconds).
 
         Raises exception if control with name doesn't exist.
 
