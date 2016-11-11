@@ -4,6 +4,7 @@ import contextlib
 import copy
 import gettext
 import io
+import re
 import rlcompleter
 import sys
 
@@ -148,36 +149,62 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             if not partial_command:
                 return True
 
+        if is_cursor_on_last_line and key.is_move_to_start_of_line:
+            mode = "keep" if key.modifiers.shift else "move"
+            self.__text_edit_widget.move_cursor_position("start_line", mode)
+            self.__text_edit_widget.move_cursor_position("next", mode, n=4)
+            return True
+
+        if is_cursor_on_last_line and key.is_delete_to_end_of_line:
+            self.__text_edit_widget.move_cursor_position("end_line", "keep")
+            self.__text_edit_widget.remove_selected_text()
+            return True
+
+        if is_cursor_on_last_line and key.key == 0x43 and key.modifiers.native_control:
+            prompt = self.continuation_prompt if self.__incomplete else self.prompt
+            self.__text_edit_widget.move_cursor_position("end")
+            self.__text_edit_widget.insert_text("\n")
+            self.__text_edit_widget.insert_text(prompt)
+            self.__text_edit_widget.move_cursor_position("end")
+            self.__last_position = copy.deepcopy(self.__cursor_position)
+            return True
+
         if is_cursor_on_last_line and key.is_tab:
             partial_command = self.__get_partial_command()
             terms = list()
             completer = rlcompleter.Completer(namespace=self.console.locals)
             index = 0
-            while True:
-                term = completer.complete(partial_command, index)
-                if term is None:
-                    break
-                index += 1
-                if not term.startswith(partial_command + "__"):
-                    terms.append(term)
-            if len(terms) == 1:
-                prompt = self.continuation_prompt if self.__incomplete else self.prompt
-                self.__text_edit_widget.move_cursor_position("start_line", "move")
-                self.__text_edit_widget.move_cursor_position("end_line", "keep")
-                self.__text_edit_widget.insert_text("{}{}".format(prompt, terms[0]))
-                self.__text_edit_widget.move_cursor_position("end")
-                self.__last_position = copy.deepcopy(self.__cursor_position)
-            elif len(terms) > 1:
-                prompt = self.continuation_prompt if self.__incomplete else self.prompt
-                self.__text_edit_widget.move_cursor_position("end")
-                self.__text_edit_widget.set_text_color("brown")
-                self.__text_edit_widget.append_text("   ".join(terms) + "\n")
-                self.__text_edit_widget.move_cursor_position("end")
-                self.__text_edit_widget.set_text_color("white")
-                self.__text_edit_widget.insert_text("{}{}".format(prompt, partial_command))
-                self.__text_edit_widget.move_cursor_position("end")
-                self.__last_position = copy.deepcopy(self.__cursor_position)
-            return True
+            delims = " \t\n`~!@#$%^&*()-=+[{]}\\|;:\'\",<>/?"
+            rx = "[" + re.escape("".join(delims)) + "]"
+            split_commands = re.split(rx, partial_command)
+            if len(split_commands) > 0:
+                completion_term = split_commands[-1]
+                while True:
+                    term = completer.complete(completion_term, index)
+                    if term is None:
+                        break
+                    index += 1
+                    if not term.startswith(completion_term + "__"):
+                        terms.append(term)
+                if len(terms) == 1:
+                    completed_command = partial_command[:partial_command.rfind(completion_term)] + terms[0]
+                    prompt = self.continuation_prompt if self.__incomplete else self.prompt
+                    self.__text_edit_widget.move_cursor_position("start_line", "move")
+                    self.__text_edit_widget.move_cursor_position("end_line", "keep")
+                    self.__text_edit_widget.insert_text("{}{}".format(prompt, completed_command))
+                    self.__text_edit_widget.move_cursor_position("end")
+                    self.__last_position = copy.deepcopy(self.__cursor_position)
+                elif len(terms) > 1:
+                    prompt = self.continuation_prompt if self.__incomplete else self.prompt
+                    self.__text_edit_widget.move_cursor_position("end")
+                    self.__text_edit_widget.set_text_color("brown")
+                    self.__text_edit_widget.append_text("   ".join(terms) + "\n")
+                    self.__text_edit_widget.move_cursor_position("end")
+                    self.__text_edit_widget.set_text_color("white")
+                    self.__text_edit_widget.insert_text("{}{}".format(prompt, partial_command))
+                    self.__text_edit_widget.move_cursor_position("end")
+                    self.__last_position = copy.deepcopy(self.__cursor_position)
+                return True
 
         return False
 
@@ -189,7 +216,9 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
     def __insert_mime_data(self, mime_data):
         text = mime_data.data_as_string("text/plain")
-        text_lines = text.split()
+        text_lines = re.split("[" + re.escape("\n") + re.escape("\r") + "]", text)
+        if text_lines[-1] == "":
+            text_lines = text_lines[:-1]
         if len(text_lines) == 1 and text_lines[0] == text.rstrip():
             # special case where text has no line terminator
             self.__text_edit_widget.insert_text(text)
