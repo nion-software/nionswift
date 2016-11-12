@@ -151,8 +151,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         data_dtype = data.dtype if data is not None else None
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
-        self.define_property("data_shape", data_shape, hidden=True)
-        self.define_property("data_dtype", data_dtype, hidden=True, converter=DtypeToStringConverter())
+        self.define_property("data_shape", data_shape, hidden=True, recordable=False)
+        self.define_property("data_dtype", data_dtype, hidden=True, recordable=False, converter=DtypeToStringConverter())
         self.define_property("is_sequence", False, recordable=False, changed=self.__data_description_changed)
         dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
         collection_dimension_count = (2 if len(dimensional_shape) == 3 else 0) if dimensional_shape is not None else None
@@ -169,6 +169,9 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.__data_and_metadata = None
         self.__data_and_metadata_lock = threading.RLock()
+        self.__intensity_calibration = None
+        self.__dimensional_calibrations = None
+        self.__metadata = dict()
         self.__change_thread = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
@@ -458,13 +461,15 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def intensity_calibration(self):
-        return copy.deepcopy(self.__data_and_metadata.intensity_calibration) if self.__data_and_metadata else None
+        return copy.deepcopy(self.__data_and_metadata.intensity_calibration) if self.__data_and_metadata else self.__intensity_calibration
 
     @intensity_calibration.setter
     def intensity_calibration(self, intensity_calibration):
         """ Set the intensity calibration. """
         with self._changes():
-            self.__data_and_metadata._set_intensity_calibration(intensity_calibration)
+            if self.__data_and_metadata:  # handle case of missing data and metadata but doing recording
+                self.__data_and_metadata._set_intensity_calibration(intensity_calibration)
+            self.__intensity_calibration = copy.deepcopy(intensity_calibration)  # backup in case of no data and metadata
             self._set_persistent_property_value("intensity_calibration", intensity_calibration)
             self.__change_changed = True
 
@@ -473,13 +478,15 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def dimensional_calibrations(self):
-        return copy.deepcopy(self.__data_and_metadata.dimensional_calibrations) if self.__data_and_metadata else None
+        return copy.deepcopy(self.__data_and_metadata.dimensional_calibrations) if self.__data_and_metadata else self.__dimensional_calibrations
 
     @dimensional_calibrations.setter
     def dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
         with self._changes():
-            self.__data_and_metadata._set_dimensional_calibrations(dimensional_calibrations)
+            if self.__data_and_metadata:  # handle case of missing data and metadata but doing recording
+                self.__data_and_metadata._set_dimensional_calibrations(dimensional_calibrations)
+            self.__dimensional_calibrations = copy.deepcopy(dimensional_calibrations)  # backup in case of no data and metadata
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
             self.__change_changed = True
 
@@ -495,13 +502,14 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def metadata(self):
-        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else dict()
+        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else self.__metadata
 
     @metadata.setter
     def metadata(self, metadata):
         assert metadata is not None
         with self._changes():
             self.__data_and_metadata._set_metadata(metadata)
+            self.__metadata = copy.deepcopy(metadata)
             self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
             self.__change_changed = True
 

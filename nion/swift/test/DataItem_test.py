@@ -24,6 +24,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.ui import TestUI
+from nion.utils import Recorder
 
 
 Facade.initialize()
@@ -1043,6 +1044,28 @@ class TestDataItemClass(unittest.TestCase):
             data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
             self.assertIsInstance(inverted_display_specifier.buffered_data_source.metadata, dict)
+
+    def test_data_item_recorder_records_intensity_calibration_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
+            document_model.append_data_item(data_item)
+            data_item_clone = data_item.clone()
+            data_item_clone_recorder = Recorder.Recorder(data_item_clone)
+            data_item_clone.maybe_data_source.set_intensity_calibration(Calibration.Calibration(units="mmm"))
+            data_item_clone_recorder.apply(data_item)
+            self.assertEqual(data_item.maybe_data_source.intensity_calibration.units, data_item_clone.maybe_data_source.intensity_calibration.units)
+
+    def test_data_item_recorder_records_title_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.double))
+            document_model.append_data_item(data_item)
+            data_item_clone = data_item.clone()
+            data_item_clone_recorder = Recorder.Recorder(data_item_clone)
+            data_item_clone.title = "Firefly"
+            data_item_clone_recorder.apply(data_item)
+            self.assertEqual(data_item.title, data_item_clone.title)
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot
