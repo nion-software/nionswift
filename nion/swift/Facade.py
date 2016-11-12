@@ -955,7 +955,7 @@ class DataItem:
 
         Scriptable: Yes
         """
-        self.__data_item.maybe_data_source.set_metadata(metadata)
+        self.__data_item.maybe_data_source.metadata = metadata
 
     @property
     def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:

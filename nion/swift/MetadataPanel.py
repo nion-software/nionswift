@@ -59,7 +59,7 @@ class MetadataModel(object):
     def metadata(self, metadata):
         buffered_data_source = self.__display_specifier.buffered_data_source
         if buffered_data_source:
-            buffered_data_source.set_metadata(metadata)
+            buffered_data_source.metadata = metadata
 
     def __metadata_changed(self, buffered_data_source):
         if buffered_data_source:

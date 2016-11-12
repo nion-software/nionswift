@@ -230,7 +230,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 display_specifier.buffered_data_source.set_intensity_calibration(intensity_calibration)
             buffered_data_source = data_item.maybe_data_source
             if buffered_data_source:
-                buffered_data_source.set_metadata(data_and_metadata.metadata)
+                buffered_data_source.metadata = data_and_metadata.metadata
         else:
             display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
         # title
@@ -252,7 +252,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         if "time_zone" in data_and_metadata.metadata.get("description", dict()):
             metadata = data_item.metadata
             metadata.setdefault("description", dict())["time_zone"] = copy.deepcopy(data_and_metadata.metadata["description"]["time_zone"])
-            data_item.set_metadata(metadata)
+            data_item.metadata = metadata
         # author
         # sample
         # facility

@@ -74,7 +74,7 @@ class TestStorageClass(unittest.TestCase):
         display_specifier.buffered_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "three"))
         metadata = data_item.metadata
         metadata.setdefault("test", dict())["one"] = 1
-        data_item.set_metadata(metadata)
+        data_item.metadata = metadata
         display = DataItem.DisplaySpecifier.from_data_item(data_item).display
         display.add_graphic(Graphics.PointGraphic())
         display.add_graphic(Graphics.LineGraphic())
@@ -2443,7 +2443,7 @@ class TestStorageClass(unittest.TestCase):
             # now clear the memory_persistent_storage_system and see if it gets written again
             memory_persistent_storage_system.properties.clear()
             document_model.begin_data_item_transaction(data_item)
-            data_item.set_metadata(data_item.metadata)
+            data_item.metadata = data_item.metadata
             document_model.end_data_item_transaction(data_item)
             self.assertNotEqual(document_model.data_items[0].modified, modified)
             # properties should still be empty, unless it was written again

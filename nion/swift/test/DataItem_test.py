@@ -56,7 +56,7 @@ class TestDataItemClass(unittest.TestCase):
         metadata = data_item.metadata
         metadata.setdefault("test", dict())["one"] = 1
         metadata.setdefault("test", dict())["two"] = 22
-        data_item.set_metadata(metadata)
+        data_item.metadata = metadata
         display_specifier.display.display_limits = (100, 900)
         display_specifier.display.add_graphic(Graphics.RectangleGraphic())
         data_item_copy = copy.deepcopy(data_item)
@@ -585,7 +585,7 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         metadata = data_item.metadata
         metadata.setdefault("test", dict())["one"] = 1
-        data_item.set_metadata(metadata)
+        data_item.metadata = metadata
         data_item_copy = data_item.snapshot()
         self.assertEqual(data_item_copy.metadata.get("test")["one"], 1)
 
@@ -861,7 +861,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item._set_modified(datetime.datetime(2000, 1, 1))
             modified = data_item.modified
-            data_item.set_metadata(data_item.metadata)
+            data_item.metadata = data_item.metadata
             self.assertGreater(data_item.modified, modified)
 
     def test_adding_data_source_updates_modified(self):

@@ -1002,11 +1002,12 @@ class ComputationQueueItem:
                     def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
                         data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
                         data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
-                        if data_item_data_clone_modified > data_item_data_modified:
-                            buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
-                        data_item_clone_recorder.apply(data_item)
-                        if computation.error_text != error_text:
-                            computation.error_text = error_text
+                        with buffered_data_source._changes():
+                            if data_item_data_clone_modified > data_item_data_modified:
+                                buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
+                            data_item_clone_recorder.apply(data_item)
+                            if computation.error_text != error_text:
+                                computation.error_text = error_text
                     pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
             except Exception as e:
                 import traceback

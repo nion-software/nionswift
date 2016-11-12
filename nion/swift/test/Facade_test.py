@@ -114,7 +114,7 @@ class TestFacadeClass(unittest.TestCase):
             data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(0.1, 0.2, "dogs"))
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(0.3, 0.4, "cats"), Calibration.Calibration(0.5, 0.6, "cats")])
             metadata = {"title": "Dogs eat cats."}
-            data_item.maybe_data_source.set_metadata(metadata)
+            data_item.maybe_data_source.metadata = metadata
             document_model.append_data_item(data_item)
             api = Facade.get_api("~1.0", "~1.0")
             library = api.library

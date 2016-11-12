@@ -460,27 +460,31 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     def intensity_calibration(self):
         return copy.deepcopy(self.__data_and_metadata.intensity_calibration) if self.__data_and_metadata else None
 
-    @property
-    def dimensional_calibrations(self):
-        return copy.deepcopy(self.__data_and_metadata.dimensional_calibrations) if self.__data_and_metadata else None
-
-    @property
-    def metadata(self):
-        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else dict()
-
-    def set_intensity_calibration(self, intensity_calibration):
+    @intensity_calibration.setter
+    def intensity_calibration(self, intensity_calibration):
         """ Set the intensity calibration. """
         with self._changes():
             self.__data_and_metadata._set_intensity_calibration(intensity_calibration)
             self._set_persistent_property_value("intensity_calibration", intensity_calibration)
             self.__change_changed = True
 
-    def set_dimensional_calibrations(self, dimensional_calibrations):
+    def set_intensity_calibration(self, intensity_calibration):
+        self.intensity_calibration = intensity_calibration
+
+    @property
+    def dimensional_calibrations(self):
+        return copy.deepcopy(self.__data_and_metadata.dimensional_calibrations) if self.__data_and_metadata else None
+
+    @dimensional_calibrations.setter
+    def dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
         with self._changes():
             self.__data_and_metadata._set_dimensional_calibrations(dimensional_calibrations)
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
             self.__change_changed = True
+
+    def set_dimensional_calibrations(self, dimensional_calibrations):
+        self.dimensional_calibrations = dimensional_calibrations
 
     def set_dimensional_calibration(self, dimension, calibration):
         dimensional_calibrations = self.dimensional_calibrations
@@ -489,17 +493,25 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         dimensional_calibrations[dimension] = calibration
         self.set_dimensional_calibrations(dimensional_calibrations)
 
-    def set_metadata(self, metadata):
+    @property
+    def metadata(self):
+        return copy.deepcopy(self.__data_and_metadata.metadata) if self.__data_and_metadata else dict()
+
+    @metadata.setter
+    def metadata(self, metadata):
         assert metadata is not None
         with self._changes():
             self.__data_and_metadata._set_metadata(metadata)
             self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
             self.__change_changed = True
 
+    def set_metadata(self, metadata):
+        self.metadata = metadata
+
     def update_metadata(self, additional_metadata):
         metadata = self.metadata
         metadata.update(additional_metadata)
-        self.set_metadata(metadata)
+        self.metadata = metadata
 
     def set_storage_cache(self, storage_cache):
         for display in self.displays:
@@ -863,7 +875,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
         # metadata
-        data_item_copy.set_metadata(self.metadata)
+        data_item_copy.metadata = self.metadata
         data_item_copy.created = self.created
         data_item_copy.session_id = self.session_id
         data_item_copy.source_file_path = self.source_file_path
@@ -915,7 +927,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         """
         data_item_copy = DataItem()
         # metadata
-        data_item_copy.set_metadata(self.metadata)
+        data_item_copy.metadata = self.metadata
         data_item_copy.created = self.created
         data_item_copy.session_id = self.session_id
         data_item_copy.source_file_path = self.source_file_path
@@ -1125,7 +1137,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             metadata = buffered_data_source.metadata
             hardware_source_metadata = metadata.setdefault("hardware_source", dict())
             hardware_source_metadata.update(Utility.clean_dict(properties))
-            buffered_data_source.set_metadata(metadata)
+            buffered_data_source.metadata = metadata
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()
@@ -1208,9 +1220,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def metadata(self):
         return copy.deepcopy(self._get_persistent_property_value("metadata"))
 
-    def set_metadata(self, metadata):
+    @metadata.setter
+    def metadata(self, metadata):
         assert metadata is not None
         self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
+
+    def set_metadata(self, metadata):
+        self.metadata = metadata
 
     def __computation_changed_or_mutated(self, data_source, computation):
         self.computation_changed_or_mutated_event.fire(self, data_source, computation)
@@ -1346,7 +1362,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def title(self, value):
         metadata = self.metadata
         metadata.setdefault("description", dict())["title"] = str(value) if value is not None else str()
-        self.set_metadata(metadata)
+        self.metadata = metadata
         self.__metadata_property_changed("title", value)
 
     @property
@@ -1357,7 +1373,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def caption(self, value):
         metadata = self.metadata
         metadata.setdefault("description", dict())["caption"] = str(value) if value is not None else str()
-        self.set_metadata(metadata)
+        self.metadata = metadata
         self.__metadata_property_changed("caption", value)
 
     @property
@@ -1368,7 +1384,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def flag(self, value):
         metadata = self.metadata
         metadata.setdefault("description", dict())["flag"] = max(min(int(value), 1), -1)
-        self.set_metadata(metadata)
+        self.metadata = metadata
         self.__metadata_property_changed("flag", value)
 
     @property
@@ -1379,7 +1395,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def rating(self, value):
         metadata = self.metadata
         metadata.setdefault("description", dict())["rating"] = min(max(int(value), 0), 5)
-        self.set_metadata(metadata)
+        self.metadata = metadata
         self.__metadata_property_changed("rating", value)
 
 

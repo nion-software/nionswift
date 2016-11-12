@@ -425,7 +425,7 @@ class TestSymbolicClass(unittest.TestCase):
             with contextlib.closing(needs_update_event_listener):
                 metadata = data_item.maybe_data_source.metadata
                 metadata["abc"] = 1
-                data_item.maybe_data_source.set_metadata(metadata)
+                data_item.maybe_data_source.metadata = metadata
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_within_document_model_fires_needs_update_event_when_object_property(self):
@@ -504,7 +504,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
-            data_item.maybe_data_source.set_metadata({"abc": 1})
+            data_item.maybe_data_source.metadata = {"abc": 1}
             data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
             data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
             document_model.append_data_item(data_item)
