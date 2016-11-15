@@ -775,9 +775,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 # time zone name is for display only and has no specified format
 
 class DataItem(Observable.Observable, Persistence.PersistentObject):
-
     """
-    Data items represent a set of data sources + metadata.
+    Data items represent a data, metadata, display, and graphics within a library.
 
     * *created* a datetime item
     * *session_id* a string representing the session
