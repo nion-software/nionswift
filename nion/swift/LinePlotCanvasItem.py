@@ -191,14 +191,14 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # finally, trigger the paint thread (if there still is one) to update
         self.update()
 
-    def update_regions(self, data_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
+    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
 
-        if data_shape is None or len(data_shape) == 0:
+        if displayed_shape is None or len(displayed_shape) == 0:
             return
 
-        data_length = data_shape[-1]
+        data_length = displayed_shape[-1]
         dimensional_calibration = displayed_dimensional_calibrations[-1]
 
         def convert_to_calibrated_value_str(f):

@@ -500,15 +500,14 @@ class DataItemDataSourceDisplay:
         else:
             raise Exception("Display type not found " + str(self.__display_type))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
-        if buffered_data_source and display:
+        if display:
             def display_graphic_selection_changed(graphic_selection):
                 # this message comes from the display when the graphic selection changes
-                dimensional_shape = buffered_data_source.dimensional_shape
+                displayed_shape = display.preview_2d_shape
                 displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
                 graphics = display.graphics
-                self.__display_canvas_item.update_regions(dimensional_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
+                self.__display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
 
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
@@ -1613,7 +1612,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
 
 def preview(ui, display: Display.Display, width: int, height: int) -> DrawingContext.DrawingContext:
-    dimensional_shape = display.data_and_metadata_for_display_panel.dimensional_shape
+    displayed_shape = display.preview_2d_shape
     displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
     graphics = display.graphics
     display_type = display.actual_display_type
@@ -1624,7 +1623,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
         display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
         DataItemDataSourceDisplay.update_display("line_plot", display_canvas_item, display)
         display_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(height=frame_height, width=frame_width))
-        display_canvas_item.update_regions(dimensional_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+        display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
         with drawing_context.saver():
             drawing_context.translate(0, (frame_width - frame_height) * 0.5)
             display_canvas_item._repaint(drawing_context)
@@ -1633,11 +1632,10 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
         display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, draw_background=False)
         display_canvas_item.set_fit_mode()
         DataItemDataSourceDisplay.update_display("image", display_canvas_item, display)
-        dimensional_shape = display.data_and_metadata_for_display_panel.dimensional_shape
         displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
         graphics = display.graphics
         display_canvas_item.update_layout((0, 0), (height, width))
-        display_canvas_item.update_regions(dimensional_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+        display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
         display_canvas_item._repaint(drawing_context)
 
     return drawing_context

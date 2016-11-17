@@ -14,7 +14,8 @@ from nion.utils import Geometry
 class ImageCanvasItemMapping:
 
     def __init__(self, data_shape, canvas_origin, canvas_size):
-        self.data_shape = data_shape[0:2]  # signal_index
+        assert data_shape is None or len(data_shape) == 2
+        self.data_shape = data_shape
         # double check dimensions are not zero
         if self.data_shape:
             for d in self.data_shape:
@@ -90,14 +91,19 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, get_font_metrics_fn):
         super(GraphicsCanvasItem, self).__init__()
         self.__get_font_metrics_fn = get_font_metrics_fn
-        self.__dimensional_shape = None
+        self.__displayed_shape = None
         self.__graphics = None
         self.__graphic_selection = None
 
-    def update_graphics(self, dimensional_shape, graphics, graphic_selection):
+    def update_graphics(self, displayed_shape, graphics, graphic_selection):
+        if displayed_shape is None or len(displayed_shape) != 2:
+            displayed_shape = None
+            graphics = None
+            graphic_selection = None
+        assert displayed_shape is None or len(displayed_shape) == 2
         needs_update = False
-        if self.__dimensional_shape != dimensional_shape:
-            self.__dimensional_shape = dimensional_shape
+        if self.__displayed_shape != displayed_shape:
+            self.__displayed_shape = displayed_shape
             needs_update = True
         if self.__graphics != graphics:
             self.__graphics = graphics
@@ -110,7 +116,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
         if self.__graphics:
-            widget_mapping = ImageCanvasItemMapping(self.__dimensional_shape, (0, 0), self.canvas_size)
+            widget_mapping = ImageCanvasItemMapping(self.__displayed_shape, (0, 0), self.canvas_size)
             with drawing_context.saver():
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
@@ -328,10 +334,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # trigger updates
         self.__bitmap_canvas_item.update()
 
-    def update_regions(self, data_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
+    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_graphics(data_shape, self.__graphics, self.__graphic_selection)
+        self.__graphics_canvas_item.update_graphics(displayed_shape, self.__graphics, self.__graphic_selection)
 
     def __update_image_canvas_zoom(self, new_image_zoom):
         if self.__data_shape is not None:

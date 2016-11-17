@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import logging
@@ -10,6 +7,7 @@ import unittest
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import ImageCanvasItem
@@ -29,17 +27,39 @@ class TestImageCanvasItemClass(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_mapping_widget_to_image_on_3d_data_uses_first_two_dimensions(self):
-        canvas_size = Geometry.FloatSize(100, 100)
-        canvas_origin = Geometry.FloatPoint(0, 0)
-        dimensional_size = (16, 16, 256)
-        widget_mapping = ImageCanvasItem.ImageCanvasItemMapping(dimensional_size, canvas_origin, canvas_size)
-        # image_norm_to_widget
-        image_norm_point = Geometry.FloatPoint(0.5, 0.5)
-        widget_point = widget_mapping.map_point_image_norm_to_widget(image_norm_point)
-        self.assertEqual(widget_point, Geometry.FloatPoint(50, 50))
-        # widget_to_image
-        self.assertEqual(widget_mapping.map_point_widget_to_image(Geometry.FloatPoint(50, 50)), Geometry.FloatPoint(8, 8))
+    def test_mapping_widget_to_image_on_2d_data_stack_uses_signal_dimensions(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            document_controller.selected_display_panel.change_display_panel_content({"type": "image"})
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((50, 10, 10)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            header_height = Panel.HeaderCanvasItem().header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(100, 100 + header_height)
+            # run test
+            document_controller.tool_mode = "line-profile"
+            display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
+            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
+
+    def test_mapping_widget_to_image_on_3d_spectrum_image_uses_collection_dimensions(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            document_controller.selected_display_panel.change_display_panel_content({"type": "image"})
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((10, 10, 50)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            header_height = Panel.HeaderCanvasItem().header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(100, 100 + header_height)
+            # run test
+            document_controller.tool_mode = "line-profile"
+            display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
+            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_rectangle(self):
         # setup
