@@ -38,6 +38,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__cursor_position = None
 
         self.__text_edit_widget = ui.create_text_edit_widget(properties)
+        self.__text_edit_widget.word_wrap_mode = "anywhere"
         self.__text_edit_widget.on_cursor_position_changed = self.__cursor_position_changed
         self.__text_edit_widget.on_selection_changed = self.__selection_changed
         self.__text_edit_widget.on_return_pressed = self.__return_pressed
@@ -121,8 +122,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
             self.__history_point = max(0, self.__history_point - 1)
             if self.__history_point < len(self.__history):
                 line = self.__history[self.__history_point]
-                self.__text_edit_widget.move_cursor_position("start_line", "move")
-                self.__text_edit_widget.move_cursor_position("end_line", "keep")
+                self.__text_edit_widget.move_cursor_position("start_para", "move")
+                self.__text_edit_widget.move_cursor_position("end_para", "keep")
                 prompt = self.continuation_prompt if self.__incomplete else self.prompt
                 self.__text_edit_widget.insert_text("{}{}".format(prompt, line))
                 self.__text_edit_widget.move_cursor_position("end")
@@ -137,8 +138,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 else:
                     self.__history_point = None
                     line = ""
-                self.__text_edit_widget.move_cursor_position("start_line", "move")
-                self.__text_edit_widget.move_cursor_position("end_line", "keep")
+                self.__text_edit_widget.move_cursor_position("start_para", "move")
+                self.__text_edit_widget.move_cursor_position("end_para", "keep")
                 prompt = self.continuation_prompt if self.__incomplete else self.prompt
                 self.__text_edit_widget.insert_text("{}{}".format(prompt, line))
                 self.__text_edit_widget.move_cursor_position("end")
@@ -151,16 +152,16 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
         if is_cursor_on_last_line and key.is_move_to_start_of_line:
             mode = "keep" if key.modifiers.shift else "move"
-            self.__text_edit_widget.move_cursor_position("start_line", mode)
+            self.__text_edit_widget.move_cursor_position("start_para", mode)
             self.__text_edit_widget.move_cursor_position("next", mode, n=4)
             return True
 
         if is_cursor_on_last_line and key.is_delete_to_end_of_line:
-            self.__text_edit_widget.move_cursor_position("end_line", "keep")
+            self.__text_edit_widget.move_cursor_position("end_para", "keep")
             self.__text_edit_widget.remove_selected_text()
             return True
 
-        if is_cursor_on_last_line and key.key == 0x43 and key.modifiers.native_control:
+        if is_cursor_on_last_line and key.key == 0x43 and key.modifiers.native_control and sys.platform == "darwin":
             prompt = self.continuation_prompt if self.__incomplete else self.prompt
             self.__text_edit_widget.move_cursor_position("end")
             self.__text_edit_widget.insert_text("\n")
@@ -189,8 +190,8 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
                 if len(terms) == 1:
                     completed_command = partial_command[:partial_command.rfind(completion_term)] + terms[0]
                     prompt = self.continuation_prompt if self.__incomplete else self.prompt
-                    self.__text_edit_widget.move_cursor_position("start_line", "move")
-                    self.__text_edit_widget.move_cursor_position("end_line", "keep")
+                    self.__text_edit_widget.move_cursor_position("start_para", "move")
+                    self.__text_edit_widget.move_cursor_position("end_para", "keep")
                     self.__text_edit_widget.insert_text("{}{}".format(prompt, completed_command))
                     self.__text_edit_widget.move_cursor_position("end")
                     self.__last_position = copy.deepcopy(self.__cursor_position)
