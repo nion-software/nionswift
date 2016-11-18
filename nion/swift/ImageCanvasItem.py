@@ -146,6 +146,10 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__info_text = None
 
     @property
+    def _dimension_calibration_for_test(self):
+        return self.__dimensional_calibration
+
+    @property
     def image_canvas_size(self):
         return self.__image_canvas_size
 
@@ -311,6 +315,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def close(self):
         # call super
         super().close()
+
+    @property
+    def _info_overlay_canvas_item_for_test(self):
+        return self.__info_overlay_canvas_item
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
