@@ -10,13 +10,18 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import Facade
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Symbolic
 from nion.ui import TestUI
 from nion.utils import Recorder
+
+
+Facade.initialize()
 
 
 class TestDocumentModelClass(unittest.TestCase):
@@ -162,6 +167,24 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
+
+    def test_recompute_twice_before_periodic_uses_final_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((2, 2), numpy.int)
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            x = computation.create_variable("x", value_type="integral", value=5)
+            computed_data_item = DataItem.DataItem(d)
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            document_model.recompute_all(merge=False)
+            x.value = 10
+            document_model.recompute_all(merge=False)
+            document_model.perform_data_item_merges()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, d + 10))
 
     def test_data_item_recording(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16)))

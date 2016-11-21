@@ -999,6 +999,7 @@ class ComputationQueueItem:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 data_item_clone = data_item.clone()
+                data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
                 data_item_clone_recorder = Recorder.Recorder(data_item_clone)
                 api_data_item = api._new_api_object(data_item_clone)
                 error_text = None
@@ -1008,7 +1009,6 @@ class ComputationQueueItem:
                     time.sleep(max(throttle_time, 0.0))
                 if self.valid:  # TODO: race condition for 'valid'
                     def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
-                        data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
                         data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
                         with buffered_data_source._changes():
                             if data_item_data_clone_modified > data_item_data_modified:
@@ -1690,13 +1690,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def dispatch_task2(self, task, description=None):
         self.__computation_thread_pool.queue_fn(task, description)
 
-    def recompute_all(self):
+    def recompute_all(self, merge=True):
         self.__computation_thread_pool.run_all()
-        self.perform_data_item_merges()
+        if merge:
+            self.perform_data_item_merges()
 
-    def recompute_one(self):
+    def recompute_one(self, merge=True):
         self.__computation_thread_pool.run_one()
-        self.perform_data_item_merges()
+        if merge:
+            self.perform_data_item_merges()
 
     def start_dispatcher(self):
         self.__thread_pool.start()
