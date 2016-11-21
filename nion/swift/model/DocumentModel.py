@@ -935,8 +935,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 traceback.print_exc()
                 traceback.print_stack()
 
-    def write_data_item(self, data_item):
-        """ Write data item to persistent storage. """
+    def _ensure_persistent_storage(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
         if not persistent_storage:
             persistent_storage_handler = None
@@ -947,16 +946,25 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
             properties = data_item.write_to_dict()
             persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
             self._set_persistent_storage_for_object(data_item, persistent_storage)
-        data_item.persistent_object_context_changed()
+            data_item.persistent_object_context_changed()
+        return persistent_storage
+
+    def write_data_item(self, data_item):
+        """ Write data item to persistent storage. """
+        self._ensure_persistent_storage(data_item)
         # write the uuid and version explicitly
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", DataItem.DataItem.writer_version)
         if data_item.maybe_data_source:
-            self.rewrite_data_item_data(data_item.maybe_data_source)
+            self.rewrite_data_item_data(data_item)
 
-    def rewrite_data_item_data(self, buffered_data_source):
-        persistent_storage = self._get_persistent_storage_for_object(buffered_data_source)
-        persistent_storage.update_data(buffered_data_source.data)
+    def rewrite_data_item_properties(self, data_item):
+        persistent_storage = self._ensure_persistent_storage(data_item)
+        persistent_storage.update_properties()
+
+    def rewrite_data_item_data(self, data_item):
+        persistent_storage = self._ensure_persistent_storage(data_item)
+        persistent_storage.update_data(data_item.maybe_data_source.data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
@@ -1248,7 +1256,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_items.insert(before_index, data_item)
         data_item.set_storage_cache(self.storage_cache)
         data_item.persistent_object_context = self.persistent_object_context
-        self.persistent_object_context.write_data_item(data_item)
+        data_item.persistent_object_context._ensure_persistent_storage(data_item)
+        persistent_storage = data_item.persistent_object_context._get_persistent_storage_for_object(data_item)
+        if persistent_storage and not persistent_storage.write_delayed:
+            # don't directly write data item, or else write_pending is not cleared on data item
+            # self.persistent_object_context.write_data_item(data_item)
+            # call finish pending write instead
+            data_item._finish_pending_write()  # initially write to disk
         self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
         self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)

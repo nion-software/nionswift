@@ -440,7 +440,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
                 if self.persistent_object_context:
-                    self.persistent_object_context.rewrite_data_item_data(self)
+                    self.persistent_object_context.rewrite_data_item_data(self._data_item)  # ouch, up reference to data item
                     self.__data_and_metadata.unloadable = True
             self.__change_changed = True
 
@@ -834,6 +834,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__in_transaction_state = False
         self.__is_live = False
         self.__pending_write = True
+        self.__write_delay_modified_count = 0
+        self.__write_delay_data_changed = False
         self.persistent_object_context = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
@@ -990,6 +992,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
+        self.__write_delay_data_changed = False
         if self.persistent_object_context:
             persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
             if persistent_storage:
@@ -1000,9 +1003,17 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
             if persistent_storage:
                 persistent_storage.write_delayed = False
-            if self.__pending_write or self.modified_count > self.__write_delay_modified_count:
-                self.persistent_object_context.write_data_item(self)
+            self._finish_pending_write()
+
+    def _finish_pending_write(self):
+        if self.__pending_write:
+            self.persistent_object_context.write_data_item(self)
             self.__pending_write = False
+        else:
+            if self.modified_count > self.__write_delay_modified_count:
+                self.persistent_object_context.rewrite_data_item_properties(self)
+            if self.__write_delay_data_changed:
+                self.persistent_object_context.rewrite_data_item_data(self)
 
     def _enter_transaction_state(self):
         self.__in_transaction_state = True
@@ -1261,6 +1272,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             data_source.increment_data_ref_count()
         def data_and_metadata_changed():
             if not self._is_reading:
+                self.__write_delay_data_changed = True
                 self.data_item_content_changed_event.fire(set([DATA]))
         self.__data_and_metadata_changed_event_listeners.insert(before_index, data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed))
         self.notify_data_item_content_changed(set([DATA]))

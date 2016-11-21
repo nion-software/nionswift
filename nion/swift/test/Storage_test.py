@@ -740,6 +740,71 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_begin_end_transaction_with_no_change_should_not_write(self):
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            # force a write and verify
+            document_model.begin_data_item_transaction(data_item)
+            document_model.end_data_item_transaction(data_item)
+            self.assertEqual(len(memory_persistent_storage_system.properties.keys()), 1)
+            # continue with test
+            data_item._set_modified(modified)
+            self.assertEqual(document_model.data_items[0].modified, modified)
+            # now clear the memory_persistent_storage_system and see if it gets written again
+            memory_persistent_storage_system.properties.clear()
+            document_model.begin_data_item_transaction(data_item)
+            document_model.end_data_item_transaction(data_item)
+            self.assertEqual(document_model.data_items[0].modified, modified)
+            # properties should still be empty, unless it was written again
+            self.assertEqual(memory_persistent_storage_system.properties, dict())
+
+    def test_begin_end_transaction_with_change_should_write(self):
+        # converse of previous test
+        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            data_item._set_modified(modified)
+            self.assertEqual(document_model.data_items[0].modified, modified)
+            # now clear the memory_persistent_storage_system and see if it gets written again
+            memory_persistent_storage_system.properties.clear()
+            document_model.begin_data_item_transaction(data_item)
+            data_item.metadata = data_item.metadata
+            document_model.end_data_item_transaction(data_item)
+            self.assertNotEqual(document_model.data_items[0].modified, modified)
+            # properties should still be empty, unless it was written again
+            self.assertNotEqual(memory_persistent_storage_system.properties, dict())
+
+    def test_begin_end_transaction_with_non_data_change_should_not_write_data(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            # now clear the memory_persistent_storage_system and see if it gets written again
+            memory_persistent_storage_system.data.clear()
+            with document_model.data_item_transaction(data_item):
+                data_item.metadata = data_item.metadata
+            self.assertEqual(memory_persistent_storage_system.data, dict())
+
+    def test_begin_end_transaction_with_data_change_should_write_data(self):
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            # now clear the memory_persistent_storage_system and see if it gets written again
+            memory_persistent_storage_system.data.clear()
+            with document_model.data_item_transaction(data_item):
+                data_item.maybe_data_source.set_data(numpy.zeros((17, 17), numpy.uint32))
+            self.assertEqual(memory_persistent_storage_system.data[str(data_item.uuid)].shape, (17, 17))
+
     def test_data_removes_file_after_original_date_and_session_change(self):
         created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
         cache_name = ":memory:"
@@ -2407,47 +2472,6 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()  # try recomputing too
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
-
-    def test_begin_end_transaction_with_no_change_should_not_write(self):
-        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item)
-            # force a write and verify
-            document_model.begin_data_item_transaction(data_item)
-            document_model.end_data_item_transaction(data_item)
-            self.assertEqual(len(memory_persistent_storage_system.properties.keys()), 1)
-            # continue with test
-            data_item._set_modified(modified)
-            self.assertEqual(document_model.data_items[0].modified, modified)
-            # now clear the memory_persistent_storage_system and see if it gets written again
-            memory_persistent_storage_system.properties.clear()
-            document_model.begin_data_item_transaction(data_item)
-            document_model.end_data_item_transaction(data_item)
-            self.assertEqual(document_model.data_items[0].modified, modified)
-            # properties should still be empty, unless it was written again
-            self.assertEqual(memory_persistent_storage_system.properties, dict())
-
-    def test_begin_end_transaction_with_change_should_write(self):
-        # converse of previous test
-        modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
-            document_model.append_data_item(data_item)
-            data_item._set_modified(modified)
-            self.assertEqual(document_model.data_items[0].modified, modified)
-            # now clear the memory_persistent_storage_system and see if it gets written again
-            memory_persistent_storage_system.properties.clear()
-            document_model.begin_data_item_transaction(data_item)
-            data_item.metadata = data_item.metadata
-            document_model.end_data_item_transaction(data_item)
-            self.assertNotEqual(document_model.data_items[0].modified, modified)
-            # properties should still be empty, unless it was written again
-            self.assertNotEqual(memory_persistent_storage_system.properties, dict())
 
     def test_storage_cache_disabled_during_transaction(self):
         storage_cache = Cache.DictStorageCache()
