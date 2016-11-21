@@ -44,10 +44,9 @@ class LineGraphDataInfo:
     This object is read-only.
     """
 
-    def __init__(self, data_fn=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None, data_style=None, legend_labels=None):
+    def __init__(self, data=None, data_min=None, data_max=None, data_left=None, data_right=None, spatial_calibration=None, intensity_calibration=None, data_style=None, legend_labels=None):
         # these items are considered to be input items
-        self.__data_fn = data_fn
-        self.__uncalibrated_data = None
+        self.__uncalibrated_data = data
         self.__data = None
         self.data_min = data_min
         self.data_max = data_max
@@ -75,14 +74,12 @@ class LineGraphDataInfo:
 
     @property
     def uncalibrated_data(self):
-        if self.__uncalibrated_data is None and self.__data_fn:
-            self.__uncalibrated_data = self.__data_fn()
         return self.__uncalibrated_data
 
     @property
     def data(self):
         if self.__data is None:
-            uncalibrated_data = self.__data_fn() if self.__data_fn else None
+            uncalibrated_data = self.uncalibrated_data
             if uncalibrated_data is not None:
                 calibration = self.intensity_calibration
                 if calibration:
@@ -187,7 +184,7 @@ class LineGraphDataInfo:
 
     @property
     def y_properties(self):
-        if self.__data_fn is None:
+        if self.uncalibrated_data is None:
             return None
         y_properties = collections.namedtuple("YProperties",
                                               ["y_tick_precision", "y_tick_values", "calibrated_data_min",
@@ -266,7 +263,7 @@ class LineGraphDataInfo:
 
     @property
     def x_properties(self):
-        if self.__data_fn is None:
+        if self.uncalibrated_data is None:
             return None
         x_properties = collections.namedtuple("XProperties",
                                               ["drawn_left_channel", "drawn_right_channel", "x_tick_precision",

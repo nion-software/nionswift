@@ -267,11 +267,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 scalar_data = Image.convert_to_grayscale(scalar_data)
                 assert scalar_data is not None
 
-                def get_data():
-                    return scalar_data
-
                 if not numpy.array_equal(self.__last_data_info_data, scalar_data) or self.__last_data_info != (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style):
-                    data_info = LineGraphCanvasItem.LineGraphDataInfo(get_data, y_min, y_max, left_channel, right_channel,
+                    data_info = LineGraphCanvasItem.LineGraphDataInfo(scalar_data, y_min, y_max, left_channel, right_channel,
                                                                       dimensional_calibration, intensity_calibration, y_style, legend_labels)
                     self.__update_data_info(data_info)
                     self.__last_data_info = (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style)

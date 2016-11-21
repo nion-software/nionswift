@@ -41,7 +41,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             irow, icol = numpy.ogrid[0:16, 0:16]
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
-            data_info = LineGraphCanvasItem.LineGraphDataInfo(lambda: data, None, None)
+            data_info = LineGraphCanvasItem.LineGraphDataInfo(data, None, None)
             self.assertEqual(data_info.y_properties.uncalibrated_data_min, expected_uncalibrated_data_min)
             self.assertEqual(data_info.y_properties.uncalibrated_data_max, expected_uncalibrated_data_max)
 
