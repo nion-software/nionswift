@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import datetime
 import logging
@@ -12,6 +9,8 @@ import uuid
 import numpy
 
 # local libraries
+from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Utility
@@ -131,6 +130,26 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertEqual(data_item.maybe_data_source.data_and_metadata.is_sequence, True)
         self.assertEqual(data_item.maybe_data_source.data_and_metadata.collection_dimension_count, 0)
         self.assertEqual(data_item.maybe_data_source.data_and_metadata.datum_dimension_count, 2)
+
+    def test_data_element_to_extended_data_conversion(self):
+        data = numpy.ones((8, 6), numpy.int)
+        intensity_calibration = Calibration.Calibration(offset=1, scale=1.1, units="one")
+        dimensional_calibrations = [Calibration.Calibration(offset=2, scale=2.1, units="two"), Calibration.Calibration(offset=3, scale=2.2, units="two")]
+        metadata = {"hardware_source": {"one": 1, "two": "b"}}
+        timestamp = datetime.datetime.now()
+        data_descriptor = DataAndMetadata.DataDescriptor(is_sequence=False, collection_dimension_count=1, datum_dimension_count=1)
+        xdata = DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor)
+        data_element = ImportExportManager.create_data_element_from_extended_data(xdata)
+        new_xdata = ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
+        self.assertTrue(numpy.array_equal(data, new_xdata.data))
+        self.assertNotEqual(id(new_xdata.intensity_calibration), id(intensity_calibration))
+        self.assertEqual(new_xdata.intensity_calibration, intensity_calibration)
+        self.assertNotEqual(id(new_xdata.dimensional_calibrations[0]), id(dimensional_calibrations[0]))
+        self.assertEqual(new_xdata.dimensional_calibrations, dimensional_calibrations)
+        self.assertNotEqual(id(new_xdata.metadata), id(metadata))
+        self.assertEqual(new_xdata.metadata, metadata)
+        self.assertNotEqual(id(new_xdata.data_descriptor), id(data_descriptor))
+        self.assertEqual(new_xdata.data_descriptor, data_descriptor)
 
 
 if __name__ == '__main__':

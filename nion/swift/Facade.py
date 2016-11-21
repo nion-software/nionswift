@@ -2250,8 +2250,22 @@ class API_1:
         """
         return CalibrationModule.Calibration(offset, scale, units)
 
-    def create_data_and_metadata(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None,
-                                 dimensional_calibrations: typing.List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
+    def create_data_descriptor(self, is_sequence: bool, collection_dimension_count: int, datum_dimension_count: int) -> DataAndMetadata.DataDescriptor:
+        """Create a data descriptor.
+
+        :param is_sequence: whether the descriptor describes a sequence of data.
+        :param collection_dimension_count: the number of collection dimensions represented by the descriptor.
+        :param datum_dimension_count: the number of datum dimensions represented by the descriptor.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
+
+    def create_data_and_metadata(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration = None,
+                                 dimensional_calibrations: typing.List[CalibrationModule.Calibration] = None, metadata: dict = None,
+                                 timestamp: str = None, data_descriptor: DataAndMetadata.DataDescriptor = None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
 
         :param data: an ndarray of data.
@@ -2259,22 +2273,13 @@ class API_1:
         :param dimensional_calibrations: An optional list of calibration objects.
         :param metadata: A dict of metadata.
         :param timestamp: A datetime object.
+        :param data_descriptor: A data descriptor describing the dimensions.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
-        data_shape_and_dtype = Image.dimensional_shape_from_data(data), data.dtype
-        if intensity_calibration is None:
-            intensity_calibration = CalibrationModule.Calibration()
-        if dimensional_calibrations is None:
-            dimensional_calibrations = list()
-            for _ in data_shape_and_dtype[0]:
-                dimensional_calibrations.append(CalibrationModule.Calibration())
-        if metadata is None:
-            metadata = dict()
-        timestamp = timestamp if timestamp else datetime.datetime.utcnow()
-        return DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+        return DataAndMetadata.new_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor)
 
     def create_data_and_metadata_from_data(self, data: numpy.ndarray, intensity_calibration: CalibrationModule.Calibration=None, dimensional_calibrations: typing.List[CalibrationModule.Calibration]=None, metadata: dict=None, timestamp: str=None) -> DataAndMetadata.DataAndMetadata:
         """Create a data_and_metadata object from data.
@@ -2302,15 +2307,7 @@ class API_1:
 
             def read_data_elements(self, ui, extension, file_path):
                 data_and_metadata = io_handler_delegate.read_data_and_metadata(extension, file_path)
-                data_element = dict()
-                data_element["data"] = data_and_metadata.data
-                dimensional_calibrations = list()
-                for calibration in data_and_metadata.dimensional_calibrations:
-                    dimensional_calibrations.append({ "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units })
-                data_element["spatial_calibrations"] = dimensional_calibrations
-                calibration = data_and_metadata.intensity_calibration
-                data_element["intensity_calibration"] = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
-                data_element["properties"] = data_and_metadata.metadata.get("hardware_source", dict())
+                data_element = ImportExportManager.create_data_element_from_extended_data(data_and_metadata)
                 return [data_element]
 
             def can_write(self, data_and_metadata, extension):

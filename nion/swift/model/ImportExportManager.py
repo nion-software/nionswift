@@ -381,6 +381,28 @@ def create_data_element_from_data_item(data_item, include_data=True):
     return data_element
 
 
+def create_data_element_from_extended_data(xdata: DataAndMetadata.DataAndMetadata) -> dict:
+    data_element = dict()
+    data_element["version"] = 1
+    data_element["reader_version"] = 1
+    data_element["data"] = xdata.data
+    dimensional_calibrations = xdata.dimensional_calibrations
+    calibrations_element = list()
+    for calibration in dimensional_calibrations:
+        calibration_element = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
+        calibrations_element.append(calibration_element)
+    data_element["spatial_calibrations"] = calibrations_element
+    intensity_calibration = xdata.intensity_calibration
+    intensity_calibration_element = { "offset": intensity_calibration.offset, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
+    data_element["intensity_calibration"] = intensity_calibration_element
+    if xdata.is_sequence:
+        data_element["is_sequence"] = xdata.is_sequence
+    data_element["collection_dimension_count"] = xdata.collection_dimension_count
+    data_element["datum_dimension_count"] = xdata.datum_dimension_count
+    data_element["properties"] = dict(xdata.metadata.get("hardware_source", dict()))
+    return data_element
+
+
 class StandardImportExportHandler(ImportExportHandler):
 
     def __init__(self, io_handler_id, name, extensions):
