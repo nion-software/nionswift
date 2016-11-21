@@ -321,7 +321,9 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
 
     # properties (general tags)
     metadata = dict()
-    if "properties" in data_element:
+    if "metadata" in data_element:
+        metadata.update(Utility.clean_dict(data_element.get("metadata")))
+    if "properties" in data_element and data_element["properties"]:
         hardware_source_metadata = metadata.setdefault("hardware_source", dict())
         hardware_source_metadata.update(Utility.clean_dict(data_element.get("properties")))
 
@@ -370,7 +372,8 @@ def create_data_element_from_data_item(data_item, include_data=True):
             data_element["is_sequence"] = buffered_data_source.is_sequence
         data_element["collection_dimension_count"] = buffered_data_source.collection_dimension_count
         data_element["datum_dimension_count"] = buffered_data_source.datum_dimension_count
-        data_element["properties"] = dict(buffered_data_source.metadata.get("hardware_source", dict()))
+        data_element["metadata"] = copy.deepcopy(buffered_data_source.metadata)
+        data_element["properties"] = copy.deepcopy(buffered_data_source.metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
         data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.created)
@@ -399,7 +402,8 @@ def create_data_element_from_extended_data(xdata: DataAndMetadata.DataAndMetadat
         data_element["is_sequence"] = xdata.is_sequence
     data_element["collection_dimension_count"] = xdata.collection_dimension_count
     data_element["datum_dimension_count"] = xdata.datum_dimension_count
-    data_element["properties"] = dict(xdata.metadata.get("hardware_source", dict()))
+    data_element["metadata"] = copy.deepcopy(xdata.metadata)
+    data_element["properties"] = copy.deepcopy(xdata.metadata.get("hardware_source", dict()))
     return data_element
 
 
