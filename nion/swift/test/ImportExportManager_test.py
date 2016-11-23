@@ -1,4 +1,5 @@
 # standard libraries
+import copy
 import datetime
 import logging
 import os
@@ -31,8 +32,8 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["datetime_modified"] = Utility.get_current_datetime_item()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         self.assertIsNotNone(data_item.created)
-        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["tz"]), 5)
-        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["dst"]), 3)
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], data_element["datetime_modified"]["tz"])
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], data_element["datetime_modified"]["dst"])
 
     def test_date_formats(self):
         data_item = DataItem.DataItem()
@@ -86,11 +87,11 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element = dict()
         data_element["version"] = 1
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
-        data_element["datetime_modified"] = {'tz': '-0700', 'dst': '+60', 'local_datetime': '2015-06-10T09:31:52.780511'}
+        data_element["datetime_modified"] = {'tz': '+0300', 'dst': '+60', 'local_datetime': '2015-06-10T19:31:52.780511'}
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         self.assertIsNotNone(data_item.created)
-        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["tz"]), 5)
-        self.assertEqual(len(data_item.metadata["description"]["time_zone"]["dst"]), 3)
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], "+0300")
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], "+60")
         match = datetime.datetime(year=2015, month=6, day=10, hour=9, minute=31, second=52, microsecond=780511)
         self.assertEqual(data_item.created_local, match)
 
@@ -147,9 +148,65 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertNotEqual(id(new_xdata.dimensional_calibrations[0]), id(dimensional_calibrations[0]))
         self.assertEqual(new_xdata.dimensional_calibrations, dimensional_calibrations)
         self.assertNotEqual(id(new_xdata.metadata), id(metadata))
-        self.assertEqual(new_xdata.metadata, metadata)
+        # the handling of time zone in xdata is probably not correct right now; this is a temporary workaround
+        # the reason it is probably not correct is that the timezone for a data item is recorded in the data
+        # item metadata, not the buffered data source metadata. however, here it is stored with the extended
+        # data which eventually gets put into the buffered data source metadata.
+        xdata_metadata_without_description = copy.deepcopy(new_xdata.metadata)
+        xdata_metadata_without_description.pop("description")
+        self.assertEqual(xdata_metadata_without_description, metadata)
         self.assertNotEqual(id(new_xdata.data_descriptor), id(data_descriptor))
         self.assertEqual(new_xdata.data_descriptor, data_descriptor)
+
+    def test_data_item_to_data_element_includes_time_zone(self):
+        # created/modified are utc; timezone is specified in metadata/description/time_zone
+        data_item = DataItem.DataItem(numpy.zeros((16, 16)))
+        data_item.created = datetime.datetime(2013, 11, 18, 14, 5, 4, 0)  # always utc
+        data_item._set_modified(datetime.datetime(2013, 11, 18, 14, 5, 4, 0))  # always utc
+        data_item.metadata = {"description": {"time_zone": {"tz": "+0300", "dst": "+60"}}}
+        data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
+        self.assertEqual(data_element["datetime_modified"], {"dst": "+60", "local_datetime": "2013-11-18T17:05:04", 'tz': "+0300"})
+
+    def test_extended_data_to_data_element_includes_time_zone(self):
+        # extended data timestamp is utc; timezone is specified in metadata/description/time_zone
+        data = numpy.ones((8, 6), numpy.int)
+        metadata = {"description": {"time_zone": {"tz": "+0300", "dst": "+60"}}}
+        timestamp = datetime.datetime(2013, 11, 18, 14, 5, 4, 0)
+        xdata = DataAndMetadata.new_data_and_metadata(data, metadata=metadata, timestamp=timestamp)
+        data_element = ImportExportManager.create_data_element_from_extended_data(xdata)
+        self.assertEqual(data_element["datetime_modified"], {"dst": "+60", "local_datetime": "2013-11-18T17:05:04", 'tz': "+0300"})
+
+    def test_data_element_to_data_item_includes_time_zone(self):
+        data_element = dict()
+        data_element["version"] = 1
+        data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
+        data_element["datetime_modified"] = {'tz': '+0300', 'dst': '+60', 'local_datetime': '2015-06-10T19:31:52.780511'}
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], "+0300")
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], "+60")
+        self.assertEqual(str(data_item.created), "2015-06-10 16:31:52.780511")
+
+    def test_data_element_to_extended_data_includes_time_zone(self):
+        data_element = dict()
+        data_element["version"] = 1
+        data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
+        data_element["datetime_modified"] = {'tz': '+0300', 'dst': '+60', 'local_datetime': '2015-06-10T19:31:52.780511'}
+        xdata = ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
+        self.assertEqual(xdata.metadata["description"]["time_zone"]["tz"], "+0300")
+        self.assertEqual(xdata.metadata["description"]["time_zone"]["dst"], "+60")
+        self.assertEqual(str(xdata.timestamp), "2015-06-10 16:31:52.780511")
+
+    def test_time_zone_in_extended_data_to_data_element_to_data_item_conversion(self):
+        # test the whole path, redundant?
+        data = numpy.ones((8, 6), numpy.int)
+        metadata = {"description": {"time_zone": {"tz": "+0300", "dst": "+60"}}, "hardware_source": {"one": 1, "two": "b"}}
+        timestamp = datetime.datetime(2013, 11, 18, 14, 5, 4, 1)
+        xdata = DataAndMetadata.new_data_and_metadata(data, metadata=metadata, timestamp=timestamp)
+        data_element = ImportExportManager.create_data_element_from_extended_data(xdata)
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], "+0300")
+        self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], "+60")
+        self.assertEqual("2013-11-18 14:05:04.000001", str(data_item.created))
 
 
 if __name__ == '__main__':

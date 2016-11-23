@@ -337,11 +337,12 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
     timestamp = datetime.datetime.utcnow()
     datetime_item = data_element.get("datetime_modified")
     if datetime_item:
+        local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)
         dst_value = datetime_item.get("dst", "+00")
         tz_value = datetime_item.get("tz", "+0000")
         time_zone = { "dst": dst_value, "tz": tz_value}
-        tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
-        local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)
+        # note: dst is informational only; tz already include dst
+        tz_adjust = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
         utc_datetime = local_datetime - datetime.timedelta(minutes=tz_adjust)  # tz_adjust already contains dst_adjust
         timestamp = utc_datetime
         metadata.setdefault("description", dict())["time_zone"] = time_zone
@@ -376,8 +377,16 @@ def create_data_element_from_data_item(data_item, include_data=True):
         data_element["properties"] = copy.deepcopy(buffered_data_source.metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
-        data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.created)
-        data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.created)
+        tz_minutes = None
+        dst_minutes = None
+        time_zone_dict = data_item.metadata.get("description", dict()).get("time_zone")
+        if time_zone_dict:
+            # note: dst is informational only; tz already include dst
+            tz_value = time_zone_dict["tz"]
+            tz_minutes = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
+            dst_minutes = int(time_zone_dict["dst"])
+        data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes)
+        data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes)
         data_element["uuid"] = str(data_item.uuid)
         # operation
         # graphics
@@ -404,6 +413,16 @@ def create_data_element_from_extended_data(xdata: DataAndMetadata.DataAndMetadat
     data_element["datum_dimension_count"] = xdata.datum_dimension_count
     data_element["metadata"] = copy.deepcopy(xdata.metadata)
     data_element["properties"] = copy.deepcopy(xdata.metadata.get("hardware_source", dict()))
+    tz_minutes = None
+    dst_minutes = None
+    time_zone_dict = xdata.metadata.get("description", dict()).get("time_zone")
+    if time_zone_dict:
+        # note: dst is informational only; tz already include dst
+        tz_value = time_zone_dict["tz"]
+        tz_minutes = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
+        dst_minutes = int(time_zone_dict["dst"])
+    data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(xdata.timestamp, tz_minutes, dst_minutes)
+    data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(xdata.timestamp, tz_minutes, dst_minutes)
     return data_element
 
 

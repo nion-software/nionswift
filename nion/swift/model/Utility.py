@@ -22,12 +22,16 @@ import numpy
 # time zone name is for display only and has no specified format
 # datetime_item is a dictionary with entries for the local_datetime, tz (timezone offset), and
 # dst (daylight savings time offset). it may optionally include tz_name (timezone name), if available.
-def get_datetime_item_from_datetime(datetime_local):
+def get_datetime_item_from_datetime(datetime_local, tz_minutes=None, dst_minutes=None):
+    # dst is information, tz already includes dst
     datetime_item = dict()
     datetime_item["local_datetime"] = datetime_local.isoformat()
-    tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+    if tz_minutes is None:
+        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+    if dst_minutes is None:
+        dst_minutes = 60 if time.localtime().tm_isdst else 0
     datetime_item["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes // 60, tz_minutes % 60)
-    datetime_item["dst"] = "+60" if time.localtime().tm_isdst else "+00"
+    datetime_item["dst"] = "+{0:02d}".format(dst_minutes)
     return datetime_item
 
 
@@ -35,9 +39,11 @@ def get_current_datetime_item():
     return get_datetime_item_from_datetime(datetime.datetime.now())
 
 
-def get_datetime_item_from_utc_datetime(datetime_utc):
-    tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
-    return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes))
+def get_datetime_item_from_utc_datetime(datetime_utc, tz_minutes=None, dst_minutes=None):
+    # dst is information, tz already includes dst
+    if tz_minutes is None:
+        tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+    return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes), tz_minutes, dst_minutes)
 
 try:
     import pytz.reference
