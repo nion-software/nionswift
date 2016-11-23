@@ -562,7 +562,7 @@ class TestInspectorClass(unittest.TestCase):
             self.assertNotEqual(expected_inspector_section_count, graphic_inspector_section_count)
             # now remove the point graphic and ensure that inspector inspecting data item again
             self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 1)  # make sure graphic is selected
-            document_controller.remove_graphic()
+            document_controller.remove_selected_graphics()
             document_controller.periodic()
             self.assertEqual(len(document_controller.selected_display_specifier.display.graphic_selection.indexes), 0)  # make sure graphic is not selected
             actual_inspector_section_count = len(inspector_panel._get_inspector_sections())

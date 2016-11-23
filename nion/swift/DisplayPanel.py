@@ -1050,7 +1050,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     return display_panel_content.image_mouse_position_changed(image_position, modifiers)
 
                 def remove_selected_graphic(self):
-                    if display_panel_content.document_controller.remove_graphic():
+                    if display_panel_content.document_controller.remove_selected_graphics():
                         return True
                     return False
 

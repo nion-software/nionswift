@@ -613,7 +613,7 @@ class TestProcessingClass(unittest.TestCase):
         self.assertEqual(document_model.get_source_data_items(cropped_data_item)[0], data_item)
         self.assertTrue(cropped_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
-        document_controller.remove_graphic()
+        document_controller.remove_selected_graphics()
         self.assertEqual(len(display_specifier.display.graphics), 0)
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(cropped_data_item in document_model.data_items)
@@ -643,7 +643,7 @@ class TestProcessingClass(unittest.TestCase):
         self.assertEqual(document_model.get_source_data_items(projection_data_item)[0], data_item)
         self.assertTrue(projection_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
-        document_controller.remove_graphic()
+        document_controller.remove_selected_graphics()
         self.assertEqual(len(display_specifier.display.graphics), 0)
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(projection_data_item in document_model.data_items)

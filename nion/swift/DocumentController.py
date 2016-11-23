@@ -877,7 +877,7 @@ class DocumentController(Window.Window):
             return graphic
         return None
 
-    def remove_graphic(self):
+    def remove_selected_graphics(self):
         display_specifier = self.selected_display_specifier
         if display_specifier:
             display = display_specifier.display

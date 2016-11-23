@@ -219,7 +219,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphics), 1)
         self.assertEqual(display_specifier.display.graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
-        document_controller.remove_graphic()
+        document_controller.remove_selected_graphics()
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)
         self.assertEqual(len(display_specifier.display.graphics), 0)
         # clean up
@@ -243,7 +243,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertTrue(line_profile_data_item in document_model.data_items)
         self.assertTrue(data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
-        document_controller.remove_graphic()
+        document_controller.remove_selected_graphics()
         self.assertTrue(data_item in document_model.data_items)
         # clean up
         document_controller.close()
@@ -265,7 +265,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
         self.assertTrue(line_profile_data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
-        document_controller.remove_graphic()
+        document_controller.remove_selected_graphics()
         self.assertEqual(len(display_specifier.display.graphics), 0)
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
         self.assertFalse(line_profile_data_item in document_model.data_items)
