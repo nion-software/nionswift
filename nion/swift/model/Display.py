@@ -84,6 +84,10 @@ class GraphicSelection:
         if old_index != self.__indexes:
             self.changed_event.fire()
 
+    def add_range(self, range):
+        for index in range:
+            self.add(index)
+
     def set(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
@@ -96,9 +100,9 @@ class GraphicSelection:
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         if index in self.__indexes:
-            self._indexes.remove(index)
+            self.__indexes.remove(index)
         else:
-            self._indexes.add(index)
+            self.__indexes.add(index)
         if old_index != self.__indexes:
             self.changed_event.fire()
 
