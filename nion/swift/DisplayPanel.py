@@ -1392,12 +1392,12 @@ class DisplayPanel:
             def split_vertical():
                 if workspace_controller:
                     return workspace_controller.insert_display_panel(self, "bottom")
-            def split_horiztonal():
+            def split_horizontal():
                 if workspace_controller:
                     return workspace_controller.insert_display_panel(self, "right")
             menu.add_separator()
             menu.add_menu_item(_("Split Into Top and Bottom"), split_vertical)
-            menu.add_menu_item(_("Split Into Left and Right"), split_horiztonal)
+            menu.add_menu_item(_("Split Into Left and Right"), split_horizontal)
 
             menu.add_separator()
             DisplayPanelManager().build_menu(menu, self)
