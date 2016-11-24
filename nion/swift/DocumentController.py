@@ -40,6 +40,8 @@ from nion.utils import Event
 _ = gettext.gettext
 
 
+GRAPHICS_MIME_TYPE = "text/vnd.nion.graphics"
+
 class DocumentController(Window.Window):
     """Manage a document window."""
 
@@ -790,6 +792,35 @@ class DocumentController(Window.Window):
     def __deep_copy(self):
         self._dispatch_any_to_focus_widget("handle_deep_copy")
 
+    def handle_copy(self):
+        self.copy_selected_graphics()
+
+    def handle_cut(self):
+        self.copy_selected_graphics()
+        self.remove_selected_graphics()
+
+    def handle_paste(self):
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            mime_data = self.ui.clipboard_mime_data()
+            if mime_data.has_format(GRAPHICS_MIME_TYPE):
+                json_str = mime_data.data_as_string(GRAPHICS_MIME_TYPE)
+                graphics_dict = json.loads(json_str)
+                is_same_source = graphics_dict.get("src_uuid") == str(display_specifier.data_item.uuid)
+                graphics = list()
+                for graphic_dict in graphics_dict.get("graphics", list()):
+                    graphic = Graphics.factory(lambda t: graphic_dict["type"])
+                    graphic.read_from_mime_data(graphic_dict, is_same_source)
+                    if graphic:
+                        display.add_graphic(graphic)
+                        graphics.append(graphic)
+                display.graphic_selection.clear()
+                for graphic in graphics:
+                    display.graphic_selection.add(display.graphics.index(graphic))
+                return True
+        return False
+
     def handle_delete(self):
         # delete key gets handled by key handlers, but this method gets called by menu items
         self.remove_selected_graphics()
@@ -895,6 +926,23 @@ class DocumentController(Window.Window):
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic
         return None
+
+    def copy_selected_graphics(self):
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            if display.graphic_selection.has_selection:
+                graphic_dict_list = list()
+                graphics = [display.graphics[index] for index in display.graphic_selection.indexes]
+                for graphic in graphics:
+                    graphic_dict_list.append(graphic.mime_data_dict())
+                graphics_dict = {"src_uuid": str(display_specifier.data_item.uuid), "graphics": graphic_dict_list}
+                json_str = json.dumps(graphics_dict)
+                graphic_mime_data = self.ui.create_mime_data()
+                graphic_mime_data.set_data_as_string(GRAPHICS_MIME_TYPE, json_str)
+                self.ui.clipboard_set_mime_data(graphic_mime_data)
+                return True
+        return False
 
     def remove_selected_graphics(self):
         display_specifier = self.selected_display_specifier

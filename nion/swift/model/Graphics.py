@@ -328,6 +328,23 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         graphic.uuid = self.uuid
         return graphic
 
+    def mime_data_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "color": self.color,
+            "label": self.label,
+            "is_position_locked": self.is_position_locked,
+            "is_shape_locked": self.is_shape_locked,
+            "is_bounds_constrained": self.is_bounds_constrained,
+        }
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        self.color = graphic_dict.get("color", self.color)
+        self.label = graphic_dict.get("label", self.label)
+        self.is_position_locked = graphic_dict.get("is_position_locked", self.is_position_locked)
+        self.is_shape_locked = graphic_dict.get("is_shape_locked", self.is_shape_locked)
+        self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
+
     def _property_changed(self, name, value):
         self.notify_set_property(name, value)
 
@@ -462,6 +479,15 @@ class RectangleTypeGraphic(Graphic):
         super().__init__(type)
         self.title = title
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
+
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["bounds"] = self.bounds
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.bounds = graphic_dict.get("bounds", self.bounds)
 
     # accessors
 
@@ -710,6 +736,19 @@ class LineTypeGraphic(Graphic):
         self.define_property("start_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
         self.define_property("end_arrow_enabled", False, changed=self._property_changed, validate=lambda value: bool(value))
 
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["vector"] = self.vector
+        d["start_arrow_enabled"] = self.start_arrow_enabled
+        d["end_arrow_enabled"] = self.start_arrow_enabled
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.vector = graphic_dict.get("vector", self.vector)
+        self.start_arrow_enabled = graphic_dict.get("start_arrow_enabled", self.start_arrow_enabled)
+        self.end_arrow_enabled = graphic_dict.get("end_arrow_enabled", self.end_arrow_enabled)
+
     @property
     def start(self):
         return self.vector[0]
@@ -923,6 +962,15 @@ class LineProfileGraphic(LineTypeGraphic):
         self.end_arrow_enabled = True
         # self.interval_descriptors = [{"interval": (0.1, 0.3), "color": "#F00"}, {"interval": (0.7, 0.74), "color": "#0F0"}]
 
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["line_width"] = self.width
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.width = graphic_dict.get("line_width", self.width)
+
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
@@ -986,6 +1034,15 @@ class PointTypeGraphic(Graphic):
         self.title = title
         # start and end points are stored in image normalized coordinates
         self.define_property("position", (0.5, 0.5), changed=self._property_changed, validate=lambda value: tuple(value))
+
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["position"] = self.position
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.position = graphic_dict.get("position", self.position)
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
@@ -1097,6 +1154,15 @@ class IntervalGraphic(Graphic):
         # interval is stored in image normalized coordinates
         self.define_property("interval", (0.0, 1.0), changed=self.__interval_changed, reader=read_interval, writer=write_interval, validate=lambda value: tuple(value))
 
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["interval"] = self.interval
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.interval = graphic_dict.get("interval", self.interval)
+
     @property
     def start(self):
         return self.interval[0]
@@ -1175,6 +1241,15 @@ class ChannelGraphic(Graphic):
         # channel is stored in image normalized coordinates
         self.define_property("position", 0.5, changed=self.__channel_changed, validate=lambda value: float(value))
 
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["position"] = self.position
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.position = graphic_dict.get("position", self.position)
+
     def __channel_changed(self, name, value):
         self._property_changed(name, value)
 
@@ -1219,6 +1294,15 @@ class SpotGraphic(Graphic):
         super().__init__("spot-graphic")
         self.title = _("Spot")
         self.define_property("bounds", ((0.0, 0.0), (1.0, 1.0)), validate=self.__validate_bounds, changed=self.__bounds_changed)
+
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["bounds"] = self.bounds
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.bounds = graphic_dict.get("bounds", self.bounds)
 
     # accessors
 
@@ -1446,6 +1530,15 @@ class WedgeGraphic(Graphic):
         self.__inverted_drag = False
         self.define_property("angle_interval", (0.0, math.pi), validate=validate_angles, changed=self._property_changed)
 
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["angle_interval"] = self.angle_interval
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.angle_interval = graphic_dict.get("angle_interval", self.angle_interval)
+
     @property
     def start_angle(self) -> float:
         return self.angle_interval[0]
@@ -1615,6 +1708,19 @@ class RingGraphic(Graphic):
         self.define_property("radius_1", 0.2, validate=validate_angles, changed=self._property_changed)
         self.define_property("radius_2", 0.2, validate=validate_angles, changed=self._property_changed)
         self.define_property("mode", "band-pass", changed=self._property_changed)
+
+    def mime_data_dict(self) -> dict:
+        d = super().mime_data_dict()
+        d["radius_1"] = self.radius_1
+        d["radius_2"] = self.radius_2
+        d["mode"] = self.mode
+        return d
+
+    def read_from_mime_data(self, graphic_dict: typing.Mapping, is_same_source: bool) -> None:
+        super().read_from_mime_data(graphic_dict, is_same_source)
+        self.radius_1 = graphic_dict.get("radius_1", self.radius_1)
+        self.radius_2 = graphic_dict.get("radius_2", self.radius_2)
+        self.mode = graphic_dict.get("mode", self.mode)
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
