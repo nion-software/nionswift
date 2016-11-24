@@ -133,6 +133,7 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.on_drop = None
         self.on_key_pressed = None
         self.on_key_released = None
+        self.on_select_all = None
         super().close()
 
     @property
@@ -269,6 +270,11 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 return True
         return super().key_released(key)
 
+    def handle_select_all(self):
+        if callable(self.on_select_all):
+            return self.on_select_all()
+        return False
+
 
 class BaseDisplayPanelContent:
     def __init__(self, document_controller):
@@ -339,6 +345,7 @@ class BaseDisplayPanelContent:
         self.__content_canvas_item.on_drop = drop
         self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
         self.__content_canvas_item.on_key_released = self._handle_key_released
+        self.__content_canvas_item.on_select_all = self.select_all
 
         self.on_focused = None
         self.on_close = None
@@ -483,6 +490,9 @@ class BaseDisplayPanelContent:
     def show_context_menu(self, menu, gx, gy):
         if self.on_show_context_menu:
             return self.on_show_context_menu(menu, gx, gy)
+        return False
+
+    def select_all(self):
         return False
 
 
@@ -1165,6 +1175,12 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         target = display_canvas_item
         if hasattr(target, fn):
             getattr(target, fn)(*args, **keywords)
+
+    def select_all(self):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        display = display_specifier.display
+        display.graphic_selection.add_range(range(len(display.graphics)))
+        return True
 
 
 class EmptyDisplayPanelContent(BaseDisplayPanelContent):

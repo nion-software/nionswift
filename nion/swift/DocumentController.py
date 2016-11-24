@@ -142,16 +142,16 @@ class DocumentController(Window.Window):
                 except Exception as e:
                     pass
         # menus
-        self.display_type_menu.on_about_to_show = None
-        self.view_menu.on_about_to_show = None
-        self.window_menu.on_about_to_show = None
-        self.file_menu = None
-        self.edit_menu = None
-        self.processing_menu = None
-        self.view_menu = None
-        self.window_menu = None
-        self.help_menu = None
-        self.library_menu = None
+        self._display_type_menu.on_about_to_show = None
+        self._view_menu.on_about_to_show = None
+        self._window_menu.on_about_to_show = None
+        self._file_menu = None
+        self._edit_menu = None
+        self._processing_menu = None
+        self._view_menu = None
+        self._window_menu = None
+        self._help_menu = None
+        self._library_menu = None
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
@@ -194,39 +194,39 @@ class DocumentController(Window.Window):
     def _create_menus(self):
         # don't use default implementation
 
-        self.file_menu = self.add_menu(_("File"))
+        self._file_menu = self.add_menu(_("File"))
 
-        self.edit_menu = self.add_menu(_("Edit"))
+        self._edit_menu = self.add_menu(_("Edit"))
 
-        self.processing_menu = self.add_menu(_("Processing"))
+        self._processing_menu = self.add_menu(_("Processing"))
 
-        self.view_menu = self.add_menu(_("View"))
+        self._view_menu = self.add_menu(_("View"))
 
-        self.window_menu = self.add_menu(_("Window"))
+        self._window_menu = self.add_menu(_("Window"))
 
-        self.help_menu = self.add_menu(_("Help"))
+        self._help_menu = self.add_menu(_("Help"))
 
-        self.library_menu = self.create_sub_menu()
+        self._library_menu = self.create_sub_menu()
 
         if self.app:
             recent_workspace_file_paths = self.app.get_recent_workspace_file_paths()
             for file_path in recent_workspace_file_paths[0:10]:
                 root_path, file_name = os.path.split(file_path)
                 name, ext = os.path.splitext(file_name)
-                self.library_menu.add_menu_item(name, functools.partial(self.app.switch_library, file_path))
+                self._library_menu.add_menu_item(name, functools.partial(self.app.switch_library, file_path))
             if len(recent_workspace_file_paths) > 0:
-                self.library_menu.add_separator()
-            self.library_menu.add_menu_item(_("Choose..."), functools.partial(self.app.choose_library, self.queue_task))
-            self.library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
+                self._library_menu.add_separator()
+            self._library_menu.add_menu_item(_("Choose..."), functools.partial(self.app.choose_library, self.queue_task))
+            self._library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
 
-        self.new_action = self.file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
-        #self.open_action = self.file_menu.add_menu_item(_("Open"), self.no_operation, key_sequence="open")
-        self.close_action = self.file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
-        self.file_menu.add_separator()
-        self.new_action = self.file_menu.add_sub_menu(_("Switch Library"), self.library_menu)
-        self.file_menu.add_separator()
-        self.import_folder_action = self.file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
-        self.import_action = self.file_menu.add_menu_item(_("Import Data..."), self.import_file)
+        self._new_window_action = self._file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
+        #self._open_action = self._file_menu.add_menu_item(_("Open"), self.no_operation, key_sequence="open")
+        self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
+        self._file_menu.add_separator()
+        self._switch_library_action = self._file_menu.add_sub_menu(_("Switch Library"), self._library_menu)
+        self._file_menu.add_separator()
+        self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
+        self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
         def export_files():
             selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
             if len(selected_data_items) > 1:
@@ -235,158 +235,170 @@ class DocumentController(Window.Window):
                 self.export_file(selected_data_items[0])
             elif self.selected_display_specifier.data_item:
                 self.export_file(self.selected_display_specifier.data_item)
-        self.export_action = self.file_menu.add_menu_item(_("Export..."), export_files)
-        #self.file_menu.add_separator()
-        #self.save_action = self.file_menu.add_menu_item(_("Save"), self.no_operation, key_sequence="save")
-        #self.save_as_action = self.file_menu.add_menu_item(_("Save As..."), self.no_operation, key_sequence="save-as")
-        self.file_menu.add_separator()
-        self.file_menu.add_menu_item(_("Scripts..."), self.new_interactive_script_dialog, key_sequence="Ctrl+R")
-        self.file_menu.add_menu_item(_("Console..."), self.new_console_dialog, key_sequence="Ctrl+K")
-        self.file_menu.add_separator()
-        self.add_group_action = self.file_menu.add_menu_item(_("Add Group"), self.add_group, key_sequence="Ctrl+Shift+N")
-        self.file_menu.add_separator()
-        self.quit_action = self.file_menu.add_menu_item(_("Exit"), lambda: self.app.exit(), key_sequence="quit", role="quit")
+        self._export_action = self._file_menu.add_menu_item(_("Export..."), export_files)
+        #self._file_menu.add_separator()
+        #self._save_action = self._file_menu.add_menu_item(_("Save"), self.no_operation, key_sequence="save")
+        #self._save_as_action = self._file_menu.add_menu_item(_("Save As..."), self.no_operation, key_sequence="save-as")
+        self._file_menu.add_separator()
+        self._file_menu.add_menu_item(_("Scripts..."), self.new_interactive_script_dialog, key_sequence="Ctrl+R")
+        self._file_menu.add_menu_item(_("Console..."), self.new_console_dialog, key_sequence="Ctrl+K")
+        self._file_menu.add_separator()
+        self._add_group_action = self._file_menu.add_menu_item(_("Add Group"), self.add_group, key_sequence="Ctrl+Shift+N")
+        self._file_menu.add_separator()
+        self._page_setup_action = self._file_menu.add_menu_item(_("Page Setup"), self._page_setup)
+        self._print_action = self._file_menu.add_menu_item(_("Print"), self._print, key_sequence="Ctrl+P")
+        self._file_menu.add_separator()
+        self._quit_action = self._file_menu.add_menu_item(_("Exit"), lambda: self.app.exit(), key_sequence="quit", role="quit")
 
-        #self.undo_action = self.edit_menu.add_menu_item(_("Undo"), self.no_operation, key_sequence="undo")
-        #self.redo_action = self.edit_menu.add_menu_item(_("Redo"), self.no_operation, key_sequence="redo")
-        #self.edit_menu.add_separator()
-        #self.cut_action = self.edit_menu.add_menu_item(_("Cut"), self.no_operation, key_sequence="cut")
-        #self.copy_action = self.edit_menu.add_menu_item(_("Copy"), self.no_operation, key_sequence="copy")
-        #self.paste_action = self.edit_menu.add_menu_item(_("Paste"), self.no_operation, key_sequence="paste")
-        #self.delete_action = self.edit_menu.add_menu_item(_("Delete"), self.no_operation, key_sequence="delete")
-        #self.select_all_action = self.edit_menu.add_menu_item(_("Select All"), self.no_operation, key_sequence="select-all")
-        #self.edit_menu.add_separator()
-        self.script_action = self.edit_menu.add_menu_item(_("Script"), self.prepare_data_item_script, key_sequence="Ctrl+Shift+K")
-        self.copy_uuid_action = self.edit_menu.add_menu_item(_("Copy Item UUID"), self.copy_uuid, key_sequence="Ctrl+Shift+U")
-        self.empty_data_item_action = self.edit_menu.add_menu_item(_("Create New Data Item"), self.create_empty_data_item)
-        #self.edit_menu.add_separator()
-        #self.properties_action = self.edit_menu.add_menu_item(_("Properties..."), self.no_operation, role="preferences")
-
+        self._undo_action = self._edit_menu.add_menu_item(_("Undo"), self._undo, key_sequence="undo")
+        self._redo_action = self._edit_menu.add_menu_item(_("Redo"), self._redo, key_sequence="redo")
+        self._edit_menu.add_separator()
+        self._cut_action = self._edit_menu.add_menu_item(_("Cut"), self._cut, key_sequence="cut")
+        self._copy_action = self._edit_menu.add_menu_item(_("Copy"), self._copy, key_sequence="copy")
+        # self._deep_copy_action = self._edit_menu.add_menu_item(_("Deep Copy"), self.__deep_copy, key_sequence="Ctrl+Shift+C")
+        self._paste_action = self._edit_menu.add_menu_item(_("Paste"), self._paste, key_sequence="paste")
+        self._delete_action = self._edit_menu.add_menu_item(_("Delete"), self._delete, key_sequence="delete")
+        self._select_all_action = self._edit_menu.add_menu_item(_("Select All"), self._select_all, key_sequence="select-all")
+        self._edit_menu.add_separator()
+        self._script_action = self._edit_menu.add_menu_item(_("Script"), self.prepare_data_item_script, key_sequence="Ctrl+Shift+K")
+        self._copy_uuid_action = self._edit_menu.add_menu_item(_("Copy Item UUID"), self.copy_uuid, key_sequence="Ctrl+Shift+U")
+        self._empty_data_item_action = self._edit_menu.add_menu_item(_("Create New Data Item"), self.create_empty_data_item)
+        #self._edit_menu.add_separator()
+        #self.properties_action = self._edit_menu.add_menu_item(_("Properties..."), self.no_operation, role="preferences")
 
         # these are temporary menu items, so don't need to assign them to variables, for now
-        self.processing_menu.add_menu_item(_("Add Line Graphic"), self.add_line_graphic)
-        self.processing_menu.add_menu_item(_("Add Ellipse Graphic"), self.add_ellipse_graphic)
-        self.processing_menu.add_menu_item(_("Add Rectangle Graphic"), self.add_rectangle_graphic)
-        self.processing_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
-        self.processing_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
-        self.processing_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
-        self.processing_menu.add_menu_item(_("Add Spot Graphic"), self.add_spot_graphic)
-        self.processing_menu.add_menu_item(_("Add Angle Graphic"), self.add_angle_graphic)
-        self.processing_menu.add_separator()
+        self._processing_menu.add_menu_item(_("Add Line Graphic"), self.add_line_graphic)
+        self._processing_menu.add_menu_item(_("Add Ellipse Graphic"), self.add_ellipse_graphic)
+        self._processing_menu.add_menu_item(_("Add Rectangle Graphic"), self.add_rectangle_graphic)
+        self._processing_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
+        self._processing_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
+        self._processing_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
+        self._processing_menu.add_menu_item(_("Add Spot Graphic"), self.add_spot_graphic)
+        self._processing_menu.add_menu_item(_("Add Angle Graphic"), self.add_angle_graphic)
+        self._processing_menu.add_separator()
 
-        self.processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
-        self.processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
-        self.processing_menu.add_separator()
+        self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
+        self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
+        self._processing_menu.add_separator()
 
-        self.processing_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
-        self.processing_menu.add_menu_item(_("Inverse FFT"), functools.partial(self.__processing_new, self.document_model.get_ifft_new), key_sequence="Ctrl+Shift+F")
-        self.processing_menu.add_menu_item(_("Auto Correlate"), functools.partial(self.__processing_new, self.document_model.get_auto_correlate_new))
-        self.processing_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
-        self.processing_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
-        self.processing_menu.add_separator()
+        self._processing_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
+        self._processing_menu.add_menu_item(_("Inverse FFT"), functools.partial(self.__processing_new, self.document_model.get_ifft_new), key_sequence="Ctrl+Shift+F")
+        self._processing_menu.add_menu_item(_("Auto Correlate"), functools.partial(self.__processing_new, self.document_model.get_auto_correlate_new))
+        self._processing_menu.add_menu_item(_("Cross Correlate"), self.processing_cross_correlate_new)
+        self._processing_menu.add_menu_item(_("Fourier Filter"), self.processing_fourier_filter_new)
+        self._processing_menu.add_separator()
 
-        self.processing_menu.add_menu_item(_("Sobel Filter"), functools.partial(self.__processing_new, self.document_model.get_sobel_new))
-        self.processing_menu.add_menu_item(_("Laplace Filter"), functools.partial(self.__processing_new, self.document_model.get_laplace_new))
-        self.processing_menu.add_menu_item(_("Gaussian Blur"), functools.partial(self.__processing_new, self.document_model.get_gaussian_blur_new))
-        self.processing_menu.add_menu_item(_("Median Filter"), functools.partial(self.__processing_new, self.document_model.get_median_filter_new))
-        self.processing_menu.add_menu_item(_("Uniform Filter"), functools.partial(self.__processing_new, self.document_model.get_uniform_filter_new))
-        self.processing_menu.add_separator()
+        self._processing_menu.add_menu_item(_("Sobel Filter"), functools.partial(self.__processing_new, self.document_model.get_sobel_new))
+        self._processing_menu.add_menu_item(_("Laplace Filter"), functools.partial(self.__processing_new, self.document_model.get_laplace_new))
+        self._processing_menu.add_menu_item(_("Gaussian Blur"), functools.partial(self.__processing_new, self.document_model.get_gaussian_blur_new))
+        self._processing_menu.add_menu_item(_("Median Filter"), functools.partial(self.__processing_new, self.document_model.get_median_filter_new))
+        self._processing_menu.add_menu_item(_("Uniform Filter"), functools.partial(self.__processing_new, self.document_model.get_uniform_filter_new))
+        self._processing_menu.add_separator()
 
-        self.processing_menu.add_menu_item(_("Transpose and Flip"), functools.partial(self.__processing_new, self.document_model.get_transpose_flip_new))
-        self.processing_menu.add_menu_item(_("Resample"), functools.partial(self.__processing_new, self.document_model.get_resample_new))
-        self.processing_menu.add_menu_item(_("Crop"), functools.partial(self.__processing_new, self.document_model.get_crop_new))
-        self.processing_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
-        self.processing_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
-        self.processing_menu.add_menu_item(_("Pick Region"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
-        self.processing_menu.add_menu_item(_("Projection"), self.processing_projection)
-        self.processing_menu.add_menu_item(_("Invert"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
-        self.processing_menu.add_separator()
+        self._processing_menu.add_menu_item(_("Transpose and Flip"), functools.partial(self.__processing_new, self.document_model.get_transpose_flip_new))
+        self._processing_menu.add_menu_item(_("Resample"), functools.partial(self.__processing_new, self.document_model.get_resample_new))
+        self._processing_menu.add_menu_item(_("Crop"), functools.partial(self.__processing_new, self.document_model.get_crop_new))
+        self._processing_menu.add_menu_item(_("Slice Sum"), functools.partial(self.__processing_new, self.document_model.get_slice_sum_new))
+        self._processing_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
+        self._processing_menu.add_menu_item(_("Pick Region"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
+        self._processing_menu.add_menu_item(_("Projection"), self.processing_projection)
+        self._processing_menu.add_menu_item(_("Invert"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
+        self._processing_menu.add_separator()
 
-        self.processing_menu.add_menu_item(_("Line Profile"), functools.partial(self.__processing_new, self.document_model.get_line_profile_new))
-        self.processing_menu.add_menu_item(_("Histogram"), functools.partial(self.__processing_new, self.document_model.get_histogram_new))
-        self.processing_menu.add_menu_item(_("Convert to Scalar"), functools.partial(self.__processing_new, self.document_model.get_convert_to_scalar_new))
-        self.processing_menu.add_separator()
+        self._processing_menu.add_menu_item(_("Line Profile"), functools.partial(self.__processing_new, self.document_model.get_line_profile_new))
+        self._processing_menu.add_menu_item(_("Histogram"), functools.partial(self.__processing_new, self.document_model.get_histogram_new))
+        self._processing_menu.add_menu_item(_("Convert to Scalar"), functools.partial(self.__processing_new, self.document_model.get_convert_to_scalar_new))
+        self._processing_menu.add_separator()
 
         self.__dynamic_live_actions = []
 
         def about_to_show_display_type_menu():
             for dynamic_live_action in self.__dynamic_live_actions:
-                self.display_type_menu.remove_action(dynamic_live_action)
+                self._display_type_menu.remove_action(dynamic_live_action)
             self.__dynamic_live_actions = []
 
             selected_display_panel = self.selected_display_panel
             if not selected_display_panel:
                 return
 
-            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self.display_type_menu, selected_display_panel))
+            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self._display_type_menu, selected_display_panel))
 
-        self.display_type_menu = self.create_sub_menu()
-        self.display_type_menu.on_about_to_show = about_to_show_display_type_menu
+        self._display_type_menu = self.create_sub_menu()
+        self._display_type_menu.on_about_to_show = about_to_show_display_type_menu
 
         # these are temporary menu items, so don't need to assign them to variables, for now
         def fit_to_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_fit_mode")
-        self.fit_view_action = self.view_menu.add_menu_item(_("Fit to View"), fit_to_view, key_sequence="0")
+        self._fit_view_action = self._view_menu.add_menu_item(_("Fit to View"), fit_to_view, key_sequence="0")
         def fill_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_fill_mode")
-        self.fill_view_action = self.view_menu.add_menu_item(_("Fill View"), fill_view, key_sequence="Shift+0")
+        self._fill_view_action = self._view_menu.add_menu_item(_("Fill View"), fill_view, key_sequence="Shift+0")
         def one_to_one_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_one_to_one_mode")
         def two_to_one_view():
             if self.selected_display_panel is not None:
                 self.selected_display_panel.perform_action("set_two_to_one_mode")
-        self.one_to_one_view_action = self.view_menu.add_menu_item(_("1:1 View"), one_to_one_view, key_sequence="1")
-        self.two_to_one_view_action = self.view_menu.add_menu_item(_("2:1 View"), two_to_one_view, key_sequence="2")
-        self.view_menu.add_separator()
-        self.toggle_filter_action = self.view_menu.add_menu_item(_("Filter"), self.toggle_filter, key_sequence="Ctrl+\\")
-        self.view_menu.add_separator()
-        self.view_menu.add_menu_item(_("Previous Workspace"), self.__change_to_previous_workspace, key_sequence="Ctrl+[")
-        self.view_menu.add_menu_item(_("Next Workspace"), self.__change_to_next_workspace, key_sequence="Ctrl+]")
-        self.view_menu.add_separator()
-        self.view_menu.add_menu_item(_("New Workspace"), self.__create_workspace, key_sequence="Ctrl+Alt+L")
-        self.view_menu.add_menu_item(_("Rename Workspace"), self.__rename_workspace)
-        self.view_menu.add_menu_item(_("Remove Workspace"), self.__remove_workspace)
-        self.view_menu.add_separator()
-        self.view_menu.add_sub_menu(_("Display Panel Type"), self.display_type_menu)
-        self.view_menu.add_separator()
+        self._one_to_one_view_action = self._view_menu.add_menu_item(_("1:1 View"), one_to_one_view, key_sequence="1")
+        self._two_to_one_view_action = self._view_menu.add_menu_item(_("2:1 View"), two_to_one_view, key_sequence="2")
+        self._view_menu.add_separator()
+        self._toggle_filter_action = self._view_menu.add_menu_item(_("Filter"), self.toggle_filter, key_sequence="Ctrl+\\")
+        self._view_menu.add_separator()
+        self._view_menu.add_menu_item(_("Previous Workspace"), self.__change_to_previous_workspace, key_sequence="Ctrl+[")
+        self._view_menu.add_menu_item(_("Next Workspace"), self.__change_to_next_workspace, key_sequence="Ctrl+]")
+        self._view_menu.add_separator()
+        self._view_menu.add_menu_item(_("New Workspace"), self.__create_workspace, key_sequence="Ctrl+Alt+L")
+        self._view_menu.add_menu_item(_("Rename Workspace"), self.__rename_workspace)
+        self._view_menu.add_menu_item(_("Remove Workspace"), self.__remove_workspace)
+        self._view_menu.add_separator()
+        self._view_menu.add_sub_menu(_("Display Panel Type"), self._display_type_menu)
+        self._view_menu.add_separator()
 
         self.__dynamic_view_actions = []
 
         def adjust_view_menu():
             for dynamic_view_action in self.__dynamic_view_actions:
-                self.view_menu.remove_action(dynamic_view_action)
+                self._view_menu.remove_action(dynamic_view_action)
             self.__dynamic_view_actions = []
             for workspace in self.document_model.workspaces:
                 def switch_to_workspace(workspace):
                     self.workspace_controller.change_workspace(workspace)
-                action = self.view_menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
+                action = self._view_menu.add_menu_item(workspace.name, functools.partial(switch_to_workspace, workspace))
                 action.checked = self.document_model.workspace_uuid == workspace.uuid
                 self.__dynamic_view_actions.append(action)
 
-        self.view_menu.on_about_to_show = adjust_view_menu
+        self._view_menu.on_about_to_show = adjust_view_menu
 
-        #self.help_action = self.help_menu.add_menu_item(_("Help"), self.no_operation, key_sequence="help")
-        self.about_action = self.help_menu.add_menu_item(_("About"), self.show_about_box, role="about")
+        #self.help_action = self._help_menu.add_menu_item(_("Help"), self.no_operation, key_sequence="help")
+        self._about_action = self._help_menu.add_menu_item(_("About"), self.show_about_box, role="about")
 
-        self.window_menu.add_menu_item(_("Minimize"), lambda: None)
-        self.window_menu.add_menu_item(_("Bring to Front"), lambda: None)
-        self.window_menu.add_separator()
+        self._minimize_action = self._window_menu.add_menu_item(_("Minimize"), self._minimize)
+        self._zoom_action = self._window_menu.add_menu_item(_("Zoom"), self._zoom)
+        self._bring_to_front_action = self._window_menu.add_menu_item(_("Bring to Front"), self._bring_to_front)
+        self._window_menu.add_separator()
 
         self.__dynamic_window_actions = []
 
         def adjust_window_menu():
             for dynamic_window_action in self.__dynamic_window_actions:
-                self.window_menu.remove_action(dynamic_window_action)
+                self._window_menu.remove_action(dynamic_window_action)
             self.__dynamic_window_actions = []
             toggle_actions = [dock_widget.toggle_action for dock_widget in self.workspace_controller.dock_widgets]
             for toggle_action in sorted(toggle_actions, key=operator.attrgetter("title")):
-                self.window_menu.add_action(toggle_action)
+                self._window_menu.add_action(toggle_action)
                 self.__dynamic_window_actions.append(toggle_action)
+            self._window_menu_about_to_show()
 
-        self.window_menu.on_about_to_show = adjust_window_menu
+        self._window_menu.on_about_to_show = adjust_window_menu
+        self._file_menu.on_about_to_show = self._file_menu_about_to_show
+
+        def adjust_edit_menu():
+            # self._deep_copy_action.enabled = self._will_focus_widget_dispatch("handle_deep_copy")
+            self._edit_menu_about_to_show()
+
+        self._edit_menu.on_about_to_show = adjust_edit_menu
 
     def get_menu(self, menu_id):
         assert menu_id.endswith("_menu")
@@ -395,11 +407,11 @@ class DocumentController(Window.Window):
     def get_or_create_menu(self, menu_id, menu_title, before_menu_id):
         assert menu_id.endswith("_menu")
         assert before_menu_id.endswith("_menu") if before_menu_id is not None else True
-        if not hasattr(self, menu_id):
-            before_menu = getattr(self, before_menu_id) if before_menu_id is not None else None
+        if not hasattr(self, "_" + menu_id):
+            before_menu = getattr(self, "_" + before_menu_id) if before_menu_id is not None else None
             menu = self.insert_menu(menu_title, before_menu)
-            setattr(self, menu_id, menu)
-        return getattr(self, menu_id)
+            setattr(self, "_" + menu_id, menu)
+        return getattr(self, "_" + menu_id)
 
     def show_about_box(self):
         version_str = self.app.version_str if self.app else str()
@@ -774,6 +786,13 @@ class DocumentController(Window.Window):
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
         self.__dialogs.append(weakref.ref(console_dialog))
+
+    def __deep_copy(self):
+        self._dispatch_any_to_focus_widget("handle_deep_copy")
+
+    def handle_delete(self):
+        # delete key gets handled by key handlers, but this method gets called by menu items
+        self.remove_selected_graphics()
 
     def add_group(self):
         data_group = DataGroup.DataGroup()

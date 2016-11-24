@@ -108,39 +108,39 @@ class ToolbarPanel(Panel.Panel):
         new_group_button = self.ui.create_push_button_widget()
         new_group_button.tool_tip = _("New Group")
         new_group_button.icon = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/new_group_icon.png"))
-        new_group_button.on_clicked = lambda: document_controller_weak_ref().add_group_action.trigger()
+        new_group_button.on_clicked = lambda: document_controller_weak_ref()._add_group_action.trigger()
 
         delete_button = self.ui.create_push_button_widget()
         delete_button.tool_tip = _("Delete")
         delete_button.icon = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/delete_icon.png"))
-        delete_button.on_clicked = lambda: document_controller_weak_ref().delete_action.trigger()
+        delete_button.on_clicked = lambda: document_controller_weak_ref()._delete_action.trigger()
 
         export_button = self.ui.create_push_button_widget()
         export_button.tool_tip = _("Export")
         export_button.icon = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/export_icon.png"))
-        export_button.on_clicked = lambda: document_controller_weak_ref().export_action.trigger()
+        export_button.on_clicked = lambda: document_controller_weak_ref()._export_action.trigger()
 
         view_palette_grid_canvas_item = CanvasItem.CanvasItemComposition()
         view_palette_grid_canvas_item.layout = CanvasItem.CanvasItemGridLayout(size=Geometry.IntSize(height=2, width=2), margins=margins)
 
         fit_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/fit_icon.png")), border_color=border_color)
         fit_view_button.size = icon_size
-        fit_view_button.on_button_clicked = lambda: document_controller_weak_ref().fit_view_action.trigger()
+        fit_view_button.on_button_clicked = lambda: document_controller_weak_ref()._fit_view_action.trigger()
         fit_view_button.tool_tip = _("Zoom to fit to enclosing space")
 
         fill_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/fill_icon.png")), border_color=border_color)
         fill_view_button.size = icon_size
-        fill_view_button.on_button_clicked = lambda: document_controller_weak_ref().fill_view_action.trigger()
+        fill_view_button.on_button_clicked = lambda: document_controller_weak_ref()._fill_view_action.trigger()
         fill_view_button.tool_tip = _("Zoom to fill enclosing space")
 
         one_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/1x1_icon.png")), border_color=border_color)
         one_to_one_view_button.size = icon_size
-        one_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref().one_to_one_view_action.trigger()
+        one_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref()._one_to_one_view_action.trigger()
         one_to_one_view_button.tool_tip = _("Zoom to one image pixel per screen pixel")
 
         two_to_one_view_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/2x1_icon.png")), border_color=border_color)
         two_to_one_view_button.size = icon_size
-        two_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref().two_to_one_view_action.trigger()
+        two_to_one_view_button.on_button_clicked = lambda: document_controller_weak_ref()._two_to_one_view_action.trigger()
         two_to_one_view_button.tool_tip = _("Zoom to two image pixels per screen pixel")
 
         view_palette_grid_canvas_item.add_canvas_item(fit_view_button, Geometry.IntPoint(x=0, y=0))
@@ -151,7 +151,7 @@ class ToolbarPanel(Panel.Panel):
         toggle_filter_button = self.ui.create_push_button_widget()
         toggle_filter_button.tool_tip = _("Toggle Filter Panel")
         toggle_filter_button.icon = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/filter_icon.png"))
-        toggle_filter_button.on_clicked = lambda: document_controller_weak_ref().toggle_filter_action.trigger()
+        toggle_filter_button.on_clicked = lambda: document_controller_weak_ref()._toggle_filter_action.trigger()
 
         tool_palette_widget = ui.create_canvas_widget(properties={"height": 54, "width": 164})
         tool_palette_widget.canvas_item.add_canvas_item(tool_palette_grid_canvas_item)
