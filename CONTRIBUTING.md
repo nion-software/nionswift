@@ -51,6 +51,7 @@ We will attempt to assign value to an issue based on various criteria, including
 * Addresses data loss or integrity (urgent)
 * Time savings for regular users
 * Overall ease of use for regular users
+* Addresses performance issue
 * Streamlines repetitive tasks
 * Simplifies training
 * Reduces support issues
