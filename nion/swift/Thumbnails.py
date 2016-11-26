@@ -220,22 +220,24 @@ class ThumbnailManager(metaclass=Utility.Singleton):
     """Tracks thumbnails for a Display."""
     def __init__(self):
         self.__thumbnail_sources = dict()
+        self.__lock = threading.RLock()
 
     def thumbnail_source_for_display(self, dispatch_task, ui, display: Display) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
-        thumbnail_source = self.__thumbnail_sources.get(display.uuid)
-        if not thumbnail_source:
-            thumbnail_source = ThumbnailSource(dispatch_task, ui, display)
-            self.__thumbnail_sources[display.uuid] = thumbnail_source
+        with self.__lock:
+            thumbnail_source = self.__thumbnail_sources.get(display.uuid)
+            if not thumbnail_source:
+                thumbnail_source = ThumbnailSource(dispatch_task, ui, display)
+                self.__thumbnail_sources[display.uuid] = thumbnail_source
 
-            def will_delete(thumbnail_source):
-                del self.__thumbnail_sources[thumbnail_source._display.uuid]
+                def will_delete(thumbnail_source):
+                    del self.__thumbnail_sources[thumbnail_source._display.uuid]
 
-            thumbnail_source._on_will_delete = will_delete
-        else:
-            assert thumbnail_source._dispatch_task == dispatch_task
-            assert thumbnail_source._ui == ui
-        return thumbnail_source.add_ref()
+                thumbnail_source._on_will_delete = will_delete
+            else:
+                assert thumbnail_source._dispatch_task == dispatch_task
+                assert thumbnail_source._ui == ui
+            return thumbnail_source.add_ref()
 
     def thumbnail_data_for_display(self, display: Display) -> numpy.ndarray:
         thumbnail_source = self.__thumbnail_sources.get(display.uuid) if display else None

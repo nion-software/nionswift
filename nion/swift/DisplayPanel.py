@@ -1144,7 +1144,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             root_canvas_item = self.canvas_item.root_container
             document_controller = self.document_controller
             # force thumbnail calculation
-            Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.document_model.dispatch_task, document_controller.ui, display_specifier.display).recompute_data()
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.document_model.dispatch_task, document_controller.ui, display_specifier.display)
+            thumbnail_source.recompute_data()
+            thumbnail_source.close()
+            thumbnail_source = None
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(display_specifier.display)
             on_begin_drag = self.on_begin_drag
             if callable(on_begin_drag):
