@@ -428,6 +428,23 @@ class TestSymbolicClass(unittest.TestCase):
                 data_item.maybe_data_source.metadata = metadata
             self.assertTrue(needs_update_ref[0])
 
+    def test_computation_within_document_model_does_not_update_when_graphic_changes_on_source(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.ones((2, 2), numpy.double)
+            data_item = DataItem.DataItem(data)
+            data_item.maybe_data_source.displays[0].add_graphic(Graphics.PointGraphic())
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            needs_update_ref = [False]
+            def needs_update():
+                needs_update_ref[0] = True
+            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            with contextlib.closing(needs_update_event_listener):
+                data_item.maybe_data_source.displays[0].graphics[0].position = (0.3, 0.4)
+            self.assertFalse(needs_update_ref[0])
+
     def test_computation_within_document_model_fires_needs_update_event_when_object_property(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
