@@ -354,8 +354,9 @@ class BaseDisplayPanelContent:
             if self.on_close:
                 self.on_close()
 
-        self.__header_canvas_item.on_select_pressed = lambda: self._select()
-        self.__header_canvas_item.on_drag_pressed = lambda: self._begin_drag()
+        self.__header_canvas_item.on_select_pressed = self._select
+        self.__header_canvas_item.on_drag_pressed = self._begin_drag
+        self.__header_canvas_item.on_context_menu_clicked = self._context_menu_clicked
         self.__header_canvas_item.on_close_clicked = close
 
     def close(self):
@@ -469,6 +470,9 @@ class BaseDisplayPanelContent:
 
     def _begin_drag(self):
         raise NotImplementedError()
+
+    def _context_menu_clicked(self, x, y, gx, gy):
+        return False
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
