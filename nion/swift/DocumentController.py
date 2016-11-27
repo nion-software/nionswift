@@ -79,21 +79,21 @@ class DocumentController(Window.Window):
         self.__weak_periodic_listeners = []
         self.__weak_periodic_listeners_mutex = threading.RLock()
 
-        selection = Selection.IndexedSelection()
+        self.selection = Selection.IndexedSelection()
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
         # data items binding tracks the main list of items selected in the data panel.
         # filtered data items binding tracks the filtered items from those in data items binding.
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding, selection)
+        self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding, self.selection)
         self.__last_display_filter = None
 
         def data_item_will_be_removed(data_item):
             if data_item in self.__filtered_data_items_binding.data_items:
                 index = self.__filtered_data_items_binding.data_items.index(data_item)
-                if selection.contains(index):
-                    selection.remove(index)
+                if self.selection.contains(index):
+                    self.selection.remove(index)
 
         self.__data_item_will_be_removed_event_listener = self.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
 
@@ -105,7 +105,7 @@ class DocumentController(Window.Window):
 
         self.filter_controller = FilterPanel.FilterController(self)
 
-        self.__data_browser_controller = DataPanel.DataBrowserController(self, selection)
+        self.__data_browser_controller = DataPanel.DataBrowserController(self)
 
         self.__consoles = list()
 

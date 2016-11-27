@@ -1240,7 +1240,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
             menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
             return self.show_context_menu(menu, gx, gy)
 
-        self.data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__data_browser_controller.selection)
+        self.data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, document_controller.selection)
         self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_grid_controller.on_context_menu_event = context_menu_event
         self.data_grid_controller.on_display_item_double_clicked = None  # replace current display?
@@ -1304,7 +1304,7 @@ class BrowserDisplayPanelContent(BaseDisplayPanelContent):
         if data_item_index >= 0:
             self.data_grid_controller.set_selected_index(data_item_index)
         else:
-            self.data_grid_controller.selection.clear()
+            self.data_grid_controller.clear_selection()
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):

@@ -195,6 +195,7 @@ class DataListController:
         self.__add_task = add_task
         self.__clear_task = clear_task
         self.ui = ui
+        self.__selection = selection
         self.on_delete_display_items = None
 
         self.__display_items = list()
@@ -220,7 +221,7 @@ class DataListController:
             def paint_item(self, drawing_context, index, rect, is_selected):
                 self.__data_list_controller.paint_item(drawing_context, index, rect, is_selected)
 
-        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), selection)
+        self.__list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), self.__selection)
         def focus_changed(focused):
             self.__list_canvas_item.update()
             if self.on_focus_changed:
@@ -234,12 +235,11 @@ class DataListController:
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
         self.canvas_item = self.scroll_group_canvas_item
-        self.selection = selection
         def selection_changed():
-            self.selected_indexes = list(self.selection.indexes)
+            self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
-                self.on_selection_changed([self.__display_items[index] for index in list(self.selection.indexes)])
-        self.__selection_changed_listener = self.selection.changed_event.listen(selection_changed)
+                self.on_selection_changed([self.__display_items[index] for index in list(self.__selection.indexes)])
+        self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
         self.on_context_menu_event = None
@@ -276,7 +276,7 @@ class DataListController:
             self.__list_canvas_item.update()
 
     def set_selected_index(self, index):
-        self.selection.set(index)
+        self.__selection.set(index)
 
     def make_selection_visible(self):
         self.__list_canvas_item.make_selection_visible()
@@ -284,7 +284,7 @@ class DataListController:
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
         if self.on_delete_display_items:
-            self.on_delete_display_items([self.__display_items[index] for index in self.selection.indexes])
+            self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
 
     @property
     def display_item_count(self):
@@ -379,6 +379,7 @@ class DataGridController:
         self.__add_task = add_task
         self.__clear_task = clear_task
         self.ui = ui
+        self.__selection = selection
         self.on_delete_display_items = None
 
         self.__display_items = list()
@@ -404,7 +405,7 @@ class DataGridController:
             def on_drag_started(self, index, x, y, modifiers):
                 self.__data_grid_controller.drag_started(index, x, y, modifiers)
 
-        self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), selection)
+        self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), self.__selection)
         def icon_view_canvas_item_focus_changed(focused):
             self.icon_view_canvas_item.update()
             if self.on_focus_changed:
@@ -418,12 +419,11 @@ class DataGridController:
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
         self.canvas_item = self.scroll_group_canvas_item
-        self.selection = selection
         def selection_changed():
-            self.selected_indexes = list(self.selection.indexes)
+            self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
-                self.on_selection_changed([self.__display_items[index] for index in list(self.selection.indexes)])
-        self.__selection_changed_listener = self.selection.changed_event.listen(selection_changed)
+                self.on_selection_changed([self.__display_items[index] for index in list(self.__selection.indexes)])
+        self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
         self.on_context_menu_event = None
@@ -462,7 +462,10 @@ class DataGridController:
             self.icon_view_canvas_item.update()
 
     def set_selected_index(self, index):
-        self.selection.set(index)
+        self.__selection.set(index)
+
+    def clear_selection(self):
+        self.__selection.clear()
 
     def make_selection_visible(self):
         self.icon_view_canvas_item.make_selection_visible()
@@ -470,7 +473,7 @@ class DataGridController:
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
         if self.on_delete_display_items:
-            self.on_delete_display_items([self.__display_items[index] for index in self.selection.indexes])
+            self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
 
     @property
     def display_item_count(self):
@@ -553,16 +556,15 @@ class DataGridWidget(Widgets.CompositeWidgetBase):
         super().close()
 
 
-class DataBrowserController(object):
+class DataBrowserController:
 
-    def __init__(self, document_controller, selection):
+    def __init__(self, document_controller):
         self.document_controller = document_controller
         self.__focused = False
         self.__data_group = None
         self.__data_item = None
         self.__filter_id = None
         self.__selected_display_items = list()
-        self.selection = selection
         self.filter_changed_event = Event.Event()
         self.selection_changed_event = Event.Event()
         self.selected_data_items_changed_event = Event.Event()
@@ -1084,7 +1086,7 @@ class DataPanel(Panel.Panel):
             menu.popup(gx, gy)
             return True
 
-        selection = self.__data_browser_controller.selection
+        selection = self.document_controller.selection
         self.data_list_controller = DataListController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
         self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
         self.data_list_controller.on_context_menu_event = show_context_menu
@@ -1244,13 +1246,13 @@ class DataPanel(Panel.Panel):
                 self.data_list_controller.set_selected_index(data_item_index)
                 self.data_list_controller.make_selection_visible()
             else:
-                self.data_list_controller.selection.clear()
+                self.document_controller.selection.clear()
         else:
             if data_item_index >= 0:
                 self.data_grid_controller.set_selected_index(data_item_index)
                 self.data_grid_controller.make_selection_visible()
             else:
-                self.data_grid_controller.selection.clear()
+                self.document_controller.selection.clear()
 
     def library_model_receive_files(self, file_paths, threaded=True):
         def receive_files_complete(received_data_items):
