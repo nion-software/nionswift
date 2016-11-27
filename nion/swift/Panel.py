@@ -117,6 +117,7 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None
+        self.on_context_menu_clicked = None
         self.__start_header_color = "#ededed"
         self.__end_header_color = "#cacaca"
         self.__mouse_pressed_position = None
@@ -125,6 +126,7 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None
+        self.on_context_menu_clicked = None
         super().close()
 
     def __str__(self):
@@ -202,6 +204,11 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
                 on_select_pressed()
         self.__mouse_pressed_position = None
         return True
+
+    def context_menu_event(self, x, y, gx, gy):
+        if callable(self.on_context_menu_clicked):
+            return self.on_context_menu_clicked(x, y, gx, gy)
+        return False
 
     def _repaint(self, drawing_context):
 
