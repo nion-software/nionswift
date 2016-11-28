@@ -106,6 +106,8 @@ TODO: Describe how to find code and build the project.
 Tests
 -----
 TODO: Describe how to run tests.
+As much as possible, tests should test run high level functionality which
+exercises low level functionality. This makes them most general.
 
 [group-discuss]: https://groups.google.com/group/nionswift
 [issue-tracker]: https://github.com/nion-software/nionswift/issues
