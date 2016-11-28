@@ -452,7 +452,7 @@ class BaseDisplayPanelContent:
         return self.__content_canvas_item.focused
 
     @property
-    def data_item(self):
+    def _data_item(self):
         """Return the data item in this image panel, if any."""
         return None
 
@@ -506,6 +506,9 @@ class DataItemDataSourceDisplay:
         self.__data_item = data_item
         self.__delegate = delegate
         self.__display_type = display_type
+        self.__display_changed_event_listener = None
+        self.__display_graphic_selection_changed_event_listener = None
+
         if self.__display_type == "line_plot":
             self.__display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, self)
         elif self.__display_type == "image":
@@ -894,7 +897,6 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
 class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     def __init__(self, document_controller):
-
         super().__init__(document_controller)
 
         self.__data_item = None
@@ -905,7 +907,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         # if the data item displayed in this panel gets deleted, remove it from this panel.
 
         def data_item_deleted(data_item):
-            if data_item == self.data_item:
+            if data_item == self._data_item:
                 self.set_displayed_data_item(None)
 
         document_model = self.document_controller.document_model
@@ -963,7 +965,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
-        data_item = self.data_item
+        data_item = self._data_item
         if data_item:
             d["data_item_uuid"] = str(data_item.uuid)
         return d
@@ -1003,14 +1005,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return self.ui.get_font_metrics(font, text)
 
     @property
-    def data_item(self):
-        """Return the data item displayed in this image panel. May be None."""
+    def _data_item(self):
         return self.__data_item
 
     @property
     def display_specifier(self):
         """Convenience method."""
-        return DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        return DataItem.DisplaySpecifier.from_data_item(self._data_item)
 
     def __set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -1020,7 +1021,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if not display_panel_controller:
             self.header_canvas_item.reset_header_colors()
         if self.__display_panel_controller:
-            self.set_displayed_data_item(self.__data_item)
+            self.set_displayed_data_item(self._data_item)
 
     def __display_type_changed(self, display_type):
         # called when the display type of the data item changes.
@@ -1089,7 +1090,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
                     document_controller.display_data_item(new_display_specifier)
 
-            self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self.__data_item, Delegate(), display_type, self.ui.get_font_metrics)
+            self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self._data_item, Delegate(), display_type, self.ui.get_font_metrics)
             self.content_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
         if self.content_canvas_item:
             self.content_canvas_item.update()
@@ -1103,7 +1104,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if data_item:
             data_item.increment_data_ref_counts()  # ensure data stays in memory while displayed
         # track data item in this class to report changes
-        old_data_item = self.__data_item
+        old_data_item = self._data_item
         if old_data_item:
             old_data_item.decrement_data_ref_counts()  # release old data from memory
 
@@ -1124,7 +1125,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         def metadata_changed():
             if self.header_canvas_item:  # may be closed
-                self.header_canvas_item.title = self.__data_item.displayed_title if self.__data_item else None
+                self.header_canvas_item.title = self._data_item.displayed_title if self._data_item else None
 
         if data_item:
             self.__data_item_metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
@@ -1141,7 +1142,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self._data_item)
         if display_specifier.data_item is not None:
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
@@ -1184,7 +1185,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             getattr(target, fn)(*args, **keywords)
 
     def select_all(self):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self._data_item)
         display = display_specifier.display
         display.graphic_selection.add_range(range(len(display.graphics)))
         return True
@@ -1478,7 +1479,7 @@ class DisplayPanel:
 
     @property
     def data_item(self):
-        return self.__display_panel_content.data_item
+        return self.__display_panel_content._data_item
 
     def save_contents(self):
         d = self.__display_panel_content.save_contents()
