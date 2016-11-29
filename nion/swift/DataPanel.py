@@ -328,6 +328,7 @@ class DataListController:
 
     # this message comes from the styled item delegate
     def paint_item(self, drawing_context, index, rect, is_selected):
+        assert 0 <= index < len(self.__display_items)
         display_item = self.__display_items[index]
         with drawing_context.saver():
             draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
@@ -373,7 +374,7 @@ class DataGridController:
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, dispatch_task, add_task, clear_task, ui, selection):
+    def __init__(self, dispatch_task, add_task, clear_task, ui, selection, direction=GridCanvasItem.Direction.Row, wrap=True):
         super(DataGridController, self).__init__()
         self.dispatch_task = dispatch_task
         self.__add_task = add_task
@@ -405,7 +406,7 @@ class DataGridController:
             def on_drag_started(self, index, x, y, modifiers):
                 self.__data_grid_controller.drag_started(index, x, y, modifiers)
 
-        self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), self.__selection)
+        self.icon_view_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(self), self.__selection, direction, wrap)
         def icon_view_canvas_item_focus_changed(focused):
             self.icon_view_canvas_item.update()
             if self.on_focus_changed:
@@ -413,11 +414,23 @@ class DataGridController:
         self.icon_view_canvas_item.on_focus_changed = icon_view_canvas_item_focus_changed
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.icon_view_canvas_item)
         self.scroll_area_canvas_item.auto_resize_contents = True
-        self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
-        self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        if (wrap and direction == GridCanvasItem.Direction.Row) or (not wrap and direction == GridCanvasItem.Direction.Column):
+            self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
+            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        else:
+            self.scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item)
         self.scroll_group_canvas_item.add_canvas_item(self.scroll_bar_canvas_item)
+        if False:  # dual scroll bars, leave here for easy testing
+            self.vertical_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item)
+            self.horizontal_scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
+            self.scroll_group_canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
+            self.scroll_group_canvas_item.add_canvas_item(self.scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
+            self.scroll_group_canvas_item.add_canvas_item(self.vertical_scroll_bar_canvas_item, Geometry.IntPoint(x=1, y=0))
+            self.scroll_group_canvas_item.add_canvas_item(self.horizontal_scroll_bar_canvas_item, Geometry.IntPoint(x=0, y=1))
+
         self.canvas_item = self.scroll_group_canvas_item
         def selection_changed():
             self.selected_indexes = list(self.__selection.indexes)
@@ -567,7 +580,6 @@ class DataBrowserController:
         self.__selected_display_items = list()
         self.filter_changed_event = Event.Event()
         self.selection_changed_event = Event.Event()
-        self.selected_data_items_changed_event = Event.Event()
         self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
         # TODO: Restructure data browser controller to avoid using re-entry flag
         self.__blocked = False  # ugh. the smell of bad design.
