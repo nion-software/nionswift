@@ -285,6 +285,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
         # and put the composition into a scroll area
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__composite_canvas_item)
+        self.scroll_area_canvas_item._constrain_position = False  # temporary until scroll bars are implemented
         self.scroll_area_canvas_item.on_layout_updated = lambda canvas_origin, canvas_size, trigger_update: self.__scroll_area_canvas_item_layout_updated(canvas_size, trigger_update)
         # info overlay (scale marker, etc.)
         self.__info_overlay_canvas_item = InfoOverlayCanvasItem()
