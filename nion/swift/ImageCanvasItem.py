@@ -786,7 +786,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__last_drag_pos = (y, x)
         return True
 
-    def wheel_changed(self, dx, dy, is_horizontal):
+    def wheel_changed(self, x, y, dx, dy, is_horizontal):
         if self.__mouse_in:
             dx = dx if is_horizontal else 0.0
             dy = dy if not is_horizontal else 0.0
