@@ -165,6 +165,7 @@ class DataListController:
 
     The controller provides the following callbacks:
         on_delete_display_items(display_items)
+        on_key_pressed(key)
         on_selection_changed(display_items)
         on_display_item_double_clicked(display_item)
         on_focus_changed(focused)
@@ -188,6 +189,7 @@ class DataListController:
         self.ui = ui
         self.__selection = selection
         self.on_delete_display_items = None
+        self.on_key_pressed = None
 
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
@@ -205,6 +207,9 @@ class DataListController:
 
             def on_delete_pressed(self):
                 self.__data_list_controller._delete_pressed()
+
+            def on_key_pressed(self, key):
+                return self.__data_list_controller._key_pressed(key)
 
             def on_drag_started(self, index, x, y, modifiers):
                 self.__data_list_controller.drag_started(index, x, y, modifiers)
@@ -256,6 +261,7 @@ class DataListController:
         self.on_drag_started = None
         self.on_focus_changed = None
         self.on_delete_display_items = None
+        self.on_key_pressed = None
 
     def __update_display_items(self):
         # handle the 'changed' stuff. a call to this function is scheduled
@@ -274,8 +280,14 @@ class DataListController:
 
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
-        if self.on_delete_display_items:
+        if callable(self.on_delete_display_items):
             self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
+
+    # this message comes from the canvas item when a key is pressed
+    def _key_pressed(self, key):
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(key)
+        return False
 
     @property
     def display_item_count(self):
@@ -347,6 +359,7 @@ class DataGridController:
 
     The controller provides the following callbacks:
         on_delete_display_items(display_items)
+        on_key_pressed(key)
         on_selection_changed(display_items)
         on_display_item_double_clicked(display_item)
         on_focus_changed(focused)
@@ -372,6 +385,7 @@ class DataGridController:
         self.ui = ui
         self.__selection = selection
         self.on_delete_display_items = None
+        self.on_key_pressed = None
 
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
@@ -392,6 +406,9 @@ class DataGridController:
 
             def on_delete_pressed(self):
                 self.__data_grid_controller._delete_pressed()
+
+            def on_key_pressed(self, key):
+                return self.__data_grid_controller._key_pressed(key)
 
             def on_drag_started(self, index, x, y, modifiers):
                 self.__data_grid_controller.drag_started(index, x, y, modifiers)
@@ -455,6 +472,7 @@ class DataGridController:
         self.on_drag_started = None
         self.on_focus_changed = None
         self.on_delete_display_items = None
+        self.on_key_pressed = None
         self.__closed = True
 
     def __update_display_items(self):
@@ -475,8 +493,14 @@ class DataGridController:
 
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
-        if self.on_delete_display_items:
+        if callable(self.on_delete_display_items):
             self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
+
+    # this message comes from the canvas item when a key is pressed
+    def _key_pressed(self, key):
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(key)
+        return False
 
     @property
     def display_item_count(self):
@@ -1048,6 +1072,7 @@ class DataPanel(Panel.Panel):
                     container = self.data_group_model_controller.get_data_group_of_parent(parent_row, parent_id)
                     container = container if container else self.document_controller.document_model
                     self.document_controller.remove_data_group_from_container(data_group, container)
+                return True
             return False
 
         self.data_group_widget = ui.create_tree_widget()
