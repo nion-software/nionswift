@@ -40,7 +40,7 @@ _ = gettext.gettext
 """
 
 
-class DisplayItem(object):
+class DisplayItem:
     """ Provide a simplified interface to a data item for the purpose of display.
 
         The data_item property is always valid.
@@ -55,7 +55,6 @@ class DisplayItem(object):
             (property, read-only) format_str
             (property, read-only) status_str
             (method) draw_thumbnail(dispatch_task, ui, drawing_context, draw_rect)
-            (method) get_mime_data(ui)
             (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
             (event) needs_update_event
     """
@@ -142,17 +141,10 @@ class DisplayItem(object):
                 return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
 
-    def get_mime_data(self, ui):
+    def drag_started(self, ui, x, y, modifiers):
         data_item = self.__data_item
         mime_data = ui.create_mime_data()
         mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-        return mime_data
-
-    def drag_started(self, ui, x, y, modifiers):
-        data_item = self.__data_item
-        mime_data = self.get_mime_data(ui)
-        display_specifier = data_item.primary_display_specifier
-        display = display_specifier.display
         self.__create_thumbnail_source()
         thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
         return mime_data, thumbnail_data
@@ -185,7 +177,6 @@ class DataListController:
         (property, read-only) format_str
         (property, read-only) status_str
         (method) draw_thumbnail(dispatch_task, ui, draw_rect)
-        (method) get_mime_data(ui)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
@@ -201,7 +192,7 @@ class DataListController:
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
 
-        class ListCanvasItemDelegate(object):
+        class ListCanvasItemDelegate:
             def __init__(self, data_list_controller):
                 self.__data_list_controller = data_list_controller
 
@@ -370,7 +361,6 @@ class DataGridController:
         (property, read-only) format_str
         (property, read-only) status_str
         (method) draw_thumbnail(dispatch_task, ui, draw_rect)
-        (method) get_mime_data(ui)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
@@ -386,7 +376,7 @@ class DataGridController:
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
 
-        class GridCanvasItemDelegate(object):
+        class GridCanvasItemDelegate:
             def __init__(self, data_grid_controller):
                 self.__data_grid_controller = data_grid_controller
 
@@ -684,7 +674,7 @@ class DataBrowserController:
                 self.document_controller.periodic()  # keep the display items in data panel consistent.
 
 
-class LibraryModelController(object):
+class LibraryModelController:
     """Controller for a list of top level library items."""
 
     def __init__(self, ui, item_controllers):
@@ -735,7 +725,7 @@ class LibraryModelController(object):
         return self.item_model_controller.NONE
 
 
-class DataGroupModelController(object):
+class DataGroupModelController:
     """ A tree model of the data groups. this class watches for changes to the data groups contained in the document
     controller and responds by updating the item model controller associated with the data group tree view widget. it
     also handles drag and drop and keeps the current selection synchronized with the image panel. """
@@ -970,7 +960,7 @@ class DataPanel(Panel.Panel):
         self.__filter_changed_event_listener = self.__data_browser_controller.filter_changed_event.listen(self.__data_panel_filter_changed)
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
 
-        class LibraryItemController(object):
+        class LibraryItemController:
 
             def __init__(self, base_title, binding):
                 self.__base_title = base_title
