@@ -13,6 +13,7 @@ import threading
 
 # local libraries
 from nion.utils import Binding
+from nion.ui import Selection
 
 
 class AbstractDataItemsBinding(Binding.Binding):
@@ -320,7 +321,9 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
     def __init__(self, data_items_binding, selection=None):
         super(DataItemsFilterBinding, self).__init__()
         self.__master_data_items = list()
-        self.__selection = selection
+        self.__selections = list()
+        if selection:
+            self.__selections.append(selection)
         self.__data_items_binding = data_items_binding
         self.__data_items_binding.inserters[id(self)] = self.__data_item_inserted
         self.__data_items_binding.removers[id(self)] = self.__data_item_removed
@@ -337,6 +340,14 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
         self.__master_data_items = None
         self.__data_items_binding = None
         super(DataItemsFilterBinding, self).close()
+
+    def make_selection(self):
+        selection = Selection.IndexedSelection()
+        self.__selections.append(selection)
+        return selection
+
+    def release_selection(self, selection):
+        self.__selections.remove(selection)
 
     # thread safe.
     def __data_item_inserted(self, data_item, before_index):
@@ -355,8 +366,8 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
             self.__data_item_content_changed_event_listeners[data_item.uuid] = data_item_content_changed_event_listener
             self._inserted_master_data_item(before_index, data_item)
-            if self.__selection:
-                self.__selection.insert_index(before_index)
+            for selection in self.__selections:
+                selection.insert_index(before_index)
 
     # thread safe.
     def __data_item_removed(self, data_item, index):
@@ -368,8 +379,8 @@ class DataItemsFilterBinding(AbstractDataItemsBinding):
             self.__data_item_content_changed_event_listeners[data_item.uuid].close()
             del self.__data_item_content_changed_event_listeners[data_item.uuid]
             self._removed_master_data_item(index, data_item)
-            if self.__selection:
-                self.__selection.remove_index(index)
+            for selection in self.__selections:
+                selection.remove_index(index)
 
     # thread safe
     def _get_master_data_items(self):
