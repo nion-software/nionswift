@@ -21,6 +21,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
+from nion.ui import GridCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
 
@@ -899,6 +900,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def __init__(self, document_controller):
         super().__init__(document_controller)
 
+        dispatch_task = document_controller.document_model.dispatch_task
+        ui = document_controller.ui
+
         self.__data_item = None
         self.__display_type_monitor = DataItemDisplayTypeMonitor()
         self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(self.__display_type_changed)
@@ -926,7 +930,86 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model)
         self.__shortcuts_canvas_item.on_drag = document_controller.drag
-        self.content_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
+
+        self.__data_item_display_canvas_item = CanvasItem.CanvasItemComposition()
+
+        self.__data_item_display_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
+
+        self.__data_browser_controller = DataPanel.DataBrowserController(document_controller)
+        self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
+
+        def context_menu_event(display_item, x, y, gx, gy):
+            menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
+            return self.show_context_menu(menu, gx, gy)
+
+        self.__selection = document_controller.filtered_data_items_binding.make_selection()
+
+        def data_list_drag_started(mime_data, thumbnail_data):
+            self.content_canvas_item.root_container.canvas_widget.drag(mime_data, thumbnail_data)
+
+        def key_pressed(key):
+            if key.text == "v":
+                self.__cycle_display()
+                return True
+            return False
+
+        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
+        self.__horizontal_data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
+        self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
+        self.__horizontal_data_grid_controller.on_display_item_double_clicked = None  # replace current display?
+        self.__horizontal_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.__horizontal_data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
+        self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
+        self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
+
+        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection)
+        self.__grid_data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
+        self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
+        self.__grid_data_grid_controller.on_display_item_double_clicked = None  # replace current display?
+        self.__grid_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.__grid_data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
+        self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
+        self.__grid_data_grid_controller.on_key_pressed = key_pressed
+
+        self.__display_items = list()
+
+        def data_item_inserted(data_item, before_index):
+            if self.__display_items is not None:  # closed?
+                display_item = DataPanel.DisplayItem(data_item, dispatch_task, ui)
+                self.__display_items.insert(before_index, display_item)
+                self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
+                self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
+
+        def data_item_removed(index):
+            if self.__display_items is not None:  # closed?
+                self.__horizontal_data_grid_controller.display_item_removed(index)
+                self.__grid_data_grid_controller.display_item_removed(index)
+                self.__display_items[index].close()
+                del self.__display_items[index]
+
+        self.__binding = document_controller.filtered_data_items_binding
+        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
+        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
+
+        for index, data_item in enumerate(self.__binding.data_items):
+            data_item_inserted(data_item, index)
+
+        self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
+        self.__horizontal_browser_canvas_item.sizing.set_fixed_height(80)
+        self.__horizontal_browser_canvas_item.visible = False
+
+        self.__grid_browser_canvas_item = self.__grid_data_grid_controller.canvas_item
+        self.__grid_browser_canvas_item.visible = False
+
+        self.__combo_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__combo_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__combo_canvas_item.add_canvas_item(self.__data_item_display_canvas_item)
+        self.__combo_canvas_item.add_canvas_item(self.__horizontal_browser_canvas_item)
+        self.__combo_canvas_item.add_canvas_item(self.__grid_browser_canvas_item)
+
+        self.content_canvas_item.add_canvas_item(self.__combo_canvas_item)
+
+        self.__data_item_changed = False  # put this at end of init to avoid transient initialization states
 
     def close(self):
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
@@ -943,6 +1026,19 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_type_changed_event_listener = None
         self.__display_type_monitor.close()
         self.__display_type_monitor = None
+        del self.__binding.inserters[id(self)]
+        del self.__binding.removers[id(self)]
+        self.__horizontal_data_grid_controller.close()
+        self.__horizontal_data_grid_controller = None
+        self.__grid_data_grid_controller.close()
+        self.__grid_data_grid_controller = None
+        for display_item in self.__display_items:
+            display_item.close()
+        self.__display_items = None
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = None
+        self.document_controller.filtered_data_items_binding.release_selection(self.__selection)
+        self.__selection = None
         super().close()
 
     @property
@@ -968,6 +1064,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         data_item = self._data_item
         if data_item:
             d["data_item_uuid"] = str(data_item.uuid)
+        if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
+            d["browser_type"] = "horizontal"
+        if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
+            d["browser_type"] = "grid"
         return d
 
     def restore_contents(self, d):
@@ -980,6 +1080,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
                 if data_item:
                     self.set_displayed_data_item(data_item)
+            self.__update_selection_to_data_item()
+            if d.get("browser_type") == "horizontal":
+                self.__switch_to_horizontal_browser()
+            elif d.get("browser_type") == "grid":
+                self.__switch_to_grid_browser()
+            else:
+                self.__switch_to_no_browser()
 
     def image_clicked(self, image_position, modifiers):
         if callable(self.on_image_clicked):
@@ -1026,7 +1133,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def __display_type_changed(self, display_type):
         # called when the display type of the data item changes.
         if self.__display_canvas_item_delegate:
-            self.content_canvas_item.remove_canvas_item(self.__display_canvas_item_delegate.display_canvas_item)
+            self.__data_item_display_canvas_item.remove_canvas_item(self.__display_canvas_item_delegate.display_canvas_item)
             self.__display_canvas_item_delegate.close()
             self.__display_canvas_item_delegate = None
         display_panel_content = self
@@ -1091,9 +1198,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     document_controller.display_data_item(new_display_specifier)
 
             self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self._data_item, Delegate(), display_type, self.ui.get_font_metrics)
-            self.content_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
-        if self.content_canvas_item:
-            self.content_canvas_item.update()
+            self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
+        if self.__data_item_display_canvas_item:
+            self.__data_item_display_canvas_item.update()
 
     # sets the data item that this panel displays
     # not thread safe
@@ -1132,10 +1239,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         metadata_changed()
 
-        if self.content_canvas_item:  # may be closed
+        if self.__data_item_display_canvas_item:  # may be closed
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.content_canvas_item.wants_mouse_events = self.__display_canvas_item_delegate is None
-            self.content_canvas_item.selected = display_specifier.display is not None and self._is_selected()
+            self.__data_item_display_canvas_item.wants_mouse_events = self.__display_canvas_item_delegate is None
+            self.__data_item_display_canvas_item.selected = display_specifier.display is not None and self._is_selected()
 
     def _select(self):
         self.content_canvas_item.request_focus()
@@ -1166,7 +1273,51 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
             return True
+        if self.__display_panel_controller is None:
+            # cycle views is only valid if there is no display_panel_controller
+            if key.text == "v":
+                self.__cycle_display()
+                return True
         return super()._handle_key_pressed(key)
+
+    def __cycle_display(self):
+        # make sure the item is selected if it is in the list
+        self.__update_selection_to_data_item()
+        # the second part of the if statement below handles the case where the data item has been changed by
+        # the user so the cycle should go back to the main display.
+        if self.__data_item_display_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__data_item_changed):
+            if self.__horizontal_browser_canvas_item.visible:
+                self.__switch_to_grid_browser()
+                self.__grid_data_grid_controller.icon_view_canvas_item.request_focus()
+            else:
+                self.__switch_to_horizontal_browser()
+                self.__horizontal_data_grid_controller.icon_view_canvas_item.request_focus()
+        else:
+            self.__switch_to_no_browser()
+            self._select()
+        self.__data_item_changed = False
+
+    def __update_selection_to_data_item(self):
+        data_items = [display_item.data_item for display_item in self.__display_items]
+        if self.__data_item in data_items:
+            self.__selection.set(data_items.index(self.__data_item))
+            self.__horizontal_data_grid_controller.make_selection_visible()
+            self.__grid_data_grid_controller.make_selection_visible()
+
+    def __switch_to_no_browser(self):
+        self.__data_item_display_canvas_item.visible = True
+        self.__horizontal_browser_canvas_item.visible = False
+        self.__grid_browser_canvas_item.visible = False
+
+    def __switch_to_horizontal_browser(self):
+        self.__data_item_display_canvas_item.visible = True
+        self.__horizontal_browser_canvas_item.visible = True
+        self.__grid_browser_canvas_item.visible = False
+
+    def __switch_to_grid_browser(self):
+        self.__data_item_display_canvas_item.visible = False
+        self.__horizontal_browser_canvas_item.visible = False
+        self.__grid_browser_canvas_item.visible = True
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
@@ -1190,6 +1341,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         display.graphic_selection.add_range(range(len(display.graphics)))
         return True
 
+    def __data_panel_selection_changed(self, data_item):
+        self.set_displayed_data_item(data_item)
+        self.__data_item_changed = True
 
 class EmptyDisplayPanelContent(BaseDisplayPanelContent):
 
