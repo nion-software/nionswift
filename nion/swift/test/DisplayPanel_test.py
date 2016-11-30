@@ -480,11 +480,12 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_delete_key_when_graphic_selected_removes_the_graphic(self):
         self.document_controller.add_rectangle_graphic()
         modifiers = CanvasItem.KeyboardModifiers()
+        # focus click
+        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(500, 500, modifiers)  # click on graphic
         # check assumptions
         self.assertEqual(len(self.display_specifier.display.graphics), 1)
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         # do focusing click, then delete
-        self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
         # check results
         self.assertEqual(len(self.display_specifier.display.graphics), 0)
@@ -494,7 +495,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         # check assumptions
         self.assertIsNotNone(self.display_panel.data_item)
         # do focusing click, then delete
-        self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
         # check results
         self.assertIsNotNone(self.display_panel.data_item)
@@ -1003,7 +1004,7 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_key_gets_dispatched_to_image_canvas_item(self):
         modifiers = CanvasItem.KeyboardModifiers()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "up", modifiers))
         # self.display_panel.display_canvas_item.key_pressed(TestUI.Key(None, "up", modifiers))  # direct dispatch, should work
         self.assertEqual(self.display_panel.display_canvas_item.scroll_area_canvas_item.content.canvas_rect, ((-10, 0), (1000, 1000)))
@@ -1080,7 +1081,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.display_specifier.display.display_limits)
         modifiers = CanvasItem.KeyboardModifiers()
         # focus and enter key
-        self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         self.assertEqual(self.display_specifier.display.display_limits, (0, 0))
         with self.data_item.maybe_data_source.data_ref() as dr:
@@ -1148,7 +1149,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNone(self.display_specifier.display.display_limits)
         # focus on the display panel, then press the enter key
         modifiers = CanvasItem.KeyboardModifiers()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_mouse_clicked(100, 100, modifiers)
+        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         # confirm that display limits were set
         self.assertIsNotNone(self.display_specifier.display.display_limits)
