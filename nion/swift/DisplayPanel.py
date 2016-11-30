@@ -2,6 +2,7 @@
 import copy
 import functools
 import gettext
+import json
 import math
 import random
 import string
@@ -25,7 +26,11 @@ from nion.ui import GridCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
 
+
 _ = gettext.gettext
+
+
+DISPLAY_PANEL_MIME_TYPE = "text/vnd.nion.display_panel_type"
 
 
 # coordinate systems:
@@ -1054,6 +1059,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
         return display_canvas_item
 
+    @property
+    def _display_items_for_test(self):
+        return self.__display_items
+
     # save and restore the contents of the image panel
 
     def save_contents(self):
@@ -1087,6 +1096,21 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 self.__switch_to_grid_browser()
             else:
                 self.__switch_to_no_browser()
+
+    @property
+    def _is_result_panel(self) -> bool:
+        return not self._data_item and not self.__grid_browser_canvas_item.visible and not self.__display_panel_controller
+
+    @property
+    def _display_panel_type(self):
+        if self.__horizontal_browser_canvas_item.visible:
+            return "horizontal"
+        elif self.__grid_browser_canvas_item.visible:
+            return "grid"
+        elif self.__data_item:
+            return "data_item"
+        else:
+            return "empty"
 
     def image_clicked(self, image_position, modifiers):
         if callable(self.on_image_clicked):
@@ -1253,6 +1277,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if display_specifier.data_item is not None:
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
+            mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
             root_canvas_item = self.canvas_item.root_container
             document_controller = self.document_controller
             # force thumbnail calculation
@@ -1345,131 +1370,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.set_displayed_data_item(data_item)
         self.__data_item_changed = True
 
-class EmptyDisplayPanelContent(BaseDisplayPanelContent):
-
-    def __init__(self, document_controller):
-        super().__init__(document_controller)
-
-        enclosing_self = self
-
-        class ContextMenuCanvasItem(CanvasItem.EmptyCanvasItem):
-            def context_menu_event(self, x, y, gx, gy):
-                menu = document_controller.create_context_menu()
-                return enclosing_self.show_context_menu(menu, gx, gy)
-
-        empty_canvas_item = ContextMenuCanvasItem()
-        self.content_canvas_item.add_canvas_item(empty_canvas_item)
-
-    def save_contents(self):
-        d = super().save_contents()
-        d["display-panel-type"] = "empty-display-panel"
-        return d
-
-    # this gets called when the user initiates a drag in the drag control to move the panel around
-    def _begin_drag(self):
-        mime_data = self.ui.create_mime_data()
-        mime_data.set_data_as_string("text/display_panel_type", "empty-display-panel")
-        root_canvas_item = self.canvas_item.root_container
-        on_begin_drag = self.on_begin_drag
-        if callable(on_begin_drag):
-            on_begin_drag(root_canvas_item.canvas_widget, mime_data, None)
-
-
-class BrowserDisplayPanelContent(BaseDisplayPanelContent):
-
-    def __init__(self, document_controller):
-        super().__init__(document_controller)
-
-        dispatch_task = document_controller.document_model.dispatch_task
-        ui = document_controller.ui
-
-        self.header_canvas_item.end_header_color = "#FFC"
-        self.header_canvas_item.title = _("Browser")
-        self.content_canvas_item.focused_style = None
-        self.content_canvas_item.selected_style = None
-
-        self.__data_browser_controller = document_controller.data_browser_controller
-        self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
-
-        def context_menu_event(display_item, x, y, gx, gy):
-            menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
-            return self.show_context_menu(menu, gx, gy)
-
-        self.data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, document_controller.selection)
-        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
-        self.data_grid_controller.on_context_menu_event = context_menu_event
-        self.data_grid_controller.on_display_item_double_clicked = None  # replace current display?
-        self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
-
-        def data_list_drag_started(mime_data, thumbnail_data):
-            self.data_grid_controller.canvas_item.root_container.canvas_widget.drag(mime_data, thumbnail_data)
-
-        self.data_grid_controller.on_drag_started = data_list_drag_started
-
-        def data_item_inserted(data_item, before_index):
-            display_item = DataPanel.DisplayItem(data_item, dispatch_task, ui)
-            self.__display_items.insert(before_index, display_item)
-            self.data_grid_controller.display_item_inserted(display_item, before_index)
-
-        def data_item_removed(index):
-            self.data_grid_controller.display_item_removed(index)
-            self.__display_items[index].close()
-            del self.__display_items[index]
-
-        self.__binding = document_controller.filtered_data_items_binding
-        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
-
-        self.__display_items = list()
-
-        for index, data_item in enumerate(self.__binding.data_items):
-            data_item_inserted(data_item, index)
-
-        self.content_canvas_item.add_canvas_item(self.data_grid_controller.canvas_item)
-
-    def close(self):
-        del self.__binding.inserters[id(self)]
-        del self.__binding.removers[id(self)]
-        self.data_grid_controller.close()
-        self.data_grid_controller = None
-        for display_item in self.__display_items:
-            display_item.close()
-        self.__display_items = None
-        self.__selection_changed_event_listener.close()
-        self.__selection_changed_event_listener = None
-        super().close()
-
-    @property
-    def _display_items_for_test(self):
-        return self.__display_items
-
-    def save_contents(self):
-        d = super().save_contents()
-        d["display-panel-type"] = "browser-display-panel"
-        return d
-
-    def __data_panel_selection_changed(self, data_item):
-        # update the data item selection by determining the new index of the item, if any.
-        data_item_index = -1
-        for index in range(len(self.__display_items)):
-            if data_item == self.__display_items[index].data_item:
-                data_item_index = index
-                break
-        if data_item_index >= 0:
-            self.data_grid_controller.set_selected_index(data_item_index)
-        else:
-            self.data_grid_controller.clear_selection()
-
-    # this gets called when the user initiates a drag in the drag control to move the panel around
-    def _begin_drag(self):
-        mime_data = self.ui.create_mime_data()
-        mime_data.set_data_as_string("text/display_panel_type", "browser-display-panel")
-        root_canvas_item = self.canvas_item.root_container
-        on_begin_drag = self.on_begin_drag
-        if callable(on_begin_drag):
-            on_begin_drag(root_canvas_item.canvas_widget, mime_data, None)
-
 
 class DisplayPanel:
 
@@ -1509,7 +1409,14 @@ class DisplayPanel:
             self.__display_panel_content.close()
             self.__canvas_item.remove_canvas_item(canvas_item)
 
-        self.__display_panel_content = DisplayPanelManager().make_display_panel_content(document_controller, d)
+        self.__display_panel_content = DataDisplayPanelContent(document_controller)
+
+        display_panel_type = d.get("display-panel-type", "data-display-panel")
+        if display_panel_type == "thumbnail-browser-display-panel":
+            d["browser_type"] = "horizontal"
+        elif display_panel_type == "browser-display-panel":
+            d["browser_type"] = "grid"
+
         self.__display_panel_content.set_identifier(self.identifier)
         self.__canvas_item.insert_canvas_item(0, self.__display_panel_content.canvas_item)
         self.__canvas_item.refresh_layout(True)
@@ -1611,9 +1518,6 @@ class DisplayPanel:
         if is_selected:
             document_controller.notify_selected_data_item_changed(self.data_item)
 
-        self.__display_panel_type = d.get("display-panel-type")
-        self.__controller_type = d.get("controller_type")
-
     @property
     def canvas_item(self):
         return self.__canvas_item
@@ -1626,6 +1530,10 @@ class DisplayPanel:
     def _content_for_test(self):
         """Used for testing."""
         return self.__display_panel_content
+
+    @property
+    def display_panel_type(self):
+        return self.__display_panel_content._display_panel_type
 
     @property
     def display_panel_id(self):
@@ -1676,13 +1584,7 @@ class DisplayPanel:
 
     @property
     def is_result_panel(self):
-        if self.__display_panel_type == "empty-display-panel":
-            return True
-        if self.__display_panel_type is None and self.__controller_type is not None:  # has a controller, don't use it
-            return False
-        if self.__display_panel_type is None and self.__display_panel_content.display_specifier.display is None:
-            return True
-        return False
+        return self.__display_panel_content and self.__display_panel_content._is_result_panel
 
     def perform_action(self, fn, *args, **keywords):
         if self.__display_panel_content:
@@ -1698,7 +1600,6 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         super().__init__()
         self.__display_panel_controllers = dict()  # maps controller_type to make_fn
         self.__display_controller_factories = dict()
-        self.__display_panel_factories = dict()
         self.key_pressed_event = Event.Event()
         self.key_released_event = Event.Event()
         self.image_display_clicked_event = Event.Event()
@@ -1725,20 +1626,6 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
     def image_display_mouse_position_changed(self, display_panel, display_specifier, image_position, modifiers):
         return self.image_display_mouse_position_changed_event.fire_any(display_panel, display_specifier, image_position, modifiers)
-
-    def register_display_panel_factory(self, factory_id, factory):
-        assert factory_id not in self.__display_panel_factories
-        self.__display_panel_factories[factory_id] = factory
-
-    def unregister_display_panel_factory(self, factory_id):
-        assert factory_id in self.__display_panel_factories
-        del self.__display_panel_factories[factory_id]
-
-    def make_display_panel_content(self, document_controller, d):
-        display_panel_type = d.get("display-panel-type", "data-display-panel")
-        if not display_panel_type in self.__display_panel_factories:
-            display_panel_type = "data-display-panel"
-        return self.__display_panel_factories.get(display_panel_type)(document_controller)
 
     def register_display_panel_controller_factory(self, factory_id, factory):
         assert factory_id not in self.__display_controller_factories
@@ -1779,13 +1666,30 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
         def switch_to_display_content(display_panel_type):
             d = {"type": "image", "display-panel-type": display_panel_type}
+            data_item = selected_display_panel.data_item
+            if data_item and display_panel_type != "empty-display-panel":
+                d["data_item_uuid"] = str(data_item.uuid)
             selected_display_panel.change_display_panel_content(d)
 
-        dynamic_live_actions.append(display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel")))
+        empty_action = display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel"))
         display_type_menu.add_separator()
 
-        dynamic_live_actions.append(display_type_menu.add_menu_item(_("Browser"), functools.partial(switch_to_display_content, "browser-display-panel")))
+        data_item_display_action = display_type_menu.add_menu_item(_("Data Item Display"), functools.partial(switch_to_display_content, "data-display-panel"))
+        thumbnail_browser_action = display_type_menu.add_menu_item(_("Thumbnail Browser"), functools.partial(switch_to_display_content, "thumbnail-browser-display-panel"))
+        grid_browser_action = display_type_menu.add_menu_item(_("Grid Browser"), functools.partial(switch_to_display_content, "browser-display-panel"))
         display_type_menu.add_separator()
+
+        display_panel_type = selected_display_panel.display_panel_type
+
+        empty_action.checked = display_panel_type == "empty"
+        data_item_display_action.checked = display_panel_type == "data_item"
+        thumbnail_browser_action.checked = display_panel_type == "horizontal"
+        grid_browser_action.checked = display_panel_type == "grid"
+
+        dynamic_live_actions.append(empty_action)
+        dynamic_live_actions.append(data_item_display_action)
+        dynamic_live_actions.append(thumbnail_browser_action)
+        dynamic_live_actions.append(grid_browser_action)
 
         for factory in self.__display_controller_factories.values():
             dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))
@@ -1821,8 +1725,3 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
         display_canvas_item._repaint(drawing_context)
 
     return drawing_context
-
-
-DisplayPanelManager().register_display_panel_factory("data-display-panel", DataDisplayPanelContent)
-DisplayPanelManager().register_display_panel_factory("empty-display-panel", EmptyDisplayPanelContent)
-DisplayPanelManager().register_display_panel_factory("browser-display-panel", BrowserDisplayPanelContent)

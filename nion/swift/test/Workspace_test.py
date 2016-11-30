@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import json
 import logging
@@ -14,6 +11,7 @@ import numpy
 from nion.swift import Application
 from nion.swift import DisplayPanel
 from nion.swift import DocumentController
+from nion.swift import Workspace
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.test import DocumentController_test
@@ -341,12 +339,73 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_panel = document_controller.workspace_controller.display_panels[0]
         display_panel.set_displayed_data_item(data_item)
-        mime_data = MimeData("text/display_panel_type", "empty-display-panel")
+        mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({}))
         document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
         # check that there are now two image panels
         self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
         # check that the data items are in the right spot
-        self.assertEqual(document_controller.workspace_controller.display_panels[0].save_contents().get("display-panel-type"), "empty-display-panel")
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, None)
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].display_panel_type, "empty")
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
+        # check that it closes properly too
+        document_controller.close()
+
+    def test_horizontal_browser_on_1x1_top(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        display_panel.set_displayed_data_item(data_item)
+        mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "horizontal"}))
+        document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
+        # check that there are now two image panels
+        self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
+        # check that the data items are in the right spot
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, None)
+        self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_type, "horizontal")
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
+       # check that it closes properly too
+        document_controller.close()
+
+    def test_grid_browser_on_1x1_top(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        display_panel.set_displayed_data_item(data_item)
+        mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "grid"}))
+        document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
+        # check that there are now two image panels
+        self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
+        # check that the data items are in the right spot
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, None)
+        self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_type, "grid")
+        self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
+       # check that it closes properly too
+        document_controller.close()
+
+    def test_horizontal_browser_with_data_item_on_1x1_top(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+        root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+        data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
+        document_model.append_data_item(data_item)
+        display_panel = document_controller.workspace_controller.display_panels[0]
+        display_panel.set_displayed_data_item(data_item)
+        mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"data_item_uuid": str(data_item.uuid), "browser_type": "horizontal"}))
+        document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
+        # check that there are now two image panels
+        self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
+        # check that the data items are in the right spot
+        self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item)
+        self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_type, "horizontal")
         self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
        # check that it closes properly too
         document_controller.close()
@@ -473,7 +532,6 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model.append_data_item(data_item2)
         document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
         document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-        # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
         document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_click((12, 308))
         document_controller.close()
 
@@ -766,7 +824,6 @@ class TestWorkspaceClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         workspace = document_controller.workspace_controller.new_workspace("1", {"type": "image", "controller_type": "test"})
-        # note: this workspace does not have "display-panel-type": "data-display-panel". Backwards compatibility check.
         document_controller.workspace_controller.change_workspace(workspace)
         self.assertIsNone(document_controller.next_result_display_panel())
         DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")

@@ -1,7 +1,7 @@
 # standard libraries
 import copy
-import functools
 import gettext
+import json
 import uuid
 import weakref
 
@@ -449,7 +449,7 @@ class Workspace:
             return "copy"
         if mime_data.has_format("text/uri-list"):
             return "copy"
-        if mime_data.has_format("text/display_panel_type"):
+        if mime_data.has_format(DisplayPanel.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
         return "ignore"
 
@@ -461,12 +461,19 @@ class Workspace:
             return "copy"
         if mime_data.has_format("text/uri-list"):
             return "copy"
-        if mime_data.has_format("text/display_panel_type"):
+        if mime_data.has_format(DisplayPanel.DISPLAY_PANEL_MIME_TYPE):
             return "copy"
         return "ignore"
 
     def handle_drop(self, display_panel, mime_data, region, x, y):
         document_model = self.document_model
+        if mime_data.has_format(DisplayPanel.DISPLAY_PANEL_MIME_TYPE):
+            d = json.loads(mime_data.data_as_string(DisplayPanel.DISPLAY_PANEL_MIME_TYPE))
+            if region == "right" or region == "left" or region == "top" or region == "bottom":
+                self.insert_display_panel(display_panel, region, None, d)
+            else:
+                self.__replace_displayed_data_item(display_panel, None, d)
+            return "move"
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = document_model.get_data_item_by_key(data_item_uuid)
@@ -485,14 +492,6 @@ class Workspace:
             index = len(document_model.data_items)
             self.document_controller.receive_files(document_model, mime_data.file_paths, None, index, threaded=True, completion_fn=receive_files_complete)
             return "copy"
-        if mime_data.has_format("text/display_panel_type"):
-            display_panel_type = mime_data.data_as_string("text/display_panel_type")
-            if display_panel_type in ("empty-display-panel", "browser-display-panel"):
-                if region == "right" or region == "left" or region == "top" or region == "bottom":
-                    self.insert_display_panel(display_panel, region, None, {"type": "image", "display-panel-type": display_panel_type})
-                else:
-                    self.__replace_displayed_data_item(display_panel, None, {"type": "image", "display-panel-type": display_panel_type})
-                return "move"
         return "ignore"
 
     def __replace_displayed_data_item(self, display_panel, data_item, d=None):
@@ -542,12 +541,13 @@ class Workspace:
         # first make sure the display panel has no content
         display_panel.change_display_panel_content({"type": "image", "display-panel-type": "empty-display-panel"})
         # now remove it
-        container = display_panel.canvas_item.container
+        canvas_item = display_panel.canvas_item
+        container = canvas_item.container
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             if len(container.canvas_items) > 0:
-                container.remove_canvas_item(display_panel.canvas_item)
                 self.display_panels.remove(display_panel)
                 display_panel.close()
+                container.remove_canvas_item(canvas_item)
                 if len(container.canvas_items) == 1:
                     container.unwrap_canvas_item(container.canvas_items[0])
 
