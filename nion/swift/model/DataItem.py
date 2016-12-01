@@ -735,38 +735,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def size_and_data_format_as_string(self):
-        try:
-            dimensional_shape = self.dimensional_shape
-            data_dtype = self.data_dtype
-            if dimensional_shape is not None and data_dtype is not None:
-                spatial_shape_str = " x ".join([str(d) for d in dimensional_shape])
-                if len(dimensional_shape) == 1:
-                    spatial_shape_str += " x 1"
-                dtype_names = {
-                    numpy.int8: _("Integer (8-bit)"),
-                    numpy.int16: _("Integer (16-bit)"),
-                    numpy.int32: _("Integer (32-bit)"),
-                    numpy.int64: _("Integer (64-bit)"),
-                    numpy.uint8: _("Unsigned Integer (8-bit)"),
-                    numpy.uint16: _("Unsigned Integer (16-bit)"),
-                    numpy.uint32: _("Unsigned Integer (32-bit)"),
-                    numpy.uint64: _("Unsigned Integer (64-bit)"),
-                    numpy.float32: _("Real (32-bit)"),
-                    numpy.float64: _("Real (64-bit)"),
-                    numpy.complex64: _("Complex (2 x 32-bit)"),
-                    numpy.complex128: _("Complex (2 x 64-bit)"),
-                }
-                if self.is_data_rgb_type:
-                    data_size_and_data_format_as_string = _("RGB (8-bit)") if self.is_data_rgb else _("RGBA (8-bit)")
-                else:
-                    if not self.data_dtype.type in dtype_names:
-                        logging.debug("Unknown dtype %s", self.data_dtype.type)
-                    data_size_and_data_format_as_string = dtype_names[self.data_dtype.type] if self.data_dtype.type in dtype_names else _("Unknown Data Type")
-                return "{0}, {1}".format(spatial_shape_str, data_size_and_data_format_as_string)
-            return _("No Data")
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+        return self.__data_and_metadata.size_and_data_format_as_string if self.__data_and_metadata else _("No Data")
 
 
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
