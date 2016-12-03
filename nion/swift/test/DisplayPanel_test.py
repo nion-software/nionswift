@@ -1077,20 +1077,6 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.perform_action("set_fill_mode")
         self.assertEqual(self.display_panel.display_canvas_item.image_canvas_mode, "fill")
 
-    def test_enter_key_recalculates_display_limits(self):
-        self.assertIsNone(self.display_specifier.display.display_limits)
-        modifiers = CanvasItem.KeyboardModifiers()
-        # focus and enter key
-        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
-        self.assertEqual(self.display_specifier.display.display_limits, (0, 0))
-        with self.data_item.maybe_data_source.data_ref() as dr:
-            dr.master_data[0,0] = 16
-            dr.data_updated()
-        self.assertEqual(self.display_specifier.display.display_limits, (0, 0))
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
-        self.assertEqual(self.display_specifier.display.display_limits, (0, 16))
-
     def test_dragging_to_add_point_makes_desired_point(self):
         self.document_controller.tool_mode = "point"
         self.display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
@@ -1146,13 +1132,14 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_enter_to_resets_display_limits(self):
         # test preliminary assumptions (no display limits)
-        self.assertIsNone(self.display_specifier.display.display_limits)
+        self.data_item.maybe_data_source.displays[0].display_limits = 0.5, 1.5
+        self.assertIsNotNone(self.display_specifier.display.display_limits)
         # focus on the display panel, then press the enter key
         modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         # confirm that display limits were set
-        self.assertIsNotNone(self.display_specifier.display.display_limits)
+        self.assertIsNone(self.data_item.maybe_data_source.displays[0].display_limits)
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count(self):
         self.assertIsNone(self.document_controller.ui.popup)

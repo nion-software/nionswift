@@ -64,7 +64,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_double_clicked(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
-        self.assertEqual(self.display_specifier.display.display_limits, self.display_specifier.display.display_range)
+        self.assertIsNone(self.display_specifier.display.display_limits)
+        self.assertEqual(self.display_specifier.display.display_range, (200, 650))
 
     def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
         # verify assumptions

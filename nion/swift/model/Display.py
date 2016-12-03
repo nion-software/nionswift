@@ -138,7 +138,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__cache = Cache.ShadowCache()
         self.__color_map_data = None
         self.define_property("display_type", changed=self.__display_type_changed)
-        self.define_property("complex_display_type", changed=self.__display_type_changed)
+        self.define_property("complex_display_type", changed=self.__complex_display_type_changed)
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("dimensional_calibration_style", None, changed=self.__property_changed)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
@@ -218,15 +218,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def auto_display_limits(self):
         # auto set the display limits if not yet set and data is complex
-        if self.__data_and_metadata.is_data_complex_type:
-            data = self.display_data
-            samples, fraction = 200, 0.05
-            sorted_data = numpy.sort(numpy.random.choice(data.reshape(numpy.product(data.shape)), samples))
-            display_limit_low = sorted_data[int(samples*fraction)]
-            display_limit_high = self.data_range[1]
-            self.display_limits = display_limit_low, display_limit_high
-        else:
-            self.display_limits = self.data_range
+        self.display_limits = None
 
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         left = None
@@ -492,6 +484,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__property_changed(property_name, value)
         self.display_type_changed_event.fire()
 
+    def __complex_display_type_changed(self, property_name, value):
+        self.__property_changed(property_name, value)
+        if not self._is_reading:
+            self.__cache.remove_cached_value(self, "data_range")
+            self.__cache.remove_cached_value(self, "data_sample")
+        self.__clear_cached_data()
+
     def __color_map_id_changed(self, property_name, value):
         self.__property_changed(property_name, value)
         if value:
@@ -526,7 +525,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.thumbnail_changed_event.fire()
 
     def __validate_data_stats(self):
-        """Ensure that data stats are valid after reading."""
+        # ensure that data_range and data_sample (if required) are valid.
         display_data = self.display_data
         is_data_complex_type = self.__data_and_metadata.is_data_complex_type if self.__data_and_metadata else False
         data_range = self.__cache.get_cached_value(self, "data_range")
@@ -535,6 +534,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__calculate_data_stats_for_data(display_data, self.__data_and_metadata.data_shape, self.__data_and_metadata.data_dtype)
 
     def __calculate_data_stats_for_data(self, display_data, data_shape, data_dtype):
+        # calculates data_range and data_sample (if required), stores them in cache, and notifies listeners
         if display_data is not None and display_data.size:
             if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                 data_range = (0, 255)
@@ -569,25 +569,19 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         return self.__cache.get_cached_value(self, "data_range")
 
     @property
-    def data_sample(self):
+    def display_range(self):
         self.__validate_data_stats()
-        return self.__cache.get_cached_value(self, "data_sample")
-
-    def __get_display_range(self, data_range, data_sample):
+        data_range = self.__cache.get_cached_value(self, "data_range")
+        data_sample = self.__cache.get_cached_value(self, "data_sample")
         if self.display_limits is not None:
             return self.display_limits
-        if self.__data_and_metadata and self.__data_and_metadata.is_data_complex_type:
+        if self.__data_and_metadata and self.__data_and_metadata.is_data_complex_type and self.complex_display_type is None:  # log absolute
             if data_sample is not None:
-                data_sample_10 = data_sample[int(len(data_sample) * 0.1)]
-                display_limit_low = numpy.log(data_sample_10) if data_sample_10 > 0.0 else data_range[0]
+                fraction = 0.05
+                display_limit_low = data_sample[int(data_sample.shape[0] * fraction)]
                 display_limit_high = data_range[1]
                 return display_limit_low, display_limit_high
         return data_range
-
-    @property
-    def display_range(self):
-        self.__validate_data_stats()
-        return self.__get_display_range(self.data_range, self.data_sample)
 
     @display_range.setter
     def display_range(self, display_range):

@@ -337,6 +337,12 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
         self.__histogram_data_property_changed_event_listener = self.__histogram_data_model.property_changed_event.listen(histogram_data_changed)
 
         def set_display_limits(display_limits):
+            # display_limits in this context are in the range of 0,1
+            # we ask for the display_range from the display to get actual
+            # data values (never None), and create new display limits
+            # based on those data values combined with display_limits.
+            # then we set the display_limits on the display, which have
+            # the same units as the data values.
             display = self.__display_stream.value
             if display:
                 if display_limits is not None:

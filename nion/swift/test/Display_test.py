@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import math
 import unittest
 
 # third party libraries
@@ -297,6 +298,17 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_specifier.display.color_map_id, 'elephant')
             self.assertIsNotNone(display_specifier.display.color_map_data)
 
+    def test_calling_auto_display_limits_resets_display_limits_to_none(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
+            data_item.maybe_data_source.displays[0].display_limits = 0.5, 1.5
+            self.assertIsNotNone(data_item.maybe_data_source.displays[0].display_limits)  # check assumptions
+            data_item.maybe_data_source.displays[0].auto_display_limits()
+            self.assertIsNone(data_item.maybe_data_source.displays[0].display_limits)
+            preview = data_item.maybe_data_source.displays[0].preview_2d
+            self.assertIsNotNone(preview)
+
     def test_auto_display_limits_on_various_value_types_write_to_clean_json(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -319,8 +331,37 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.auto_display_limits()
             # the display limit should never be less than the display data minimum
-            self.assertLess(numpy.amin(display_specifier.display.display_data), display_specifier.display.display_limits[0])
-            self.assertAlmostEqual(numpy.amax(display_specifier.display.display_data), display_specifier.display.display_limits[1])
+            display_range = display_specifier.display.display_range
+            self.assertLess(numpy.amin(display_specifier.display.display_data), display_range[0])
+            self.assertAlmostEqual(numpy.amax(display_specifier.display.display_data), display_range[1])
+
+    def test_display_range_is_recalculated_with_new_data(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
+            self.assertEqual(data_item.maybe_data_source.displays[0].display_range, (1, 1))
+            with data_item.maybe_data_source.data_ref() as dr:
+                dr.master_data[0,0] = 16
+                dr.data_updated()
+            self.assertEqual(data_item.maybe_data_source.displays[0].display_range, (1, 16))
+
+    def test_display_range_is_correct_on_complex_data_display_as_absolute(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            complex_data = numpy.zeros((2, 2), numpy.complex64)
+            complex_data[0, 0] = complex(4, 3)
+            data_item = DataItem.DataItem(complex_data)
+            data_item.maybe_data_source.displays[0].complex_display_type = "absolute"
+            self.assertEqual(data_item.maybe_data_source.displays[0].display_range, (0, 5))
+
+    def test_display_range_is_correct_on_complex_data_display_as_log_absolute(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            complex_data = numpy.array(range(10)).astype(numpy.complex)
+            data_item = DataItem.DataItem(complex_data)
+            min_ = numpy.log(numpy.abs(0).astype(numpy.float64) + numpy.nextafter(0,1))
+            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].display_range[0], min_)
+            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].display_range[1], math.log(9))
 
     def test_display_data_is_2d_for_2d_sequence(self):
         document_model = DocumentModel.DocumentModel()
