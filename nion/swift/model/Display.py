@@ -270,15 +270,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 if data_2d is not None:
                     data_range = self.data_range
                     display_limits = self.display_limits
-                    # enforce a maximum of 1024 in either dimension on the preview for performance.
-                    # but only scale by integer factors.
-                    target_size = 1024.0
-                    if data_2d.shape[0] > 1.5 * target_size or data_2d.shape[1] > 1.5 * target_size:
-                        if data_2d.shape[0] > data_2d.shape[1]:
-                            stride = round(data_2d.shape[0]/target_size)
-                        else:
-                            stride = round(data_2d.shape[1]/target_size)
-                        data_2d = data_2d[0:data_2d.shape[0]:stride, 0:data_2d.shape[1]:stride]
                     self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__color_map_data)
             return self.__preview
 
