@@ -86,11 +86,11 @@ class TestDisplayClass(unittest.TestCase):
             def __init__(self):
                 self.data_range = None
                 self.display_range = None
-            def property_changed(self, property, value):
+            def property_changed(self, property):
                 if property == "display_range":
-                    self.display_range = value
+                    self.display_range = display.display_range
                 if property == "data_range":
-                    self.data_range = value
+                    self.data_range = display.data_range
         o = Observer()
         property_changed_listener = display.property_changed_event.listen(o.property_changed)
         with contextlib.closing(property_changed_listener):

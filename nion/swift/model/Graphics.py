@@ -346,7 +346,7 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.is_bounds_constrained = graphic_dict.get("is_bounds_constrained", self.is_bounds_constrained)
 
     def _property_changed(self, name, value):
-        self.notify_set_property(name, value)
+        self.notify_property_changed(name)
 
     @property
     def region(self):
@@ -463,8 +463,8 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
                 ctx.fill_style = "#000"
                 ctx.fill_text(self.label, text_pos.x, text_pos.y)
 
-    def notify_set_property(self, key, value):
-        super().notify_set_property(key, value)
+    def notify_property_changed(self, key):
+        super().notify_property_changed(key)
         self.graphic_changed_event.fire()
 
     def nudge(self, mapping, delta):
@@ -802,10 +802,10 @@ class LineTypeGraphic(Graphic):
     # dependent properties
     def __vector_changed(self, name, value):
         self._property_changed(name, value)
-        self.notify_set_property("start", value[0])
-        self.notify_set_property("end", value[1])
-        self.notify_set_property("length", self.length)
-        self.notify_set_property("angle", self.angle)
+        self.notify_property_changed("start")
+        self.notify_property_changed("end")
+        self.notify_property_changed("length")
+        self.notify_property_changed("angle")
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):
@@ -1181,8 +1181,8 @@ class IntervalGraphic(Graphic):
 
     def __interval_changed(self, name, value):
         self._property_changed(name, value)
-        self.notify_set_property("start", value[0])
-        self.notify_set_property("end", value[1])
+        self.notify_property_changed("start")
+        self.notify_property_changed("end")
 
     # test is required for Graphic interface
     def test(self, mapping, get_font_metrics_fn, test_point, move_only):

@@ -139,7 +139,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 self.__variable = variable
                 self.changed_event = Event.Event()
                 self.deleted_event = Event.Event()
-                def property_changed(key, value):
+                def property_changed(key):
                     if key == "value":
                         self.changed_event.fire()
                 self.__variable_property_changed_listener = variable.property_changed_event.listen(property_changed)
@@ -152,11 +152,11 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return BoundVariable(self)
 
     def __property_changed(self, name, value):
-        self.notify_set_property(name, value)
+        self.notify_property_changed(name)
         if name in ["name", "label"]:
-            self.notify_set_property("display_label", self.display_label)
+            self.notify_property_changed("display_label")
         if name in ("specifier"):
-            self.notify_set_property("specifier_uuid_str", self.specifier_uuid_str)
+            self.notify_property_changed("specifier_uuid_str")
         self.changed_event.fire()
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
@@ -300,7 +300,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                             def remove_object(object):
                                 if self.__object == object:
                                     self.deleted_event.fire()
-                            def property_changed(property_name_being_changed, value):
+                            def property_changed(property_name_being_changed):
                                 self.changed_event.fire()
                             self.__remove_object_listener = computation_variable_type.object_remove_event.listen(remove_object)
                             self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
@@ -406,11 +406,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def __error_changed(self, name, value):
         if self.error_text != value:
-            self.notify_set_property(name, value)
+            self.notify_property_changed(name)
             self.computation_mutated_event.fire()
 
     def __label_changed(self, name, value):
-        self.notify_set_property(name, value)
+        self.notify_property_changed(name)
         self.computation_mutated_event.fire()
 
     def add_variable(self, variable: ComputationVariable) -> None:
@@ -550,7 +550,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__bound_items[variable.uuid] = bound_item
 
-        self.__variable_property_changed_listener[variable.uuid] = variable.property_changed_event.listen(lambda k, v: needs_update())
+        self.__variable_property_changed_listener[variable.uuid] = variable.property_changed_event.listen(lambda k: needs_update())
         if bound_item:
             self.__bound_item_changed_event_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
             self.__bound_item_deleted_event_listeners[variable.uuid] = bound_item.deleted_event.listen(deleted)

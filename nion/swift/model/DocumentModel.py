@@ -1217,7 +1217,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
     def __session_metadata_changed(self, name, value):
-        self.notify_set_property("session_metadata", self.session_metadata)
+        self.notify_property_changed("session_metadata")
 
     def set_session_field(self, field_id: str, value: str) -> None:
         session_metadata = self.session_metadata
@@ -1817,7 +1817,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                                 if region == object:
                                                     self.deleted_event.fire()
                                             self.__remove_region_listener = display.display_graphic_will_remove_event.listen(remove_region)
-                                            def property_changed(property_name_being_changed, value):
+                                            def property_changed(property_name_being_changed):
                                                 self.changed_event.fire()
                                             self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
                                         def close(self):

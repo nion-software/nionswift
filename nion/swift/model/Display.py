@@ -365,7 +365,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __display_limits_changed(self, name, value):
         self.__property_changed(name, value)
-        self.notify_set_property("display_range", self.display_range)
+        self.notify_property_changed("display_range")
 
     def __validate_sequence_index(self, value: int) -> int:
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
@@ -418,7 +418,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__cache.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
-        self.notify_set_property("sequence_index", self.sequence_index)
+        self.notify_property_changed("sequence_index")
 
     def __collection_index_changed(self, name, value):
         self.__property_changed(name, value)
@@ -427,7 +427,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__cache.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
-        self.notify_set_property("collection_index", self.collection_index)
+        self.notify_property_changed("collection_index")
 
     @property
     def actual_display_type(self):
@@ -472,7 +472,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__cache.remove_cached_value(self, "data_sample")
         if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
             self.__validate_data_stats()
-        self.notify_set_property("slice_interval", self.slice_interval)
+        self.notify_property_changed("slice_interval")
 
     def __display_type_changed(self, property_name, value):
         self.__property_changed(property_name, value)
@@ -500,13 +500,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called
         self.__clear_cached_data()
-        self.notify_set_property(property_name, value)
+        self.notify_property_changed(property_name)
         self.display_changed_event.fire()
         if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index"):
-            self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
+            self.notify_property_changed("display_data_and_metadata_promise")
         if property_name in ("dimensional_calibration_style", ):
-            self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
-            self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
+            self.notify_property_changed("displayed_dimensional_calibrations")
+            self.notify_property_changed("displayed_intensity_calibration")
             self._get_persistent_property("display_calibrated_values").value = value == "calibrated"
         if not self._is_reading:
             self.thumbnail_changed_event.fire()
@@ -545,9 +545,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         else:
             self.__cache.remove_cached_value(self, "data_sample")
         self.__clear_cached_data()
-        self.notify_set_property("data_range", data_range)
-        self.notify_set_property("data_sample", data_sample)
-        self.notify_set_property("display_range", self.__get_display_range(data_range, data_sample))
+        self.notify_property_changed("data_range")
+        self.notify_property_changed("data_sample")
+        self.notify_property_changed("display_range")
 
     @property
     def data_range(self):
@@ -593,9 +593,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__cache.remove_cached_value(self, "data_range")
             self.__cache.remove_cached_value(self, "data_sample")
             self.__validate_data_stats()
-        self.notify_set_property("display_data_and_metadata_promise", self.display_data_and_metadata_promise)
-        self.notify_set_property("displayed_dimensional_calibrations", self.displayed_dimensional_calibrations)
-        self.notify_set_property("displayed_intensity_calibration", self.displayed_intensity_calibration)
+        self.notify_property_changed("display_data_and_metadata_promise")
+        self.notify_property_changed("displayed_dimensional_calibrations")
+        self.notify_property_changed("displayed_intensity_calibration")
         self.display_changed_event.fire()
 
     def set_storage_cache(self, storage_cache):

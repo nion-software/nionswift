@@ -367,7 +367,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
-        self.notify_set_property(name, value)
+        self.notify_property_changed(name)
 
     def set_computation(self, computation):
         self.set_item("computation", computation)
@@ -932,7 +932,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item_uuids = self.data_item_uuids
         data_item_uuids.insert(before_index, data_item.uuid)
         self.data_item_uuids = data_item_uuids
-        self.notify_set_property("data_item_uuids", self.data_item_uuids)
+        self.notify_property_changed("data_item_uuids")
 
     def remove_data_item(self, data_item):
         # index = self.__data_items.index(data_item)
@@ -940,7 +940,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
         self.data_item_uuids = data_item_uuids
-        self.notify_set_property("data_item_uuids", self.data_item_uuids)
+        self.notify_property_changed("data_item_uuids")
 
     @property
     def data_items(self):
@@ -1141,7 +1141,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
-        self.notify_set_property(name, value)
+        self.notify_property_changed(name)
 
     def set_r_value(self, r_var):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
@@ -1296,8 +1296,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 data_source.set_data_item_manager(self.__data_item_manager)
 
     # override from storage to watch for changes to this data item. notify observers.
-    def notify_set_property(self, key, value):
-        super(DataItem, self).notify_set_property(key, value)
+    def notify_property_changed(self, key):
+        super(DataItem, self).notify_property_changed(key)
         self.notify_data_item_content_changed(set([METADATA]))
 
     @property

@@ -101,7 +101,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         return str(value) if value is not None else str()
 
     def __property_changed(self, name, value):
-        self.notify_set_property(name, value)
+        self.notify_property_changed(name)
 
     def connect_data_items(self, data_items, lookup_data_item):
         for data_group in self.data_groups:
@@ -128,7 +128,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         data_item_uuids = self.data_item_uuids
         data_item_uuids.insert(before_index, data_item.uuid)
         self.data_item_uuids = data_item_uuids
-        self.notify_set_property("data_item_uuids", self.data_item_uuids)
+        self.notify_property_changed("data_item_uuids")
 
     def remove_data_item(self, data_item):
         index = self.__data_items.index(data_item)
@@ -138,7 +138,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
         self.data_item_uuids = data_item_uuids
-        self.notify_set_property("data_item_uuids", self.data_item_uuids)
+        self.notify_property_changed("data_item_uuids")
 
     def __get_data_items(self):
         return tuple(self.__data_items)

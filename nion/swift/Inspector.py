@@ -380,9 +380,9 @@ class SessionInspectorSection(InspectorSection):
             for field_id, line_edit_widget in field_line_edit_widget_map.items():
                 line_edit_widget.text = fields.get(field_id)
 
-        def fields_changed(key, value):
+        def fields_changed(key):
             if key == 'session_metadata':
-                widget.add_task("update_fields", functools.partial(update_fields, value))
+                widget.add_task("update_fields", functools.partial(update_fields, data_item.session_metadata))
         self.__property_changed_listener = data_item.property_changed_event.listen(fields_changed)
 
         update_fields(data_item.session_metadata)
@@ -415,11 +415,11 @@ class CalibrationToObservable(Observable.Observable):
         def update_calibration(calibration):
             if self.__cached_value is not None:
                 if calibration.offset != self.__cached_value.offset:
-                    self.notify_set_property("offset", calibration.offset)
+                    self.notify_property_changed("offset")
                 if calibration.scale != self.__cached_value.scale:
-                    self.notify_set_property("scale", calibration.scale)
+                    self.notify_property_changed("scale")
                 if calibration.units != self.__cached_value.units:
-                    self.notify_set_property("units", calibration.units)
+                    self.notify_property_changed("units")
             self.__cached_value = calibration
         update_calibration(calibration)
 
@@ -430,9 +430,9 @@ class CalibrationToObservable(Observable.Observable):
 
     def copy_from(self, calibration):
         self.__cached_value = calibration
-        self.notify_set_property("offset", calibration.offset)
-        self.notify_set_property("scale", calibration.scale)
-        self.notify_set_property("units", calibration.units)
+        self.notify_property_changed("offset")
+        self.notify_property_changed("scale")
+        self.notify_property_changed("units")
 
     @property
     def offset(self):
@@ -443,7 +443,7 @@ class CalibrationToObservable(Observable.Observable):
         calibration = self.__cached_value
         calibration.offset = value
         self.__setter_fn(calibration)
-        self.notify_set_property("offset", calibration.offset)
+        self.notify_property_changed("offset")
 
     @property
     def scale(self):
@@ -454,7 +454,7 @@ class CalibrationToObservable(Observable.Observable):
         calibration = self.__cached_value
         calibration.scale = value
         self.__setter_fn(calibration)
-        self.notify_set_property("scale", calibration.scale)
+        self.notify_property_changed("scale")
 
     @property
     def units(self):
@@ -465,7 +465,7 @@ class CalibrationToObservable(Observable.Observable):
         calibration = self.__cached_value
         calibration.units = value
         self.__setter_fn(calibration)
-        self.notify_set_property("units", calibration.units)
+        self.notify_property_changed("units")
 
 
 def make_calibration_style_chooser(ui, display):
@@ -996,9 +996,9 @@ class CalibratedBinding(Binding.Binding):
             self.update_target_direct(self.get_target_value())
         self.__value_binding.target_setter = update_target
         self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(lambda: update_target(None))
-        def calibrations_changed(k, v):
+        def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
-                update_target(v)
+                update_target(display.displayed_dimensional_calibrations)
         self.__calibrations_changed_event_listener = display.property_changed_event.listen(calibrations_changed)
     def close(self):
         self.__metadata_changed_event_listener.close()
@@ -1051,9 +1051,9 @@ class CalibratedLengthBinding(Binding.Binding):
         self.__start_binding.target_setter = update_target
         self.__end_binding.target_setter = update_target
         self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(lambda: update_target(None))
-        def calibrations_changed(k, v):
+        def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
-                update_target(v)
+                update_target(display.displayed_dimensional_calibrations)
         self.__calibrations_changed_event_listener = display.property_changed_event.listen(calibrations_changed)
     def close(self):
         self.__metadata_changed_event_listener.close()
@@ -1574,7 +1574,7 @@ def make_image_chooser(ui, document_model, variable):
     data_item_chooser_widget.on_data_item_drop = data_item_drop
     data_item_chooser_widget.on_data_item_delete = data_item_delete
 
-    def property_changed(key, value):
+    def property_changed(key):
         if key == "specifier":
             base_variable_specifier = copy.copy(variable.specifier)
             bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)

@@ -842,7 +842,7 @@ class DataGroupModelController:
             item = self.item_model_controller.create_item(properties)
             parent_item.insert_child(before_index, item)
             self.__mapping[object] = item
-            def property_changed(key, value):
+            def property_changed(key):
                 if key == "title":
                     self.__update_item_count(object)
             self.__data_group_property_changed_listeners[object.uuid] = object.property_changed_event.listen(property_changed)

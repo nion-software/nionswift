@@ -226,7 +226,7 @@ class Task(Observable.Observable):
     @title.setter
     def title(self, value):
         self.__title = value
-        self.notify_set_property("title", value)
+        self.notify_property_changed("title")
         self.task_changed_event.fire()
 
     # start time
@@ -237,7 +237,7 @@ class Task(Observable.Observable):
     @start_time.setter
     def start_time(self, value):
         self.__start_time = value
-        self.notify_set_property("start_time", value)
+        self.notify_property_changed("start_time")
         self.task_changed_event.fire()
 
     # finish time
@@ -248,7 +248,7 @@ class Task(Observable.Observable):
     @finish_time.setter
     def finish_time(self, value):
         self.__finish_time = value
-        self.notify_set_property("finish_time", value)
+        self.notify_property_changed("finish_time")
         self.task_changed_event.fire()
 
     # in progress
@@ -291,7 +291,7 @@ class Task(Observable.Observable):
     def task_data(self, task_data):
         with self.__task_data_mutex:
             self.__task_data = copy.copy(task_data)
-        self.notify_set_property("task_data", task_data)
+        self.notify_property_changed("task_data")
         self.task_changed_event.fire()
 
 

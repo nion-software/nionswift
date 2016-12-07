@@ -797,7 +797,7 @@ class DisplayPropertyStream(Stream.AbstractStream):
         return self.__value
 
     def __display_changed(self, display):
-        def property_changed(key, value):
+        def property_changed(key):
             if key == self.__property_name:
                 new_value = getattr(display, self.__property_name)
                 if isinstance(new_value, numpy.ndarray) or isinstance(self.__value, numpy.ndarray):
@@ -813,7 +813,7 @@ class DisplayPropertyStream(Stream.AbstractStream):
             self.__property_changed_event_listener = None
         if display:
             self.__property_changed_event_listener = display.property_changed_event.listen(property_changed)
-            property_changed(self.__property_name, getattr(display, self.__property_name))
+            property_changed(self.__property_name)
         else:
             self.__value = None
             self.value_stream.fire(None)

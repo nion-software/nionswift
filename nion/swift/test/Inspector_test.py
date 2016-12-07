@@ -357,7 +357,7 @@ class TestInspectorClass(unittest.TestCase):
             document_controller.selected_display_panel = display_panel
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             count = [0]
-            def property_changed(property_name, value):
+            def property_changed(property_name):
                 if property_name == "display_limits":
                     count[0] += 1
             property_changed_listener = display_specifier.display.property_changed_event.listen(property_changed)

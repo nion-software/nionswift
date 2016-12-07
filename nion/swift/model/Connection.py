@@ -4,6 +4,7 @@
 
 # standard libraries
 import copy
+import functools
 
 # third party libraries
 # None
@@ -34,7 +35,7 @@ class Connection(Observable.Observable, Persistence.PersistentObject):
         return connection
 
     def _property_changed(self, name, value):
-        self.notify_set_property(name, value)
+        self.notify_property_changed(name)
 
 
 class PropertyConnection(Connection):
@@ -106,12 +107,12 @@ class PropertyConnection(Connection):
         def target_registered(target):
             self.__target = target
 
-            def property_changed(property_name, value):
+            def property_changed(target, property_name):
                 if property_name == self.target_property:
-                    self.__set_source_from_target(value)
+                    self.__set_source_from_target(getattr(target, property_name))
 
             assert self.__target_property_changed_listener is None
-            self.__target_property_changed_listener = target.property_changed_event.listen(property_changed)
+            self.__target_property_changed_listener = target.property_changed_event.listen(functools.partial(property_changed, target))
             register()
 
         def unregistered(source=None):
@@ -171,7 +172,7 @@ class IntervalListConnection(Connection):
                     if isinstance(region, Graphics.IntervalGraphic):
                         interval_descriptor = {"interval": region.interval, "color": "#F00"}
                         interval_descriptors.append(interval_descriptor)
-                        self.__interval_mutated_listeners.append(region.property_changed_event.listen(lambda k, v: reattach()))
+                        self.__interval_mutated_listeners.append(region.property_changed_event.listen(lambda k: reattach()))
             if self.__target:
                 self.__target.interval_descriptors = interval_descriptors
 

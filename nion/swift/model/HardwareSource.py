@@ -940,7 +940,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
     def bounds(self, value):
         if self.__bounds != value:
             self.__bounds = value
-            self.notify_set_property("bounds", value)
+            self.notify_property_changed("bounds")
             if self.__crop_graphic:
                 self.__crop_graphic.bounds = value
 
@@ -972,9 +972,9 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
             crop_graphic.label = _("Crop")
             display_specifier.display.add_graphic(crop_graphic)
         if not self.__crop_listener:
-            def property_changed(k, v):
+            def property_changed(k):
                 if k == "bounds":
-                    self.bounds = v
+                    self.bounds = crop_graphic.bounds
             def graphic_removed(k, v, i):
                 if v == crop_graphic:
                     close_all()

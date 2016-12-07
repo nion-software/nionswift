@@ -155,7 +155,7 @@ class ComputationModel(object):
 
     def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_inserted_event.fire(index, variable)
-        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(lambda k, v: self.__update_computation_display())
+        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(lambda k: self.__update_computation_display())
 
     def __variable_removed(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_removed_event.fire(index, variable)

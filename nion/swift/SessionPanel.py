@@ -25,10 +25,10 @@ class SessionPanelController:
         self.__property_changed_listener = None
         self.on_fields_changed = None
 
-    def __property_changed(self, key, value):
+    def __property_changed(self, key):
         if key == 'session_metadata':
             if callable(self.on_fields_changed):
-                self.on_fields_changed(value)
+                self.on_fields_changed(self.__document_model.session_metadata)
 
     def set_field(self, field_id: str, value: str) -> None:
         self.__document_model.set_session_field(field_id, value)
