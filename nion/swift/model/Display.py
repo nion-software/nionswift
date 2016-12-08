@@ -264,58 +264,17 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def preview_2d(self):
         with self.__preview_lock:
             if self.__preview is None:
-                data_2d = self.display_data
-                if Image.is_data_1d(data_2d):
-                    data_2d = data_2d.reshape(1, data_2d.shape[0])
-                if data_2d is not None:
-                    data_range = self.data_range
-                    display_limits = self.display_limits
-                    self.__preview = Image.create_rgba_image_from_array(data_2d, data_range=data_range, display_limits=display_limits, lookup=self.__color_map_data)
+                data_and_metadata = self.display_data_and_metadata
+                if data_and_metadata is not None:
+                    # display_range is just display_limits but calculated if display_limits is None
+                    preview_xdata = Core.function_display_rgba(data_and_metadata, self.display_range, self.__color_map_data)
+                    self.__preview = preview_xdata.data
             return self.__preview
 
     @property
     def display_data(self) -> numpy.ndarray:
         display_data_and_metadata = self.display_data_and_metadata
         return display_data_and_metadata.data if display_data_and_metadata else None
-
-    def __get_display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
-        with self.__display_data_and_metadata_lock:
-            data_and_metadata = self.__data_and_metadata
-            if self.__display_data_and_metadata is None and data_and_metadata is not None:
-                dimensional_shape = data_and_metadata.dimensional_shape
-                next_dimension = 0
-                if data_and_metadata.is_sequence:
-                    # next dimension is treated as a sequence index, which may be time or just a sequence index
-                    sequence_index = min(max(self.sequence_index, 0), dimensional_shape[next_dimension])
-                    data_and_metadata = DataAndMetadata.function_data_slice(data_and_metadata, [sequence_index, Ellipsis])
-                    next_dimension += 1
-                if data_and_metadata and data_and_metadata.is_collection:
-                    collection_dimension_count = data_and_metadata.collection_dimension_count
-                    datum_dimension_count = data_and_metadata.datum_dimension_count
-                    # next dimensions are treated as collection indexes.
-                    if collection_dimension_count == 1 and datum_dimension_count == 1:
-                        pass
-                    elif collection_dimension_count == 2 and datum_dimension_count == 1:
-                        data_and_metadata = Core.function_slice_sum(data_and_metadata, self.slice_center, self.slice_width)
-                    else:  # default, "pick"
-                        collection_slice = [collection_index for collection_index in self.collection_index][0:collection_dimension_count] + [Ellipsis, ]
-                        data_and_metadata = DataAndMetadata.function_data_slice(data_and_metadata, collection_slice)
-                    next_dimension += collection_dimension_count + datum_dimension_count
-                if data_and_metadata and data_and_metadata.is_data_complex_type:
-                    if self.complex_display_type == "real":
-                        data_and_metadata = Core.function_array(numpy.real, data_and_metadata)
-                    elif self.complex_display_type == "imaginary":
-                        data_and_metadata = Core.function_array(numpy.imag, data_and_metadata)
-                    elif self.complex_display_type == "absolute":
-                        data_and_metadata = Core.function_array(numpy.absolute, data_and_metadata)
-                    else:  # default, log-absolute
-                        def log_absolute(d):
-                            return numpy.log(numpy.abs(d).astype(numpy.float64) + numpy.nextafter(0,1))
-                        data_and_metadata = Core.function_array(log_absolute, data_and_metadata)
-                if data_and_metadata and functools.reduce(operator.mul, data_and_metadata.dimensional_shape) == 0:
-                    data_and_metadata = None
-                self.__display_data_and_metadata = data_and_metadata
-            return self.__display_data_and_metadata
 
     def __get_display_dimensional_shape(self) -> typing.Tuple[int, ...]:
         if not self.__data_and_metadata:
@@ -344,7 +303,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
         Accessing display data may involve computation, so this method should not be used on UI thread.
         """
-        return self.__get_display_data_and_metadata()
+        with self.__display_data_and_metadata_lock:
+            data_and_metadata = self.__data_and_metadata
+            if self.__display_data_and_metadata is None and data_and_metadata is not None:
+                data_and_metadata = Core.function_display_data(data_and_metadata, self.sequence_index, self.collection_index, self.slice_center,
+                                                               self.slice_width, self.complex_display_type)
+                self.__display_data_and_metadata = data_and_metadata
+            return self.__display_data_and_metadata
 
     @property
     def preview_2d_shape(self):
