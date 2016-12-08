@@ -401,8 +401,6 @@ class CalibrationToObservable(Observable.Observable):
 
     Clients can get/set/observer offset, scale, and unit properties.
 
-    Pass in a calibration stream and a setter function.
-
     The function setter will take a calibration argument. A typical function setter might be
     data_source.set_dimensional_calibration(0, calibration).
     """
@@ -424,7 +422,6 @@ class CalibrationToObservable(Observable.Observable):
         update_calibration(calibration)
 
     def close(self):
-        self.__calibration_stream = None
         self.__cached_value = None
         self.__setter_fn = None
 
