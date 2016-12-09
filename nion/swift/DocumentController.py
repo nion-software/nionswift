@@ -1066,7 +1066,7 @@ class DocumentController(Window.Window):
     def fix_display_limits(self, display_specifier):
         display = display_specifier.display
         if display:
-            display.display_limits = display.data_range
+            display.display_limits = display.data_range_model.value
 
     def build_variable_map(self):
         map = dict()

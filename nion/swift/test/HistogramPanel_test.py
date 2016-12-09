@@ -50,14 +50,15 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.document_controller.close()
 
     def test_drag_to_set_limits(self):
-        self.assertEqual(self.display_specifier.display.display_range, (200, 650))
+        self.assertEqual(self.display_specifier.display.display_range_model.value, (200, 650))
         self.assertIsNone(self.display_specifier.display.display_limits)
+        self.histogram_panel._histogram_widget._histogram_data_func_value_model._run_until_complete()
         # drag
         self.histogram_canvas_item.mouse_pressed(60, 58, 0)
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
         self.histogram_canvas_item.mouse_released(90, 58, 0)
         self.assertIsNotNone(self.display_specifier.display.display_limits)
-        self.assertEqual(self.display_specifier.display.display_range, (290, 320))
+        self.assertEqual(self.display_specifier.display.display_range_model.value, (290, 320))
         # double click and return to None
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
@@ -65,7 +66,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_canvas_item.mouse_double_clicked(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
         self.assertIsNone(self.display_specifier.display.display_limits)
-        self.assertEqual(self.display_specifier.display.display_range, (200, 650))
+        self.assertEqual(self.display_specifier.display.display_range_model.value, (200, 650))
 
     def test_changing_source_data_marks_histogram_as_dirty_then_recomputes_via_model(self):
         # verify assumptions

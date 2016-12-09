@@ -23,6 +23,7 @@ from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import Graphics
 from nion.utils import Event
+from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Persistence
 from nion.utils import Promise
@@ -130,6 +131,20 @@ class GraphicSelection:
             self.changed_event.fire()
 
 
+def calculate_display_range(display_limits, data_range, data_sample, xdata, complex_display_type):
+    if display_limits is not None:
+        display_limit_low = display_limits[0] if display_limits[0] is not None else data_range[0]
+        display_limit_high = display_limits[1] if display_limits[1] is not None else data_range[1]
+        return display_limit_low, display_limit_high
+    if xdata and xdata.is_data_complex_type and complex_display_type is None:  # log absolute
+        if data_sample is not None:
+            fraction = 0.05
+            display_limit_low = data_sample[int(data_sample.shape[0] * fraction)]
+            display_limit_high = data_range[1]
+            return display_limit_low, display_limit_high
+    return data_range
+
+
 class Display(Observable.Observable, Persistence.PersistentObject):
     # Displays are associated with exactly one data item.
 
@@ -154,6 +169,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
+        self.__data_range_model = Model.PropertyModel()
+        self.__display_range_model = Model.PropertyModel()
         self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
@@ -259,7 +276,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 data_and_metadata = self.display_data_and_metadata
                 if data_and_metadata is not None:
                     # display_range is just display_limits but calculated if display_limits is None
-                    preview_xdata = Core.function_display_rgba(data_and_metadata, self.display_range, self.__color_map_data)
+                    self.__validate_data_stats()
+                    data_range = self.__cache.get_cached_value(self, "data_range")
+                    data_sample = self.__cache.get_cached_value(self, "data_sample")
+                    display_range = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
+                    preview_xdata = Core.function_display_rgba(data_and_metadata, display_range, self.__color_map_data)
                     self.__preview = preview_xdata.data
             return self.__preview
 
@@ -331,7 +352,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __display_limits_changed(self, name, value):
         self.__property_changed(name, value)
-        self.notify_property_changed("display_range")
+        self.__display_range_model.value = value
 
     def __validate_sequence_index(self, value: int) -> int:
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
@@ -524,7 +545,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__clear_cached_data()
         self.notify_property_changed(property_name)
         self.display_changed_event.fire()
-        if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index"):
+        if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index", "complex_display_type"):
             self.notify_property_changed("display_data_and_metadata_promise")
         if property_name in ("dimensional_calibration_style", ):
             self.notify_property_changed("displayed_dimensional_calibrations")
@@ -568,40 +589,24 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         else:
             self.__cache.remove_cached_value(self, "data_sample")
         self.__clear_cached_data()
-        self.notify_property_changed("data_range")
-        self.notify_property_changed("data_sample")
-        self.notify_property_changed("display_range")
+        self.__data_range_model.value = data_range
+        self.__display_range_model.value = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
 
     @property
-    def data_range(self):
+    def data_range_model(self):
         self.__validate_data_stats()
-        return self.__cache.get_cached_value(self, "data_range")
+        return self.__data_range_model
 
     def _set_data_range_for_test(self, data_range):
         self.__cache.set_cached_value(self, "data_range", data_range)
 
     @property
-    def display_range(self):
+    def display_range_model(self):
         self.__validate_data_stats()
         data_range = self.__cache.get_cached_value(self, "data_range")
         data_sample = self.__cache.get_cached_value(self, "data_sample")
-        display_limits = self.display_limits
-        if display_limits is not None:
-            display_limit_low = display_limits[0] if display_limits[0] is not None else data_range[0]
-            display_limit_high = display_limits[1] if display_limits[1] is not None else data_range[1]
-            return display_limit_low, display_limit_high
-        if self.__data_and_metadata and self.__data_and_metadata.is_data_complex_type and self.complex_display_type is None:  # log absolute
-            if data_sample is not None:
-                fraction = 0.05
-                display_limit_low = data_sample[int(data_sample.shape[0] * fraction)]
-                display_limit_high = data_range[1]
-                return display_limit_low, display_limit_high
-        return data_range
-
-    @display_range.setter
-    def display_range(self, display_range):
-        # NOTE: setting display_range actually just sets display limits. helpful for inspector bindings.
-        self.display_limits = display_range
+        self.__display_range_model.value = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
+        return self.__display_range_model
 
     # message sent from buffered_data_source when data changes.
     # thread safe
@@ -623,6 +628,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def set_storage_cache(self, storage_cache):
         self.__cache.set_storage_cache(storage_cache, self)
+        self.__data_range_model.value = self.__cache.get_cached_value(self, "data_range")
 
     def __clear_cached_data(self):
         with self.__display_data_and_metadata_lock:

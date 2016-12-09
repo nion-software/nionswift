@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import functools
 import json
 import math
 import unittest
@@ -69,13 +70,13 @@ class TestDisplayClass(unittest.TestCase):
         display = Display.Display()
         display._set_data_range_for_test((1.0, 4.0))
         display.display_limits = None
-        self.assertEqual(display.display_range, (1.0, 4.0))
+        self.assertEqual(display.display_range_model.value, (1.0, 4.0))
         display.display_limits = (2.0, None)
-        self.assertEqual(display.display_range, (2.0, 4.0))
+        self.assertEqual(display.display_range_model.value, (2.0, 4.0))
         display.display_limits = (None, 3.0)
-        self.assertEqual(display.display_range, (1.0, 3.0))
+        self.assertEqual(display.display_range_model.value, (1.0, 3.0))
         display.display_limits = (2.0, 3.0)
-        self.assertEqual(display.display_range, (2.0, 3.0))
+        self.assertEqual(display.display_range_model.value, (2.0, 3.0))
 
     def test_display_produces_valid_preview_when_viewing_3d_data_set(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
@@ -108,12 +109,12 @@ class TestDisplayClass(unittest.TestCase):
         data_item = DataItem.DataItem(icol, numpy.uint32)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        self.assertEqual(display.display_range, (0, 15))
-        self.assertEqual(display.data_range, (0, 15))
+        self.assertEqual(display.display_range_model.value, (0, 15))
+        self.assertEqual(display.data_range_model.value, (0, 15))
         with display_specifier.buffered_data_source.data_ref() as dr:
             dr.data = irow // 2 + 4
-        self.assertEqual(display.display_range, (4, 11))
-        self.assertEqual(display.data_range, (4, 11))
+        self.assertEqual(display.display_range_model.value, (4, 11))
+        self.assertEqual(display.data_range_model.value, (4, 11))
 
     def test_changing_data_notifies_data_and_display_range_change(self):
         # this is used to update the inspector
@@ -125,14 +126,15 @@ class TestDisplayClass(unittest.TestCase):
             def __init__(self):
                 self.data_range = None
                 self.display_range = None
-            def property_changed(self, property):
-                if property == "display_range":
-                    self.display_range = display.display_range
-                if property == "data_range":
-                    self.data_range = display.data_range
+            def property_changed(self, property, key):
+                if property == "display_range" and key == "value":
+                    self.display_range = display.display_range_model.value
+                if property == "data_range" and key == "value":
+                    self.data_range = display.data_range_model.value
         o = Observer()
-        property_changed_listener = display.property_changed_event.listen(o.property_changed)
-        with contextlib.closing(property_changed_listener):
+        data_range_changed_listener = display.data_range_model.property_changed_event.listen(functools.partial(o.property_changed, "data_range"))
+        display_range_changed_listener = display.display_range_model.property_changed_event.listen(functools.partial(o.property_changed, "display_range"))
+        with contextlib.closing(data_range_changed_listener), contextlib.closing(display_range_changed_listener):
             with display_specifier.buffered_data_source.data_ref() as dr:
                 dr.data = irow // 2 + 4
             self.assertEqual(o.data_range, (4, 11))
@@ -142,7 +144,7 @@ class TestDisplayClass(unittest.TestCase):
         source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
         data_item = copy.deepcopy(source_data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.assertIsNotNone(display_specifier.display.data_range)
+        self.assertIsNotNone(display_specifier.display.data_range_model.value)
 
     def test_data_item_setting_slice_width_validates_when_invalid(self):
         data_item = DataItem.DataItem(numpy.ones((4, 4, 16), numpy.float64))
@@ -220,10 +222,10 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(display_specifier.display.data_range, (0, 0))
+            self.assertEqual(display_specifier.display.data_range_model.value, (0, 0))
             display_specifier.display.slice_center = 2
             display_specifier.display.slice_width = 4
-            self.assertEqual(display_specifier.display.data_range, (6, 6))
+            self.assertEqual(display_specifier.display.data_range_model.value, (6, 6))
 
     def test_display_data_is_scalar_for_1d_complex(self):
         document_model = DocumentModel.DocumentModel()
@@ -369,7 +371,7 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.auto_display_limits()
             # the display limit should never be less than the display data minimum
-            display_range = display_specifier.display.display_range
+            display_range = display_specifier.display.display_range_model.value
             self.assertLess(numpy.amin(display_specifier.display.display_data), display_range[0])
             self.assertAlmostEqual(numpy.amax(display_specifier.display.display_data), display_range[1])
 
@@ -380,20 +382,20 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_range = display_specifier.display.data_range
+            data_range = display_specifier.display.data_range_model.value
             self.assertIsNotNone(data_range)
             display_specifier.display.auto_display_limits()
-            self.assertEqual(data_range, display_specifier.display.data_range)
+            self.assertEqual(data_range, display_specifier.display.data_range_model.value)
 
     def test_display_range_is_recalculated_with_new_data(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-            self.assertEqual(data_item.maybe_data_source.displays[0].display_range, (1, 1))
+            self.assertEqual(data_item.maybe_data_source.displays[0].display_range_model.value, (1, 1))
             with data_item.maybe_data_source.data_ref() as dr:
                 dr.master_data[0,0] = 16
                 dr.data_updated()
-            self.assertEqual(data_item.maybe_data_source.displays[0].display_range, (1, 16))
+            self.assertEqual(data_item.maybe_data_source.displays[0].display_range_model.value, (1, 16))
 
     def test_display_range_is_correct_on_complex_data_display_as_absolute(self):
         document_model = DocumentModel.DocumentModel()
@@ -402,7 +404,7 @@ class TestDisplayClass(unittest.TestCase):
             complex_data[0, 0] = complex(4, 3)
             data_item = DataItem.DataItem(complex_data)
             data_item.maybe_data_source.displays[0].complex_display_type = "absolute"
-            self.assertEqual(data_item.maybe_data_source.displays[0].display_range, (0, 5))
+            self.assertEqual(data_item.maybe_data_source.displays[0].display_range_model.value, (0, 5))
 
     def test_display_range_is_correct_on_complex_data_display_as_log_absolute(self):
         document_model = DocumentModel.DocumentModel()
@@ -410,8 +412,8 @@ class TestDisplayClass(unittest.TestCase):
             complex_data = numpy.array(range(10)).astype(numpy.complex)
             data_item = DataItem.DataItem(complex_data)
             min_ = numpy.log(numpy.abs(0).astype(numpy.float64) + numpy.nextafter(0,1))
-            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].display_range[0], min_)
-            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].display_range[1], math.log(9))
+            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].display_range_model.value[0], min_)
+            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].display_range_model.value[1], math.log(9))
 
     def test_display_data_is_2d_for_2d_sequence(self):
         document_model = DocumentModel.DocumentModel()
