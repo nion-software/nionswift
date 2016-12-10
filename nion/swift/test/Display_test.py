@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import copy
+import json
 import math
 import unittest
 
@@ -14,6 +15,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Utility
 from nion.ui import TestUI
@@ -38,6 +40,42 @@ class TestDisplayClass(unittest.TestCase):
         self.assertEqual(display.display_limits, (0.25, 0.75))
         display.display_limits = None
         self.assertIsNone(display.display_limits)
+
+    def test_setting_partial_display_limits_works(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        display.display_limits = None
+        self.assertIsNone(display.display_limits)
+        display.display_limits = (0.25,)
+        self.assertEqual(display.display_limits, (0.25, None))
+        display.display_limits = (0.25, None)
+        self.assertEqual(display.display_limits, (0.25, None))
+        display.display_limits = (None, 0.75)
+        self.assertEqual(display.display_limits, (None, 0.75))
+        display.display_limits = (None,)
+        self.assertIsNone(display.display_limits)
+        display.display_limits = (None, None)
+        self.assertIsNone(display.display_limits)
+
+    def test_setting_partial_display_limits_write_and_read_when_read_back_as_list(self):
+        display = Display.Display()
+        display.display_limits = (None, 10)
+        j = json.dumps(display.write_to_dict())
+        display.read_from_dict(Utility.clean_dict(json.loads(j)))
+        self.assertEqual((None, 10), display.display_limits)
+
+    def test_display_range_with_partial_display_limits_is_complete(self):
+        display = Display.Display()
+        display._set_data_range_for_test((1.0, 4.0))
+        display.display_limits = None
+        self.assertEqual(display.display_range, (1.0, 4.0))
+        display.display_limits = (2.0, None)
+        self.assertEqual(display.display_range, (2.0, 4.0))
+        display.display_limits = (None, 3.0)
+        self.assertEqual(display.display_range, (1.0, 3.0))
+        display.display_limits = (2.0, 3.0)
+        self.assertEqual(display.display_range, (2.0, 3.0))
 
     def test_display_produces_valid_preview_when_viewing_3d_data_set(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
@@ -334,6 +372,18 @@ class TestDisplayClass(unittest.TestCase):
             display_range = display_specifier.display.display_range
             self.assertLess(numpy.amin(display_specifier.display.display_data), display_range[0])
             self.assertAlmostEqual(numpy.amax(display_specifier.display.display_data), display_range[1])
+
+    def test_data_range_still_valid_after_auto_display_limits(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.ones((16, 16))
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            data_range = display_specifier.display.data_range
+            self.assertIsNotNone(data_range)
+            display_specifier.display.auto_display_limits()
+            self.assertEqual(data_range, display_specifier.display.data_range)
 
     def test_display_range_is_recalculated_with_new_data(self):
         document_model = DocumentModel.DocumentModel()

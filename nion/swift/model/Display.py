@@ -317,7 +317,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __validate_display_limits(self, value):
         if value is not None:
-            return min(value[0], value[1]), max(value[0], value[1])
+            if len(value) == 0:
+                return None
+            elif len(value) == 1:
+                return (value[0], None) if value[0] is not None else None
+            elif value[0] is not None and value[1] is not None:
+                return min(value[0], value[1]), max(value[0], value[1])
+            elif value[0] is None and value[1] is None:
+                return None
+            else:
+                return value[0], value[1]
         return value
 
     def __display_limits_changed(self, name, value):
@@ -568,13 +577,19 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__validate_data_stats()
         return self.__cache.get_cached_value(self, "data_range")
 
+    def _set_data_range_for_test(self, data_range):
+        self.__cache.set_cached_value(self, "data_range", data_range)
+
     @property
     def display_range(self):
         self.__validate_data_stats()
         data_range = self.__cache.get_cached_value(self, "data_range")
         data_sample = self.__cache.get_cached_value(self, "data_sample")
-        if self.display_limits is not None:
-            return self.display_limits
+        display_limits = self.display_limits
+        if display_limits is not None:
+            display_limit_low = display_limits[0] if display_limits[0] is not None else data_range[0]
+            display_limit_high = display_limits[1] if display_limits[1] is not None else data_range[1]
+            return display_limit_low, display_limit_high
         if self.__data_and_metadata and self.__data_and_metadata.is_data_complex_type and self.complex_display_type is None:  # log absolute
             if data_sample is not None:
                 fraction = 0.05
