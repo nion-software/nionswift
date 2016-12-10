@@ -97,10 +97,7 @@ def clean_list(l0, clean_item_fn=None):
     l = list()
     for index, item in enumerate(l0):
         cleaned_item = clean_item_fn(item)
-        if cleaned_item is None:
-            logging.info("  in list at original index %s", index)
-        else:
-            l.append(cleaned_item)
+        l.append(cleaned_item)
     return l
 
 
@@ -138,6 +135,10 @@ def clean_item(i):
     elif itype == numpy.int32:
         return int(i)
     elif itype == numpy.uint32:
+        return int(i)
+    elif itype == numpy.int64:
+        return int(i)
+    elif itype == numpy.uint64:
         return int(i)
     elif itype == float:
         return i

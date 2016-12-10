@@ -452,7 +452,7 @@ class NDataHandler:
             if exists:
                 rewrite_zip(absolute_file_path, Utility.clean_dict(properties))
             else:
-                write_zip(absolute_file_path, None, properties)
+                write_zip(absolute_file_path, None, Utility.clean_dict(properties))
             # convert to utc time.
             tz_minutes = Utility.local_utcoffset_minutes(file_datetime)
             timestamp = calendar.timegm(file_datetime.timetuple()) - tz_minutes * 60

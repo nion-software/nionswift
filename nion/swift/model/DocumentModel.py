@@ -262,7 +262,7 @@ class MemoryPersistentStorageSystem:
             return self.__data.get(self.__uuid)
 
         def write_properties(self, properties, file_datetime):
-            self.__properties[self.__uuid] = copy.deepcopy(properties)
+            self.__properties[self.__uuid] = Utility.clean_dict(copy.deepcopy(properties))
 
         def write_data(self, data, file_datetime):
             self.__data[self.__uuid] = data.copy()
