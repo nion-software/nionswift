@@ -174,6 +174,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
+        self.__display_data_and_metadata_model = Model.AsyncPropertyModel(self.__calculate_display_data_and_metadata)
         self.__display_data_and_metadata = None
         self.__display_data_and_metadata_lock = threading.RLock()
         self.__preview = None
@@ -284,11 +285,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                     self.__preview = preview_xdata.data
             return self.__preview
 
-    @property
-    def display_data(self) -> numpy.ndarray:
-        display_data_and_metadata = self.display_data_and_metadata
-        return display_data_and_metadata.data if display_data_and_metadata else None
-
     def __get_display_dimensional_shape(self) -> typing.Tuple[int, ...]:
         if not self.__data_and_metadata:
             return None
@@ -325,12 +321,18 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return self.__display_data_and_metadata
 
     @property
-    def preview_2d_shape(self):
-        return self.__get_display_dimensional_shape()
+    def display_data_and_metadata_model(self):
+        return self.__display_data_and_metadata_model
+
+    def __calculate_display_data_and_metadata(self):
+        data_and_metadata = self.__data_and_metadata
+        if data_and_metadata is not None:
+            return Core.function_display_data(data_and_metadata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.complex_display_type)
+        return None
 
     @property
-    def display_data_and_metadata_promise(self) -> Promise.Promise[DataAndMetadata.DataAndMetadata]:
-        return Promise.Promise(lambda: self.display_data_and_metadata)
+    def preview_2d_shape(self):
+        return self.__get_display_dimensional_shape()
 
     @property
     def selected_graphics(self):
@@ -441,7 +443,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                     dimensional_shape = data_and_metadata.dimensional_shape
                     displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
                     displayed_intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
-                    self.display_data_fn = lambda: display.display_data
+                    self.display_data_fn = lambda: display.display_data_and_metadata.data if display.display_data_and_metadata else None
                     self.dimensional_shape = dimensional_shape
                     self.displayed_intensity_calibration = displayed_intensity_calibration
                     self.displayed_dimensional_calibration = displayed_dimensional_calibration
@@ -519,7 +521,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if not self._is_reading:
             self.__cache.remove_cached_value(self, "data_range")
             self.__cache.remove_cached_value(self, "data_sample")
-        self.__clear_cached_data()
 
     def __color_map_id_changed(self, property_name, value):
         self.__property_changed(property_name, value)
@@ -546,7 +547,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(property_name)
         self.display_changed_event.fire()
         if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index", "complex_display_type"):
-            self.notify_property_changed("display_data_and_metadata_promise")
+            self.__display_data_and_metadata_model.mark_dirty()
+            with self.__display_data_and_metadata_lock:
+                self.__display_data_and_metadata = None
         if property_name in ("dimensional_calibration_style", ):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
@@ -556,12 +559,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __validate_data_stats(self):
         # ensure that data_range and data_sample (if required) are valid.
-        display_data = self.display_data
+        display_data_and_metadata = self.display_data_and_metadata
         is_data_complex_type = self.__data_and_metadata.is_data_complex_type if self.__data_and_metadata else False
         data_range = self.__cache.get_cached_value(self, "data_range")
         data_sample = self.__cache.get_cached_value(self, "data_sample")
-        if display_data is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
-            self.__calculate_data_stats_for_data(display_data, self.__data_and_metadata.data_shape, self.__data_and_metadata.data_dtype)
+        if display_data_and_metadata is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
+            self.__calculate_data_stats_for_data(display_data_and_metadata.data, self.__data_and_metadata.data_shape, self.__data_and_metadata.data_dtype)
 
     def __calculate_data_stats_for_data(self, display_data, data_shape, data_dtype):
         # calculates data_range and data_sample (if required), stores them in cache, and notifies listeners
@@ -617,11 +620,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__clear_cached_data()
         if old_data_shape != new_data_shape:
             self.validate()
+        self.__display_data_and_metadata_model.mark_dirty()
+        with self.__display_data_and_metadata_lock:
+            self.__display_data_and_metadata = None
         if not self._is_reading:
             self.__cache.remove_cached_value(self, "data_range")
             self.__cache.remove_cached_value(self, "data_sample")
             self.__validate_data_stats()
-        self.notify_property_changed("display_data_and_metadata_promise")
         self.notify_property_changed("displayed_dimensional_calibrations")
         self.notify_property_changed("displayed_intensity_calibration")
         self.display_changed_event.fire()
@@ -631,8 +636,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__data_range_model.value = self.__cache.get_cached_value(self, "data_range")
 
     def __clear_cached_data(self):
-        with self.__display_data_and_metadata_lock:
-            self.__display_data_and_metadata = None
         with self.__preview_lock:
             self.__preview = None
         # clear the processor caches
