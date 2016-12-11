@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import copy
 import functools
 import gettext
@@ -100,7 +101,7 @@ class InspectorPanel(Panel.Panel):
             self.__display_inspector.close()
             self.__display_inspector = None
 
-        self.__display_inspector = DataItemInspector(self.ui, self.document_controller.document_model, self.__display_specifier)
+        self.__display_inspector = DataItemInspector(self.ui, self.document_controller.document_model, self.__display_specifier, self.document_controller.event_loop)
 
         buffered_data_source = self.__display_specifier.buffered_data_source
         display = self.__display_specifier.display
@@ -1538,7 +1539,7 @@ def make_field(ui, variable, converter):
     column.add_spacing(4)
     return column, []
 
-def make_image_chooser(ui, document_model, variable):
+def make_image_chooser(ui, document_model, variable, event_loop: asyncio.AbstractEventLoop):
     column = ui.create_column_widget()
     row = ui.create_row_widget()
     label_column = ui.create_column_widget()
@@ -1561,7 +1562,7 @@ def make_image_chooser(ui, document_model, variable):
         variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
         variable.specifier = variable_specifier
 
-    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(document_model.dispatch_task, ui, data_item)
+    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item, event_loop)
     data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(ui,
                                                                                data_item_thumbnail_source,
                                                                                Geometry.IntSize(80, 80))
@@ -1599,14 +1600,14 @@ class VariableWidget(Widgets.CompositeWidgetBase):
     a single child which is the UI for the variable. The child is replaced if necessary.
     """
 
-    def __init__(self, ui, document_model, variable):
+    def __init__(self, ui, document_model, variable, event_loop: asyncio.AbstractEventLoop):
         super().__init__(ui.create_column_widget())
         self.closeables = list()
-        self.__make_widget_from_variable(ui, document_model, variable)
+        self.__make_widget_from_variable(ui, document_model, variable, event_loop)
 
         def rebuild_variable():
             self.content_widget.remove_all()
-            self.__make_widget_from_variable(ui, document_model, variable)
+            self.__make_widget_from_variable(ui, document_model, variable, event_loop)
 
         self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
 
@@ -1616,7 +1617,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
         self.__variable_needs_rebuild_event_listener.close()
         self.__variable_needs_rebuild_event_listener = None
 
-    def __make_widget_from_variable(self, ui, document_model, variable):
+    def __make_widget_from_variable(self, ui, document_model, variable, event_loop: asyncio.AbstractEventLoop):
         if variable.variable_type == "boolean":
             widget, closeables = make_checkbox(ui, variable)
             self.content_widget.add(widget)
@@ -1638,7 +1639,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "data_item":
-            widget, closeables = make_image_chooser(ui, document_model, variable)
+            widget, closeables = make_image_chooser(ui, document_model, variable, event_loop)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
 
@@ -1649,7 +1650,7 @@ class ComputationInspectorSection(InspectorSection):
         Subclass InspectorSection to implement operations inspector.
     """
 
-    def __init__(self, ui, document_model: DocumentModel.DocumentModel, data_item: DataItem.DataItem, buffered_data_source: DataItem.BufferedDataSource):
+    def __init__(self, ui, document_model: DocumentModel.DocumentModel, buffered_data_source: DataItem.BufferedDataSource, event_loop: asyncio.AbstractEventLoop):
         super().__init__(ui, "computation", _("Computation"))
         computation = buffered_data_source.computation
         if computation:
@@ -1669,7 +1670,7 @@ class ComputationInspectorSection(InspectorSection):
             self.add_widget_to_content(stretch_column)
 
             def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
-                widget_wrapper = VariableWidget(self.ui, document_model, variable)
+                widget_wrapper = VariableWidget(self.ui, document_model, variable, event_loop)
                 self._variables_column_widget.insert(widget_wrapper, index)
 
             def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
@@ -1705,7 +1706,7 @@ class DataItemInspector:
     within the display specifier mutate.
     """
 
-    def __init__(self, ui, document_model: DocumentModel.DocumentModel, display_specifier: DataItem.DisplaySpecifier):
+    def __init__(self, ui, document_model: DocumentModel.DocumentModel, display_specifier: DataItem.DisplaySpecifier, event_loop: asyncio.AbstractEventLoop):
         self.ui = ui
 
         data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
@@ -1744,7 +1745,7 @@ class DataItemInspector:
                     self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
                     self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source, event_loop))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()
@@ -1762,7 +1763,7 @@ class DataItemInspector:
                     self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
                     self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, data_item, buffered_data_source))
+            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source, event_loop))
             def focus_default():
                 self.__inspector_sections[0].info_title_label.focused = True
                 self.__inspector_sections[0].info_title_label.select_all()

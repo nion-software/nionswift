@@ -1,5 +1,6 @@
 # standard libraries
 import abc
+import asyncio
 import uuid
 
 # third party libraries
@@ -45,9 +46,9 @@ class AbstractDataItemThumbnailSource(metaclass=abc.ABCMeta):
 
 class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
 
-    def __init__(self, dispatch_task, ui, data_item):
+    def __init__(self, ui, data_item, event_loop: asyncio.AbstractEventLoop):
         super().__init__()
-        self.__dispatch_task = dispatch_task
+        self.__event_loop = event_loop
         self.ui = ui
         self.__data_item = None
         self.__thumbnail_source = None
@@ -78,7 +79,7 @@ class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         if display_specifier.display:
 
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.__dispatch_task, self.ui, display_specifier.display)
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display_specifier.display, self.__event_loop)
 
             def thumbnail_updated():
                 self._update_thumbnail(data_item)
@@ -93,8 +94,8 @@ class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
 
     Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations."""
 
-    def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference, dispatch_task):
-        super().__init__(dispatch_task, ui, data_item_reference.data_item)
+    def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference, event_loop: asyncio.AbstractEventLoop):
+        super().__init__(ui, data_item_reference.data_item, event_loop)
 
         def data_item_changed():
             self.set_data_item(data_item_reference.data_item)

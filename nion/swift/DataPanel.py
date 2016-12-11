@@ -59,9 +59,9 @@ class DisplayItem:
             (event) needs_update_event
     """
 
-    def __init__(self, data_item, dispatch_task, ui):
+    def __init__(self, data_item, ui, event_loop):
         self.__data_item = data_item
-        self.__dispatch_task = dispatch_task
+        self.__event_loop = event_loop
         self.ui = ui
         self.needs_update_event = Event.Event()
 
@@ -93,7 +93,7 @@ class DisplayItem:
         display_specifier = self.__data_item.primary_display_specifier
         display = display_specifier.display
         if display and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.__dispatch_task, self.ui, display)
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display, self.__event_loop)
 
             def thumbnail_updated():
                 self.needs_update_event.fire()
@@ -1132,7 +1132,7 @@ class DataPanel(Panel.Panel):
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
         def data_item_inserted(data_item, before_index):
-            display_item = DisplayItem(data_item, dispatch_task, ui)
+            display_item = DisplayItem(data_item, ui, document_controller.event_loop)
             self.__display_items.insert(before_index, display_item)
             self.data_list_controller.display_item_inserted(display_item, before_index)
             self.data_grid_controller.display_item_inserted(display_item, before_index)

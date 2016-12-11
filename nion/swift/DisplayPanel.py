@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import copy
 import functools
 import gettext
@@ -842,9 +843,10 @@ class DataItemDisplayTypeMonitor:
 
 class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, ui, document_model):
+    def __init__(self, ui, document_model, event_loop: asyncio.AbstractEventLoop):
         super().__init__()
         self.ui = ui
+        self.__event_loop = event_loop
         self.__document_model = document_model
         self.__source_thumbnails = CanvasItem.CanvasItemComposition()
         self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
@@ -890,12 +892,12 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
         # self.__dependent_thumbnails.remove_all_canvas_items()
         if data_item is not None:
             for source_data_item in self.__document_model.get_source_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.__document_model.dispatch_task, self.ui, source_data_item)
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, source_data_item, self.__event_loop)
                 thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
             for dependent_data_item in self.__document_model.get_dependent_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.__document_model.dispatch_task, self.ui, dependent_data_item)
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, dependent_data_item, self.__event_loop)
                 thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
@@ -906,7 +908,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def __init__(self, document_controller):
         super().__init__(document_controller)
 
-        dispatch_task = document_controller.document_model.dispatch_task
         ui = document_controller.ui
 
         self.__data_item = None
@@ -934,7 +935,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.on_image_mouse_released = None
         self.on_image_mouse_position_changed = None
 
-        self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model)
+        self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model, document_controller.event_loop)
         self.__shortcuts_canvas_item.on_drag = document_controller.drag
 
         self.__data_item_display_canvas_item = CanvasItem.CanvasItemComposition()
@@ -981,7 +982,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         def data_item_inserted(data_item, before_index):
             if self.__display_items is not None:  # closed?
-                display_item = DataPanel.DisplayItem(data_item, dispatch_task, ui)
+                display_item = DataPanel.DisplayItem(data_item, ui, document_controller.event_loop)
                 self.__display_items.insert(before_index, display_item)
                 self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
                 self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
@@ -1282,7 +1283,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             root_canvas_item = self.canvas_item.root_container
             document_controller = self.document_controller
             # force thumbnail calculation
-            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.document_model.dispatch_task, document_controller.ui, display_specifier.display)
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.ui, display_specifier.display, document_controller.event_loop)
             thumbnail_source.recompute_data()
             thumbnail_source.close()
             thumbnail_source = None

@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import collections
 import contextlib
 import datetime
@@ -321,3 +322,27 @@ def sample_stack_all(count=10, interval=0.1):
             print("\n".join(ll))
 
     threading.Thread(target=do_sample).start()
+
+
+class TestEventLoop:
+    def __init__(self):
+        logging.disable(logging.CRITICAL)  # suppress new_event_loop debug message
+        self.__event_loop = asyncio.new_event_loop()
+        logging.disable(logging.NOTSET)
+
+    def close(self):
+        # give cancelled tasks a chance to finish
+        self.__event_loop.stop()
+        self.__event_loop.run_forever()
+        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
+        # now close
+        # due to a bug in Python libraries, the default executor needs to be shutdown explicitly before the event loop
+        # see http://bugs.python.org/issue28464
+        if self.__event_loop._default_executor:
+            self.__event_loop._default_executor.shutdown()
+        self.__event_loop.close()
+        self.__event_loop = None
+
+    @property
+    def event_loop(self):
+        return self.__event_loop
