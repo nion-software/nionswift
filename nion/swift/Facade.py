@@ -1094,8 +1094,11 @@ class DataItem:
 
         try:
             display_canvas_item.update_layout(viewbox.origin, viewbox.size)
-            display_type = "line_plot" if buffered_data_source.is_data_1d else "image"
-            DisplayPanelModule.DataItemDataSourceDisplay.update_display(display_type, display_canvas_item, display)
+            display_type = display.actual_display_type
+            if display_type == "image":
+                DisplayPanelModule.DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters())
+            elif display_type == "line_plot":
+                DisplayPanelModule.DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters())
             dc = DrawingContext.DrawingContext()
             display_canvas_item._repaint(dc)
             return dc.to_svg(size, viewbox)

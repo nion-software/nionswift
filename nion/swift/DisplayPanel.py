@@ -536,7 +536,10 @@ class DataItemDataSourceDisplay:
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # update the display canvas, etc.
                 # thread safe
-                self.update_display(self.__display_type, self.__display_canvas_item, display)
+                if self.__display_type == "image":
+                    DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters())
+                elif self.__display_type == "line_plot":
+                    DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters())
                 display_graphic_selection_changed(display.graphic_selection)
 
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
@@ -561,32 +564,30 @@ class DataItemDataSourceDisplay:
         return self.__display_canvas_item
 
     @classmethod
-    def update_display(cls, display_type, display_canvas_item, display):
-        assert display is not None
-        data_and_metadata = display.data_and_metadata_for_display_panel
-        if data_and_metadata:
-            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-            metadata = data_and_metadata.metadata
-            if display_type == "image":
-                if len(displayed_dimensional_calibrations) == 0:
-                    dimensional_calibration = Calibration.Calibration()
-                elif len(displayed_dimensional_calibrations) == 1:
-                    dimensional_calibration = displayed_dimensional_calibrations[0]
-                else:
-                    display_data_and_metadata = display.display_data_and_metadata
-                    if display_data_and_metadata:
-                        dimensional_calibration = display_data_and_metadata.dimensional_calibrations[-1]
-                    else:
-                        dimensional_calibration = Calibration.Calibration()
-                display_canvas_item.update_image_display_state(lambda: display.preview_2d, display.preview_2d_shape, dimensional_calibration, metadata)
-            elif display_type == "line_plot":
-                display_properties = {"y_min": display.y_min, "y_max": display.y_max, "y_style": display.y_style, "left_channel": display.left_channel,
-                    "right_channel": display.right_channel, "legend_labels": display.legend_labels}
-                dimensional_shape = data_and_metadata.dimensional_shape
-                displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
-                displayed_intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
-                display_canvas_item.update_line_plot_display_state(lambda: display.display_data, dimensional_shape, displayed_intensity_calibration,
-                                                                   displayed_dimensional_calibration, metadata, display_properties)
+    def update_image_display(cls, display_canvas_item, image_display_parameters):
+        if image_display_parameters:
+            display_canvas_item.update_image_display_state(image_display_parameters.display_rgba_fn,
+                                                           image_display_parameters.display_rgba_shape,
+                                                           image_display_parameters.dimensional_calibration,
+                                                           image_display_parameters.metadata)
+
+    @classmethod
+    def update_line_plot_display(cls, display_canvas_item, line_plot_display_parameters):
+        if line_plot_display_parameters:
+            display_properties = {
+                "y_min": line_plot_display_parameters.y_range[0],
+                "y_max": line_plot_display_parameters.y_range[1],
+                "y_style": line_plot_display_parameters.y_style,
+                "left_channel": line_plot_display_parameters.channel_range[0],
+                "right_channel": line_plot_display_parameters.channel_range[1],
+                "legend_labels": line_plot_display_parameters.legend_labels
+            }
+            display_canvas_item.update_line_plot_display_state(line_plot_display_parameters.display_data_fn,
+                                                               line_plot_display_parameters.dimensional_shape,
+                                                               line_plot_display_parameters.displayed_intensity_calibration,
+                                                               line_plot_display_parameters.displayed_dimensional_calibration,
+                                                               line_plot_display_parameters.metadata,
+                                                               display_properties)
 
     def add_index_to_selection(self, index):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -1707,7 +1708,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     if display_type == "line_plot":
         frame_width, frame_height = width, int(width / 1.618)
         display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
-        DataItemDataSourceDisplay.update_display("line_plot", display_canvas_item, display)
+        DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters())
         display_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(height=frame_height, width=frame_width))
         display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
         with drawing_context.saver():
@@ -1717,7 +1718,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     elif display_type == "image":
         display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, draw_background=False)
         display_canvas_item.set_fit_mode()
-        DataItemDataSourceDisplay.update_display("image", display_canvas_item, display)
+        DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters())
         displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
         graphics = display.graphics
         display_canvas_item.update_layout((0, 0), (height, width))
