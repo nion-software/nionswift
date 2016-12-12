@@ -84,7 +84,7 @@ class TestStorageClass(unittest.TestCase):
         data_group = DataGroup.DataGroup()
         data_group.append_data_item(data_item)
         document_controller.document_model.append_data_group(data_group)
-        data_item2 = DataItem.DataItem(numpy.empty((12, 12), dtype=numpy.int64))
+        data_item2 = DataItem.DataItem(numpy.zeros((12, 12), dtype=numpy.int64))
         document_controller.document_model.append_data_item(data_item2)
         data_group.append_data_item(data_item2)
         data_item3 = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))

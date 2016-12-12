@@ -890,7 +890,7 @@ class DataItem:
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.displays[0].display_data_and_metadata
+        return self.__data_item.maybe_data_source.displays[0].display_data_and_metadata_model.get_value_immediate()
 
     @property
     def intensity_calibration(self) -> CalibrationModule.Calibration:

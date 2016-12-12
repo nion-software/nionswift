@@ -509,10 +509,11 @@ class BaseDisplayPanelContent:
 
 class DataItemDataSourceDisplay:
 
-    def __init__(self, data_item, delegate, display_type, get_font_metrics_fn):
+    def __init__(self, data_item, delegate, display_type, get_font_metrics_fn, event_loop):
         self.__data_item = data_item
         self.__delegate = delegate
         self.__display_type = display_type
+        self.__event_loop = event_loop
         self.__display_changed_event_listener = None
         self.__display_graphic_selection_changed_event_listener = None
 
@@ -533,20 +534,38 @@ class DataItemDataSourceDisplay:
                 graphics = display.graphics
                 self.__display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
 
+            def display_rgba_changed(key):
+                if key == "value" and self.__display_type == "image":
+                    DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters())
+
+            def display_data_and_metadata_changed(key):
+                if key == "value" and self.__display_type == "line_plot":
+                    DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters())
+
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # update the display canvas, etc.
                 # thread safe
-                if self.__display_type == "image":
-                    DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters())
-                elif self.__display_type == "line_plot":
-                    DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters())
+                display_rgba_changed("value")
+                display_data_and_metadata_changed("value")
                 display_graphic_selection_changed(display.graphic_selection)
 
+            def display_rgba_marked_dirty():
+                display.display_rgba_model.evaluate(self.__event_loop)
+
+            def display_data_and_metadata_marked_dirty():
+                display.display_data_and_metadata_model.evaluate(self.__event_loop)
+
+            self.__display_rgba_changed_listener = display.display_rgba_model.property_changed_event.listen(display_rgba_changed)
+            self.__display_data_and_metadata_changed_listener = display.display_data_and_metadata_model.property_changed_event.listen(display_data_and_metadata_changed)
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
+            self.__display_rgba_marked_dirty_listener = display.display_rgba_model.marked_dirty_event.listen(display_rgba_marked_dirty)
+            self.__display_data_and_metadata_marked_dirty_listener = display.display_data_and_metadata_model.marked_dirty_event.listen(display_data_and_metadata_marked_dirty)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
 
             display_changed()
+            display_rgba_marked_dirty()
+            display_data_and_metadata_marked_dirty()
 
     def close(self):
         if self.__display_changed_event_listener:
@@ -555,6 +574,18 @@ class DataItemDataSourceDisplay:
         if self.__display_graphic_selection_changed_event_listener:
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
+        if self.__display_rgba_changed_listener:
+            self.__display_rgba_changed_listener.close()
+            self.__display_rgba_changed_listener = None
+        if self.__display_data_and_metadata_changed_listener:
+            self.__display_data_and_metadata_changed_listener.close()
+            self.__display_data_and_metadata_changed_listener = None
+        if self.__display_rgba_marked_dirty_listener:
+            self.__display_rgba_marked_dirty_listener.close()
+            self.__display_rgba_marked_dirty_listener = None
+        if self.__display_data_and_metadata_marked_dirty_listener:
+            self.__display_data_and_metadata_marked_dirty_listener.close()
+            self.__display_data_and_metadata_marked_dirty_listener = None
 
     @property
     def _data_item(self):
@@ -567,7 +598,7 @@ class DataItemDataSourceDisplay:
     @classmethod
     def update_image_display(cls, display_canvas_item, image_display_parameters):
         if image_display_parameters:
-            display_canvas_item.update_image_display_state(image_display_parameters.display_rgba_fn,
+            display_canvas_item.update_image_display_state(image_display_parameters.display_rgba,
                                                            image_display_parameters.display_rgba_shape,
                                                            image_display_parameters.dimensional_calibration,
                                                            image_display_parameters.metadata)
@@ -583,7 +614,7 @@ class DataItemDataSourceDisplay:
                 "right_channel": line_plot_display_parameters.channel_range[1],
                 "legend_labels": line_plot_display_parameters.legend_labels
             }
-            display_canvas_item.update_line_plot_display_state(line_plot_display_parameters.display_data_fn,
+            display_canvas_item.update_line_plot_display_state(line_plot_display_parameters.display_data,
                                                                line_plot_display_parameters.dimensional_shape,
                                                                line_plot_display_parameters.displayed_intensity_calibration,
                                                                line_plot_display_parameters.displayed_dimensional_calibration,
@@ -1223,7 +1254,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
                     document_controller.display_data_item(new_display_specifier)
 
-            self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self._data_item, Delegate(), display_type, self.ui.get_font_metrics)
+            self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self._data_item, Delegate(), display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
             self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
         if self.__data_item_display_canvas_item:
             self.__data_item_display_canvas_item.update()

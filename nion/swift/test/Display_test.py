@@ -82,7 +82,7 @@ class TestDisplayClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        self.assertIsNotNone(display.display_data_and_metadata)
+        self.assertIsNotNone(display.display_data_and_metadata_model.value)
 
     def test_preview_2d_shape_of_3d_data_set_has_correct_dimensions(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), numpy.float64))
@@ -98,7 +98,7 @@ class TestDisplayClass(unittest.TestCase):
         data_item.maybe_data_source.set_intensity_calibration(intensity_calibration)
         data_item.maybe_data_source.set_dimensional_calibrations([dim0_calibration, dim1_calibration, dim2_calibration])
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_data_and_metadata = display_specifier.display.display_data_and_metadata
+        display_data_and_metadata = display_specifier.display.display_data_and_metadata_model.value
         self.assertEqual(display_data_and_metadata.dimensional_shape, (16, 16))
         self.assertEqual(display_data_and_metadata.intensity_calibration, intensity_calibration)
         self.assertEqual(display_data_and_metadata.dimensional_calibrations[0], dim0_calibration)
@@ -249,7 +249,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
 
     def test_display_data_is_scalar_for_2d_complex(self):
         document_model = DocumentModel.DocumentModel()
@@ -259,7 +259,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
 
     def test_display_data_is_rgba_for_2d_rgba(self):
         document_model = DocumentModel.DocumentModel()
@@ -269,8 +269,8 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.uint8)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_shape[-1], 4)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.uint8)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_shape[-1], 4)
 
     def test_display_data_is_2d_for_3d(self):
         document_model = DocumentModel.DocumentModel()
@@ -280,8 +280,8 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_shape, (16, 16))
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
 
     def test_display_data_is_2d_scalar_for_3d_complex(self):
         document_model = DocumentModel.DocumentModel()
@@ -291,8 +291,8 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_shape, (16, 16))
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
 
     def test_image_with_no_data_displays_gracefully(self):
         document_model = DocumentModel.DocumentModel()
@@ -360,7 +360,7 @@ class TestDisplayClass(unittest.TestCase):
             self.assertIsNotNone(data_item.maybe_data_source.displays[0].display_limits)  # check assumptions
             data_item.maybe_data_source.displays[0].auto_display_limits()
             self.assertIsNone(data_item.maybe_data_source.displays[0].display_limits)
-            preview = data_item.maybe_data_source.displays[0].preview_2d
+            preview = data_item.maybe_data_source.displays[0].display_rgba_model.get_value_immediate()
             self.assertIsNotNone(preview)
 
     def test_auto_display_limits_on_various_value_types_write_to_clean_json(self):
@@ -386,8 +386,8 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier.display.auto_display_limits()
             # the display limit should never be less than the display data minimum
             display_range = display_specifier.display.display_range_model.value
-            self.assertLess(numpy.amin(display_specifier.display.display_data_and_metadata.data), display_range[0])
-            self.assertAlmostEqual(numpy.amax(display_specifier.display.display_data_and_metadata.data), display_range[1])
+            self.assertLess(numpy.amin(display_specifier.display.display_data_and_metadata_model.value.data), display_range[0])
+            self.assertAlmostEqual(numpy.amax(display_specifier.display.display_data_and_metadata_model.value.data), display_range[1])
 
     def test_data_range_still_valid_after_auto_display_limits(self):
         document_model = DocumentModel.DocumentModel()
@@ -438,8 +438,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_shape, (16, 16))
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_shape, (16, 16))
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (16, 16))
 
     def test_display_data_is_2d_for_2d_collection_with_2d_datum(self):
@@ -451,8 +451,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_shape, (8, 8))
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_shape, (8, 8))
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (8, 8))
 
     def test_display_data_is_2d_for_sequence_of_2d_collection_with_2d_datum(self):
@@ -464,8 +464,8 @@ class TestDisplayClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_shape, (8, 8))
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_shape, (8, 8))
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (8, 8))
 
     def test_display_data_is_2d_for_collection_of_1d_datum(self):
@@ -476,8 +476,8 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_shape, (2, 8))
-            self.assertEqual(display_specifier.display.display_data_and_metadata.data_dtype, numpy.float64)
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_shape, (2, 8))
+            self.assertEqual(display_specifier.display.display_data_and_metadata_model.value.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (2, 8))
 
 

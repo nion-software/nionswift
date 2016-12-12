@@ -168,9 +168,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # call super
         super(LinePlotCanvasItem, self).close()
 
-    def update_line_plot_display_state(self, data_fn, data_shape, displayed_intensity_calibration: Calibration.Calibration, displayed_dimensional_calibration: Calibration.Calibration, metadata: dict, display_properties) -> None:
+    def update_line_plot_display_state(self, data, data_shape, displayed_intensity_calibration: Calibration.Calibration, displayed_dimensional_calibration: Calibration.Calibration, metadata: dict, display_properties) -> None:
         """ Update the display state. """
-        self.__data_fn = data_fn
+        self.__data = data
         self.__data_shape = data_shape
         self.__dimensional_calibration = displayed_dimensional_calibration
         self.__intensity_calibration = displayed_intensity_calibration
@@ -239,7 +239,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def prepare_display(self):
         # thread safe. no UI.
         if self.__data_shape:
-            data_fn = self.__data_fn
             data_shape = self.__data_shape
             dimensional_calibration = self.__dimensional_calibration
             intensity_calibration = self.__intensity_calibration
@@ -251,7 +250,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             legend_labels = self.__legend_labels
 
             # this can be done here -- it is always in a thread (paint)
-            scalar_data = data_fn()
+            scalar_data = self.__data
 
             if scalar_data is not None and data_shape is not None and len(data_shape) > 0:
 

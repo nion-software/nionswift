@@ -295,7 +295,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__info_overlay_canvas_item)
 
-        self.__data_fn = None
+        self.__data_rgba = None
         self.__data_shape = None
         self.__graphics = list()
         self.__graphic_selection = set()
@@ -323,10 +323,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
-    def update_image_display_state(self, data_fn, data_shape, dimension_calibration, metadata):
+    def update_image_display_state(self, data_rgba, data_shape, dimension_calibration, metadata):
         # first take care of listeners and update the __display field
         # next get rid of data associated with canvas items
-        self.__data_fn = data_fn
+        self.__data_rgba = data_rgba
         self.__data_shape = data_shape
         # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
         self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
@@ -956,7 +956,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def prepare_display(self):
         if self.__data_shape is not None:
             # configure the bitmap canvas item
-            self.__bitmap_canvas_item.set_rgba_bitmap_data_fn(self.__data_fn, trigger_update=False)
+            self.__bitmap_canvas_item.set_rgba_bitmap_data(self.__data_rgba, trigger_update=False)
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")

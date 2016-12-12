@@ -26,7 +26,7 @@ from nion.utils import Event
 from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Persistence
-from nion.utils import Promise
+
 
 _ = gettext.gettext
 
@@ -174,11 +174,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
+        self.__display_rgba_model = Model.AsyncPropertyModel(self.__calculate_display_rgba)
         self.__display_data_and_metadata_model = Model.AsyncPropertyModel(self.__calculate_display_data_and_metadata)
-        self.__display_data_and_metadata = None
-        self.__display_data_and_metadata_lock = threading.RLock()
-        self.__preview = None
-        self.__preview_lock = threading.RLock()
         self.thumbnail_changed_event = Event.Event()
         self.graphic_selection = GraphicSelection()
         def graphic_selection_changed():
@@ -271,19 +268,20 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.view_to_intervals(data_and_metadata, intervals)
 
     @property
-    def preview_2d(self):
-        with self.__preview_lock:
-            if self.__preview is None:
-                data_and_metadata = self.display_data_and_metadata
-                if data_and_metadata is not None:
-                    # display_range is just display_limits but calculated if display_limits is None
-                    self.__validate_data_stats()
-                    data_range = self.__cache.get_cached_value(self, "data_range")
-                    data_sample = self.__cache.get_cached_value(self, "data_sample")
-                    display_range = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
-                    preview_xdata = Core.function_display_rgba(data_and_metadata, display_range, self.__color_map_data)
-                    self.__preview = preview_xdata.data
-            return self.__preview
+    def display_rgba_model(self):
+        return self.__display_rgba_model
+
+    def __calculate_display_rgba(self):
+        data_and_metadata = self.display_data_and_metadata_model.get_value_immediate()  # this is always on a thread; so get immediate value
+        if data_and_metadata is not None and self.__data_and_metadata is not None:
+            # display_range is just display_limits but calculated if display_limits is None
+            self.__validate_data_stats()
+            data_range = self.__cache.get_cached_value(self, "data_range")
+            data_sample = self.__cache.get_cached_value(self, "data_sample")
+            if data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
+                display_range = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
+                return Core.function_display_rgba(data_and_metadata, display_range, self.__color_map_data).data
+        return None
 
     def __get_display_dimensional_shape(self) -> typing.Tuple[int, ...]:
         if not self.__data_and_metadata:
@@ -307,20 +305,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return dimensional_shape[next_dimension:]
 
     @property
-    def display_data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
-        """Return version of the source data guaranteed to be 1-dimensional scalar or 2-dimensional and scalar or RGBA.
-
-        Accessing display data may involve computation, so this method should not be used on UI thread.
-        """
-        with self.__display_data_and_metadata_lock:
-            data_and_metadata = self.__data_and_metadata
-            if self.__display_data_and_metadata is None and data_and_metadata is not None:
-                data_and_metadata = Core.function_display_data(data_and_metadata, self.sequence_index, self.collection_index, self.slice_center,
-                                                               self.slice_width, self.complex_display_type)
-                self.__display_data_and_metadata = data_and_metadata
-            return self.__display_data_and_metadata
-
-    @property
     def display_data_and_metadata_model(self):
         return self.__display_data_and_metadata_model
 
@@ -329,6 +313,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if data_and_metadata is not None:
             return Core.function_display_data(data_and_metadata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.complex_display_type)
         return None
+
+    def _evaluate_for_test(self):
+        self.display_data_and_metadata_model.get_value_immediate()
+        self.display_rgba_model.get_value_immediate()
 
     @property
     def preview_2d_shape(self):
@@ -443,7 +431,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                     dimensional_shape = data_and_metadata.dimensional_shape
                     displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
                     displayed_intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
-                    self.display_data_fn = lambda: display.display_data_and_metadata.data if display.display_data_and_metadata else None
+                    display_data_and_metadata = display.display_data_and_metadata_model.value
+                    display_data = display_data_and_metadata.data if display_data_and_metadata else None
+                    self.display_data = display_data
                     self.dimensional_shape = dimensional_shape
                     self.displayed_intensity_calibration = displayed_intensity_calibration
                     self.displayed_dimensional_calibration = displayed_dimensional_calibration
@@ -468,12 +458,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                     elif len(displayed_dimensional_calibrations) == 1:
                         dimensional_calibration = displayed_dimensional_calibrations[0]
                     else:
-                        display_data_and_metadata = display.display_data_and_metadata
+                        display_data_and_metadata = display.display_data_and_metadata_model.value
                         if display_data_and_metadata:
                             dimensional_calibration = display_data_and_metadata.dimensional_calibrations[-1]
                         else:
                             dimensional_calibration = Calibration.Calibration()
-                    self.display_rgba_fn = lambda: display.preview_2d
+                    self.display_rgba = display.display_rgba_model.value
                     self.display_rgba_shape = display.preview_2d_shape
                     self.dimensional_calibration = dimensional_calibration
                     self.metadata = data_and_metadata.metadata
@@ -543,13 +533,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __property_changed(self, property_name, value):
         # when one of the defined properties changes, this gets called
-        self.__clear_cached_data()
         self.notify_property_changed(property_name)
         self.display_changed_event.fire()
         if property_name in ("slice_center", "slice_width", "sequence_index", "collection_index", "complex_display_type"):
             self.__display_data_and_metadata_model.mark_dirty()
-            with self.__display_data_and_metadata_lock:
-                self.__display_data_and_metadata = None
+            self.__display_rgba_model.mark_dirty()
+        if property_name in ("display_limits", "color_map_data"):
+            self.__display_rgba_model.mark_dirty()
         if property_name in ("dimensional_calibration_style", ):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
@@ -559,7 +549,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def __validate_data_stats(self):
         # ensure that data_range and data_sample (if required) are valid.
-        display_data_and_metadata = self.display_data_and_metadata
+        display_data_and_metadata = self.display_data_and_metadata_model.get_value_immediate()
         is_data_complex_type = self.__data_and_metadata.is_data_complex_type if self.__data_and_metadata else False
         data_range = self.__cache.get_cached_value(self, "data_range")
         data_sample = self.__cache.get_cached_value(self, "data_sample")
@@ -591,7 +581,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__cache.set_cached_value(self, "data_sample", data_sample)
         else:
             self.__cache.remove_cached_value(self, "data_sample")
-        self.__clear_cached_data()
+        if not self._is_reading:
+            self.thumbnail_changed_event.fire()
         self.__data_range_model.value = data_range
         self.__display_range_model.value = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
 
@@ -602,6 +593,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def _set_data_range_for_test(self, data_range):
         self.__cache.set_cached_value(self, "data_range", data_range)
+        self.__display_rgba_model.mark_dirty()
 
     @property
     def display_range_model(self):
@@ -617,12 +609,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         old_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
         self.__data_and_metadata = data_and_metadata
         new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
-        self.__clear_cached_data()
+        if not self._is_reading:
+            self.thumbnail_changed_event.fire()
         if old_data_shape != new_data_shape:
             self.validate()
         self.__display_data_and_metadata_model.mark_dirty()
-        with self.__display_data_and_metadata_lock:
-            self.__display_data_and_metadata = None
+        self.__display_rgba_model.mark_dirty()
         if not self._is_reading:
             self.__cache.remove_cached_value(self, "data_range")
             self.__cache.remove_cached_value(self, "data_sample")
@@ -634,13 +626,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def set_storage_cache(self, storage_cache):
         self.__cache.set_storage_cache(storage_cache, self)
         self.__data_range_model.value = self.__cache.get_cached_value(self, "data_range")
-
-    def __clear_cached_data(self):
-        with self.__preview_lock:
-            self.__preview = None
-        # clear the processor caches
-        if not self._is_reading:
-            self.thumbnail_changed_event.fire()
 
     def __insert_graphic(self, name, before_index, graphic):
         graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, graphic))
