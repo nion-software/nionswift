@@ -654,7 +654,7 @@ class ImageDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, ui, display):
+    def __init__(self, ui, display, event_loop):
         super().__init__(ui, "display-limits", _("Display"))
 
         # display type
@@ -695,6 +695,17 @@ class ImageDisplayInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_limits_limit_row)
 
         self.finish_widget_content()
+
+        # watch the data range model and update if necessary
+        def data_range_dirty():
+            display.data_range_model.evaluate(event_loop)
+
+        self.__data_range_dirty_listener = display.data_range_model.marked_dirty_event.listen(data_range_dirty)
+
+    def close(self):
+        self.__data_range_dirty_listener.close()
+        self.__data_range_dirty_listener = None
+        super().close()
 
 
 class LinePlotDisplayInspectorSection(InspectorSection):
@@ -1754,7 +1765,7 @@ class DataItemInspector:
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
+            self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display, event_loop))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_sequence:
                 self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))

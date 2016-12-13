@@ -153,24 +153,25 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__cache = Cache.ShadowCache()
         self.__color_map_data = None
         self.define_property("display_type", changed=self.__display_type_changed)
-        self.define_property("complex_display_type", changed=self.__complex_display_type_changed)
+        self.define_property("complex_display_type", changed=self.__property_changed)
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("dimensional_calibration_style", None, changed=self.__property_changed)
-        self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__display_limits_changed)
+        self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__property_changed)
         self.define_property("y_min", changed=self.__property_changed)
         self.define_property("y_max", changed=self.__property_changed)
         self.define_property("y_style", "linear", changed=self.__property_changed)
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("legend_labels", changed=self.__property_changed)
-        self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__sequence_index_changed)
-        self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__collection_index_changed)
+        self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
+        self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__property_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
-        self.__data_range_model = Model.PropertyModel()
-        self.__display_range_model = Model.PropertyModel()
+        self.__data_range_model = Model.AsyncPropertyModel(self.__calculate_data_range)
+        self.__data_sample_model = Model.AsyncPropertyModel(self.__calculate_data_sample)
+        self.__display_range_model = Model.AsyncPropertyModel(self.__calculate_display_range)
         self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
@@ -192,7 +193,64 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
 
+        # describe the dependencies between async properties
+        def make_data_stats_dirty():
+            self.__data_range_model.mark_dirty()
+            self.__data_sample_model.mark_dirty()
+
+        def display_data_and_metadata_changed(key):
+            if key == "value":
+                make_data_stats_dirty()
+
+        self.__display_data_and_metadata_dirty_listener = self.__display_data_and_metadata_model.marked_dirty_event.listen(make_data_stats_dirty)
+        self.__display_data_and_metadata_changed_listener = self.__display_data_and_metadata_model.property_changed_event.listen(display_data_and_metadata_changed)
+
+        # changes to the data range value trigger display range to be dirty too
+        def make_display_range_dirty():
+            self.display_range_model.mark_dirty()
+
+        def data_stats_changed(key):
+            if key == "value":
+                make_display_range_dirty()
+
+        self.__data_range_dirty_listener = self.__data_range_model.marked_dirty_event.listen(make_display_range_dirty)
+        self.__data_sample_dirty_listener = self.__data_sample_model.marked_dirty_event.listen(make_display_range_dirty)
+        self.__data_range_changed_listener = self.__data_range_model.property_changed_event.listen(data_stats_changed)
+        self.__data_sample_changed_listener = self.__data_sample_model.property_changed_event.listen(data_stats_changed)
+
+        make_data_stats_dirty()
+        make_display_range_dirty()
+
+        # configure cache updating
+        def update_cache(model, property, key):
+            if not self._is_reading:
+                if key == "value":
+                    value = model.value
+                    if value is not None:
+                        self.__cache.set_cached_value(self, property, value)
+                    else:
+                        self.__cache.remove_cached_value(self, property)
+
+        self.__data_range_update_cache_listener = self.__data_range_model.property_changed_event.listen(functools.partial(update_cache, self.__data_range_model, "data_range"))
+        self.__data_sample_update_cache_listener = self.__data_sample_model.property_changed_event.listen(functools.partial(update_cache, self.__data_sample_model, "data_sample"))
+
     def close(self):
+        self.__display_data_and_metadata_dirty_listener.close()
+        self.__display_data_and_metadata_dirty_listener = None
+        self.__display_data_and_metadata_changed_listener.close()
+        self.__display_data_and_metadata_changed_listener = None
+        self.__data_range_dirty_listener.close()
+        self.__data_range_dirty_listener = None
+        self.__data_sample_dirty_listener.close()
+        self.__data_sample_dirty_listener = None
+        self.__data_range_changed_listener.close()
+        self.__data_range_changed_listener = None
+        self.__data_sample_changed_listener.close()
+        self.__data_sample_changed_listener = None
+        self.__data_range_update_cache_listener.close()
+        self.__data_range_update_cache_listener = None
+        self.__data_sample_update_cache_listener.close()
+        self.__data_sample_update_cache_listener = None
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
@@ -275,9 +333,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         data_and_metadata = self.display_data_and_metadata_model.get_value_immediate()  # this is always on a thread; so get immediate value
         if data_and_metadata is not None and self.__data_and_metadata is not None:
             # display_range is just display_limits but calculated if display_limits is None
-            self.__validate_data_stats()
-            data_range = self.__cache.get_cached_value(self, "data_range")
-            data_sample = self.__cache.get_cached_value(self, "data_sample")
+            data_range = self.data_range_model.get_value_immediate()
+            data_sample = self.data_sample_model.get_value_immediate()
             if data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
                 display_range = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
                 return Core.function_display_rgba(data_and_metadata, display_range, self.__color_map_data).data
@@ -316,6 +373,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     def _evaluate_for_test(self):
         self.display_data_and_metadata_model.get_value_immediate()
+        self.data_range_model.get_value_immediate()
+        self.data_sample_model.get_value_immediate()
+        self.display_range_model.get_value_immediate()
         self.display_rgba_model.get_value_immediate()
 
     @property
@@ -339,10 +399,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             else:
                 return value[0], value[1]
         return value
-
-    def __display_limits_changed(self, name, value):
-        self.__property_changed(name, value)
-        self.__display_range_model.value = value
 
     def __validate_sequence_index(self, value: int) -> int:
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
@@ -387,24 +443,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.slice_width = 1
             self.slice_center = self.slice_center
             self.slice_width = old_slice_width
-
-    def __sequence_index_changed(self, name, value):
-        self.__property_changed(name, value)
-        if not self._is_reading:
-            self.__cache.remove_cached_value(self, "data_range")
-            self.__cache.remove_cached_value(self, "data_sample")
-        if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
-            self.__validate_data_stats()
-        self.notify_property_changed("sequence_index")
-
-    def __collection_index_changed(self, name, value):
-        self.__property_changed(name, value)
-        if not self._is_reading:
-            self.__cache.remove_cached_value(self, "data_range")
-            self.__cache.remove_cached_value(self, "data_sample")
-        if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
-            self.__validate_data_stats()
-        self.notify_property_changed("collection_index")
 
     @property
     def actual_display_type(self):
@@ -495,22 +533,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def __slice_interval_changed(self, name, value):
         # notify for dependent slice_interval property
         self.__property_changed(name, value)
-        if not self._is_reading:
-            self.__cache.remove_cached_value(self, "data_range")
-            self.__cache.remove_cached_value(self, "data_sample")
-        if self.__data_and_metadata and self.__data_and_metadata.is_data_valid:
-            self.__validate_data_stats()
         self.notify_property_changed("slice_interval")
 
     def __display_type_changed(self, property_name, value):
         self.__property_changed(property_name, value)
         self.display_type_changed_event.fire()
-
-    def __complex_display_type_changed(self, property_name, value):
-        self.__property_changed(property_name, value)
-        if not self._is_reading:
-            self.__cache.remove_cached_value(self, "data_range")
-            self.__cache.remove_cached_value(self, "data_sample")
 
     def __color_map_id_changed(self, property_name, value):
         self.__property_changed(property_name, value)
@@ -540,6 +567,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__display_rgba_model.mark_dirty()
         if property_name in ("display_limits", "color_map_data"):
             self.__display_rgba_model.mark_dirty()
+        if property_name in ("display_limits", "complex_display_type"):
+            self.__display_range_model.mark_dirty()
         if property_name in ("dimensional_calibration_style", ):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
@@ -547,61 +576,60 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if not self._is_reading:
             self.thumbnail_changed_event.fire()
 
-    def __validate_data_stats(self):
-        # ensure that data_range and data_sample (if required) are valid.
-        display_data_and_metadata = self.display_data_and_metadata_model.get_value_immediate()
-        is_data_complex_type = self.__data_and_metadata.is_data_complex_type if self.__data_and_metadata else False
-        data_range = self.__cache.get_cached_value(self, "data_range")
-        data_sample = self.__cache.get_cached_value(self, "data_sample")
-        if display_data_and_metadata is not None and (data_range is None or (is_data_complex_type and data_sample is None)):
-            self.__calculate_data_stats_for_data(display_data_and_metadata.data, self.__data_and_metadata.data_shape, self.__data_and_metadata.data_dtype)
+    @property
+    def data_range_model(self):
+        return self.__data_range_model
 
-    def __calculate_data_stats_for_data(self, display_data, data_shape, data_dtype):
-        # calculates data_range and data_sample (if required), stores them in cache, and notifies listeners
-        if display_data is not None and display_data.size:
+    def __calculate_data_range(self):
+        display_data_and_metadata = self.display_data_and_metadata_model.get_value_immediate()
+        display_data = display_data_and_metadata.data if display_data_and_metadata else None
+        if display_data is not None and display_data.size and self.__data_and_metadata:
+            data_shape = self.__data_and_metadata.data_shape
+            data_dtype = self.__data_and_metadata.data_dtype
             if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                 data_range = (0, 255)
-                data_sample = None
             elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
                 data_range = (numpy.amin(display_data), numpy.amax(display_data))
-                data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape)), 200))
             else:
                 data_range = (numpy.amin(display_data), numpy.amax(display_data))
-                data_sample = None
         else:
             data_range = None
-            data_sample = None
         if data_range is not None:
             if math.isnan(data_range[0]) or math.isnan(data_range[1]) or math.isinf(data_range[0]) or math.isinf(data_range[1]):
                 data_range = (0.0, 0.0)
-            self.__cache.set_cached_value(self, "data_range", data_range)
-        else:
-            self.__cache.remove_cached_value(self, "data_range")
-        if data_sample is not None:
-            self.__cache.set_cached_value(self, "data_sample", data_sample)
-        else:
-            self.__cache.remove_cached_value(self, "data_sample")
-        if not self._is_reading:
-            self.thumbnail_changed_event.fire()
-        self.__data_range_model.value = data_range
-        self.__display_range_model.value = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
+        return data_range
 
     @property
-    def data_range_model(self):
-        self.__validate_data_stats()
-        return self.__data_range_model
+    def data_sample_model(self):
+        return self.__data_sample_model
+
+    def __calculate_data_sample(self):
+        display_data_and_metadata = self.display_data_and_metadata_model.get_value_immediate()
+        display_data = display_data_and_metadata.data if display_data_and_metadata else None
+        if display_data is not None and display_data.size and self.__data_and_metadata:
+            data_shape = self.__data_and_metadata.data_shape
+            data_dtype = self.__data_and_metadata.data_dtype
+            if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
+                data_sample = None
+            elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
+                data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape)), 200))
+            else:
+                data_sample = None
+        else:
+            data_sample = None
+        return data_sample
 
     def _set_data_range_for_test(self, data_range):
-        self.__cache.set_cached_value(self, "data_range", data_range)
-        self.__display_rgba_model.mark_dirty()
+        self.data_range_model.set_value(data_range)
 
     @property
     def display_range_model(self):
-        self.__validate_data_stats()
-        data_range = self.__cache.get_cached_value(self, "data_range")
-        data_sample = self.__cache.get_cached_value(self, "data_sample")
-        self.__display_range_model.value = calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
         return self.__display_range_model
+
+    def __calculate_display_range(self):
+        data_range = self.data_range_model.get_value_immediate()
+        data_sample = self.data_sample_model.get_value_immediate()
+        return calculate_display_range(self.display_limits, data_range, data_sample, self.__data_and_metadata, self.complex_display_type)
 
     # message sent from buffered_data_source when data changes.
     # thread safe
@@ -615,17 +643,18 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.validate()
         self.__display_data_and_metadata_model.mark_dirty()
         self.__display_rgba_model.mark_dirty()
-        if not self._is_reading:
-            self.__cache.remove_cached_value(self, "data_range")
-            self.__cache.remove_cached_value(self, "data_sample")
-            self.__validate_data_stats()
         self.notify_property_changed("displayed_dimensional_calibrations")
         self.notify_property_changed("displayed_intensity_calibration")
         self.display_changed_event.fire()
 
     def set_storage_cache(self, storage_cache):
         self.__cache.set_storage_cache(storage_cache, self)
-        self.__data_range_model.value = self.__cache.get_cached_value(self, "data_range")
+        data_range = self.__cache.get_cached_value(self, "data_range")
+        data_sample = self.__cache.get_cached_value(self, "data_sample")
+        if data_range is not None:
+            self.__data_range_model.set_value(data_range)
+        if data_sample is not None:
+            self.__data_sample_model.set_value(data_sample)
 
     def __insert_graphic(self, name, before_index, graphic):
         graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, graphic))

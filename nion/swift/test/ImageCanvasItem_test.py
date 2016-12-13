@@ -68,6 +68,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             calibrations = [Calibration.Calibration(units="s"), Calibration.Calibration(units="y"), Calibration.Calibration(units="x")]
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((50, 10, 10)), dimensional_calibrations=calibrations, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
+            data_item.maybe_data_source.displays[0]._evaluate_for_test()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = Panel.HeaderCanvasItem().header_height
@@ -83,6 +84,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             calibrations = [Calibration.Calibration(units="y"), Calibration.Calibration(units="x"), Calibration.Calibration(units="e")]
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((10, 10, 50)), dimensional_calibrations=calibrations, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
+            data_item.maybe_data_source.displays[0]._evaluate_for_test()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = Panel.HeaderCanvasItem().header_height

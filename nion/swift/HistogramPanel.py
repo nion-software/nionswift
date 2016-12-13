@@ -537,7 +537,7 @@ class HistogramPanel(Panel.Panel):
         region_stream = TargetRegionStream(display_stream)
         display_data_and_metadata_stream = DisplayPropertyStream(display_stream, 'display_data_and_metadata_model')
         display_data_and_metadata_func_stream = Stream.AsyncPropertyFuncStream(display_data_and_metadata_stream)
-        display_range_stream = DisplayModelPropertyStream(display_stream, 'display_range_model')
+        display_range_stream = DisplayAsyncModelPropertyStream(display_stream, 'display_range_model', document_controller.event_loop)
         region_data_and_metadata_func_stream = Stream.CombineLatestStream((display_data_and_metadata_func_stream, region_stream), calculate_region_data_func)
         histogram_widget_data_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
         color_map_data_stream = DisplayPropertyStream(display_stream, "color_map_data", cmp=numpy.array_equal)
@@ -589,7 +589,7 @@ class HistogramPanel(Panel.Panel):
         def calculate_statistics_func(display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration):
             return functools.partial(calculate_statistics, display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration)
 
-        display_data_range_stream = DisplayModelPropertyStream(display_stream, 'data_range_model')
+        display_data_range_stream = DisplayAsyncModelPropertyStream(display_stream, 'data_range_model', document_controller.event_loop)
         displayed_intensity_calibration_stream = DisplayPropertyStream(display_stream, 'displayed_intensity_calibration')
         statistics_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
         if debounce:
@@ -826,9 +826,9 @@ class DisplayPropertyStream(Stream.AbstractStream):
             self.value_stream.fire(None)
 
 
-class DisplayModelPropertyStream(Stream.AbstractStream):
+class DisplayAsyncModelPropertyStream(Stream.AbstractStream):
 
-    def __init__(self, display_stream, model_property_name, cmp=None):
+    def __init__(self, display_stream, model_property_name, event_loop, cmp=None):
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
@@ -837,7 +837,9 @@ class DisplayModelPropertyStream(Stream.AbstractStream):
         # initialize
         self.__model_property_name = model_property_name
         self.__property_changed_event_listener = None
+        self.__marked_dirty_event_listener = None
         self.__value = None
+        self.__event_loop = event_loop
         self.__cmp = cmp if cmp else operator.eq
         # listen for display changes
         self.__display_stream_listener = display_stream.value_stream.listen(self.__display_changed)
@@ -862,11 +864,19 @@ class DisplayModelPropertyStream(Stream.AbstractStream):
                 if not self.__cmp(new_value, self.__value):
                     self.__value = new_value
                     self.value_stream.fire(self.__value)
+        def marked_dirty():
+            model = getattr(display, self.__model_property_name)
+            model.evaluate(self.__event_loop)
+        if self.__marked_dirty_event_listener:
+            self.__marked_dirty_event_listener.close()
+            self.__marked_dirty_event_listener = None
         if self.__property_changed_event_listener:
             self.__property_changed_event_listener.close()
             self.__property_changed_event_listener = None
         if display:
-            self.__property_changed_event_listener = getattr(display, self.__model_property_name).property_changed_event.listen(property_changed)
+            model = getattr(display, self.__model_property_name)
+            self.__property_changed_event_listener = model.property_changed_event.listen(property_changed)
+            self.__marked_dirty_event_listener = model.marked_dirty_event.listen(marked_dirty)
             property_changed("value")
         else:
             self.__value = None

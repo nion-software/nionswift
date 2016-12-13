@@ -161,14 +161,14 @@ class TestStorageClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                data_range = display_specifier.display.data_range_model.value
+                data_range = display_specifier.display.data_range_model.get_value_immediate()
             # read it back
             storage_cache = Cache.DictStorageCache()
             document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, storage_cache=storage_cache)
             with contextlib.closing(document_model):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-                self.assertEqual(read_display_specifier.display.data_range_model.value, data_range)
+                self.assertEqual(read_display_specifier.display.data_range_model.get_value_immediate(), data_range)
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -210,12 +210,12 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_specifier.display.data_range_model.value)
+            self.assertIsNotNone(display_specifier.display.data_range_model.get_value_immediate())
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
-            self.assertIsNotNone(display_specifier.display.data_range_model.value)
+            self.assertIsNotNone(display_specifier.display.data_range_model.get_value_immediate())
 
     def test_reload_data_item_does_not_recalculate_display_data_range(self):
         storage_cache = Cache.DictStorageCache()
@@ -278,7 +278,7 @@ class TestStorageClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             display_specifier.display.slice_center = 5
             display_specifier.display.slice_width = 1
-            self.assertEqual(display_specifier.display.data_range_model.value, (0, 0))
+            self.assertEqual(display_specifier.display.data_range_model.get_value_immediate(), (0, 0))
         # make the slice_center be out of bounds
         memory_persistent_storage_system.properties[str(data_item.uuid)]["data_sources"][0]["displays"][0]["slice_center"] = 20
         # read it back
@@ -289,7 +289,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(display_specifier.display.slice_width, 1)
             with document_model.data_items[0].maybe_data_source.data_ref() as data_ref:
                 self.assertIsNotNone(data_ref.data)
-            self.assertEqual(display_specifier.display.data_range_model.value, (1, 1))
+            self.assertEqual(display_specifier.display.data_range_model.get_value_immediate(), (1, 1))
 
     def test_save_load_document_to_files(self):
         current_working_directory = os.getcwd()
@@ -2480,13 +2480,14 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
+            data_item.maybe_data_source.displays[0].data_range_model.get_value_immediate()  # trigger storage
             cached_data_range = storage_cache.cache[data_item.maybe_data_source.displays[0].uuid]["data_range"]
             self.assertEqual(cached_data_range, (1, 1))
-            self.assertEqual(data_item.maybe_data_source.displays[0].data_range_model.value, (1, 1))
+            self.assertEqual(data_item.maybe_data_source.displays[0].data_range_model.get_value_immediate(), (1, 1))
             with document_model.data_item_transaction(data_item):
                 with data_item.maybe_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
-                self.assertEqual(data_item.maybe_data_source.displays[0].data_range_model.value, (0, 0))
+                self.assertEqual(data_item.maybe_data_source.displays[0].data_range_model.get_value_immediate(), (0, 0))
                 self.assertEqual(cached_data_range, storage_cache.cache[data_item.maybe_data_source.displays[0].uuid]["data_range"])
                 self.assertEqual(cached_data_range, (1, 1))
             self.assertEqual(storage_cache.cache[data_item.maybe_data_source.displays[0].uuid]["data_range"], (0, 0))
