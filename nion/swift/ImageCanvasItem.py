@@ -928,8 +928,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 text_pos = Geometry.IntPoint(y=rect[0][1], x=rect[0][0])
                 drawing_context.begin_path()
                 drawing_context.move_to(text_pos.x, text_pos.y)
-                drawing_context.line_to(text_pos.x + 100, text_pos.y)
-                drawing_context.line_to(text_pos.x + 100, text_pos.y + 60)
+                drawing_context.line_to(text_pos.x + 120, text_pos.y)
+                drawing_context.line_to(text_pos.x + 120, text_pos.y + 60)
                 drawing_context.line_to(text_pos.x, text_pos.y + 60)
                 drawing_context.close_path()
                 drawing_context.fill_style = "rgba(255, 255, 255, 0.6)"
@@ -938,9 +938,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 drawing_context.text_baseline = "middle"
                 drawing_context.text_align = "left"
                 drawing_context.fill_style = "#000"
-                drawing_context.fill_text("display:" + str(int(fps*100)/100.0), text_pos.x + 8, text_pos.y + 10)
-                drawing_context.fill_text("frame:" + str(int(fps2*100)/100.0), text_pos.x + 8, text_pos.y + 30)
-                drawing_context.fill_text("update:" + str(int(fps3*100)/100.0), text_pos.x + 8, text_pos.y + 50)
+                drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
+                drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
+                drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
                 drawing_context.statistics("display")
             finally:
                 drawing_context.restore()

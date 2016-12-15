@@ -224,9 +224,13 @@ def compare_versions(version1: str, version2: str) -> int:
 
 
 def fps_tick(fps_id):
-    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0])
+    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0, None, []])
     v[0] += 1
-    next_time = time.time()
+    next_time = time.perf_counter()
+    while len(v[5]) > 100:
+        v[5].pop(0)
+    if v[2] is not None:
+        v[5].append(next_time - v[2])
     v[1] += next_time - v[2] if v[2] is not None else 0.0
     if v[1] > 1.0:
         v[3] = v[0] / v[1]
@@ -236,9 +240,9 @@ def fps_tick(fps_id):
     return fps_get(fps_id)
 
 def fps_get(fps_id):
-    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0])
-    return v[3]
-
+    v = globals().setdefault("__fps_" + fps_id, [0, 0.0, None, 0.0, None, []])
+    # s = numpy.std(v[5]) if len(v[5]) > 0 else 0.0
+    return str(int(v[3]*100)/100.0) # + " " + str(int(s*1000)) + "ms"
 
 def trace_calls(trace, frame, event, arg):
     if event != 'call':
