@@ -177,7 +177,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
         self.__display_rgba_model = Model.AsyncPropertyModel(self.__calculate_display_rgba)
         self.__display_data_and_metadata_model = Model.AsyncPropertyModel(self.__calculate_display_data_and_metadata)
-        self.thumbnail_changed_event = Event.Event()
         self.graphic_selection = GraphicSelection()
         def graphic_selection_changed():
             # relay the message
@@ -573,8 +572,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
             self._get_persistent_property("display_calibrated_values").value = value == "calibrated"
-        if not self._is_reading:
-            self.thumbnail_changed_event.fire()
 
     @property
     def data_range_model(self):
@@ -637,8 +634,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         old_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
         self.__data_and_metadata = data_and_metadata
         new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
-        if not self._is_reading:
-            self.thumbnail_changed_event.fire()
         if old_data_shape != new_data_shape:
             self.validate()
         self.__display_data_and_metadata_model.mark_dirty()
@@ -702,8 +697,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     # is added or removed from this object.
     def graphic_changed(self, graphic):
         self.display_changed_event.fire()
-        if not self._is_reading:
-            self.thumbnail_changed_event.fire()
 
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
