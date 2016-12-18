@@ -274,6 +274,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__last_image_norm_center = (0.5, 0.5)
         self.__image_canvas_mode = "fit"
 
+        self.__last_data_rgb = None
+
         # create the child canvas items
         # the background
         # next the zoomable items
@@ -335,7 +337,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             if frame_index != self.__display_frame_rate_last_index:
                 Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                 self.__display_frame_rate_last_index = frame_index
-            Utility.fps_tick("update_"+self.__display_frame_rate_id)
+            if id(self.__data_rgba) != id(self.__last_data_rgb):
+                Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                self.__last_data_rgb = self.__data_rgba
         # update the cursor info
         self.__update_cursor_info()
         # layout. this makes sure that the info overlay gets updated too.

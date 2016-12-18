@@ -76,6 +76,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         font_size = 12
 
+        self.__last_data = None
+
         self.line_graph_canvas_item = None
 
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
@@ -185,7 +187,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if frame_index != self.__display_frame_rate_last_index:
                 Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                 self.__display_frame_rate_last_index = frame_index
-            Utility.fps_tick("update_"+self.__display_frame_rate_id)
+            if id(self.__data) != id(self.__last_data):
+                Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                self.__last_data = self.__data
         # update the cursor info
         self.__update_cursor_info()
         # finally, trigger the paint thread (if there still is one) to update
