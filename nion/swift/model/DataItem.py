@@ -1301,7 +1301,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.notify_data_item_content_changed(set([METADATA]))
 
     @property
-    def maybe_data_source(self):
+    def maybe_data_source(self) -> BufferedDataSource:
         return self.data_sources[0] if len(self.data_sources) == 1 else None
 
     @property

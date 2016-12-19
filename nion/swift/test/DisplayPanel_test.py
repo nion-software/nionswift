@@ -67,7 +67,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
-        self.data_item.maybe_data_source.displays[0]._evaluate_for_test()
+        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
@@ -80,7 +80,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
         data_item_1d = DataItem.DataItem(create_1d_data(data_min=data_min, data_max=data_max))
-        data_item_1d.maybe_data_source.displays[0]._evaluate_for_test()
+        data_item_1d.maybe_data_source.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(data_item_1d)
         self.display_panel.set_displayed_data_item(data_item_1d)
         self.display_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
@@ -1058,10 +1058,9 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsNone(self.display_panel.display_canvas_item)
         # thumbnails and processors
-        with contextlib.closing(Utility.TestEventLoop()) as event_loop:
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_specifier.display, event_loop.event_loop)) as thumbnail_source:
-                thumbnail_source.recompute_data()
-                self.assertIsNotNone(thumbnail_source.thumbnail_data)
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_specifier.display, self.document_controller.event_loop)) as thumbnail_source:
+            thumbnail_source.recompute_data()
+            self.assertIsNotNone(thumbnail_source.thumbnail_data)
         self.document_controller.periodic()
         self.document_controller.document_model.recompute_all()
 
@@ -1071,11 +1070,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsNone(self.display_panel.display_canvas_item)
         # thumbnails and processors
-        with contextlib.closing(Utility.TestEventLoop()) as event_loop:
-            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_specifier.display, event_loop.event_loop)) as thumbnail_source:
-                thumbnail_source.recompute_data()
-            self.document_controller.periodic()
-            self.document_controller.document_model.recompute_all()
+        with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_specifier.display, self.document_controller.event_loop)) as thumbnail_source:
+            thumbnail_source.recompute_data()
+        self.document_controller.periodic()
+        self.document_controller.document_model.recompute_all()
 
     def test_perform_action_gets_dispatched_to_image_canvas_item(self):
         self.assertEqual(self.display_panel.display_canvas_item.image_canvas_mode, "fit")

@@ -4,6 +4,7 @@
 
 # standard libraries
 import asyncio
+import functools
 import threading
 import time
 
@@ -184,32 +185,12 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
             self.__thumbnail_processor.mark_data_dirty()
             self.__thumbnail_processor.recompute_if_necessary(ui, event_loop)
 
-        def display_rgba_changed(key):
-            if key == "value" and display.actual_display_type == "image":
-                thumbnail_changed()
+        def handle_next_calculated_display_values(calculated_display_values):
+            self.__thumbnail_processor.mark_data_dirty()
+            self.__thumbnail_processor.recompute_if_necessary(ui, event_loop)
 
-        def display_data_and_metadata_changed(key):
-            if key == "value" and display.actual_display_type == "line_plot":
-                thumbnail_changed()
-
-        def display_changed():
-            # called when anything in the data item changes, including things like graphics or the data itself.
-            # update the display canvas, etc.
-            # thread safe
-            display_rgba_changed("value")
-            display_data_and_metadata_changed("value")
-
-        def display_rgba_marked_dirty():
-            display.display_rgba_model.evaluate(event_loop)
-
-        def display_data_and_metadata_marked_dirty():
-            display.display_data_and_metadata_model.evaluate(event_loop)
-
-        self.__display_rgba_changed_listener = display.display_rgba_model.property_changed_event.listen(display_rgba_changed)
-        self.__display_data_and_metadata_changed_listener = display.display_data_and_metadata_model.property_changed_event.listen(display_data_and_metadata_changed)
-        self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
-        self.__display_rgba_marked_dirty_listener = display.display_rgba_model.marked_dirty_event.listen(display_rgba_marked_dirty)
-        self.__display_data_and_metadata_marked_dirty_listener = display.display_data_and_metadata_model.marked_dirty_event.listen(display_data_and_metadata_marked_dirty)
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(lambda x: thumbnail_changed(), event_loop)
+        self.__display_changed_event_listener = display.display_changed_event.listen(thumbnail_changed)
 
         def thumbnail_updated():
             self.thumbnail_updated_event.fire()
@@ -228,18 +209,9 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
-        if self.__display_rgba_changed_listener:
-            self.__display_rgba_changed_listener.close()
-            self.__display_rgba_changed_listener = None
-        if self.__display_data_and_metadata_changed_listener:
-            self.__display_data_and_metadata_changed_listener.close()
-            self.__display_data_and_metadata_changed_listener = None
-        if self.__display_rgba_marked_dirty_listener:
-            self.__display_rgba_marked_dirty_listener.close()
-            self.__display_rgba_marked_dirty_listener = None
-        if self.__display_data_and_metadata_marked_dirty_listener:
-            self.__display_data_and_metadata_marked_dirty_listener.close()
-            self.__display_data_and_metadata_marked_dirty_listener = None
+        if self.__next_calculated_display_values_listener:
+            self.__next_calculated_display_values_listener.close()
+            self.__next_calculated_display_values_listener = None
 
         self._on_will_delete(self)
         self._on_will_delete = None

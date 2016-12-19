@@ -23,6 +23,7 @@ from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
+from nion.utils import Model
 from nion.utils import Observable
 
 _ = gettext.gettext
@@ -663,14 +664,17 @@ class ImageDisplayInspectorSection(InspectorSection):
         # color map
         color_map_row = make_color_map_chooser(ui, display)
 
+        # data_range model
+        self.__data_range_model = Model.PropertyModel()
+
         # configure the display limit editor
         self.display_limits_range_row = ui.create_row_widget()
         self.display_limits_range_low = ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
         float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
         float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:.2f}", pass_none=True)
-        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(display.data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(display.data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
@@ -696,15 +700,16 @@ class ImageDisplayInspectorSection(InspectorSection):
 
         self.finish_widget_content()
 
-        # watch the data range model and update if necessary
-        def data_range_dirty():
-            display.data_range_model.evaluate(event_loop)
+        def handle_next_calculated_display_values(calculated_display_values):
+            self.__data_range_model.value = calculated_display_values.data_range
 
-        self.__data_range_dirty_listener = display.data_range_model.marked_dirty_event.listen(data_range_dirty)
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values, event_loop)
 
     def close(self):
-        self.__data_range_dirty_listener.close()
-        self.__data_range_dirty_listener = None
+        self.__next_calculated_display_values_listener.close()
+        self.__next_calculated_display_values_listener = None
+        self.__data_range_model.close()
+        self.__data_range_model = None
         super().close()
 
 
@@ -714,18 +719,21 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         Subclass InspectorSection to implement display limits inspector.
     """
 
-    def __init__(self, ui, display):
+    def __init__(self, ui, display, event_loop):
         super().__init__(ui, "line-plot", _("Display"))
 
         # display type
         display_type_row = make_display_type_chooser(ui, display)
 
+        # data_range model
+        self.__data_range_model = Model.PropertyModel()
+
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
         float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
-        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(display.data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
-        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(display.data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
+        self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
         self.display_limits_range_row.add(self.display_limits_range_low)
         self.display_limits_range_row.add_spacing(8)
@@ -782,7 +790,20 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.add_widget_to_content(self.display_limits_limit_row)
         self.add_widget_to_content(self.channels_row)
         self.add_widget_to_content(self.style_row)
+
         self.finish_widget_content()
+
+        def handle_next_calculated_display_values(calculated_display_values):
+            self.__data_range_model.value = calculated_display_values.data_range
+
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values, event_loop)
+
+    def close(self):
+        self.__next_calculated_display_values_listener.close()
+        self.__next_calculated_display_values_listener = None
+        self.__data_range_model.close()
+        self.__data_range_model = None
+        super().close()
 
 
 class SequenceInspectorSection(InspectorSection):
@@ -1747,7 +1768,7 @@ class DataItemInspector:
             self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display))
+            self.__inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display, event_loop))
             self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_sequence:
                 self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))

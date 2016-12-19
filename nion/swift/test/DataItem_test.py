@@ -363,13 +363,13 @@ class TestDataItemClass(unittest.TestCase):
         xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
         with display_specifier.buffered_data_source.data_ref() as data_ref:
             data_ref.master_data = 50 * (xx + yy) + 25
-            data_range = display_specifier.display.data_range_model.get_value_immediate()
+            data_range = display_specifier.display.get_calculated_display_values(True).data_range
             self.assertEqual(data_range, (25, 125))
             # now test complex
             data_ref.master_data = numpy.zeros((8, 8), numpy.complex64)
             xx, yy = numpy.meshgrid(numpy.linspace(0,1,256), numpy.linspace(0,1,256))
             data_ref.master_data = (2 + xx * 10) + 1j * (3 + yy * 10)
-        data_range = display_specifier.display.data_range_model.get_value_immediate()
+        data_range = display_specifier.display.get_calculated_display_values(True).data_range
         data_min = math.log(math.sqrt(2*2 + 3*3))
         data_max = math.log(math.sqrt(12*12 + 13*13))
         self.assertEqual(int(data_min*1e6), int(data_range[0]*1e6))
@@ -377,11 +377,11 @@ class TestDataItemClass(unittest.TestCase):
 
     def test_data_range_gets_updated_after_data_ref_data_updated(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        self.assertEqual(data_item.maybe_data_source.displays[0].data_range_model.get_value_immediate(), (0, 0))
+        self.assertEqual(data_item.maybe_data_source.displays[0].get_calculated_display_values(True).data_range, (0, 0))
         with data_item.maybe_data_source.data_ref() as data_ref:
             data_ref.data[:] = 1
             data_ref.data_updated()
-        self.assertEqual(data_item.maybe_data_source.displays[0].data_range_model.get_value_immediate(), (1, 1))
+        self.assertEqual(data_item.maybe_data_source.displays[0].get_calculated_display_values(True).data_range, (1, 1))
 
     def test_removing_dependent_data_item_with_graphic(self):
         document_model = DocumentModel.DocumentModel()
@@ -408,12 +408,12 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item.maybe_data_source.displays[0]._evaluate_for_test()
+            data_item.maybe_data_source.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
-            inverted_data_item.maybe_data_source.displays[0]._evaluate_for_test()
+            inverted_data_item.maybe_data_source.displays[0].update_calculated_display_values()
             self.assertFalse(inverted_display_specifier.buffered_data_source.is_data_loaded)
 
     def test_loading_dependent_data_should_not_cause_source_data_to_load(self):

@@ -1,6 +1,5 @@
 # standard libraries
 import asyncio
-import copy
 import functools
 import gettext
 import json
@@ -550,22 +549,15 @@ class DataItemDataSourceDisplay:
                 display_data_and_metadata_changed("value")
                 display_graphic_selection_changed(display.graphic_selection)
 
-            def display_rgba_marked_dirty():
-                display.display_rgba_model.evaluate(self.__event_loop)
+            def handle_next_calculated_display_values(calculated_display_values):
+                display_rgba_changed("value")
+                display_data_and_metadata_changed("value")
 
-            def display_data_and_metadata_marked_dirty():
-                display.display_data_and_metadata_model.evaluate(self.__event_loop)
-
-            self.__display_rgba_changed_listener = display.display_rgba_model.property_changed_event.listen(display_rgba_changed)
-            self.__display_data_and_metadata_changed_listener = display.display_data_and_metadata_model.property_changed_event.listen(display_data_and_metadata_changed)
-            self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
-            self.__display_rgba_marked_dirty_listener = display.display_rgba_model.marked_dirty_event.listen(display_rgba_marked_dirty)
-            self.__display_data_and_metadata_marked_dirty_listener = display.display_data_and_metadata_model.marked_dirty_event.listen(display_data_and_metadata_marked_dirty)
+            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values, event_loop)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+            self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
 
             display_changed()
-            display_rgba_marked_dirty()
-            display_data_and_metadata_marked_dirty()
 
     def close(self):
         if self.__display_changed_event_listener:
@@ -574,18 +566,9 @@ class DataItemDataSourceDisplay:
         if self.__display_graphic_selection_changed_event_listener:
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
-        if self.__display_rgba_changed_listener:
-            self.__display_rgba_changed_listener.close()
-            self.__display_rgba_changed_listener = None
-        if self.__display_data_and_metadata_changed_listener:
-            self.__display_data_and_metadata_changed_listener.close()
-            self.__display_data_and_metadata_changed_listener = None
-        if self.__display_rgba_marked_dirty_listener:
-            self.__display_rgba_marked_dirty_listener.close()
-            self.__display_rgba_marked_dirty_listener = None
-        if self.__display_data_and_metadata_marked_dirty_listener:
-            self.__display_data_and_metadata_marked_dirty_listener.close()
-            self.__display_data_and_metadata_marked_dirty_listener = None
+        if self.__next_calculated_display_values_listener:
+            self.__next_calculated_display_values_listener.close()
+            self.__next_calculated_display_values_listener = None
 
     @property
     def _data_item(self):

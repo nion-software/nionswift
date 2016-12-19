@@ -329,9 +329,9 @@ def sample_stack_all(count=10, interval=0.1):
 
 
 class TestEventLoop:
-    def __init__(self):
+    def __init__(self, event_loop: asyncio.AbstractEventLoop = None):
         logging.disable(logging.CRITICAL)  # suppress new_event_loop debug message
-        self.__event_loop = asyncio.new_event_loop()
+        self.__event_loop = event_loop if event_loop else asyncio.new_event_loop()
         logging.disable(logging.NOTSET)
 
     def close(self):

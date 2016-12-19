@@ -1,4 +1,6 @@
 # standard libraries
+import asyncio
+import concurrent.futures
 import copy
 import functools
 import gettext
@@ -514,6 +516,17 @@ class DocumentController(Window.Window):
         # self.filter_controller.periodic()
         # t3 = time.time()
         # logging.debug("t end %s %s %s", t1-t0, t2-t1, t3-t2)
+
+    def sync_event_loop(self) -> None:
+        # for testing
+        event_loop = self.event_loop
+        event_loop.stop()
+        event_loop.run_forever()
+        try:
+            # this assumes that all outstanding tasks finish in a reasonable time (i.e. no infinite loops).
+            event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=event_loop), loop=event_loop))
+        except concurrent.futures.CancelledError:
+            pass
 
     @property
     def workspace_controller(self):
@@ -1066,7 +1079,7 @@ class DocumentController(Window.Window):
     def fix_display_limits(self, display_specifier):
         display = display_specifier.display
         if display:
-            display.display_limits = display.data_range_model.value
+            display.display_limits = display.get_calculated_display_values().data_range
 
     def build_variable_map(self):
         map = dict()
