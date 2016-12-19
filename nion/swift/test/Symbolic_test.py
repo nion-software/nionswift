@@ -342,7 +342,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.fft(a.xdata)"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             data = DocumentModel.evaluate_data(computation).data
-            assert numpy.array_equal(data, scipy.fftpack.fftshift(scipy.fftpack.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
+            assert numpy.array_equal(data, scipy.fftpack.fftshift(numpy.fft.fft2(d) * 1.0 / numpy.sqrt(d.shape[1] * d.shape[0])))
 
     def test_gaussian_blur_handles_scalar_argument(self):
         document_model = DocumentModel.DocumentModel()
