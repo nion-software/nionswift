@@ -1868,11 +1868,30 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__document_model.queue_data_item_update(self.data_item, data_and_metadata, sub_area)
 
     def queue_data_item_update(self, data_item, data_and_metadata, sub_area):
+        # put the data update to data_item into the pending_data_item_updates list.
+        # the pending_data_item_updates will be serviced on the main thread.
+        # if there is no sub_area and the data_item is already in the queue, just
+        # replace it with the new data. then request to perform the data item updates
+        # (via call_soon) but only if the queue was empty to start with, which avoids
+        # extra update calls.
         if data_item:
             with self.__pending_data_item_updates_lock:
-                # TODO: optimize case where sub_area is None
-                self.__pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
-            self.__call_soon(self.perform_data_item_updates)
+                # optimize case where sub_area is full area.
+                if sub_area is not None and sub_area[0] == (0, 0) and sub_area[1] == data_and_metadata.data_shape:
+                    sub_area = None
+                pending_data_item_updates = list()
+                has_pending = len(self.__pending_data_item_updates) > 0
+                for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
+                    if data_item_ == data_item and sub_area_ is None and sub_area is None:
+                        pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
+                        data_item = None  # flag it as already added
+                    else:
+                        pending_data_item_updates.append((data_item_, data_and_metadata_, sub_area_))
+                if data_item:  # if not added yet, see above
+                    pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
+                self.__pending_data_item_updates = pending_data_item_updates
+                if not has_pending:
+                    self.__call_soon(self.perform_data_item_updates)
 
     def perform_data_item_updates(self):
         assert threading.current_thread() == threading.main_thread()
