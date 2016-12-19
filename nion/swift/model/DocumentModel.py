@@ -1732,18 +1732,40 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_thread_pool.start(1)
 
     def __recompute(self):
-        with self.__recompute_lock:
-            computation_queue_item = None
-            with self.__computation_queue_lock:
-                if len(self.__computation_pending_queue) > 0:
-                    computation_queue_item = self.__computation_pending_queue.pop(0)
+        computation_queue_item = None
+        skipped_pending = False
+        with self.__computation_queue_lock:
+            # loop through the items in the pending queue
+            for i, _computation_queue_item in enumerate(self.__computation_pending_queue):
+                # first check to see if the item in the pending queue matches an item in the active list
+                match = None
+                for active_computation_item in self.__computation_active_items:
+                    if _computation_queue_item.computation == active_computation_item.computation:
+                        match = _computation_queue_item
+                        break
+                # if it doesn't match, move it to active, and break out of this loop
+                # other items in the queue will be serviced by future calls to __recompute.
+                # there is one __recompute for each item put into the pending queue.
+                if not match:
+                    computation_queue_item = self.__computation_pending_queue.pop(i)
                     self.__computation_active_items.append(computation_queue_item)
+                # otherwise, mark it as skipped so that __recompute is called again.
+                # so that it eventually gets serviced.
+                else:
+                    skipped_pending = True
+
+        if computation_queue_item:
+            # an item was put into the active queue, so compute it, then merge
             pending_data_item_merges = computation_queue_item.recompute()
             with self.__pending_data_item_merges_lock:
                 self.__pending_data_item_merges.extend(pending_data_item_merges)
             self.__call_soon(self.perform_data_item_merges)
+            # it is now merged, so remove it from the active queue
             with self.__computation_queue_lock:
                 self.__computation_active_items.remove(computation_queue_item)
+
+        if skipped_pending:
+            self.dispatch_task2(self.__recompute)
 
     def perform_data_item_merges(self):
         with self.__pending_data_item_merges_lock:
@@ -1773,7 +1795,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 with self.__computation_queue_lock:
                     for computation_queue_item in self.__computation_pending_queue:
                         if computation_queue_item.buffered_data_source == buffered_data_source:
-                            computation_queue_item.computation = computation
                             return
                     computation_queue_item = ComputationQueueItem(data_item, buffered_data_source, computation)
                     self.__computation_pending_queue.append(computation_queue_item)
