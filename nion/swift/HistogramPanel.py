@@ -567,7 +567,7 @@ class HistogramPanel(Panel.Panel):
             display_data_and_metadata = display_data_and_metadata_func()
             data = display_data_and_metadata.data if display_data_and_metadata else None
             data_range = display_data_range
-            if data is not None and data.size > 0:
+            if data is not None and data.size > 0 and displayed_intensity_calibration:
                 mean = numpy.mean(data)
                 std = numpy.std(data)
                 rms = numpy.sqrt(numpy.mean(numpy.square(numpy.absolute(data))))
