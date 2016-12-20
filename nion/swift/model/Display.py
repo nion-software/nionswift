@@ -256,6 +256,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__disconnect_graphic(graphic, 0)
             graphic.close()
         self.graphic_selection = None
+        self.__data_range_model.close()
+        self.__data_range_model = None
+        self.__data_sample_model.close()
+        self.__data_sample_model = None
+        self.__display_range_model.close()
+        self.__display_range_model = None
+        self.__display_data_and_metadata_model.close()
+        self.__display_data_and_metadata_model = None
+        self.__display_rgba_model.close()
+        self.__display_rgba_model = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True

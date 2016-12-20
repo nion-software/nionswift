@@ -250,7 +250,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         with contextlib.closing(Utility.TestEventLoop()) as event_loop:
-            inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display, event_loop)
+            inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display, event_loop.event_loop)
             display.display_limits = None
             self.assertEqual(inspector_section.display_limits_limit_low.text, None)
             self.assertEqual(inspector_section.display_limits_limit_high.text, None)
@@ -272,7 +272,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         with contextlib.closing(Utility.TestEventLoop()) as event_loop:
-            inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display, event_loop)
+            inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display, event_loop.event_loop)
             self.assertEqual(display.display_limits, None)
             inspector_section.display_limits_limit_low.text = "1"
             inspector_section.display_limits_limit_low.editing_finished("1")
