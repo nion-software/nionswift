@@ -50,6 +50,9 @@ class DocumentController(Window.Window):
     def __init__(self, ui, document_model, workspace_id=None, app=None):
         super().__init__(ui, app)
 
+        if not app:
+            self.event_loop.has_no_pulse = True
+
         self.__closed = False  # debugging
 
         self.uuid = uuid.uuid4()
@@ -1079,7 +1082,7 @@ class DocumentController(Window.Window):
     def fix_display_limits(self, display_specifier):
         display = display_specifier.display
         if display:
-            display.display_limits = display.get_calculated_display_values().data_range
+            display.display_limits = display.get_calculated_display_values(True).data_range
 
     def build_variable_map(self):
         map = dict()

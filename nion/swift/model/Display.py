@@ -182,9 +182,6 @@ class ReferenceCountContext:
 
 class CalculatedDisplayValues:
 
-    # TODO: How to cache values?
-    # TODO: How to close?
-
     def __init__(self):
         # parent
         self.__parent = None
@@ -365,6 +362,11 @@ class CalculatedDisplayValues:
         self.__data_sample = values.data_sample
         self.__display_range = values.display_range
         self.__display_rgba = values.display_rgba
+        self.__display_data_and_metadata_dirty = False
+        self.__data_range_dirty = False
+        self.__data_sample_dirty = False
+        self.__display_range_dirty = False
+        self.__display_rgba_dirty = False
 
 
 class Display(Observable.Observable, Persistence.PersistentObject):
@@ -397,6 +399,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__calculated_display_values_available_event = Event.Event()
         self.__calculated_display_values_lock = threading.RLock()
         self.__calculated_display_values_task = None
+        self.__calculated_display_values_task_finished = threading.Event()
         self.__calculated_display_values_task_to_close = None
         self.__calculated_display_values_pending = False
 
@@ -413,9 +416,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__graphic_changed_listeners = list()
         self.__data_and_metadata = None  # the most recent data to be displayed. should have immediate data available.
         self.graphic_selection = GraphicSelection()
+
         def graphic_selection_changed():
             # relay the message
             self.display_graphic_selection_changed_event.fire(self.graphic_selection)
+
         self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
         self.about_to_be_removed_event = Event.Event()
         self.display_changed_event = Event.Event()
@@ -756,6 +761,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                         while True:
                             next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
                             self.__calculated_display_values_available_event.fire(next_calculated_display_values.values())
+                            self.__calculated_display_values_task_finished.set()
                             with self.__calculated_display_values_lock:
                                 if not self.__calculated_display_values_pending:
                                     self.__calculated_display_values_task = None
@@ -768,13 +774,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                     self.__calculated_display_values_task_to_close = self.__calculated_display_values_task
 
     def update_calculated_display_values(self):
-        # for testing
         if self.__calculated_display_values_task:
-            self.__calculated_display_values_event_loop.run_until_complete(self.__calculated_display_values_task)
+            if not getattr(self.__calculated_display_values_event_loop, "has_no_pulse", False):
+                self.__calculated_display_values_task_finished.wait()
+            else:
+                # for testing only -- run_until_complete is not valid during regular operation since it would start the event loop twice.
+                self.__calculated_display_values_event_loop.run_until_complete(self.__calculated_display_values_task)
         else:
             self.__calculated_display_values.copy_and_calculate()
             self.__calculated_display_values_pending = False
-        self.__calculated_display_values_available_event.fire(self.__calculated_display_values.values())
+            self.__calculated_display_values_available_event.fire(self.__calculated_display_values.values())
 
     def get_calculated_display_values(self, immediate: bool = False):
         if immediate:

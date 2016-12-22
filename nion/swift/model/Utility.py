@@ -333,6 +333,7 @@ class TestEventLoop:
         logging.disable(logging.CRITICAL)  # suppress new_event_loop debug message
         self.__event_loop = event_loop if event_loop else asyncio.new_event_loop()
         logging.disable(logging.NOTSET)
+        self.__event_loop.has_no_pulse = True
 
     def close(self):
         # give cancelled tasks a chance to finish

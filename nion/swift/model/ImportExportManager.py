@@ -456,7 +456,6 @@ class StandardImportExportHandler(ImportExportHandler):
 
     def write(self, ui, data_item, path, extension):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display_specifier.display.update_calculated_display_values()
         data = display_specifier.display.get_calculated_display_values(True).display_rgba  # export the display rather than the data for these types
         if data is not None:
             ui.save_rgba_data_to_file(data, path, extension)
