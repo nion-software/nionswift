@@ -399,6 +399,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__calculated_display_values_available_event = Event.Event()
         self.__calculated_display_values_lock = threading.RLock()
         self.__calculated_display_values_task = None
+        self.__calculated_display_values_task_lock = threading.RLock()
         self.__calculated_display_values_task_finished = threading.Event()
         self.__calculated_display_values_task_to_close = None
         self.__calculated_display_values_pending = False
@@ -436,6 +437,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if self.__calculated_display_values_task_to_close:
             self.__calculated_display_values_task_to_close.cancel()
             self.__calculated_display_values_task_to_close = None
+        # cancel the task, but also ensure that we finish any threaded work too by using task_lock.
+        with self.__calculated_display_values_task_lock:
+            pass
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
@@ -758,15 +762,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
                 async def calculate_calculated_display_values():
                     def calculate_display_values():
-                        while True:
-                            next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
-                            self.__calculated_display_values_available_event.fire(next_calculated_display_values.values())
-                            self.__calculated_display_values_task_finished.set()
-                            with self.__calculated_display_values_lock:
-                                if not self.__calculated_display_values_pending:
-                                    self.__calculated_display_values_task = None
-                                    break
-                            self.__calculated_display_values_pending = False
+                        with self.__calculated_display_values_task_lock:
+                            while True:
+                                next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
+                                self.__calculated_display_values_available_event.fire(next_calculated_display_values.values())
+                                self.__calculated_display_values_task_finished.set()
+                                with self.__calculated_display_values_lock:
+                                    if not self.__calculated_display_values_pending:
+                                        self.__calculated_display_values_task = None
+                                        break
+                                self.__calculated_display_values_pending = False
                     await event_loop.run_in_executor(None, calculate_display_values)
 
                 if event_loop:

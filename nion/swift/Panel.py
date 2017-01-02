@@ -37,7 +37,9 @@ class Panel:
 
     # subclasses can override to clean up when the panel closes.
     def close(self):
-        self.widget = None
+        if self.widget:
+            self.widget.close()
+            self.widget = None
 
     @property
     def document_controller(self):

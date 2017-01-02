@@ -38,11 +38,15 @@ class ThumbnailDataItemProcessor:
         self.height = 72
         self.on_thumbnail_updated = None
         self.__task = None
+        self.__task_lock = threading.RLock()
 
     def close(self):
         self.on_thumbnail_updated = None
         if self.__task:
+            # cancel the task, but also ensure that we finish any threaded work too by using task_lock.
             self.__task.cancel()
+            with self.__task_lock:
+                pass
             self.__task = None
 
     # thread safe
@@ -97,47 +101,48 @@ class ThumbnailDataItemProcessor:
          the UI thread. Upon return, the results will be calculated with the latest data available
          and the cache will not be marked dirty.
         """
-        self.__initialize_cache()
-        with self.__recompute_lock:
-            if self.__cached_value_dirty:
-                try:
-                    calculated_data = self.get_calculated_data(ui)
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-                    traceback.print_stack()
-                    raise
-                self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
-                self.__cached_value = calculated_data
-                self.__cached_value_dirty = False
-                self.__cached_value_time = time.time()
-                # import logging
-                # logging.debug("updated %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
-            else:
-                calculated_data = None
-            if calculated_data is None:
-                calculated_data = self.get_default_data()
-                if calculated_data is not None:
-                    # if the default is not None, treat is as valid cached data
+        with self.__task_lock:
+            self.__initialize_cache()
+            with self.__recompute_lock:
+                if self.__cached_value_dirty:
+                    try:
+                        calculated_data = self.get_calculated_data(ui)
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+                        traceback.print_stack()
+                        raise
                     self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
                     self.__cached_value = calculated_data
                     self.__cached_value_dirty = False
                     self.__cached_value_time = time.time()
                     # import logging
-                    # logging.debug("default %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
+                    # logging.debug("updated %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
                 else:
-                    # otherwise remove everything from the cache
-                    self.__cache.remove_cached_value(self.__display, self.__cache_property_name)
-                    self.__cached_value = None
-                    self.__cached_value_dirty = None
-                    self.__cached_value_time = 0
-                    # import logging
-                    # logging.debug("removed %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
-            self.__recompute_lock.release()
-            self.__display.processor_data_updated(self)
-            if callable(self.on_thumbnail_updated):
-                self.on_thumbnail_updated()
-            self.__recompute_lock.acquire()
+                    calculated_data = None
+                if calculated_data is None:
+                    calculated_data = self.get_default_data()
+                    if calculated_data is not None:
+                        # if the default is not None, treat is as valid cached data
+                        self.__cache.set_cached_value(self.__display, self.__cache_property_name, calculated_data)
+                        self.__cached_value = calculated_data
+                        self.__cached_value_dirty = False
+                        self.__cached_value_time = time.time()
+                        # import logging
+                        # logging.debug("default %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
+                    else:
+                        # otherwise remove everything from the cache
+                        self.__cache.remove_cached_value(self.__display, self.__cache_property_name)
+                        self.__cached_value = None
+                        self.__cached_value_dirty = None
+                        self.__cached_value_time = 0
+                        # import logging
+                        # logging.debug("removed %s %s %s", self.__cache.is_cached_value_dirty(self.__cache_property_name), self.__cache_property_name, self.__display.uuid)
+                self.__recompute_lock.release()
+                self.__display.processor_data_updated(self)
+                if callable(self.on_thumbnail_updated):
+                    self.on_thumbnail_updated()
+                self.__recompute_lock.acquire()
 
     def get_data(self, ui):
         """Return the computed data for this processor.
@@ -233,13 +238,13 @@ class ThumbnailManager(metaclass=Utility.Singleton):
     def thumbnail_source_for_display(self, ui, display: Display, event_loop: asyncio.AbstractEventLoop) -> ThumbnailSource:
         """Returned ThumbnailSource must be closed."""
         with self.__lock:
-            thumbnail_source = self.__thumbnail_sources.get(display.uuid)
+            thumbnail_source = self.__thumbnail_sources.get(display)
             if not thumbnail_source:
                 thumbnail_source = ThumbnailSource(ui, display, event_loop)
-                self.__thumbnail_sources[display.uuid] = thumbnail_source
+                self.__thumbnail_sources[display] = thumbnail_source
 
                 def will_delete(thumbnail_source):
-                    del self.__thumbnail_sources[thumbnail_source._display.uuid]
+                    del self.__thumbnail_sources[thumbnail_source._display]
 
                 thumbnail_source._on_will_delete = will_delete
             else:
@@ -248,7 +253,7 @@ class ThumbnailManager(metaclass=Utility.Singleton):
             return thumbnail_source.add_ref()
 
     def thumbnail_data_for_display(self, display: Display) -> numpy.ndarray:
-        thumbnail_source = self.__thumbnail_sources.get(display.uuid) if display else None
+        thumbnail_source = self.__thumbnail_sources.get(display) if display else None
         if thumbnail_source:
             return thumbnail_source.thumbnail_data
         return None

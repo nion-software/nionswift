@@ -91,7 +91,7 @@ class Workspace:
         self.dock_widgets = None
         for dock_widget in dock_widgets_copy:
             dock_widget.panel.close()
-            dock_widget.close()
+            # dock_widget.close()  # closed by the panel
         self.__content_column = None
         self.filter_row = None
         self.image_row = None

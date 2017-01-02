@@ -975,7 +975,7 @@ class DataGroupModelController:
 class DataPanel(Panel.Panel):
 
     def __init__(self, document_controller, panel_id, properties):
-        super(DataPanel, self).__init__(document_controller, panel_id, _("Data Items"))
+        super().__init__(document_controller, panel_id, _("Data Items"))
 
         dispatch_task = document_controller.document_model.dispatch_task
         ui = document_controller.ui
@@ -1219,6 +1219,9 @@ class DataPanel(Panel.Panel):
             item_controller.close()
         self.library_model_controller.close()
         self.library_model_controller = None
+        # close the widget to stop repainting the widgets before closing the controllers.
+        super().close()
+        # finish closing
         self.data_list_controller.close()
         self.data_list_controller = None
         self.data_grid_controller.close()
@@ -1234,8 +1237,6 @@ class DataPanel(Panel.Panel):
         # button group
         self.__view_button_group.close()
         self.__view_button_group = None
-        # finish closing
-        super(DataPanel, self).close()
 
     # the focused property gets set from on_focus_changed on the data item widget. when gaining focus,
     # make sure the document controller knows what is selected so it can update the inspector.

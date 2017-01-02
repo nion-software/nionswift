@@ -520,17 +520,6 @@ class DocumentController(Window.Window):
         # t3 = time.time()
         # logging.debug("t end %s %s %s", t1-t0, t2-t1, t3-t2)
 
-    def sync_event_loop(self) -> None:
-        # for testing
-        event_loop = self.event_loop
-        event_loop.stop()
-        event_loop.run_forever()
-        try:
-            # this assumes that all outstanding tasks finish in a reasonable time (i.e. no infinite loops).
-            event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=event_loop), loop=event_loop))
-        except concurrent.futures.CancelledError:
-            pass
-
     @property
     def workspace_controller(self):
         return self.__workspace_controller

@@ -6,6 +6,7 @@ import json
 import math
 import random
 import string
+import threading
 import uuid
 import weakref
 
@@ -509,6 +510,7 @@ class BaseDisplayPanelContent:
 class DataItemDataSourceDisplay:
 
     def __init__(self, data_item, delegate, display_type, get_font_metrics_fn, event_loop):
+        self.__closing_lock = threading.RLock()
         self.__data_item = data_item
         self.__delegate = delegate
         self.__display_type = display_type
@@ -534,12 +536,14 @@ class DataItemDataSourceDisplay:
                 self.__display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
 
             def display_rgba_changed(key):
-                if key == "value" and self.__display_type == "image":
-                    DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters())
+                with self.__closing_lock:
+                    if key == "value" and self.__display_type == "image":
+                        DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters())
 
             def display_data_and_metadata_changed(key):
-                if key == "value" and self.__display_type == "line_plot":
-                    DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters())
+                with self.__closing_lock:
+                    if key == "value" and self.__display_type == "line_plot":
+                        DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters())
 
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
@@ -560,15 +564,16 @@ class DataItemDataSourceDisplay:
             display_changed()
 
     def close(self):
-        if self.__display_changed_event_listener:
-            self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = None
-        if self.__display_graphic_selection_changed_event_listener:
-            self.__display_graphic_selection_changed_event_listener.close()
-            self.__display_graphic_selection_changed_event_listener = None
-        if self.__next_calculated_display_values_listener:
-            self.__next_calculated_display_values_listener.close()
-            self.__next_calculated_display_values_listener = None
+        with self.__closing_lock:
+            if self.__display_changed_event_listener:
+                self.__display_changed_event_listener.close()
+                self.__display_changed_event_listener = None
+            if self.__display_graphic_selection_changed_event_listener:
+                self.__display_graphic_selection_changed_event_listener.close()
+                self.__display_graphic_selection_changed_event_listener = None
+            if self.__next_calculated_display_values_listener:
+                self.__next_calculated_display_values_listener.close()
+                self.__next_calculated_display_values_listener = None
 
     @property
     def _data_item(self):
@@ -1040,6 +1045,12 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.on_image_mouse_position_changed = None
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
+        # close the display_canvas_item_delegate down early so that any outstanding threads
+        # don't utilize it during shut down. do not remove the canvas item at this point as
+        # that could trigger an update. just disconnect the delegate.
+        if self.__display_canvas_item_delegate:
+            self.__display_canvas_item_delegate.close()
+            self.__display_canvas_item_delegate = None
         self.set_displayed_data_item(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
         assert not self.__display_canvas_item_delegate
