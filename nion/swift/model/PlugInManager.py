@@ -109,6 +109,8 @@ def load_plug_ins(app, root_dir):
     PlugInDir = collections.namedtuple("PlugInDir", ["directory", "relative_path"])
     plugin_dirs = list()
 
+    plugin_paths = list()
+
     for subdirectory in subdirectories:
 
         packages_dir = os.path.abspath(os.path.join(subdirectory, "Packages"))
@@ -118,12 +120,14 @@ def load_plug_ins(app, root_dir):
             logging.info("Using packages from %s", packages_dir)
             sys.path.append(packages_dir)
 
-        if os.path.exists(plugins_dir):
+        if os.path.exists(plugins_dir) and not plugins_dir in plugin_paths:
             logging.info("Loading plug-ins from %s", plugins_dir)
             sys.path.append(plugins_dir)
 
             sorted_relative_paths = sorted([d for d in os.listdir(plugins_dir) if os.path.isdir(os.path.join(plugins_dir, d))])
             plugin_dirs.extend([PlugInDir(plugins_dir, sorted_relative_path) for sorted_relative_path in sorted_relative_paths])
+
+            plugin_paths.append(plugins_dir)
 
     invalid_manifests = list()
     version_map = dict()
