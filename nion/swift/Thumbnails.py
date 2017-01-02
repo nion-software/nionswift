@@ -15,6 +15,7 @@ import numpy
 from nion.swift import DisplayPanel
 from nion.swift.model import Utility
 from nion.swift.model.Display import Display
+from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import ReferenceCounting
 
@@ -166,7 +167,7 @@ class ThumbnailDataItemProcessor:
 
     def get_calculated_data(self, ui):
         drawing_context = DisplayPanel.preview(ui, self.__display, 512, 512)
-        thumbnail_drawing_context = ui.create_offscreen_drawing_context()
+        thumbnail_drawing_context = DrawingContext.DrawingContext()
         thumbnail_drawing_context.scale(self.width / 512, self.height / 512)
         thumbnail_drawing_context.add(drawing_context)
         return ui.create_rgba_image(thumbnail_drawing_context, self.width, self.height)

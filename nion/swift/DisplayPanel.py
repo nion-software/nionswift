@@ -1729,7 +1729,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
     graphics = display.graphics
     display_type = display.actual_display_type
-    drawing_context = ui.create_offscreen_drawing_context()
+    drawing_context = DrawingContext.DrawingContext()
 
     if display_type == "line_plot":
         frame_width, frame_height = width, int(width / 1.618)

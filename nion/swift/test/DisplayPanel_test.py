@@ -19,8 +19,8 @@ from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Utility
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.utils import Geometry
 
@@ -84,7 +84,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_1d)
         self.display_panel.set_displayed_data_item(data_item_1d)
         self.display_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
-        self.display_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
+        self.display_panel_drawing_context = DrawingContext.DrawingContext()
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
         # trigger layout
         self.display_panel.display_canvas_item.prepare_display()  # force layout
@@ -96,7 +96,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_model.append_data_item(data_item_3d)
         self.display_panel.set_displayed_data_item(data_item_3d)
         self.display_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
-        self.display_panel_drawing_context = self.app.ui.create_offscreen_drawing_context()
+        self.display_panel_drawing_context = DrawingContext.DrawingContext()
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
         # trigger layout
         self.display_panel.display_canvas_item.prepare_display()  # force layout
@@ -663,7 +663,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        drawing_context = DrawingContext.DrawingContext()
         line_plot_canvas_item._repaint(drawing_context)
 
     def test_mouse_tracking_contract_scale_by_high_amount(self):
@@ -677,7 +677,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        drawing_context = DrawingContext.DrawingContext()
         line_plot_canvas_item._repaint(drawing_context)
 
     def test_mouse_tracking_expand_scale_by_high_amount_with_interval(self):
@@ -693,7 +693,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        drawing_context = DrawingContext.DrawingContext()
         line_plot_canvas_item._repaint(drawing_context)
 
     def test_mouse_tracking_contract_scale_by_high_amount_with_interval(self):
@@ -709,7 +709,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.begin_tracking_horizontal(pos, rescale=True)
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
-        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        drawing_context = DrawingContext.DrawingContext()
         line_plot_canvas_item._repaint(drawing_context)
 
     def test_mouse_tracking_shrink_scale_by_10_around_non_center(self):
@@ -1236,7 +1236,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_rectangle_graphic()
         self.document_controller.add_ellipse_graphic()
         self.document_controller.add_interval_graphic()
-        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        drawing_context = DrawingContext.DrawingContext()
         display_canvas_item._repaint(drawing_context)
 
     def test_all_graphic_types_repaint_on_2d_display(self):
@@ -1246,7 +1246,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_ellipse_graphic()
         self.document_controller.add_interval_graphic()
         self.display_panel.display_canvas_item.prepare_display()  # force layout
-        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        drawing_context = DrawingContext.DrawingContext()
         self.display_panel.display_canvas_item._repaint(drawing_context)
 
     def test_all_graphic_types_repaint_on_3d_display(self):
@@ -1256,7 +1256,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_rectangle_graphic()
         self.document_controller.add_ellipse_graphic()
         self.document_controller.add_interval_graphic()
-        drawing_context = self.app.ui.create_offscreen_drawing_context()
+        drawing_context = DrawingContext.DrawingContext()
         display_canvas_item._repaint(drawing_context)
 
     def test_all_graphic_types_hit_test_on_1d_display(self):
