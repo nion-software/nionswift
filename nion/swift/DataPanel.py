@@ -17,6 +17,7 @@ from nion.swift import Thumbnails
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import Widgets
@@ -54,7 +55,6 @@ class DisplayItem:
             (property, read-only) datetime_str
             (property, read-only) format_str
             (property, read-only) status_str
-            (method) draw_thumbnail(dispatch_task, ui, drawing_context, draw_rect)
             (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
             (event) needs_update_event
     """
@@ -100,8 +100,8 @@ class DisplayItem:
 
             self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
 
-    def draw_thumbnail(self, dispatch_task, ui, draw_rect):
-        drawing_context = ui.create_offscreen_drawing_context()
+    def __create_thumbnail(self, draw_rect):
+        drawing_context = DrawingContext.DrawingContext()
         display = self.__data_item.primary_display_specifier.display
         if display:
             self.__create_thumbnail_source()
@@ -149,6 +149,20 @@ class DisplayItem:
         thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
         return mime_data, thumbnail_data
 
+    def draw_list_item(self, drawing_context, rect):
+        with drawing_context.saver():
+            draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
+            drawing_context.add(self.__create_thumbnail(draw_rect))
+            drawing_context.fill_style = "#000"
+            drawing_context.font = "11px italic"
+            drawing_context.fill_text(self.title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
+            drawing_context.fill_text(self.format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
+            drawing_context.fill_text(self.datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
+            drawing_context.fill_text(self.status_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
+
+    def draw_grid_item(self, drawing_context, rect):
+        drawing_context.add(self.__create_thumbnail(rect.inset(6)))
+
 
 class DataListController:
     """Control a list of display items in a list widget.
@@ -177,7 +191,7 @@ class DataListController:
         (property, read-only) datetime_str
         (property, read-only) format_str
         (property, read-only) status_str
-        (method) draw_thumbnail(dispatch_task, ui, draw_rect)
+        (method) draw_list_item(drawing_context, draw_rect)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
@@ -202,6 +216,13 @@ class DataListController:
             def item_count(self):
                 return self.__data_list_controller.display_item_count
 
+            @property
+            def items(self):
+                return self.__data_list_controller.display_items
+
+            def paint_item(self, drawing_context, display_item, rect, is_selected):
+                display_item.draw_list_item(drawing_context, rect)
+
             def on_context_menu_event(self, index, x, y, gx, gy):
                 return self.__data_list_controller.context_menu_event(index, x, y, gx, gy)
 
@@ -213,9 +234,6 @@ class DataListController:
 
             def on_drag_started(self, index, x, y, modifiers):
                 self.__data_list_controller.drag_started(index, x, y, modifiers)
-
-            def paint_item(self, drawing_context, index, rect, is_selected):
-                self.__data_list_controller.paint_item(drawing_context, index, rect, is_selected)
 
         self.__list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(self), self.__selection)
         def focus_changed(focused):
@@ -293,6 +311,10 @@ class DataListController:
     def display_item_count(self):
         return len(self.__display_items)
 
+    @property
+    def display_items(self):
+        return copy.copy(self.__display_items)
+
     def _test_get_display_item(self, index):
         return self.__display_items[index]
 
@@ -329,20 +351,6 @@ class DataListController:
         del self.__display_items[index]
         self.__list_canvas_item.update()
 
-    # this message comes from the styled item delegate
-    def paint_item(self, drawing_context, index, rect, is_selected):
-        assert 0 <= index < len(self.__display_items)
-        display_item = self.__display_items[index]
-        with drawing_context.saver():
-            draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
-            drawing_context.add(display_item.draw_thumbnail(self.dispatch_task, self.ui, draw_rect))
-            drawing_context.fill_style = "#000"
-            drawing_context.font = "11px italic"
-            drawing_context.fill_text(display_item.title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
-            drawing_context.fill_text(display_item.format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
-            drawing_context.fill_text(display_item.datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
-            drawing_context.fill_text(display_item.status_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15 + 15)
-
 
 class DataGridController:
     """Control a grid of display items in a grid widget.
@@ -373,7 +381,7 @@ class DataGridController:
         (property, read-only) datetime_str
         (property, read-only) format_str
         (property, read-only) status_str
-        (method) draw_thumbnail(dispatch_task, ui, draw_rect)
+        (method) draw_grid_item(drawing_context, draw_rect)
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
@@ -398,8 +406,12 @@ class DataGridController:
             def item_count(self):
                 return self.__data_grid_controller.display_item_count
 
-            def paint_item(self, drawing_context, index, rect, is_selected):
-                self.__data_grid_controller.paint_item(drawing_context, index, rect, is_selected)
+            @property
+            def items(self):
+                return self.__data_grid_controller.display_items
+
+            def paint_item(self, drawing_context, display_item, rect, is_selected):
+                display_item.draw_grid_item(drawing_context, rect)
 
             def on_context_menu_event(self, index, x, y, gx, gy):
                 return self.__data_grid_controller.context_menu_event(index, x, y, gx, gy)
@@ -506,6 +518,10 @@ class DataGridController:
     def display_item_count(self):
         return len(self.__display_items)
 
+    @property
+    def display_items(self):
+        return copy.copy(self.__display_items)
+
     def context_menu_event(self, index, x, y, gx, gy):
         if self.on_context_menu_event:
             display_item = self.__display_items[index] if index is not None else None
@@ -538,9 +554,6 @@ class DataGridController:
         del self.__display_item_needs_update_listeners[index]
         del self.__display_items[index]
         self.icon_view_canvas_item.update()
-
-    def paint_item(self, drawing_context, index, rect, is_selected):
-        drawing_context.add(self.__display_items[index].draw_thumbnail(self.dispatch_task, self.ui, rect.inset(6)))
 
 
 class DataListWidget(Widgets.CompositeWidgetBase):
