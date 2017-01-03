@@ -2,6 +2,7 @@
 import copy
 import logging
 import math
+import threading
 
 # local libraries
 from nion.data import Calibration
@@ -262,13 +263,18 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         update_display_properties(display_properties)
     """
 
-    def __init__(self, get_font_metrics_fn, delegate, draw_background: bool=True):
+    def __init__(self, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
         super().__init__()
 
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.delegate = delegate
+        self.__event_loop = event_loop
 
         self.wants_mouse_events = True
+
+        self.__update_layout_handle = None
+        self.__update_layout_handle_lock = threading.RLock()
+        self.__closing_lock = threading.RLock()
 
         self.__last_image_zoom = 1.0
         self.__last_image_norm_center = (0.5, 0.5)
@@ -315,8 +321,16 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_frame_rate_id = None
         self.__display_frame_rate_last_index = 0
 
+        self.__closed = False
+
     def close(self):
-        # call super
+        with self.__update_layout_handle_lock:
+            update_layout_handle = self.__update_layout_handle
+            if update_layout_handle:
+                update_layout_handle.cancel()
+                self.__update_layout_handle = None
+        with self.__closing_lock:
+            self.__closed = True
         super().close()
 
     @property
@@ -325,7 +339,14 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
+    # this method is called on a thread.
     def update_image_display_state(self, data_rgba, data_shape, dimension_calibration, metadata):
+        # this method may trigger a layout of its parent scroll area. however, the parent scroll
+        # area may already be closed. this is a stop-gap guess at a solution.
+        with self.__closing_lock:
+            if self.__closed:
+                return
+        assert not self.__closed
         # first take care of listeners and update the __display field
         # next get rid of data associated with canvas items
         self.__data_rgba = data_rgba
@@ -342,10 +363,19 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__last_data_rgb = self.__data_rgba
         # update the cursor info
         self.__update_cursor_info()
-        # layout. this makes sure that the info overlay gets updated too.
-        self.__update_image_canvas_size()
-        # trigger updates
-        self.__bitmap_canvas_item.update()
+        def update_layout():
+            # layout. this makes sure that the info overlay gets updated too.
+            self.__update_image_canvas_size()
+            # trigger updates
+            self.__bitmap_canvas_item.update()
+            with self.__update_layout_handle_lock:
+                self.__update_layout_handle = None
+        if self.__event_loop:
+            with self.__update_layout_handle_lock:
+                update_layout_handle = self.__update_layout_handle
+                if update_layout_handle:
+                    update_layout_handle.cancel()
+                self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)

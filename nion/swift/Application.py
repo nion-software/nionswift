@@ -43,7 +43,7 @@ app = None
 
 
 # facilitate bootstrapping the application
-class Application(object):
+class Application:
 
     def __init__(self, ui, set_global=True, resources_path=None):
         global app

@@ -534,8 +534,8 @@ class HistogramPanel(Panel.Panel):
         display_stream = TargetDisplayStream(document_controller)
         self.__buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller).add_ref()
         region_stream = TargetRegionStream(display_stream)
-        display_data_and_metadata_stream = DisplayTransientsStream(display_stream, "display_data_and_metadata", document_controller.event_loop, cmp=numpy.array_equal)
-        display_range_stream = DisplayTransientsStream(display_stream, "display_range", document_controller.event_loop)
+        display_data_and_metadata_stream = DisplayTransientsStream(display_stream, "display_data_and_metadata", cmp=numpy.array_equal)
+        display_range_stream = DisplayTransientsStream(display_stream, "display_range")
         region_data_and_metadata_func_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data_func)
         histogram_widget_data_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
         color_map_data_stream = DisplayPropertyStream(display_stream, "color_map_data", cmp=numpy.array_equal)
@@ -587,7 +587,7 @@ class HistogramPanel(Panel.Panel):
         def calculate_statistics_func(display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration):
             return functools.partial(calculate_statistics, display_data_and_metadata_model_func, display_data_range, region, displayed_intensity_calibration)
 
-        display_data_range_stream = DisplayTransientsStream(display_stream, "data_range", document_controller.event_loop)
+        display_data_range_stream = DisplayTransientsStream(display_stream, "data_range")
         displayed_intensity_calibration_stream = DisplayPropertyStream(display_stream, 'displayed_intensity_calibration')
         statistics_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_data_range_stream, region_stream, displayed_intensity_calibration_stream), calculate_statistics_func)
         if debounce:
@@ -827,7 +827,7 @@ class DisplayPropertyStream(Stream.AbstractStream):
 class DisplayTransientsStream(Stream.AbstractStream):
     # TODO: add a display_data_changed to Display class and use it here
 
-    def __init__(self, display_stream, property_name, event_loop, cmp=None):
+    def __init__(self, display_stream, property_name, cmp=None):
         super().__init__()
         # outgoing messages
         self.value_stream = Event.Event()
@@ -835,7 +835,6 @@ class DisplayTransientsStream(Stream.AbstractStream):
         self.__property_name = property_name
         self.__value = None
         self.__next_calculated_display_values_listener = None
-        self.__event_loop = event_loop
         self.__cmp = cmp if cmp else operator.eq
         # listen for display changes
         self.__display_stream = display_stream.add_ref()
@@ -866,7 +865,7 @@ class DisplayTransientsStream(Stream.AbstractStream):
             self.__next_calculated_display_values_listener.close()
             self.__next_calculated_display_values_listener = None
         if display:
-            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values, self.__event_loop)
+            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
             handle_next_calculated_display_values(display.get_calculated_display_values())
         else:
             self.__value = None

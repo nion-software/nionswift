@@ -145,14 +145,13 @@ class TestDisplayClass(unittest.TestCase):
                 self.display_range = calculated_display_values.display_range
                 self.data_range = calculated_display_values.data_range
         o = Observer()
-        with contextlib.closing(Utility.TestEventLoop()) as event_loop:
-            listener = display.add_calculated_display_values_listener(o.next_calculated_display_values, event_loop.event_loop)
-            with contextlib.closing(listener):
-                with display_specifier.buffered_data_source.data_ref() as dr:
-                    dr.data = irow // 2 + 4
-                data_item.maybe_data_source.displays[0].update_calculated_display_values()
-                self.assertEqual(o.data_range, (4, 11))
-                self.assertEqual(o.display_range, (4, 11))
+        listener = display.add_calculated_display_values_listener(o.next_calculated_display_values)
+        with contextlib.closing(listener):
+            with display_specifier.buffered_data_source.data_ref() as dr:
+                dr.data = irow // 2 + 4
+            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            self.assertEqual(o.data_range, (4, 11))
+            self.assertEqual(o.display_range, (4, 11))
 
     def test_data_item_copy_initialized_display_data_range(self):
         source_data_item = DataItem.DataItem(numpy.zeros((16, 16, 16), numpy.float64))

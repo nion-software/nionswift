@@ -249,43 +249,41 @@ class TestInspectorClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        with contextlib.closing(Utility.TestEventLoop()) as event_loop:
-            inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display, event_loop.event_loop)
-            display.display_limits = None
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-            display.display_limits = (None, None)
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-            display.display_limits = (1, None)
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-            display.display_limits = (None, 2)
-            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
-            display.display_limits = (1, 2)
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
+        inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display)
+        display.display_limits = None
+        self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+        self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+        display.display_limits = (None, None)
+        self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+        self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+        display.display_limits = (1, None)
+        self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
+        self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+        display.display_limits = (None, 2)
+        self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+        self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
+        display.display_limits = (1, 2)
+        self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
+        self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
-        with contextlib.closing(Utility.TestEventLoop()) as event_loop:
-            inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display, event_loop.event_loop)
-            self.assertEqual(display.display_limits, None)
-            inspector_section.display_limits_limit_low.text = "1"
-            inspector_section.display_limits_limit_low.editing_finished("1")
-            self.assertEqual(display.display_limits, (1.0, None))
-            inspector_section.display_limits_limit_high.text = "2"
-            inspector_section.display_limits_limit_high.editing_finished("2")
-            self.assertEqual(display.display_limits, (1.0, 2.0))
-            inspector_section.display_limits_limit_low.text = ""
-            inspector_section.display_limits_limit_low.editing_finished("")
-            self.assertEqual(display.display_limits, (None, 2.0))
-            inspector_section.display_limits_limit_high.text = ""
-            inspector_section.display_limits_limit_high.editing_finished("")
-            self.assertEqual(display.display_limits, None)
+        inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display)
+        self.assertEqual(display.display_limits, None)
+        inspector_section.display_limits_limit_low.text = "1"
+        inspector_section.display_limits_limit_low.editing_finished("1")
+        self.assertEqual(display.display_limits, (1.0, None))
+        inspector_section.display_limits_limit_high.text = "2"
+        inspector_section.display_limits_limit_high.editing_finished("2")
+        self.assertEqual(display.display_limits, (1.0, 2.0))
+        inspector_section.display_limits_limit_low.text = ""
+        inspector_section.display_limits_limit_low.editing_finished("")
+        self.assertEqual(display.display_limits, (None, 2.0))
+        inspector_section.display_limits_limit_high.text = ""
+        inspector_section.display_limits_limit_high.editing_finished("")
+        self.assertEqual(display.display_limits, None)
 
     def test_inspector_handles_deleted_data(self):
         document_model = DocumentModel.DocumentModel()

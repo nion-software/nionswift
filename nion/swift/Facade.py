@@ -1084,7 +1084,7 @@ class DataItem:
             display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics, None)
             aspect_ratio = 4.0 / 3.0 if not aspect_ratio else aspect_ratio
         else:
-            display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics, None)
+            display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics, None, None)
             aspect_ratio = float(buffered_data_source.dimensional_shape[-1]) / buffered_data_source.dimensional_shape[-2]
 
         viewbox = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))

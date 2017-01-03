@@ -514,14 +514,13 @@ class DataItemDataSourceDisplay:
         self.__data_item = data_item
         self.__delegate = delegate
         self.__display_type = display_type
-        self.__event_loop = event_loop
         self.__display_changed_event_listener = None
         self.__display_graphic_selection_changed_event_listener = None
 
         if self.__display_type == "line_plot":
             self.__display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, self)
         elif self.__display_type == "image":
-            self.__display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, self)
+            self.__display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, self, event_loop)
             self.__display_canvas_item.set_fit_mode()
         else:
             raise Exception("Display type not found " + str(self.__display_type))
@@ -557,7 +556,7 @@ class DataItemDataSourceDisplay:
                 display_rgba_changed("value")
                 display_data_and_metadata_changed("value")
 
-            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values, event_loop)
+            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
             self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
 
@@ -862,10 +861,9 @@ class DataItemDisplayTypeMonitor:
 
 class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, ui, document_model, event_loop: asyncio.AbstractEventLoop):
+    def __init__(self, ui, document_model):
         super().__init__()
         self.ui = ui
-        self.__event_loop = event_loop
         self.__document_model = document_model
         self.__source_thumbnails = CanvasItem.CanvasItemComposition()
         self.__source_thumbnails.layout = CanvasItem.CanvasItemRowLayout(spacing=8)
@@ -911,12 +909,12 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
         # self.__dependent_thumbnails.remove_all_canvas_items()
         if data_item is not None:
             for source_data_item in self.__document_model.get_source_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, source_data_item, self.__event_loop)
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, source_data_item)
                 thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
             for dependent_data_item in self.__document_model.get_dependent_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, dependent_data_item, self.__event_loop)
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, dependent_data_item)
                 thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
@@ -954,7 +952,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.on_image_mouse_released = None
         self.on_image_mouse_position_changed = None
 
-        self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model, document_controller.event_loop)
+        self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model)
         self.__shortcuts_canvas_item.on_drag = document_controller.drag
 
         self.__data_item_display_canvas_item = CanvasItem.CanvasItemComposition()
@@ -1001,7 +999,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         def data_item_inserted(data_item, before_index):
             if self.__display_items is not None:  # closed?
-                display_item = DataPanel.DisplayItem(data_item, ui, document_controller.event_loop)
+                display_item = DataPanel.DisplayItem(data_item, ui)
                 self.__display_items.insert(before_index, display_item)
                 self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
                 self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
@@ -1308,7 +1306,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             root_canvas_item = self.canvas_item.root_container
             document_controller = self.document_controller
             # force thumbnail calculation
-            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.ui, display_specifier.display, document_controller.event_loop)
+            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.ui, display_specifier.display)
             thumbnail_source.recompute_data()
             thumbnail_source.close()
             thumbnail_source = None
@@ -1742,7 +1740,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
             display_canvas_item._repaint(drawing_context)
 
     elif display_type == "image":
-        display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, draw_background=False)
+        display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, None, draw_background=False)
         display_canvas_item.set_fit_mode()
         DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters())
         displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
