@@ -146,6 +146,8 @@ class TestDisplayClass(unittest.TestCase):
                 self.data_range = calculated_display_values.data_range
         o = Observer()
         listener = display.add_calculated_display_values_listener(o.next_calculated_display_values)
+        # wait for initial display values to update.
+        data_item.maybe_data_source.displays[0].update_calculated_display_values()
         with contextlib.closing(listener):
             with display_specifier.buffered_data_source.data_ref() as dr:
                 dr.data = irow // 2 + 4
