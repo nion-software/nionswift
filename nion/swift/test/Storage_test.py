@@ -20,6 +20,7 @@ from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
+from nion.swift import Thumbnails
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
@@ -202,6 +203,30 @@ class TestStorageClass(unittest.TestCase):
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
+
+    def test_reloading_thumbnail_from_cache_does_not_mark_it_as_dirty(self):
+        # tests caching on display
+        storage_cache = Cache.DictStorageCache()
+        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            storage_cache.set_cached_value(display_specifier.display, "thumbnail_data", numpy.zeros((128, 128, 4), dtype=numpy.uint8))
+            self.assertFalse(storage_cache.is_cached_value_dirty(display_specifier.display, "thumbnail_data"))
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, display_specifier.display)) as thumbnail_source:
+                thumbnail_source.recompute_data()
+        # read it back
+        storage_cache = storage_cache.clone()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], storage_cache=storage_cache)
+        with contextlib.closing(document_model):
+            read_data_item = document_model.data_items[0]
+            read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
+            # thumbnail data should still be valid
+            self.assertFalse(storage_cache.is_cached_value_dirty(read_display_specifier.display, "thumbnail_data"))
+            with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, read_display_specifier.display)) as thumbnail_source:
+                self.assertFalse(thumbnail_source._is_thumbnail_dirty)
 
     def test_reload_data_item_initializes_display_data_range(self):
         memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()

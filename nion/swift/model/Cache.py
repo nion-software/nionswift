@@ -285,9 +285,9 @@ def db_make_directory_if_needed(directory_path):
 
 
 class DictStorageCache:
-    def __init__(self):
-        self.__cache = dict()
-        self.__cache_dirty = dict()
+    def __init__(self, cache=None, cache_dirty=None):
+        self.__cache = copy.deepcopy(cache) if cache else dict()
+        self.__cache_dirty = copy.deepcopy(cache_dirty) if cache_dirty else dict()
 
     def close(self):
         pass
@@ -295,6 +295,17 @@ class DictStorageCache:
     @property
     def cache(self):
         return self.__cache
+
+    @property
+    def _cache_dict(self):
+        return self.__cache
+
+    @property
+    def _cache_dirty_dict(self):
+        return self.__cache_dirty
+
+    def clone(self):
+        return DictStorageCache(cache=self.__cache, cache_dirty=self.__cache_dirty)
 
     def suspend_cache(self):
         pass

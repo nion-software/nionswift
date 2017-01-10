@@ -46,6 +46,11 @@ class ThumbnailDataItemProcessor:
                 self.__recompute_thread_cancel.set()
                 self.__recompute_thread.join()
 
+    # used for testing
+    @property
+    def _is_cached_value_dirty(self):
+        return self.__cached_value_dirty
+
     # thread safe
     def mark_data_dirty(self):
         """ Called from item to indicate its data or metadata has changed."""
@@ -185,7 +190,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
                 thumbnail_processor.mark_data_dirty()
                 thumbnail_processor.recompute_if_necessary(ui)
 
-        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(lambda x: thumbnail_changed())
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(lambda x: thumbnail_changed(), send=False)
         self.__display_changed_event_listener = display.display_changed_event.listen(thumbnail_changed)
 
         def thumbnail_updated():
@@ -226,6 +231,11 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
     def recompute_data(self):
         self.__thumbnail_processor.recompute_data(self._ui)
+
+    # used for testing
+    @property
+    def _is_thumbnail_dirty(self):
+        return self.__thumbnail_processor._is_cached_value_dirty
 
 
 class ThumbnailManager(metaclass=Utility.Singleton):

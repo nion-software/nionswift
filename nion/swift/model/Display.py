@@ -742,9 +742,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def set_storage_cache(self, storage_cache):
         self.__cache.set_storage_cache(storage_cache, self)
 
-    def add_calculated_display_values_listener(self, callback):
+    def add_calculated_display_values_listener(self, callback, send=True):
         listener = self.__calculated_display_values_available_event.listen(callback)
-        self.__send_next_calculated_display_values()
+        if send:
+            self.__send_next_calculated_display_values()
         return listener
 
     def __send_next_calculated_display_values(self):
