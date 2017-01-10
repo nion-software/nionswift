@@ -574,6 +574,8 @@ class NumPyImportExportHandler(ImportExportHandler):
 # Register the intrinsic I/O handlers.
 ImportExportManager().register_io_handler(StandardImportExportHandler("jpeg-io-handler", "JPEG", ["jpg", "jpeg"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("png-io-handler", "PNG", ["png"]))
+ImportExportManager().register_io_handler(StandardImportExportHandler("gif-io-handler", "GIF", ["gif"]))
+ImportExportManager().register_io_handler(StandardImportExportHandler("bmp-io-handler", "BMP", ["bmp"]))
 ImportExportManager().register_io_handler(CSVImportExportHandler("csv-io-handler", "CSV", ["csv"]))
 ImportExportManager().register_io_handler(NDataImportExportHandler("ndata1-io-handler", "NData 1", ["ndata1"]))
 ImportExportManager().register_io_handler(NumPyImportExportHandler("numpy-io-handler", "Raw NumPy", ["npy"]))
