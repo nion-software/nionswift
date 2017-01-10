@@ -1304,12 +1304,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
             root_canvas_item = self.canvas_item.root_container
-            document_controller = self.document_controller
-            # force thumbnail calculation
-            thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(document_controller.ui, display_specifier.display)
-            thumbnail_source.recompute_data()
-            thumbnail_source.close()
-            thumbnail_source = None
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(display_specifier.display)
             on_begin_drag = self.on_begin_drag
             if callable(on_begin_drag):
