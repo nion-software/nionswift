@@ -520,7 +520,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         # select item and prepare for drag
                         self.graphic_drag_item_was_selected = already_selected
                         if not self.graphic_drag_item_was_selected:
-                            if modifiers.shift:
+                            if modifiers.control:
                                 self.delegate.add_index_to_selection(graphic_index)
                                 selection_indexes.add(graphic_index)
                             else:
@@ -648,7 +648,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return False
 
     def end_tracking(self, modifiers):
-        if not self.__graphic_drag_items and not modifiers.shift:
+        if not self.__graphic_drag_items and not modifiers.control:
             self.delegate.clear_selection()
         if self.__tracking_selections:
             if self.__data_shape is not None:
@@ -659,12 +659,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 if self.__graphic_drag_items and not self.__graphic_drag_changed:
                     graphic_index = graphics.index(self.__graphic_drag_item)
                     # user didn't move graphic
-                    if not modifiers.shift:
+                    if not modifiers.control:
                         # user clicked on a single graphic
                         self.delegate.set_selection(graphic_index)
                     else:
-                        # user shift clicked. toggle selection
-                        # if shift is down and item is already selected, toggle selection of item
+                        # user control clicked. toggle selection
+                        # if control is down and item is already selected, toggle selection of item
                         if self.graphic_drag_item_was_selected:
                             self.delegate.remove_index_from_selection(graphic_index)
                         else:

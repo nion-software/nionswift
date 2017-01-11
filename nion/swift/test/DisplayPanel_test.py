@@ -179,11 +179,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_specifier.display.graphic_selection.indexes)
         # add the ellipse to the selection. click inside the right side.
-        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 2)
         self.assertTrue(0 in self.display_specifier.display.graphic_selection.indexes)
         # remove the ellipse from the selection. click inside the right side.
-        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(shift=True))
+        self.display_panel.display_canvas_item.simulate_click((725, 500), CanvasItem.KeyboardModifiers(control=True))
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         self.assertTrue(0 in self.display_specifier.display.graphic_selection.indexes)
 
