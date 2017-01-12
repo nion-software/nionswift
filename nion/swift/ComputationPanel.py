@@ -18,6 +18,7 @@ from nion.ui import CanvasItem
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import Geometry
 
 _ = gettext.gettext
 
@@ -450,7 +451,8 @@ class ComputationPanel(Panel.Panel):
         text_edit_row.add_spacing(8)
 
         error_row = ui.create_row_widget()
-        error_label = ui.create_label_widget("", properties={"stylesheet": "color: red"})
+        error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red"})
+        error_label.word_wrap = True
         error_row.add_spacing(8)
         error_row.add(error_label)
         error_row.add_spacing(8)
@@ -568,6 +570,9 @@ class ComputationPanel(Panel.Panel):
         self.__selected_data_item_binding.close()
         self.__selected_data_item_binding = None
         super(ComputationPanel, self).close()
+
+    def size_changed(self, width, height):
+        self.__error_label.size = Geometry.IntSize(height=self.__error_label.size.height, width=self.__text_edit.size.width)
 
     @property
     def _sections_for_testing(self):
