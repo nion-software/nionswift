@@ -63,12 +63,11 @@ class Panel:
     def queue_task(self, task):
         self.document_controller.queue_task(task)
 
+    def size_changed(self, width, height):
+        pass
+
     def __str__(self):
         return self.display_name
-
-    # access for the property. this allows C++ to get the value.
-    def get_uuid_str(self):
-        return str(self.uuid)
 
 
 class OutputPanel(Panel):

@@ -160,6 +160,7 @@ class Workspace:
             assert panel.widget is not None, "panel widget is None [%s]" % panel_id
             dock_widget = document_controller.create_dock_widget(panel.widget, panel_id, title, positions, position)
             dock_widget.panel = panel
+            dock_widget.on_size_changed = panel.size_changed
             self.dock_widgets.append(dock_widget)
             return dock_widget
         except Exception as e:
