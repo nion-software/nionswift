@@ -72,7 +72,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_group.counted_data_items[data_item2], 1)
 
     def test_loading_document_with_duplicated_data_items_ignores_earlier_ones(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))

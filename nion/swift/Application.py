@@ -151,7 +151,7 @@ class Application:
         if os.path.exists(library_path):
             self.migrate_library(workspace_dir, library_path, welcome_message)
         self.workspace_dir = workspace_dir
-        file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
         create_new_document = not os.path.exists(library_path)
         if create_new_document:
             if welcome_message:

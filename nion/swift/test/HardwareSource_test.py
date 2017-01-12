@@ -808,7 +808,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(value, -acq_value0)
 
     def test_reloading_restarted_view_after_size_change_produces_data_item_with_unique_uuid(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_controller):
             document_model.session_id = "20000630-150200"

@@ -689,7 +689,7 @@ class DocumentController(Window.Window):
             with open(library_path, "w") as fp:
                 json.dump({}, fp)
             storage_cache = Cache.DbStorageCache(cache_path)
-            file_persistent_storage_system = DocumentModel.FilePersistentStorageSystem([data_path])
+            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
             library_storage = DocumentModel.FilePersistentStorage(library_path)
             document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache,
                                                          ignore_older_files=True)

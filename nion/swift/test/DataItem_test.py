@@ -900,7 +900,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertGreater(data_item.modified, modified)
 
     def test_data_item_in_transaction_does_not_write_until_end_of_transaction(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
@@ -910,7 +910,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
 
     def test_extra_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
@@ -922,7 +922,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
 
     def test_changing_data_item_session_id_in_transaction_does_not_result_in_duplicated_data_items(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))

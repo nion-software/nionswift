@@ -45,6 +45,8 @@ _ = gettext.gettext
 
 
 class FilePersistentStorage:
+    # this class is used to store the data for the library itself.
+    # it is not used for library items.
 
     def __init__(self, filepath=None, create=True):
         self.__filepath = filepath
@@ -126,21 +128,21 @@ class FilePersistentStorage:
         self.update_properties()
 
 
-class DataItemPersistentStorage:
+class DataItemStorage:
 
     """
-        Manages persistent storage for data items by caching properties and data, maintaining the PersistentObjectContext
+        Manages storage for data items by caching properties and data, maintaining the PersistentObjectContext
         on contained items, and writing to disk when necessary.
 
-        The persistent_storage_handler must respond to these methods:
+        The storage_handler must respond to these methods:
             read_properties()
             read_data()
             write_properties(properties, file_datetime)
             write_data(data, file_datetime)
     """
 
-    def __init__(self, persistent_storage_handler=None, data_item=None, properties=None):
-        self.__persistent_storage_handler = persistent_storage_handler
+    def __init__(self, storage_handler=None, data_item=None, properties=None):
+        self.__storage_handler = storage_handler
         self.__properties = Utility.clean_dict(copy.deepcopy(properties) if properties else dict())
         self.__properties_lock = threading.RLock()
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
@@ -160,8 +162,8 @@ class DataItemPersistentStorage:
             return copy.deepcopy(self.__properties)
 
     @property
-    def _persistent_storage_handler(self):
-        return self.__persistent_storage_handler
+    def _storage_handler(self):
+        return self.__storage_handler
 
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
@@ -184,7 +186,7 @@ class DataItemPersistentStorage:
     def update_properties(self):
         if not self.write_delayed:
             file_datetime = self.data_item.created_local
-            self.__persistent_storage_handler.write_properties(self.properties, file_datetime)
+            self.__storage_handler.write_properties(self.properties, file_datetime)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
@@ -219,11 +221,11 @@ class DataItemPersistentStorage:
         if not self.write_delayed:
             file_datetime = self.data_item.created_local
             if data is not None:
-                self.__persistent_storage_handler.write_data(data, file_datetime)
+                self.__storage_handler.write_data(data, file_datetime)
 
     def load_data(self):
         assert self.data_item.maybe_data_source and self.data_item.maybe_data_source.has_data
-        return self.__persistent_storage_handler.read_data()
+        return self.__storage_handler.read_data()
 
     def set_property(self, object, name, value):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
@@ -232,10 +234,10 @@ class DataItemPersistentStorage:
         self.update_properties()
 
     def remove(self):
-        self.__persistent_storage_handler.remove()
+        self.__storage_handler.remove()
 
 
-class MemoryPersistentStorageSystem:
+class MemoryStorageSystem:
 
     def __init__(self):
         self.data = dict()
@@ -272,29 +274,29 @@ class MemoryPersistentStorageSystem:
             self.__properties.pop(self.__uuid, None)
 
     def find_data_items(self):
-        persistent_storage_handlers = list()
+        storage_handlers = list()
         for key in sorted(self.properties):
             self.properties[key].setdefault("uuid", str(uuid.uuid4()))
-            persistent_storage_handlers.append(MemoryPersistentStorageSystem.MemoryStorageHandler(key, self.properties, self.data, self._test_data_read_event))
-        return persistent_storage_handlers
+            storage_handlers.append(MemoryStorageSystem.MemoryStorageHandler(key, self.properties, self.data, self._test_data_read_event))
+        return storage_handlers
 
-    def make_persistent_storage_handler(self, data_item):
+    def make_storage_handler(self, data_item):
         uuid = str(data_item.uuid)
-        return MemoryPersistentStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data, self._test_data_read_event)
+        return MemoryStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data, self._test_data_read_event)
 
 
 from nion.swift.model import NDataHandler
 
-class FilePersistentStorageSystem:
+class FileStorageSystem:
 
     _file_handlers = [NDataHandler.NDataHandler]
 
     def __init__(self, directories):
         self.__directories = directories
-        self.__file_handlers = FilePersistentStorageSystem._file_handlers
+        self.__file_handlers = FileStorageSystem._file_handlers
 
     def find_data_items(self):
-        persistent_storage_handlers = list()
+        storage_handlers = list()
         absolute_file_paths = set()
         for directory in self.__directories:
             for root, dirs, files in os.walk(directory):
@@ -302,14 +304,14 @@ class FilePersistentStorageSystem:
         for file_handler in self.__file_handlers:
             for data_file in filter(file_handler.is_matching, absolute_file_paths):
                 try:
-                    persistent_storage_handler = file_handler(data_file)
-                    assert persistent_storage_handler.is_valid
-                    persistent_storage_handlers.append(persistent_storage_handler)
+                    storage_handler = file_handler(data_file)
+                    assert storage_handler.is_valid
+                    storage_handlers.append(storage_handler)
                 except Exception as e:
                     logging.error("Exception reading file: %s", data_file)
                     logging.error(str(e))
                     raise
-        return persistent_storage_handlers
+        return storage_handlers
 
     def __get_default_path(self, data_item):
         uuid_ = data_item.uuid
@@ -332,7 +334,7 @@ class FilePersistentStorageSystem:
         path_components.append("data_" + encoded_uuid_str)
         return os.path.join(*path_components)
 
-    def make_persistent_storage_handler(self, data_item):
+    def make_storage_handler(self, data_item):
         return self.__file_handlers[0].make(os.path.join(self.__directories[0], self.__get_default_path(data_item)))
 
 
@@ -352,7 +354,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
     def __init__(self, persistent_storage_systems=None, ignore_older_files: bool=False, log_migrations: bool=True, log_copying: bool=False):
         super().__init__()
-        self.__persistent_storage_systems = persistent_storage_systems if persistent_storage_systems else [MemoryPersistentStorageSystem()]
+        self.__persistent_storage_systems = persistent_storage_systems if persistent_storage_systems else [MemoryStorageSystem()]
         self.__ignore_older_files = ignore_older_files
         self.__log_migrations = log_migrations
         self.__log_copying = log_copying
@@ -362,13 +364,13 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         return self.__persistent_storage_systems
 
     def read_data_items_version_stats(self):
-        persistent_storage_handlers = list()  # persistent_storage_handler
+        storage_handlers = list()  # storage_handler
         for persistent_storage_system in self.__persistent_storage_systems:
-            persistent_storage_handlers.extend(persistent_storage_system.find_data_items())
+            storage_handlers.extend(persistent_storage_system.find_data_items())
         count = [0, 0, 0]  # data item matches version, data item has higher version, data item has lower version
         writer_version = DataItem.DataItem.writer_version
-        for persistent_storage_handler in persistent_storage_handlers:
-            properties = persistent_storage_handler.read_properties()
+        for storage_handler in storage_handlers:
+            properties = storage_handler.read_properties()
             version = properties.get("version", 0)
             if version < writer_version:
                 count[2] += 1
@@ -387,17 +389,17 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
         Pass target_document to copy data items into new document. Useful for auto migration.
         """
-        persistent_storage_handlers = list()  # persistent_storage_handler
+        storage_handlers = list()  # storage_handler
         for persistent_storage_system in self.__persistent_storage_systems:
-            persistent_storage_handlers.extend(persistent_storage_system.find_data_items())
+            storage_handlers.extend(persistent_storage_system.find_data_items())
         data_items_by_uuid = dict()
-        ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "persistent_storage_handler"])
+        ReaderInfo = collections.namedtuple("ReaderInfo", ["properties", "changed_ref", "storage_handler"])
         reader_info_list = list()
-        for persistent_storage_handler in persistent_storage_handlers:
+        for storage_handler in storage_handlers:
             try:
-                reader_info_list.append(ReaderInfo(persistent_storage_handler.read_properties(), [False], persistent_storage_handler))
+                reader_info_list.append(ReaderInfo(storage_handler.read_properties(), [False], storage_handler))
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
@@ -406,24 +408,24 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         for reader_info in reader_info_list:
             properties = reader_info.properties
             changed_ref = reader_info.changed_ref
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             try:
                 version = properties.get("version", 0)
                 if version == DataItem.DataItem.writer_version:
                     data_item_uuid = uuid.UUID(properties["uuid"])
                     if target_document is not None:
                         if not target_document.get_data_item_by_uuid(data_item_uuid):
-                            new_data_item = self.__auto_migrate_data_item(data_item_uuid, persistent_storage_handler, properties, target_document)
+                            new_data_item = self.__auto_migrate_data_item(data_item_uuid, storage_handler, properties, target_document)
                             if new_data_item:
                                 data_items_by_uuid[data_item_uuid] = new_data_item
                     else:
                         if changed_ref[0]:
-                            persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
+                            storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                         # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                         # NOTE: change writer_version in DataItem.py
                         data_item = DataItem.DataItem(item_uuid=data_item_uuid)
                         data_item.begin_reading()
-                        persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
+                        persistent_storage = DataItemStorage(storage_handler=storage_handler, data_item=data_item, properties=properties)
                         data_item.read_from_dict(persistent_storage.properties)
                         self._set_persistent_storage_for_object(data_item, persistent_storage)
                         data_item.persistent_object_context = self
@@ -431,7 +433,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                             logging.info("Warning: Duplicate data item %s", data_item.uuid)
                         data_items_by_uuid[data_item.uuid] = data_item
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
@@ -441,25 +443,25 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         data_items.sort(key=sort_by_date_key)
         return data_items
 
-    def __auto_migrate_data_item(self, data_item_uuid, persistent_storage_handler, properties, target_document):
+    def __auto_migrate_data_item(self, data_item_uuid, storage_handler, properties, target_document):
         new_data_item = None
-        target_persistent_storage_handler = None
+        target_storage_handler = None
         for persistent_storage_system in target_document.persistent_object_context.persistent_storage_systems:
             # create a temporary data item that can be used to get the new file reference
             old_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
             old_data_item.begin_reading()
             old_data_item.read_from_dict(properties)
             old_data_item.finish_reading()
-            target_persistent_storage_handler = persistent_storage_system.make_persistent_storage_handler(old_data_item)
-            if target_persistent_storage_handler:
+            target_storage_handler = persistent_storage_system.make_storage_handler(old_data_item)
+            if target_storage_handler:
                 break
-        if target_persistent_storage_handler:
-            os.makedirs(os.path.dirname(target_persistent_storage_handler.reference), exist_ok=True)
-            shutil.copyfile(persistent_storage_handler.reference, target_persistent_storage_handler.reference)
-            target_persistent_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
+        if target_storage_handler:
+            os.makedirs(os.path.dirname(target_storage_handler.reference), exist_ok=True)
+            shutil.copyfile(storage_handler.reference, target_storage_handler.reference)
+            target_storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
             new_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
             new_data_item.begin_reading()
-            persistent_storage = DataItemPersistentStorage(persistent_storage_handler=target_persistent_storage_handler, data_item=new_data_item, properties=properties)
+            persistent_storage = DataItemStorage(storage_handler=target_storage_handler, data_item=new_data_item, properties=properties)
             new_data_item.read_from_dict(persistent_storage.properties)
             target_document.persistent_object_context._set_persistent_storage_for_object(new_data_item, persistent_storage)
             new_data_item.persistent_object_context = target_document.persistent_object_context
@@ -484,7 +486,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         translate_region_type = {"point-region": "point-graphic", "line-region": "line-profile-graphic", "rectangle-region": "rect-graphic", "ellipse-region": "ellipse-graphic",
             "interval-region": "interval-graphic"}
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -543,9 +545,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     # version 9 -> 10 merges regions into graphics.
                     properties["version"] = 10
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (regions merged into graphics)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (regions merged into graphics)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
@@ -553,20 +555,20 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
     def __migrate_to_v9(self, reader_info_list):
         data_source_uuid_to_data_item_uuid = dict()
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 data_source_dicts = properties.get("data_sources", list())
                 for data_source_dict in data_source_dicts:
                     data_source_uuid_to_data_item_uuid[data_source_dict["uuid"]] = properties["uuid"]
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -674,16 +676,16 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                 data_source_dict["computation"] = computation_dict
                     properties["version"] = 9
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (operation to computation)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (operation to computation)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
     def __migrate_to_v8(self, reader_info_list):
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -724,9 +726,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     properties.pop("datetime_modified", None)
                     properties["version"] = 8
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (metadata to data source)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (metadata to data source)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
@@ -734,7 +736,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
     def __migrate_to_v7(self, reader_info_list):
         v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -775,16 +777,16 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                         properties["data_sources"] = [buffered_data_source_dict]
                     properties["version"] = 7
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (buffered data sources)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (buffered data sources)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
     def __migrate_to_v6(self, reader_info_list):
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -814,16 +816,16 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                         del properties["intrinsic_spatial_calibrations"]
                     properties["version"] = 6
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (operation hierarchy)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (operation hierarchy)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
     def __migrate_to_v5(self, reader_info_list):
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -840,16 +842,16 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                             del operation_dict["region_uuid"]
                     properties["version"] = 5
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (region_uuid)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (region_uuid)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
     def __migrate_to_v4(self, reader_info_list):
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -866,16 +868,16 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                             del calibration_dict["origin"]
                     properties["version"] = 4
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (calibration offset)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (calibration offset)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
     def __migrate_to_v3(self, reader_info_list):
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -890,16 +892,16 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                         operation_properties.setdefault("uuid", str(uuid.uuid4()))
                     properties["version"] = 3
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (add uuids)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (add uuids)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
 
     def __migrate_to_v2(self, reader_info_list):
         for reader_info in reader_info_list:
-            persistent_storage_handler = reader_info.persistent_storage_handler
+            storage_handler = reader_info.storage_handler
             properties = reader_info.properties
             try:
                 version = properties.get("version", 0)
@@ -920,7 +922,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                         if "session_uuid" in new_properties:
                             del new_properties["session_uuid"]
                         del properties["properties"]
-                    temp_data = persistent_storage_handler.read_data()
+                    temp_data = storage_handler.read_data()
                     if temp_data is not None:
                         properties["master_data_dtype"] = str(temp_data.dtype)
                         properties["master_data_shape"] = temp_data.shape
@@ -928,9 +930,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     properties["uuid"] = str(uuid.uuid4())  # assign a new uuid
                     properties["version"] = 2
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (ndata1)", persistent_storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (ndata1)", storage_handler.reference, properties["version"])
             except Exception as e:
-                logging.debug("Error reading %s", persistent_storage_handler.reference)
+                logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
@@ -938,13 +940,13 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
     def _ensure_persistent_storage(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
         if not persistent_storage:
-            persistent_storage_handler = None
+            storage_handler = None
             for persistent_storage_system in self.__persistent_storage_systems:
-                persistent_storage_handler = persistent_storage_system.make_persistent_storage_handler(data_item)
-                if persistent_storage_handler:
+                storage_handler = persistent_storage_system.make_storage_handler(data_item)
+                if storage_handler:
                     break
             properties = data_item.write_to_dict()
-            persistent_storage = DataItemPersistentStorage(persistent_storage_handler=persistent_storage_handler, data_item=data_item, properties=properties)
+            persistent_storage = DataItemStorage(storage_handler=storage_handler, data_item=data_item, properties=properties)
             self._set_persistent_storage_for_object(data_item, persistent_storage)
             data_item.persistent_object_context_changed()
         return persistent_storage
@@ -977,7 +979,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
     def _test_get_file_path(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
-        return persistent_storage._persistent_storage_handler.reference
+        return persistent_storage._storage_handler.reference
 
 
 class ComputationQueueItem:
@@ -1208,7 +1210,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.undefine_relationships()
 
     def auto_migrate(self, paths: typing.List[str], log_copying: bool=True) -> None:
-        file_persistent_storage_system = FilePersistentStorageSystem(paths)
+        file_persistent_storage_system = FileStorageSystem(paths)
         persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=log_copying)
         data_items = persistent_object_context.read_data_items(target_document=self)
         self.__finish_read(data_items)

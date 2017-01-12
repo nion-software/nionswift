@@ -276,7 +276,7 @@ class TestWorkspaceClass(unittest.TestCase):
         self.assertEqual(properties, library_storage.properties)
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         library_storage = DocumentModel.FilePersistentStorage()
         document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")

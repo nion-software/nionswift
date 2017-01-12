@@ -27,7 +27,7 @@ class TestFacadeClass(unittest.TestCase):
         pass
 
     def test_basic_api_methods(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
@@ -37,7 +37,7 @@ class TestFacadeClass(unittest.TestCase):
             self.assertIsNotNone(api.create_calibration(1.0, 2.0, "mm"))
 
     def test_create_data_item_from_data(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
@@ -74,7 +74,7 @@ class TestFacadeClass(unittest.TestCase):
             self.assertTrue(document_model.data_items[0].maybe_data_source.is_sequence)
 
     def test_data_on_empty_data_item_returns_none(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
@@ -85,7 +85,7 @@ class TestFacadeClass(unittest.TestCase):
                 self.assertIsNone(data_ref.data)
 
     def test_data_item_data_methods(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
@@ -105,7 +105,7 @@ class TestFacadeClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_item_ref.data_and_metadata.data, data2))
 
     def test_data_item_metadata_methods(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
@@ -131,7 +131,7 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(data_item.maybe_data_source.metadata, metadata2)
 
     def test_data_item_regions(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
@@ -168,7 +168,7 @@ class TestFacadeClass(unittest.TestCase):
             self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[1], Graphics.ChannelGraphic)
 
     def test_display_data_panel_reuses_existing_display(self):
-        memory_persistent_storage_system = DocumentModel.MemoryPersistentStorageSystem()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
