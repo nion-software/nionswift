@@ -791,7 +791,8 @@ class Graphic:
 class DataItem:
     release = ["title", "data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
         "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "graphics", "display",
-        "add_point_region", "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region"]
+        "add_point_region", "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region",
+        "mask_xdata"]
 
     def __init__(self, data_item: DataItemModule.DataItem):
         self.__data_item = data_item
@@ -1059,6 +1060,20 @@ class DataItem:
 
     def remove_region(self, graphic: Graphic) -> None:
         self.__data_item.maybe_data_source.displays[0].remove_graphic(graphic._graphic)
+
+    def mask_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        """Return the mask by combining any mask graphics on this data item as extended data.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        shape = self.__data_item.maybe_data_source.displays[0].preview_2d_shape
+        mask = numpy.zeros(shape)
+        for graphic in self.__data_item.maybe_data_source.displays[0].graphics:
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                mask = numpy.logical_or(mask, graphic.get_mask(shape))
+        return DataAndMetadata.DataAndMetadata.from_data(mask)
 
     def data_item_to_svg(self):
 
