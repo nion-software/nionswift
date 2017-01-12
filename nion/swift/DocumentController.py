@@ -280,8 +280,9 @@ class DocumentController(Window.Window):
         self._processing_menu.add_menu_item(_("Add Point Graphic"), self.add_point_graphic)
         self._processing_menu.add_menu_item(_("Add Interval Graphic"), self.add_interval_graphic)
         self._processing_menu.add_menu_item(_("Add Channel Graphic"), self.add_channel_graphic)
-        self._processing_menu.add_menu_item(_("Add Spot Graphic"), self.add_spot_graphic)
-        self._processing_menu.add_menu_item(_("Add Angle Graphic"), self.add_angle_graphic)
+        self._processing_menu.add_menu_item(_("Add Spot Mask"), self.add_spot_graphic)
+        self._processing_menu.add_menu_item(_("Add Angle Mask"), self.add_angle_graphic)
+        self._processing_menu.add_menu_item(_("Add Band Pass Mask"), self.add_band_pass_graphic)
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
@@ -927,6 +928,18 @@ class DocumentController(Window.Window):
             graphic = Graphics.WedgeGraphic()
             graphic.start_angle = 0
             graphic.end_angle = (3/4) * math.pi
+            display.add_graphic(graphic)
+            display.graphic_selection.set(display.graphics.index(graphic))
+            return graphic
+        return None
+
+    def add_band_pass_graphic(self):
+        display_specifier = self.selected_display_specifier
+        if display_specifier:
+            display = display_specifier.display
+            graphic = Graphics.RingGraphic()
+            graphic.radius_1 = 0.15
+            graphic.radius_2 = 0.25
             display.add_graphic(graphic)
             display.graphic_selection.set(display.graphics.index(graphic))
             return graphic

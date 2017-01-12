@@ -1368,9 +1368,8 @@ def make_ring_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add(graphic_radius_2_row)
     graphic_widget.add(ring_mode_row)
 
-    float_point_2_converter = Converter.FloatToStringConverter(format="{0:.4f}")
-    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "radius_1")))
-    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.PropertyBinding(graphic, "radius_2")))
+    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_1")))
+    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_2")))
 
 
 def make_interval_type_inspector(ui, graphic_widget, display_specifier, graphic):

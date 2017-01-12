@@ -1726,8 +1726,6 @@ class RingGraphic(Graphic):
     def test(self, mapping, get_font_metrics_fn, test_point: typing.Tuple[float, float], move_only: bool) -> typing.Tuple[str, bool]:
         # first convert to widget coordinates since test distances
         # are specified in widget coordinates
-        length = 10000  # safe line length
-        center = mapping.map_point_image_norm_to_widget((0.5, 0.5))
         top_marker_outer = mapping.map_point_image_norm_to_widget((0.5, 0.5 - self.radius_1))
         left_marker_outer = mapping.map_point_image_norm_to_widget((0.5 - self.radius_1, 0.5))
         right_marker_outer = mapping.map_point_image_norm_to_widget((0.5 + self.radius_1, 0.5))
