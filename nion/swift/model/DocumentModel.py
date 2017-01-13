@@ -1062,8 +1062,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__source_data_items = dict()
         self.__computation_dependency_data_items = dict()
         self.__data_items = list()
-        self.__data_item_item_inserted_listeners = dict()
-        self.__data_item_item_removed_listeners = dict()
         self.__data_item_request_remove_region = dict()
         self.__computation_changed_or_mutated_listeners = dict()
         self.__data_item_request_remove_data_item_listeners = dict()
@@ -1079,8 +1077,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)
-        self.__buffered_data_source_set = set()
-        self.__buffered_data_source_set_changed_event = Event.Event()
         self.session_id = None
         self.start_new_session()
         self.__computation_changed_listeners = dict()
@@ -1118,14 +1114,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for index, data_item in enumerate(data_items):
             self.__data_items.insert(index, data_item)
             data_item.set_storage_cache(self.storage_cache)
-            self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
-            self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
             self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
             self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
             self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
             data_item.set_data_item_manager(self)
-            self.__buffered_data_source_set.update(set(data_item.data_sources))
-            self.buffered_data_source_set_changed_event.fire(set(data_item.data_sources), set())
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
         # mark itself clean after reading all of them in.
         for data_item in data_items:
@@ -1265,8 +1257,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # self.persistent_object_context.write_data_item(data_item)
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
-        self.__data_item_item_inserted_listeners[data_item.uuid] = data_item.item_inserted_event.listen(self.__item_inserted)
-        self.__data_item_item_removed_listeners[data_item.uuid] = data_item.item_removed_event.listen(self.__item_removed)
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
         self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
         if data_item.maybe_data_source:
@@ -1276,9 +1266,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
         data_item.set_data_item_manager(self)
-        # fire buffered_data_source_set_changed_event
-        self.__buffered_data_source_set.update(set(data_item.data_sources))
-        self.buffered_data_source_set_changed_event.fire(set(data_item.data_sources), set())
         # handle computation
         for data_source in data_item.data_sources:
             self.computation_changed(data_item, data_source, data_source.computation)
@@ -1309,9 +1296,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for other_data_item in self.get_dependent_data_items(data_item):
             if self.get_source_data_items(other_data_item) == [data_item]:  # ordered data sources exactly equal to data item?
                 self.remove_data_item(other_data_item)
-        # fire buffered_data_source_set_changed_event
-        self.__buffered_data_source_set.difference_update(set(data_item.data_sources))
-        self.buffered_data_source_set_changed_event.fire(set(), set(data_item.data_sources))
         # tell the data item it is about to be removed
         data_item.about_to_be_removed()
         # disconnect the data source
@@ -1325,10 +1309,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        self.__data_item_item_inserted_listeners[data_item.uuid].close()
-        del self.__data_item_item_inserted_listeners[data_item.uuid]
-        self.__data_item_item_removed_listeners[data_item.uuid].close()
-        del self.__data_item_item_removed_listeners[data_item.uuid]
         self.__data_item_request_remove_region[data_item.uuid].close()
         del self.__data_item_request_remove_region[data_item.uuid]
         self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
@@ -1341,24 +1321,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_removed_event.fire(self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
         self.data_item_deleted_event.fire(data_item)
-
-    def __item_inserted(self, key, value, before_index):
-        # called when a relationship in one of the items we're observing changes.
-        if key == "data_sources":
-            # fire buffered_data_source_set_changed_event
-            assert isinstance(value, DataItem.BufferedDataSource)
-            data_source = value
-            self.__buffered_data_source_set.update(set([data_source]))
-            self.buffered_data_source_set_changed_event.fire(set([data_source]), set())
-
-    def __item_removed(self, key, value, index):
-        # called when a relationship in one of the items we're observing changes.
-        if key == "data_sources":
-            # fire buffered_data_source_set_changed_event
-            assert isinstance(value, DataItem.BufferedDataSource)
-            data_source = value
-            self.__buffered_data_source_set.difference_update(set([data_source]))
-            self.buffered_data_source_set_changed_event.fire(set(), set([data_source]))
 
     def __remove_region_specifier(self, region_specifier) -> None:
         bound_region = self.resolve_object_specifier(region_specifier)
@@ -1428,18 +1390,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     data_source.computation.unbind()
                     data_source.computation.bind(self)
 
-    # TODO: evaluate if buffered_data_source_set is needed
     @property
-    def buffered_data_source_set(self):
-        return self.__buffered_data_source_set
-
-    @property
-    def buffered_data_source_set_changed_event(self):
-        return self.__buffered_data_source_set_changed_event
-
-    def __get_data_items(self):
+    def data_items(self):
         return tuple(self.__data_items)  # tuple makes it read only
-    data_items = property(__get_data_items)
 
     # transactions, live state, and dependencies
 
