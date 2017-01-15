@@ -751,7 +751,7 @@ class SessionManager(abc.ABC):
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
 # time zone name is for display only and has no specified format
 
-class DataItem(Observable.Observable, Persistence.PersistentObject):
+class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     """
     Data items represent a data, metadata, display, and graphics within a library.
 
@@ -801,7 +801,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     writer_version = 10
 
-    def __init__(self, data=None, item_uuid=None, large_format=False):
+    def __init__(self, item_uuid=None, large_format=False):
         super().__init__()
         global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
@@ -825,11 +825,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
         self.define_property("timezone", Utility.get_local_timezone(), changed=self.__timezone_property_changed)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
-        self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__data_items = list()
-        self.__data_item_changed_event_listeners = list()
-        self.__data_changed_event_listeners = list()
         self.__session_manager = None
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
@@ -840,9 +837,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_content_changed = False
         self.__suspendable_storage_cache = None
         self.r_var = None
-        if data is not None:
-            data_source = BufferedDataSource(data)
-            self.append_data_source(data_source)
         self._about_to_be_removed = False
         self._closed = False
 
@@ -853,36 +847,22 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         assert False
 
     def __deepcopy__(self, memo):
-        data_item_copy = DataItem()
+        library_item_copy = self.__class__()
         # format
-        data_item_copy.large_format = self.large_format
+        library_item_copy.large_format = self.large_format
         # metadata
-        data_item_copy.metadata = self.metadata
-        data_item_copy.session_metadata = self.session_metadata
-        data_item_copy.created = self.created
-        data_item_copy.timezone = self.timezone
-        data_item_copy.timezone_offset = self.timezone_offset
-        data_item_copy.session_id = self.session_id
-        data_item_copy.source_file_path = self.source_file_path
-        # data sources
-        for data_source in copy.copy(data_item_copy.data_sources):
-            data_item_copy.remove_data_source(data_source)
-        for data_source in self.data_sources:
-            data_item_copy.append_data_source(copy.deepcopy(data_source))
+        library_item_copy.metadata = self.metadata
+        library_item_copy.session_metadata = self.session_metadata
+        library_item_copy.created = self.created
+        library_item_copy.timezone = self.timezone
+        library_item_copy.timezone_offset = self.timezone_offset
+        library_item_copy.session_id = self.session_id
+        library_item_copy.source_file_path = self.source_file_path
         # the data source connection will be established when this copy is inserted.
-        memo[id(self)] = data_item_copy
-        return data_item_copy
+        memo[id(self)] = library_item_copy
+        return library_item_copy
 
     def close(self):
-        for data_source in self.data_sources:
-            self.__disconnect_data_source(0, data_source)
-            data_source.close()
-        for listener in self.__data_item_changed_event_listeners:
-            listener.close()
-        self.__data_item_changed_event_listeners = list()
-        for listener in self.__data_changed_event_listeners:
-            listener.close()
-        self.__data_changed_event_listeners = list()
         for connection in copy.copy(self.connections):
             connection.close()
         # close the storage handler
@@ -907,8 +887,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
-        for data_source in self.data_sources:
-            data_source.about_to_be_removed()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -924,14 +902,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         else:
             container.remove_item(name, item)
 
-    def clone(self) -> "DataItem":
-        data_item = DataItem()
-        data_item.uuid = self.uuid
-        for data_source in self.data_sources:
-            data_item.append_data_source(data_source.clone())
+    def clone(self) -> "LibraryItem":
+        library_item = self.__class__()
+        library_item.uuid = self.uuid
         for connection in self.connections:
-            data_item.add_connection(connection.clone())
-        return data_item
+            library_item.add_connection(connection.clone())
+        return library_item
 
     def snapshot(self):
         """
@@ -939,24 +915,18 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             except the data and operation which are replaced by new data with the operation
             applied or "burned in".
         """
-        data_item_copy = DataItem()
+        libary_item = self.__class__()
         # format
-        data_item_copy.large_format = self.large_format
+        libary_item.large_format = self.large_format
         # metadata
-        data_item_copy.metadata = self.metadata
-        data_item_copy.session_metadata = self.session_metadata
-        data_item_copy.created = self.created
-        data_item_copy.timezone = self.timezone
-        data_item_copy.timezone_offset = self.timezone_offset
-        data_item_copy.session_id = self.session_id
-        data_item_copy.source_file_path = self.source_file_path
-        # data sources
-        for data_source in copy.copy(data_item_copy.data_sources):
-            data_item_copy.remove_data_source(data_source)
-        for data_source in self.data_sources:
-            data_item_copy.append_data_source(data_source.snapshot())
-        # the data source connection will be established when this copy is inserted.
-        return data_item_copy
+        libary_item.metadata = self.metadata
+        libary_item.session_metadata = self.session_metadata
+        libary_item.created = self.created
+        libary_item.timezone = self.timezone
+        libary_item.timezone_offset = self.timezone_offset
+        libary_item.session_id = self.session_id
+        libary_item.source_file_path = self.source_file_path
+        return libary_item
 
     def connect_data_items(self, data_items, lookup_data_item):
         for data_item_uuid in self.data_item_uuids:
@@ -999,6 +969,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def in_transaction_state(self) -> bool:
         return self.__in_transaction_state
+
+    def _mark_write_delay_data_changed(self):
+        self.__write_delay_data_changed = True
 
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
@@ -1200,10 +1173,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(name)
 
     def __timezone_property_changed(self, name, value):
-        for data_source in self.data_sources:
-            data_source.timezone = self.timezone
-            data_source.timezone_offset = self.timezone_offset
+        self._update_timezone()
         self.__property_changed(name, value)
+
+    def _update_timezone(self):
+        pass
 
     def set_r_value(self, r_var):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
@@ -1283,59 +1257,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def set_session_manager(self, session_manager: SessionManager) -> None:
         self.__session_manager = session_manager
-
-    def __handle_data_changed(self, data_source):
-        self.timezone = Utility.get_local_timezone()
-        self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
-        if self.__session_manager:
-            self.session_id = self.__session_manager.current_session_id
-
-    def __insert_data_source(self, name, before_index, data_source):
-        data_source.about_to_be_inserted(self)
-        data_source.timezone = self.timezone
-        data_source.timezone_offset = self.timezone_offset
-        data_source.set_dependent_data_item(self)
-        self.__data_changed_event_listeners.insert(before_index, data_source.data_changed_event.listen(self.__handle_data_changed))
-        # being in transaction state means that data sources have their data loaded.
-        # so load data here to keep the books straight when the transaction state is exited.
-        if self.__in_transaction_state:
-            data_source.increment_data_ref_count()
-        def data_item_changed():
-            if not self._is_reading:
-                self.__write_delay_data_changed = True
-                self.notify_data_item_content_changed()
-        self.__data_item_changed_event_listeners.insert(before_index, data_source.data_item_changed_event.listen(data_item_changed))
-        self.notify_data_item_content_changed()
-        # the document model watches for new data sources via observing.
-        # send this message to make data_sources observable.
-        self.notify_insert_item("data_sources", data_source, before_index)
-
-    def __remove_data_source(self, name, index, data_source):
-        data_source.about_to_be_removed()
-        self.__disconnect_data_source(index, data_source)
-        data_source.close()
-
-    def __disconnect_data_source(self, index, data_source):
-        self.__data_item_changed_event_listeners[index].close()
-        del self.__data_item_changed_event_listeners[index]
-        data_source.set_dependent_data_item(None)
-        self.__data_changed_event_listeners[index].close()
-        del self.__data_changed_event_listeners[index]
-        # being in transaction state means that data sources have their data loaded.
-        # so unload data here to keep the books straight when the transaction state is exited.
-        if self.__in_transaction_state:
-            data_source.decrement_data_ref_count()
-        # the document model watches for new data sources via observing.
-        # send this message to make data_sources observable.
-        self.notify_remove_item("data_sources", data_source, index)
-
-    def append_data_source(self, data_source):
-        """Add a display, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "data_sources", self.item_count("data_sources"), data_source)
-
-    def remove_data_source(self, data_source):
-        """Remove display, but do it through the container, so dependencies can be tracked."""
-        self.remove_model_item(self, "data_sources", data_source)
 
     def add_connection(self, connection):
         self.append_item("connections", connection)
@@ -1444,6 +1365,117 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     @property
     def text_for_filter(self):
         return " ".join([self.displayed_title, self.caption])
+
+
+class DataItem(LibraryItem):
+    def __init__(self, data=None, item_uuid=None, large_format=False):
+        super().__init__(item_uuid, large_format)
+        self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
+        self.__data_item_changed_event_listeners = list()
+        self.__data_changed_event_listeners = list()
+        if data is not None:
+            data_source = BufferedDataSource(data)
+            self.append_data_source(data_source)
+
+    def __deepcopy__(self, memo):
+        data_item_copy = super().__deepcopy__(memo)
+        # data sources
+        for data_source in copy.copy(data_item_copy.data_sources):
+            data_item_copy.remove_data_source(data_source)
+        for data_source in self.data_sources:
+            data_item_copy.append_data_source(copy.deepcopy(data_source))
+        return data_item_copy
+
+    def close(self):
+        for data_source in self.data_sources:
+            self.__disconnect_data_source(0, data_source)
+            data_source.close()
+        for listener in self.__data_item_changed_event_listeners:
+            listener.close()
+        self.__data_item_changed_event_listeners = list()
+        for listener in self.__data_changed_event_listeners:
+            listener.close()
+        self.__data_changed_event_listeners = list()
+        super().close()
+
+    def about_to_be_removed(self):
+        for data_source in self.data_sources:
+            data_source.about_to_be_removed()
+        super().about_to_be_removed()
+
+    def clone(self) -> "DataItem":
+        data_item = super().clone()
+        for data_source in self.data_sources:
+            data_item.append_data_source(data_source.clone())
+        return data_item
+
+    def snapshot(self):
+        data_item = super().snapshot()
+        # data sources
+        for data_source in copy.copy(data_item.data_sources):
+            data_item.remove_data_source(data_source)
+        for data_source in self.data_sources:
+            data_item.append_data_source(data_source.snapshot())
+        return data_item
+
+    def __handle_data_changed(self, data_source):
+        self.timezone = Utility.get_local_timezone()
+        self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
+        if self._session_manager:
+            self.session_id = self._session_manager.current_session_id
+
+    def __insert_data_source(self, name, before_index, data_source):
+        data_source.about_to_be_inserted(self)
+        data_source.timezone = self.timezone
+        data_source.timezone_offset = self.timezone_offset
+        data_source.set_dependent_data_item(self)
+        self.__data_changed_event_listeners.insert(before_index, data_source.data_changed_event.listen(self.__handle_data_changed))
+        # being in transaction state means that data sources have their data loaded.
+        # so load data here to keep the books straight when the transaction state is exited.
+        if self.in_transaction_state:
+            data_source.increment_data_ref_count()
+        def data_item_changed():
+            if not self._is_reading:
+                self._mark_write_delay_data_changed()
+                self.notify_data_item_content_changed()
+        self.__data_item_changed_event_listeners.insert(before_index, data_source.data_item_changed_event.listen(data_item_changed))
+        self.notify_data_item_content_changed()
+        # the document model watches for new data sources via observing.
+        # send this message to make data_sources observable.
+        self.notify_insert_item("data_sources", data_source, before_index)
+
+    def __remove_data_source(self, name, index, data_source):
+        data_source.about_to_be_removed()
+        self.__disconnect_data_source(index, data_source)
+        data_source.close()
+
+    def __disconnect_data_source(self, index, data_source):
+        self.__data_item_changed_event_listeners[index].close()
+        del self.__data_item_changed_event_listeners[index]
+        data_source.set_dependent_data_item(None)
+        self.__data_changed_event_listeners[index].close()
+        del self.__data_changed_event_listeners[index]
+        # being in transaction state means that data sources have their data loaded.
+        # so unload data here to keep the books straight when the transaction state is exited.
+        if self.in_transaction_state:
+            data_source.decrement_data_ref_count()
+        # the document model watches for new data sources via observing.
+        # send this message to make data_sources observable.
+        self.notify_remove_item("data_sources", data_source, index)
+
+    def append_data_source(self, data_source):
+        """Add a display, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "data_sources", self.item_count("data_sources"), data_source)
+
+    def remove_data_source(self, data_source):
+        """Remove display, but do it through the container, so dependencies can be tracked."""
+        self.remove_model_item(self, "data_sources", data_source)
+
+    def _update_timezone(self):
+        for data_source in self.data_sources:
+            data_source.timezone = self.timezone
+            data_source.timezone_offset = self.timezone_offset
+        super()._update_timezone()
 
 
 class BufferedDataSourceSpecifier(object):
