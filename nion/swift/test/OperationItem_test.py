@@ -661,8 +661,8 @@ class TestProcessingClass(unittest.TestCase):
             # establish listeners
             data_changed_ref = [False]
             display_changed_ref = [False]
-            def data_item_content_changed(changes):
-                data_changed_ref[0] = data_changed_ref[0] or DataItem.DATA in changes
+            def data_item_content_changed():
+                data_changed_ref[0] = True
             with contextlib.closing(blurred_data_item.data_item_content_changed_event.listen(data_item_content_changed)):
                 def display_changed():
                     display_changed_ref[0] = True
@@ -690,8 +690,8 @@ class TestProcessingClass(unittest.TestCase):
             # establish listeners
             data_changed_ref = [False]
             display_changed_ref = [False]
-            def data_item_content_changed(changes):
-                data_changed_ref[0] = data_changed_ref[0] or DataItem.DATA in changes
+            def data_item_content_changed():
+                data_changed_ref[0] = True
             with contextlib.closing(cropped_data_item.data_item_content_changed_event.listen(data_item_content_changed)):
                 def display_changed():
                     display_changed_ref[0] = True

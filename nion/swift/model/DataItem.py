@@ -832,7 +832,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.computation_changed_or_mutated_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
-        self.__data_item_changes = set()
+        self.__data_item_content_changed = False
         self.__data_item_manager = None
         self.__data_item_manager_lock = threading.RLock()
         self.__suspendable_storage_cache = None
@@ -1030,7 +1030,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
                 timestamp = datetime.datetime.now()
                 self._get_persistent_property("created").value = timestamp
-            self.__data_item_changes = set()
+            self.__data_item_content_changed = False
         self.__pending_write = False
 
     @property
@@ -1047,11 +1047,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def _enter_live_state(self):
         self.__is_live = True
-        self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
+        self.notify_data_item_content_changed()  # this will affect is_live, so notify
 
     def _exit_live_state(self):
         self.__is_live = False
-        self.notify_data_item_content_changed(set([METADATA]))  # this will affect is_live, so notify
+        self.notify_data_item_content_changed()  # this will affect is_live, so notify
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -1080,14 +1080,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         with self.__data_item_change_count_lock:
             self.__data_item_change_count -= 1
             data_item_change_count = self.__data_item_change_count
-            if data_item_change_count == 0:
-                changes = self.__data_item_changes
-                self.__data_item_changes = set()
+            data_item_content_changed = self.__data_item_content_changed
         # if the data item change count is now zero, it means that we're ready
         # to notify listeners. but only notify listeners if there are actual
         # changes to report.
-        if data_item_change_count == 0 and len(changes) > 0:
-            self.data_item_content_changed_event.fire(changes)
+        if data_item_change_count == 0 and data_item_content_changed:
+            self.data_item_content_changed_event.fire()
 
     def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, sub_area: Tuple[Tuple[int, int], Tuple[int, int]]=None) -> None:
         assert threading.current_thread() == threading.main_thread()
@@ -1134,7 +1132,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__metadata_changed()
 
     def __metadata_changed(self):
-        self.notify_data_item_content_changed(set([METADATA]))
+        self.notify_data_item_content_changed()
         self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
@@ -1157,10 +1155,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method
     # data_item_changes.
-    def notify_data_item_content_changed(self, changes):
+    def notify_data_item_content_changed(self):
         with self.data_item_changes():
             with self.__data_item_change_count_lock:
-                self.__data_item_changes.update(changes)
+                self.__data_item_content_changed = True
 
     # date times
 
@@ -1239,9 +1237,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         def data_and_metadata_changed():
             if not self._is_reading:
                 self.__write_delay_data_changed = True
-                self.data_item_content_changed_event.fire(set([DATA]))
+                self.data_item_content_changed_event.fire()
         self.__data_and_metadata_changed_event_listeners.insert(before_index, data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed))
-        self.notify_data_item_content_changed(set([DATA]))
+        self.notify_data_item_content_changed()
         # the document model watches for new data sources via observing.
         # send this message to make data_sources observable.
         self.notify_insert_item("data_sources", data_source, before_index)
@@ -1295,7 +1293,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     # override from storage to watch for changes to this data item. notify observers.
     def notify_property_changed(self, key):
         super(DataItem, self).notify_property_changed(key)
-        self.notify_data_item_content_changed(set([METADATA]))
+        self.notify_data_item_content_changed()
 
     @property
     def maybe_data_source(self) -> BufferedDataSource:

@@ -64,7 +64,7 @@ class DisplayItem:
         self.ui = ui
         self.needs_update_event = Event.Event()
 
-        def data_item_content_changed(changes):
+        def data_item_content_changed():
             self.needs_update_event.fire()
 
         self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)

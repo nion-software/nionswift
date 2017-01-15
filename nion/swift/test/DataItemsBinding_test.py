@@ -151,10 +151,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(binding.data_items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire()
                 self.assertEqual(len(binding.data_items), 1)
                 with document_model.data_item_live(document_model.data_items[2]):
-                    document_model.data_items[2].data_item_content_changed_event.fire([DataItem.METADATA])
+                    document_model.data_items[2].data_item_content_changed_event.fire()
                     self.assertEqual(len(binding.data_items), 2)
                     self.assertTrue(binding.data_items.index(document_model.data_items[0]) < binding.data_items.index(document_model.data_items[2]))
 
@@ -171,10 +171,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(binding.data_items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire()
                 self.assertEqual(len(binding.data_items), 1)
                 with document_model.data_item_live(document_model.data_items[2]):
-                    document_model.data_items[2].data_item_content_changed_event.fire([DataItem.METADATA])
+                    document_model.data_items[2].data_item_content_changed_event.fire()
                     self.assertEqual(len(binding.data_items), 2)
 
     def test_sorted_filtered_binding_updates_when_data_item_exits_filter(self):
@@ -193,7 +193,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 document_model.append_data_item(data_item)
             self.assertEqual(len(binding.data_items), 4)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire()
                 self.assertEqual(len(binding.data_items), 3)
 
     def test_filtered_binding_updates_when_source_binding_has_data_item_that_updates(self):
@@ -212,7 +212,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
             filter_binding.filter = is_live_filter
             self.assertEqual(len(filter_binding.data_items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
-                document_model.data_items[0].data_item_content_changed_event.fire([DataItem.METADATA])
+                document_model.data_items[0].data_item_content_changed_event.fire()
                 self.assertEqual(len(binding.data_items), 4)  # verify assumption
                 self.assertTrue(document_model.data_items[0] in filter_binding.data_items)
 

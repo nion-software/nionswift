@@ -433,8 +433,8 @@ class TestDataItemClass(unittest.TestCase):
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
             document_model.recompute_all()
             data_changed_ref = [False]
-            def data_item_content_changed(changes):
-                data_changed_ref[0] = data_changed_ref[0] or DataItem.DATA in changes
+            def data_item_content_changed():
+                data_changed_ref[0] = True
             with contextlib.closing(data_item_inverted.data_item_content_changed_event.listen(data_item_content_changed)):
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
@@ -506,9 +506,8 @@ class TestDataItemClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertFalse(inverted_display_specifier.buffered_data_source.computation.needs_update)
             data_changed_ref = [0]
-            def data_item_content_changed(changes):
-                if DataItem.DATA in changes:
-                    data_changed_ref[0] += 1
+            def data_item_content_changed():
+                data_changed_ref[0] += 1
             with contextlib.closing(inverted_data_item.data_item_content_changed_event.listen(data_item_content_changed)):
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
                     data_ref.master_data = numpy.ones((8, 8), numpy.uint32)
