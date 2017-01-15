@@ -818,7 +818,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
-        self.__get_data_item_by_uuid = None
         self.__data_items = list()
         self.__request_remove_listeners = list()
         self.__request_remove_region_listeners = list()
@@ -875,7 +874,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_and_metadata_changed_event_listeners = list()
         for connection in copy.copy(self.connections):
             connection.close()
-        self.__get_data_item_by_uuid = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
@@ -921,7 +919,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             data_item = lookup_data_item(data_item_uuid)
             if data_item in data_items:
                 self.__data_items.append(data_item)
-        self.__get_data_item_by_uuid = lookup_data_item
 
     def append_data_item(self, data_item):
         self.insert_data_item(len(self.__data_items), data_item)
