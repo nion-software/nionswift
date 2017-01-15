@@ -183,7 +183,7 @@ class ComputationModel(object):
             computation = self.__computation
             if computation:
                 buffered_data_source = self.__display_specifier.buffered_data_source
-                self.__computation_changed_or_mutated_event_listener = buffered_data_source.computation_changed_or_mutated_event.listen(lambda ds, c: self.__update_computation_display())
+                self.__computation_changed_or_mutated_event_listener = buffered_data_source.computation_changed_or_mutated_event.listen(lambda c: self.__update_computation_display())
                 self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(self.__variable_inserted)
                 self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(self.__variable_removed)
             self.__update_computation_display()

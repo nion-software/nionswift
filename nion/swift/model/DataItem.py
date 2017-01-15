@@ -224,7 +224,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
                     variable_specifier = variable.variable_specifier
                     if variable_specifier and variable_specifier.get("type") == "region":
                         self.request_remove_region_because_data_item_removed_event.fire(variable_specifier)
-            self.computation_changed_or_mutated_event.fire(self, None)
+            self.computation_changed_or_mutated_event.fire(None)
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -382,13 +382,13 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__data_item_manager.computation_changed(self._data_item, self, new_computation)
         if new_computation:
             def computation_mutated():
-                self.computation_changed_or_mutated_event.fire(self, new_computation)
+                self.computation_changed_or_mutated_event.fire(new_computation)
                 self.__metadata_changed()
             def computation_cascade_delete():
                 self.request_remove_data_item_because_computation_removed_event.fire()
             self.__computation_mutated_event_listener = new_computation.computation_mutated_event.listen(computation_mutated)
             self.__computation_cascade_delete_event_listener = new_computation.cascade_delete_event.listen(computation_cascade_delete)
-        self.computation_changed_or_mutated_event.fire(self, self.computation)
+        self.computation_changed_or_mutated_event.fire(self.computation)
         self.__metadata_changed()
 
     @property
@@ -1210,8 +1210,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def set_metadata(self, metadata):
         self.metadata = metadata
 
-    def __computation_changed_or_mutated(self, data_source, computation):
-        self.computation_changed_or_mutated_event.fire(self, data_source, computation)
+    def __computation_changed_or_mutated(self, computation):
+        self.computation_changed_or_mutated_event.fire(self, computation)
 
     def __insert_data_source(self, name, before_index, data_source):
         data_source.set_dependent_data_item(self)
@@ -1229,7 +1229,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             self.request_remove_region_event.fire(region_specifier)
         self.__request_remove_region_listeners.insert(before_index, data_source.request_remove_region_because_data_item_removed_event.listen(request_remove_region))
         self.__computation_changed_or_mutated_event_listeners.insert(before_index, data_source.computation_changed_or_mutated_event.listen(self.__computation_changed_or_mutated))
-        self.__computation_changed_or_mutated(data_source, data_source.computation)
+        self.__computation_changed_or_mutated(data_source.computation)
         # being in transaction state means that data sources have their data loaded.
         # so load data here to keep the books straight when the transaction state is exited.
         if self.__in_transaction_state:

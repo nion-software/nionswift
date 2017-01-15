@@ -1060,7 +1060,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__dependent_data_items_lock = threading.RLock()
         self.__dependent_data_items = dict()
         self.__source_data_items = dict()
-        self.__computation_dependency_data_items = dict()
         self.__data_items = list()
         self.__data_item_request_remove_region = dict()
         self.__computation_changed_or_mutated_listeners = dict()
@@ -1124,7 +1123,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.finish_reading()
         for data_item in data_items:
             if data_item.maybe_data_source:
-                self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
+                self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source.computation)
         for data_item in data_items:
             for buffered_data_source in data_item.data_sources:
                 computation = buffered_data_source.computation
@@ -1260,7 +1259,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
         self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
         if data_item.maybe_data_source:
-            self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source, data_item.maybe_data_source.computation)
+            self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source.computation)
         self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
@@ -1358,24 +1357,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.begin_data_item_live(target_data_item)
         self.dependency_added_event.fire(source_data_item, target_data_item)
 
-    def __handle_computation_changed_or_mutated(self, data_item, data_source, computation):
+    def __handle_computation_changed_or_mutated(self, data_item, computation):
         """Establish the dependencies between data items based on the computation."""
+
+        new_source_data_items = set()
+        if computation:
+            for variable in computation.variables:
+                specifier = variable.specifier
+                if specifier:
+                    object = self.resolve_object_specifier(variable.specifier)
+                    if hasattr(object, "value"):
+                        source_data_item = object.value
+                        if isinstance(source_data_item, DataItem.DataItem):
+                            new_source_data_items.add(source_data_item)
+
         with self.__dependent_data_items_lock:
-            source_data_item_set = self.__computation_dependency_data_items.setdefault(weakref.ref(data_item), set())
-            for source_data_item in source_data_item_set:
+            old_source_data_items = set(self.__source_data_items.setdefault(weakref.ref(data_item), list()))
+            # add the items in new set that aren't in the old set
+            for source_data_item in (new_source_data_items - old_source_data_items):
+                self.__add_dependency(source_data_item, data_item)
+            # remove the items in the old set that aren't in the new set
+            for source_data_item in (old_source_data_items - new_source_data_items):
                 self.__remove_dependency(source_data_item, data_item)
-            source_data_item_set.clear()
-            if computation:
-                for variable in computation.variables:
-                    specifier = variable.specifier
-                    if specifier:
-                        object = self.resolve_object_specifier(variable.specifier)
-                        if hasattr(object, "value"):
-                            source_data_item = object.value
-                            if isinstance(source_data_item, DataItem.DataItem):
-                                if not source_data_item in source_data_item_set:
-                                    source_data_item_set.add(source_data_item)
-                                    self.__add_dependency(source_data_item, data_item)
 
     def rebind_computations(self):
         """Call this to rebind all computations.
