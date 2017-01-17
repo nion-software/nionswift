@@ -1069,6 +1069,66 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_properties_with_no_data_reloads(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        try:
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem()
+                document_model.append_data_item(data_item)
+                data_item.title = "TitleX"
+            # read it back the library
+            file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 1)
+                self.assertEqual(document_model.data_items[0].title, "TitleX")
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
+    def test_resized_data_reloads(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        try:
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(data=numpy.zeros((16, 16)))
+                document_model.append_data_item(data_item)
+                data_item.maybe_data_source.set_data(numpy.zeros((32, 32)))
+            # read it back the library
+            file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 1)
+                self.assertEqual(document_model.data_items[0].maybe_data_source.data.shape, (32, 32))
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
+    def test_resized_data_reclaims_space(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        try:
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(data=numpy.zeros((32, 32)))
+                document_model.append_data_item(data_item)
+                data_file_path = data_item._test_get_file_path()
+                file_size = os.path.getsize(data_file_path)
+                data_item.maybe_data_source.set_data(numpy.zeros((16, 16)))
+                self.assertLess(os.path.getsize(data_file_path), file_size)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_reloaded_display_has_correct_storage_cache(self):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
