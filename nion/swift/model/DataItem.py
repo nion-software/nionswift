@@ -707,6 +707,10 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_3d
 
     @property
+    def is_data_4d(self) -> bool:
+        return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_4d
+
+    @property
     def is_data_rgb(self) -> bool:
         return self.__data_and_metadata is not None and self.__data_and_metadata.is_data_rgb
 

@@ -134,3 +134,25 @@ class TestInfoPanelClass(unittest.TestCase):
         self.assertIsNone(info_panel.label_row_3.text, None)
         display_panel.display_canvas_item.mouse_exited()
         document_controller.close()
+
+    def test_cursor_over_4d_data_displays_correctly(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        display_panel = document_controller.selected_display_panel
+        data_item = DataItem.DataItem(numpy.ones((100, 100, 20, 20)))
+        display = data_item.maybe_data_source.displays[0]
+        display.dimensional_calibration_style = "pixels-top-left"
+        display.collection_index = 20, 30
+        document_model.append_data_item(data_item)
+        display_panel.set_displayed_data_item(data_item)
+        header_height = Panel.HeaderCanvasItem().header_height
+        info_panel = document_controller.find_dock_widget("info-panel").panel
+        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+        display_panel.display_canvas_item.mouse_entered()
+        display_panel.display_canvas_item.mouse_position_changed(400, 600, Graphics.NullModifiers())
+        document_controller.periodic()
+        self.assertEqual(info_panel.label_row_1.text, "Position: 8.0, 12.0, 20.0, 30.0")
+        self.assertEqual(info_panel.label_row_2.text, "Value: 1")
+        self.assertIsNone(info_panel.label_row_3.text, None)
+        display_panel.display_canvas_item.mouse_exited()
+        document_controller.close()

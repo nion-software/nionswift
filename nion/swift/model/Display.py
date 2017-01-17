@@ -888,6 +888,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         position_text = ""
         value_text = ""
         data_shape = data_and_metadata.data_shape
+        if len(pos) == 4:
+            # 4d image
+            # make sure the position is within the bounds of the image
+            if 0 <= pos[0] < data_shape[0] and 0 <= pos[1] < data_shape[1] and 0 <= pos[2] < data_shape[2] and 0 <= pos[3] < data_shape[3]:
+                position_text = u"{0}, {1}, {2}, {3}".format(
+                    dimensional_calibrations[3].convert_to_calibrated_value_str(pos[3], value_range=(0, data_shape[3]), samples=data_shape[3]),
+                    dimensional_calibrations[2].convert_to_calibrated_value_str(pos[2], value_range=(0, data_shape[2]), samples=data_shape[2]),
+                    dimensional_calibrations[1].convert_to_calibrated_value_str(pos[1], value_range=(0, data_shape[1]), samples=data_shape[1]),
+                    dimensional_calibrations[0].convert_to_calibrated_value_str(pos[0], value_range=(0, data_shape[0]), samples=data_shape[0]))
+                value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(pos), intensity_calibration)
         if len(pos) == 3:
             # 3d image
             # make sure the position is within the bounds of the image
