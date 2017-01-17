@@ -800,10 +800,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     writer_version = 10
 
-    def __init__(self, data=None, item_uuid=None):
+    def __init__(self, data=None, item_uuid=None, large_format=False):
         super(DataItem, self).__init__()
         global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
+        self.large_format = large_format  # hint for file format
         self.__in_transaction_state = False
         self.__is_live = False
         self.__pending_write = True

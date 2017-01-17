@@ -1893,7 +1893,7 @@ class Library:
 
         return DataRef(self.__document_model, data_item)
 
-    def get_data_item_for_hardware_source(self, hardware_source, channel_id: str=None, processor_id: str=None, create_if_needed: bool=False) -> DataItem:
+    def get_data_item_for_hardware_source(self, hardware_source, channel_id: str=None, processor_id: str=None, create_if_needed: bool=False, large_format: bool=False) -> DataItem:
         """Get the data item associated with hardware source and (optional) channel id and processor_id. Optionally create if missing.
 
         :param hardware_source: The hardware_source.
@@ -1914,7 +1914,7 @@ class Library:
         data_item_reference = document_model.get_data_item_reference(data_item_reference_key)
         data_item = data_item_reference.data_item
         if data_item is None and create_if_needed:
-            data_item = DataItemModule.DataItem()
+            data_item = DataItemModule.DataItem(large_format=large_format)
             data_item.append_data_source(DataItemModule.BufferedDataSource())
             document_model.append_data_item(data_item)
             document_model.setup_channel(data_item_reference_key, data_item)
