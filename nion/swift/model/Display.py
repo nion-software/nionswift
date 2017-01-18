@@ -880,8 +880,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if collection_dimension_count == 2 and datum_dimension_count == 1:
             pos = pos + (self.slice_center, )
         else:
-            for collection_index in self.collection_index[0:collection_dimension_count]:
-                pos = (collection_index, ) + pos
+            pos = tuple(self.collection_index[0:collection_dimension_count]) + pos
 
         assert len(pos) == len(data_and_metadata.dimensional_shape)
 

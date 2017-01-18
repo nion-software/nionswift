@@ -139,7 +139,8 @@ class TestInfoPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.ones((100, 100, 20, 20)))
+        data = (numpy.random.randn(100, 100, 20, 20) * 100).astype(numpy.int32)
+        data_item = DataItem.DataItem(data)
         display = data_item.maybe_data_source.displays[0]
         display.dimensional_calibration_style = "pixels-top-left"
         display.collection_index = 20, 30
@@ -151,8 +152,8 @@ class TestInfoPanelClass(unittest.TestCase):
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(400, 600, Graphics.NullModifiers())
         document_controller.periodic()
-        self.assertEqual(info_panel.label_row_1.text, "Position: 8.0, 12.0, 20.0, 30.0")
-        self.assertEqual(info_panel.label_row_2.text, "Value: 1")
+        self.assertEqual(info_panel.label_row_1.text, "Position: 8.0, 12.0, 30.0, 20.0")
+        self.assertEqual(info_panel.label_row_2.text, "Value: {}".format(data[20, 30, 12, 8]))
         self.assertIsNone(info_panel.label_row_3.text, None)
         display_panel.display_canvas_item.mouse_exited()
         document_controller.close()
