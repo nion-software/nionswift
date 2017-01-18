@@ -657,6 +657,7 @@ class TestStorageClass(unittest.TestCase):
         Cache.db_make_directory_if_needed(workspace_dir)
         file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
         try:
+            data = numpy.random.randn(16, 16)
             storage_cache = Cache.DbStorageCache(cache_name)
             document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], storage_cache=storage_cache)
             with contextlib.closing(document_model):
@@ -665,7 +666,7 @@ class TestStorageClass(unittest.TestCase):
                 data_item.created = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 with display_specifier.buffered_data_source.data_ref() as data_ref:
-                    data_ref.master_data = numpy.zeros((16, 16), numpy.uint32)
+                    data_ref.master_data = data
                 document_model.append_data_item(data_item)
                 data_file_path = data_item._test_get_file_path()
                 self.assertTrue(os.path.exists(data_file_path))
@@ -677,7 +678,7 @@ class TestStorageClass(unittest.TestCase):
                 read_data_item = document_model.data_items[0]
                 read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
                 with read_display_specifier.buffered_data_source.data_ref() as data_ref:
-                    self.assertIsNotNone(data_ref.data)
+                    self.assertTrue(numpy.array_equal(data_ref.data, data))
                 # and then make sure the data file gets removed on disk when removed
                 document_model.remove_data_item(document_model.data_items[0])
                 self.assertFalse(os.path.exists(data_file_path))
