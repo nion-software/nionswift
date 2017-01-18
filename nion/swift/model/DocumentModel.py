@@ -336,8 +336,7 @@ class FileStorageSystem:
         return os.path.join(*path_components)
 
     def make_storage_handler(self, data_item):
-        # file_handler = self.__file_handlers[1] if data_item.large_format else self.__file_handlers[0]
-        file_handler = self.__file_handlers[0]  # always ndata, until hdf5 testing complete
+        file_handler = self.__file_handlers[1] if data_item.large_format else self.__file_handlers[0]
         return file_handler.make(os.path.join(self.__directories[0], self.__get_default_path(data_item)))
 
 
