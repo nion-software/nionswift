@@ -534,27 +534,28 @@ class DataItemDataSourceDisplay:
                 graphics = display.graphics
                 self.__display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
 
-            def display_rgba_changed(key):
+            def display_rgba_changed(display_values):
                 with self.__closing_lock:
-                    if key == "value" and self.__display_type == "image":
-                        DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters())
+                    if self.__display_type == "image":
+                        DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters(display_values))
 
-            def display_data_and_metadata_changed(key):
+            def display_data_and_metadata_changed(display_values):
                 with self.__closing_lock:
-                    if key == "value" and self.__display_type == "line_plot":
-                        DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters())
+                    if self.__display_type == "line_plot":
+                        DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters(display_values))
 
             def display_changed():
                 # called when anything in the data item changes, including things like graphics or the data itself.
                 # update the display canvas, etc.
                 # thread safe
-                display_rgba_changed("value")
-                display_data_and_metadata_changed("value")
+                display_values = display.get_calculated_display_values()
+                display_rgba_changed(display_values)
+                display_data_and_metadata_changed(display_values)
                 display_graphic_selection_changed(display.graphic_selection)
 
-            def handle_next_calculated_display_values(calculated_display_values):
-                display_rgba_changed("value")
-                display_data_and_metadata_changed("value")
+            def handle_next_calculated_display_values(display_values):
+                display_rgba_changed(display_values)
+                display_data_and_metadata_changed(display_values)
 
             self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
@@ -1721,12 +1722,13 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
     graphics = display.graphics
     display_type = display.actual_display_type
+    display_values = display.get_calculated_display_values()
     drawing_context = DrawingContext.DrawingContext()
 
     if display_type == "line_plot":
         frame_width, frame_height = width, int(width / 1.618)
         display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
-        DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters())
+        DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
         display_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(height=frame_height, width=frame_width))
         display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
         with drawing_context.saver():
@@ -1736,7 +1738,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     elif display_type == "image":
         display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, None, draw_background=False)
         display_canvas_item.set_fit_mode()
-        DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters())
+        DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
         displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
         graphics = display.graphics
         display_canvas_item.update_layout((0, 0), (height, width))
