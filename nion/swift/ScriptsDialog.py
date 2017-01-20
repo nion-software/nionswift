@@ -161,7 +161,7 @@ class RunScriptDialog(Dialog.ActionDialog):
                 script_path = items[list(indexes)[0]]
                 self.run_script(script_path)
 
-        list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none)
+        list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none, properties={"min-height": 200, "min-width": 560})
         list_widget.on_selection_changed = selected_changed
 
         add_button_widget = ui.create_push_button_widget(_("Add..."))

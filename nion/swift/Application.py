@@ -350,7 +350,7 @@ class Application:
                     date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
                     return str(os.path.basename(os.path.dirname(item[0]))) + " (" + date_local.strftime("%c") + ")"
 
-                list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none, stringify_item)
+                list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none, stringify_item, properties={"min-height": 200, "min-width": 560})
                 list_widget.on_selection_changed = selection_changed
 
                 items_row = ui.create_row_widget()
