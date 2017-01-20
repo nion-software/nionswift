@@ -248,7 +248,7 @@ class InfoInspectorSection(InspectorSection):
         def begin_caption_edit():
             self.caption_editable_text.text = data_item.caption
             self.caption_static_text.unbind_text()
-            self.caption_edit_stack.set_current_index(1)
+            self.caption_edit_stack.current_index = 1
         self.caption_static_edit_button.on_clicked = begin_caption_edit
         self.caption_static_button_row.add(self.caption_static_edit_button)
         self.caption_static_button_row.add_stretch()
@@ -263,7 +263,7 @@ class InfoInspectorSection(InspectorSection):
         self.caption_editable_cancel_button = self.ui.create_push_button_widget(_("Cancel"))
         def end_caption_edit():
             self.caption_static_text.bind_text(Binding.PropertyBinding(data_item, "caption"))
-            self.caption_edit_stack.set_current_index(0)
+            self.caption_edit_stack.current_index = 0
         def save_caption_edit():
             data_item.caption = self.caption_editable_text.text
             end_caption_edit()
