@@ -417,6 +417,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__calculated_display_values_thread_lock = threading.RLock()
         self.__calculated_display_values_pending = False
 
+        self._calculated_display_values_test_exception = False  # used for testing
+
         self.__calculated_display_values._set_data_and_metadata(None)
         self.__calculated_display_values._set_sequence_index(self.sequence_index)
         self.__calculated_display_values._set_collection_index(self.collection_index)
@@ -781,9 +783,18 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
                 def calculate_display_values():
                     while True:
-                        next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
-                        display_values = next_calculated_display_values.values()
-                        self.__calculated_display_values_available_event.fire(display_values)
+                        try:
+                            if self._calculated_display_values_test_exception:  # for testing
+                                raise Exception()
+                            next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
+                            display_values = next_calculated_display_values.values()
+                            self.__calculated_display_values_available_event.fire(display_values)
+                        except Exception as e:
+                            if not self._calculated_display_values_test_exception:
+                                import traceback
+                                traceback.print_exc()
+                                traceback.print_stack()
+                            self._calculated_display_values_test_exception = False  # for testing
                         with self.__calculated_display_values_lock:
                             was_pending = self.__calculated_display_values_pending
                             self.__calculated_display_values_pending = False

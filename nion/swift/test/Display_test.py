@@ -518,6 +518,28 @@ class TestDisplayClass(unittest.TestCase):
             display_data2 = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
             self.assertTrue(numpy.array_equal(display_data2, d2[1, 1, ...]))
 
+    def test_exception_during_calculate_display_values_recovers_gracefully(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(4, 4, 3, 3)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            document_model.append_data_item(data_item)
+            def next_calculated_display_values(calculated_display_values):
+                pass
+            listener = display_specifier.display.add_calculated_display_values_listener(next_calculated_display_values)
+            with contextlib.closing(listener):
+                display_data = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
+                # now run the test
+                display_specifier.display._calculated_display_values_test_exception = True
+                display_specifier.display.collection_index = 2, 2  # should trigger the thread
+                display_data = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
+                display_specifier.display.collection_index = 2, 2
+                display_data = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
+                self.assertTrue(numpy.array_equal(display_data, d[2, 2, ...]))
+
 
 if __name__ == '__main__':
     unittest.main()
