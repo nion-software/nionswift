@@ -482,6 +482,42 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (2, 8))
 
+    def test_sequence_index_validates_when_data_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(4, 3, 3)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.sequence_index = 3
+            display_data = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
+            self.assertTrue(numpy.array_equal(display_data, d[3, ...]))
+            d2 = numpy.random.randn(2, 3, 3)
+            data_and_metadata2 = DataAndMetadata.new_data_and_metadata(d2, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata2)
+            display_data2 = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
+            self.assertTrue(numpy.array_equal(display_data2, d2[1, ...]))
+
+    def test_collection_index_validates_when_data_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = numpy.random.randn(4, 4, 3, 3)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.display.collection_index = 3, 3
+            display_data = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
+            self.assertTrue(numpy.array_equal(display_data, d[3, 3, ...]))
+            d2 = numpy.random.randn(2, 2, 3, 3)
+            data_and_metadata2 = DataAndMetadata.new_data_and_metadata(d2, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata2)
+            display_data2 = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
+            self.assertTrue(numpy.array_equal(display_data2, d2[1, 1, ...]))
+
 
 if __name__ == '__main__':
     unittest.main()

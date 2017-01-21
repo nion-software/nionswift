@@ -570,20 +570,22 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         return value
 
     def __validate_sequence_index(self, value: int) -> int:
-        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            return max(min(int(value), self.__data_and_metadata.max_sequence_index), 0)
-        return value if self._is_reading else 0
+        if not self._is_reading:
+            if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
+                return max(min(int(value), self.__data_and_metadata.max_sequence_index - 1), 0) if self.__data_and_metadata.is_sequence else 0
+        return 0
 
     def __validate_collection_index(self, value: typing.Tuple[int, int, int]) -> typing.Tuple[int, int, int]:
-        if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
-            dimensional_shape = self.__data_and_metadata.dimensional_shape
-            collection_base_index = 1 if self.__data_and_metadata.is_sequence else 0
-            collection_dimension_count = self.__data_and_metadata.collection_dimension_count
-            i0 = max(min(int(value[0]), dimensional_shape[collection_base_index + 0]), 0) if collection_dimension_count > 0 else 0
-            i1 = max(min(int(value[1]), dimensional_shape[collection_base_index + 1]), 0) if collection_dimension_count > 1 else 0
-            i2 = max(min(int(value[2]), dimensional_shape[collection_base_index + 2]), 0) if collection_dimension_count > 2 else 0
-            return i0, i1, i2
-        return value if self._is_reading else (0, 0, 0)
+        if not self._is_reading:
+            if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
+                dimensional_shape = self.__data_and_metadata.dimensional_shape
+                collection_base_index = 1 if self.__data_and_metadata.is_sequence else 0
+                collection_dimension_count = self.__data_and_metadata.collection_dimension_count
+                i0 = max(min(int(value[0]), dimensional_shape[collection_base_index + 0] - 1), 0) if collection_dimension_count > 0 else 0
+                i1 = max(min(int(value[1]), dimensional_shape[collection_base_index + 1] - 1), 0) if collection_dimension_count > 1 else 0
+                i2 = max(min(int(value[2]), dimensional_shape[collection_base_index + 2] - 1), 0) if collection_dimension_count > 2 else 0
+                return i0, i1, i2
+        return (0, 0, 0)
 
     def __validate_slice_center_for_width(self, value, slice_width):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
@@ -606,6 +608,14 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         return value if self._is_reading else 1
 
     def validate(self):
+        sequence_index = self.__validate_sequence_index(self.sequence_index)
+        if sequence_index != self.sequence_index:
+            self.sequence_index = sequence_index
+
+        collection_index = self.__validate_collection_index(self.collection_index)
+        if collection_index != self.collection_index:
+            self.collection_index = collection_index
+
         slice_center = self.__validate_slice_center_for_width(self.slice_center, 1)
         if slice_center != self.slice_center:
             old_slice_width = self.slice_width
