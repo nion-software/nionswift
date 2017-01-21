@@ -611,7 +611,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     info["slice-operation"] = ExpressionInfo(_("Slice"), "xd.slice_sum({src}, center, width)", "slice", [_("Source")], ["src"], [center_var, width_var], False)
                     pt_var = {'label': _("Pick Point"), 'name': 'pick_region', 'type': 'variable', 'value_type': 'point'}
                     info["pick-operation"] = ExpressionInfo(_("Pick"), "xd.pick({src}, pick_region.position)", "pick-point", [_("Source")], ["src"], [pt_var], False)
-                    info["projection-operation"] = ExpressionInfo(_("Sum"), "xd.sum({src}, 0)", "sum", [_("Source")], ["src"], list(), False)
+                    info["projection-operation"] = ExpressionInfo(_("Sum"), "xd.sum({src}, src.xdata.datum_dimension_indexes[0])", "sum", [_("Source")], ["src"], list(), False)
                     width_var = {'label': _("Width"), 'name': 'width', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
                     height_var = {'label': _("Height"), 'name': 'height', 'type': 'variable', 'value': 256, 'value_default': 256, 'value_min': 1, 'value_type': 'integral'}
                     info["resample-operation"] = ExpressionInfo(_("Reshape"), "xd.resample_image({src}, (height, width))", "resample", [_("Source")], ["src"], [width_var, height_var], True)
@@ -2314,11 +2314,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
             requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
+            requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
             crop_in_region = {"name": "crop_region", "type": "rectangle", "params": {"label": _("Crop Region")}}
             vs["crop"] = {"title": _("Crop"), "expression": "xd.crop({src}, crop_region.bounds)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [crop_in_region], "requirements": [requirement_2d]}]}
-            vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}, 0)",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_2d]}]}
+            vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}, src.xdata.datum_dimension_indexes[0])",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_2d_to_4d]}]}
             slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
             slice_width_param = {"name": "width", "label": _("Width"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
             vs["slice"] = {"title": _("Slice"), "expression": "xd.slice_sum({src}, center, width)",

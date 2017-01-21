@@ -10,6 +10,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
@@ -247,6 +248,32 @@ class TestProcessingClass(unittest.TestCase):
         processing_list.append((data_item_complex, self.document_model.get_ifft_new, {}))
         processing_list.append((data_item_complex, self.document_model.get_projection_new, {}))
         processing_list.append((data_item_complex, self.document_model.get_convert_to_scalar_new, {}))
+
+        for source_data_item, fn, params in processing_list:
+            data_item = fn(source_data_item)
+            for name, value in params.items():
+                data_item.maybe_data_source.computation._set_variable_value(name, value)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            self.document_model.recompute_all()
+            with display_specifier.buffered_data_source.data_ref() as data_ref:
+                src_data_item = self.document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value
+                self.assertEqual(src_data_item, source_data_item)
+                self.assertIsNotNone(data_ref.data)
+                self.assertIsNotNone(display_specifier.buffered_data_source.dimensional_calibrations)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[0], data_ref.data.shape)
+                self.assertEqual(display_specifier.buffered_data_source.data_shape_and_dtype[1], data_ref.data.dtype)
+                self.assertIsNotNone(display_specifier.buffered_data_source.data_shape_and_dtype[1].type)  # make sure we're returning a dtype
+                self.assertEqual(len(display_specifier.buffered_data_source.dimensional_shape), len(display_specifier.buffered_data_source.dimensional_calibrations))
+
+    def test_processing_2d_2d_float(self):
+        d = numpy.random.randn(4, 4, 3, 3)
+        data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+        data_item = DataItem.new_data_item(data_and_metadata)
+        self.document_model.append_data_item(data_item)
+
+        processing_list = []
+        processing_list.append((data_item, self.document_model.get_projection_new, {}))
+        processing_list.append((data_item, self.document_model.get_convert_to_scalar_new, {}))
 
         for source_data_item, fn, params in processing_list:
             data_item = fn(source_data_item)
@@ -748,6 +775,18 @@ class TestProcessingClass(unittest.TestCase):
             slice_data_item.maybe_data_source.displays[0].add_graphic(crop_region)
             crop_data_item = document_model.get_crop_new(slice_data_item, crop_region)
             document_model.recompute_all()
+
+    def test_projection_of_2d_by_2d_sums_first_datum_dimension(self):
+        # the bug was that slice processing returned the wrong number of dimensions
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.random.randn(4, 4, 3, 3)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(d, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            slice_data_item = document_model.get_projection_new(data_item)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(numpy.sum(d, 2), slice_data_item.maybe_data_source.data_and_metadata.data))
 
 
 if __name__ == '__main__':
