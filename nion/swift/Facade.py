@@ -460,6 +460,10 @@ class UserInterface:
             raise NotImplementedError("UI API requested version %s is greater than %s." % (ui_version, actual_version))
         self.__ui = ui
 
+    @property
+    def _ui(self):
+        return self.__ui
+
     def create_canvas_widget(self, height=None):
         properties = dict()
         if height is not None:
