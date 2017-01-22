@@ -266,37 +266,3 @@ class ConsoleDialog(Dialog.ActionDialog):
 
     def assign_data_item_var(self, data_item_var, data_item):
         self.__console_widget.insert_lines(["{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(data_item_var, data_item.uuid)])
-
-
-class ConsolePanel(Panel.Panel):
-
-    def __init__(self, document_controller, panel_id, properties):
-        super().__init__(document_controller, panel_id, "Console")
-
-        self.__document_controller = document_controller
-
-        self.__console_widget = ConsoleWidget(document_controller.ui, locals={"_document_window": document_controller}, properties={"min-height": 180, "min-width": 540})
-
-        lines = [
-            "from nion.swift import DocumentController",
-            "from nion.swift.model import DocumentModel, DataItem, PlugInManager, Graphics",
-            "from nion.data import Image",
-            "import logging",
-            "import numpy as np",
-            "import numpy as numpy",
-            "import uuid",
-            "_document_model = _document_window.document_model",
-            ]
-
-        self.__console_widget.interpret_lines(lines)
-
-        self.widget = self.__console_widget
-
-        self.__document_controller.register_console(self)
-
-    def close(self):
-        self.__document_controller.unregister_console(self)
-        super().close()
-
-    def assign_data_item_var(self, data_item_var, data_item):
-        self.__console_widget.insert_lines(["{} = _document_model.get_data_item_by_key(uuid.UUID(\"{}\"))".format(data_item_var, data_item.uuid)])

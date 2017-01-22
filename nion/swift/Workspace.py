@@ -65,7 +65,7 @@ class Workspace:
 
         visible_panels = []
         if self.workspace_id == "library":
-            visible_panels = ["toolbar-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel", "processing-panel", "console-panel"]
+            visible_panels = ["toolbar-panel", "data-panel", "histogram-panel", "info-panel", "inspector-panel", "processing-panel"]
 
         self.create_panels(visible_panels)
 
@@ -146,12 +146,6 @@ class Workspace:
                         dock_widget.show()
                     else:
                         dock_widget.hide()
-
-        # clean up panels (tabify console/output)
-        console_dock_widget = self._find_dock_widget("console-panel")
-        output_dock_widget = self._find_dock_widget("output-panel")
-        if console_dock_widget is not None and output_dock_widget is not None:
-            document_controller.tabify_dock_widgets(console_dock_widget, output_dock_widget)
 
     def create_panel(self, document_controller, panel_id, title, positions, position, properties):
         try:

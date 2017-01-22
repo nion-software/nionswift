@@ -1,6 +1,4 @@
 # standard libraries
-import asyncio
-import concurrent.futures
 import copy
 import functools
 import gettext
@@ -248,7 +246,7 @@ class DocumentController(Window.Window):
         #self._save_as_action = self._file_menu.add_menu_item(_("Save As..."), self.no_operation, key_sequence="save-as")
         self._file_menu.add_separator()
         self._file_menu.add_menu_item(_("Scripts..."), self.new_interactive_script_dialog, key_sequence="Ctrl+R")
-        self._file_menu.add_menu_item(_("Console..."), self.new_console_dialog, key_sequence="Ctrl+K")
+        self._file_menu.add_menu_item(_("Python Console..."), self.new_console_dialog, key_sequence="Ctrl+K")
         self._file_menu.add_separator()
         self._add_group_action = self._file_menu.add_menu_item(_("Add Group"), self.add_group, key_sequence="Ctrl+Shift+N")
         self._file_menu.add_separator()
