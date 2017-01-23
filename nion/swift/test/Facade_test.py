@@ -201,6 +201,32 @@ class TestFacadeClass(unittest.TestCase):
             self.assertIsNone(document_controller.workspace_controller.display_panels[1].data_item)
             self.assertEqual(document_controller.workspace_controller.display_panels[0], display_panal_ref._display_panel)
 
+    def test_display_data_item_returns_none_if_no_panel_available(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            # configure data item
+            data_item1 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item2)
+            # configure workspace
+            workspace_1x1 = document_controller.document_model.workspaces[0]
+            document_controller.workspace_controller.change_workspace(workspace_1x1)
+            display_panel = document_controller.selected_display_panel
+
+            api = Facade.get_api("~1.0", "~1.0")
+            library = api.library
+            data_item1_ref = library.data_items[0]
+            data_item2_ref = library.data_items[1]
+            # first data item gets displayed because there is an empty display panel.
+            self.assertEqual(api.application.document_windows[0].display_data_item(data_item1_ref)._display_panel, display_panel)
+            # the display is already filled. display panel should be None.
+            self.assertIsNone(api.application.document_windows[0].display_data_item(data_item2_ref))
+            # redisplay returns existing display panel.
+            self.assertEqual(api.application.document_windows[0].display_data_item(data_item1_ref)._display_panel, display_panel)
+
     def test_lookup_unknown_instrument_or_hardware_source_returns_none(self):
         api = Facade.get_api("~1.0", "~1.0")
         self.assertIsNone(api.get_hardware_source_by_id("nonexistent_hardware", "~1.0"))

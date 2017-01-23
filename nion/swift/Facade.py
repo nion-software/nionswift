@@ -2021,7 +2021,8 @@ class DocumentWindow:
         if result_display_panel:
             result_display_panel.set_displayed_data_item(data_item._data_item)
             result_display_panel.request_focus()
-        return DisplayPanel(result_display_panel)
+            return DisplayPanel(result_display_panel)
+        return None
 
     @property
     def target_display_panel(self):
