@@ -2034,7 +2034,8 @@ class DocumentWindow:
 
     @property
     def target_data_item(self) -> DataItem:
-        return DataItem(self.__document_controller.selected_display_specifier.data_item)
+        data_item = self.__document_controller.selected_display_specifier.data_item
+        return DataItem(data_item) if data_item else None
 
     def create_task_context_manager(self, title, task_type):
         return self.__document_controller.create_task_context_manager(title, task_type)
