@@ -243,6 +243,7 @@ class ConsoleDialog(Dialog.ActionDialog):
             "import numpy as numpy",
             "import uuid",
             "from nion.swift.model import PlugInManager",
+            "from nion.data import xdata_1_0 as xd",
             "get_api = PlugInManager.api_broker_fn",
             "api = get_api('~1.0', '~1.0')"
             ]
