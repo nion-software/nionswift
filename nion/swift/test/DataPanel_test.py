@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import logging
@@ -13,12 +10,16 @@ import numpy
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
+from nion.swift import Facade
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.ui import TestUI
 from nion.utils import Geometry
+
+
+Facade.initialize()
 
 
 class TestDataPanelClass(unittest.TestCase):
@@ -478,7 +479,7 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel = document_controller.find_dock_widget("data-panel").panel
         document_controller.periodic()  # changes to filter will be queued. update that here.
         self.assertEqual(len(document_controller.filtered_data_items_binding.data_items), 3)
-        document_controller.display_filter = lambda data_item: data_item.title == "Y"
+        document_controller.display_filter = DataItemsBinding.TextFilter("title", "Y")
         document_controller.periodic()  # changes to filter will be queued. update that here.
         self.assertEqual(len(document_controller.filtered_data_items_binding.data_items), 1)
         document_controller.close()
@@ -595,6 +596,55 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item2)
+
+    @unittest.expectedFailure
+    def test_processing_temporary_data_item_keeps_temporary_items_displayed(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item1.category = "temporary"
+            data_item2 = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            # index, parent_row, parent_id
+            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            document_controller.periodic()
+            document_controller.selected_display_panel.set_displayed_data_item(data_item1)
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item1)
+            data_item3 = document_model.get_invert_new(data_item1)
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 2)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item3)
+            self.assertEqual(data_panel.data_list_controller._test_get_display_item(1).data_item, data_item1)
+
+    def test_switching_to_latest_session_group_displays_latest_session(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item2 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item3 = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            data_item1.session_id = document_model.session_id
+            data_item2.session_id = "20170101-120000"
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            # index, parent_row, parent_id
+            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 3)
+            self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_items])
+            self.assertIn(data_item2, [display_item.data_item for display_item in data_panel.data_list_controller.display_items])
+            self.assertIn(data_item3, [display_item.data_item for display_item in data_panel.data_list_controller.display_items])
+            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_items])
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

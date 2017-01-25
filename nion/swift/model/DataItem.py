@@ -1386,6 +1386,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.metadata = metadata
         self.__metadata_property_changed("rating", value)
 
+    @property
+    def text_for_filter(self):
+        return " ".join([self.displayed_title, self.caption])
+
 
 class BufferedDataSourceSpecifier(object):
     """Specify a BufferedDataSource contained within a DataItem.

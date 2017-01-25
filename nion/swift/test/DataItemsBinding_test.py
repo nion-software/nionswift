@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import contextlib
 import logging
@@ -17,7 +14,11 @@ import numpy
 from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
+from nion.swift import Facade
 from nion.ui import Selection
+
+
+Facade.initialize()
 
 
 class TestDataItemsBindingModule(unittest.TestCase):
@@ -50,10 +51,8 @@ class TestDataItemsBindingModule(unittest.TestCase):
         self.assertListEqual([d.title for d in binding.data_items], list(reversed(sorted([d.title for d in binding.data_items]))))
 
     def test_inserting_items_into_binding_with_sort_key_and_filter_puts_them_in_correct_order(self):
-        def filter(data_item):
-            return not data_item.title.startswith("D")
         binding = DataItemsBinding.DataItemsInContainerBinding()
-        binding.filter = filter
+        binding.filter = DataItemsBinding.StartsWithFilter("title", "D")
         binding.sort_key = operator.attrgetter("title")
         data_items = list()
         for value in TestDataItemsBindingModule.values:
@@ -77,10 +76,8 @@ class TestDataItemsBindingModule(unittest.TestCase):
         values = ["DEF", "ABC", "GHI", "DFG", "ACD", "GIJ"]
         indexes = [0, 0, 1, 1, 2, 4]
         result = ["ABC", "DFG", "ACD", "GHI", "GIJ", "DEF"]
-        def filter(data_item):
-            return not data_item.title.startswith("D")
         binding = DataItemsBinding.DataItemsInContainerBinding()
-        binding.filter = filter
+        binding.filter = DataItemsBinding.NotFilter(DataItemsBinding.StartsWithFilter("title", "D"))
         data_items = list()
         for index, value in enumerate(values):
             data_item = DataItem.DataItem(numpy.zeros((16, 16), numpy.uint32))
@@ -136,12 +133,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 self.assertEqual(binding.data_items.index(live_data_item), 0)
 
     def test_sorted_filtered_binding_updates_when_data_item_enters_filter(self):
-        def is_live_filter(data_item):
-            return data_item.is_live
         def sort_by_date_key(data_item):
             return data_item.created
         binding = DataItemsBinding.DataItemsInContainerBinding()
-        binding.filter = is_live_filter
+        binding.filter = DataItemsBinding.EqFilter("is_live", True)
         binding.sort_key = sort_by_date_key
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -159,10 +154,8 @@ class TestDataItemsBindingModule(unittest.TestCase):
                     self.assertTrue(binding.data_items.index(document_model.data_items[0]) < binding.data_items.index(document_model.data_items[2]))
 
     def test_unsorted_filtered_binding_updates_when_data_item_enters_filter(self):
-        def is_live_filter(data_item):
-            return data_item.is_live
         binding = DataItemsBinding.DataItemsInContainerBinding()
-        binding.filter = is_live_filter
+        binding.filter = DataItemsBinding.EqFilter("is_live", True)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             for _ in range(4):
@@ -178,12 +171,10 @@ class TestDataItemsBindingModule(unittest.TestCase):
                     self.assertEqual(len(binding.data_items), 2)
 
     def test_sorted_filtered_binding_updates_when_data_item_exits_filter(self):
-        def is_not_live_filter(data_item):
-            return not data_item.is_live
         def sort_by_date_key(data_item):
             return data_item.created
         binding = DataItemsBinding.DataItemsInContainerBinding()
-        binding.filter = is_not_live_filter
+        binding.filter = DataItemsBinding.NotFilter(DataItemsBinding.EqFilter("is_live", True))
         binding.sort_key = sort_by_date_key
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -207,13 +198,12 @@ class TestDataItemsBindingModule(unittest.TestCase):
             self.assertEqual(len(binding.data_items), 4)
             selection = Selection.IndexedSelection()
             filter_binding = DataItemsBinding.DataItemsFilterBinding(binding, selection)
-            def is_live_filter(data_item):
-                return data_item.is_live
-            filter_binding.filter = is_live_filter
+            filter_binding.filter = DataItemsBinding.EqFilter("is_live", True)
             self.assertEqual(len(filter_binding.data_items), 0)
             with document_model.data_item_live(document_model.data_items[0]):
                 document_model.data_items[0].data_item_content_changed_event.fire()
                 self.assertEqual(len(binding.data_items), 4)  # verify assumption
+                self.assertEqual(len(filter_binding.data_items), 1)  # verify assumption
                 self.assertTrue(document_model.data_items[0] in filter_binding.data_items)
 
     def test_random_filtered_binding_updates(self):
@@ -238,8 +228,8 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 return data_items.index(data_item) in c2
             binding.sort_key = lambda x: data_items.index(x)
             with binding.changes():
-                binding.filter = is_live_filter
-                binding.filter = is_live_filter2
+                binding.filter = DataItemsBinding.PredicateFilter(is_live_filter)
+                binding.filter = DataItemsBinding.PredicateFilter(is_live_filter2)
             self.assertEqual(set(c2), set([data_items.index(d) for d in filter_binding.data_items]))
 
     def slow_test_threaded_filtered_binding_updates(self):
@@ -256,7 +246,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
             binding.sort_key = lambda x: data_items.index(x)
             selection = Selection.IndexedSelection()
             filter_binding = DataItemsBinding.DataItemsFilterBinding(binding, selection)
-            filter_binding.filter = is_live_filter
+            filter_binding.filter = DataItemsBinding.PredicateFilter(is_live_filter)
             finished = threading.Event()
             def update_randomly():
                 for _ in range(cc):
@@ -305,6 +295,16 @@ class TestDataItemsBindingModule(unittest.TestCase):
             self.assertEqual(binding.data_items.index(document_model.data_items[4]), 4)
             self.assertEqual(binding.data_items.index(document_model.data_items[0]), 0)
             self.assertEqual(list(document_model.data_items[2:5]), binding.data_items[2:])  # rest of list matches
+
+    def test_and_filter(self):
+        f1 = DataItemsBinding.Filter(True)
+        f2 = DataItemsBinding.Filter(True)
+        f3 = DataItemsBinding.Filter(False)
+        f4 = DataItemsBinding.Filter(False)
+        self.assertTrue(DataItemsBinding.AndFilter([f1, f2]).matches(None))
+        self.assertFalse(DataItemsBinding.AndFilter([f2, f3]).matches(None))
+        self.assertTrue(DataItemsBinding.OrFilter([f2, f3]).matches(None))
+        self.assertFalse(DataItemsBinding.OrFilter([f3, f4]).matches(None))
 
 
 if __name__ == '__main__':

@@ -6,7 +6,9 @@
 import copy
 import logging
 import operator
+import re
 import threading
+import typing
 
 # third party libraries
 # None
@@ -14,6 +16,178 @@ import threading
 # local libraries
 from nion.utils import Binding
 from nion.ui import Selection
+
+
+class Filter:
+    def __init__(self, default: bool=False):
+        self.__default = default
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        result.__default = self.__default
+        return result
+
+    def matches(self, d) -> bool:
+        return self.__default
+
+
+class AndFilter(Filter):
+    def __init__(self, filters: typing.Sequence[Filter]=None):
+        super().__init__()
+        self.__filters = copy.copy(filters) if filters else list()
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__filters = copy.deepcopy(self.__filters, memo)
+        return result
+
+    def matches(self, d) -> bool:
+        return all(map(operator.methodcaller('matches', d), self.__filters))
+
+
+class OrFilter(Filter):
+    def __init__(self, filters: typing.Sequence[Filter]=None):
+        super().__init__()
+        self.__filters = copy.copy(filters) if filters else list()
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__filters = copy.deepcopy(self.__filters, memo)
+        return result
+
+    def matches(self, d) -> bool:
+        return any(map(operator.methodcaller('matches', d), self.__filters))
+
+
+class NotFilter(Filter):
+    def __init__(self, filter: Filter):
+        super().__init__()
+        self.__filter = filter
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__filter = copy.deepcopy(self.__filter, memo)
+        return result
+
+    def matches(self, d) -> bool:
+        return not self.__filter.matches(d)
+
+
+class EqFilter(Filter):
+    def __init__(self, key: str, value, cmp=None):
+        super().__init__()
+        self.__key = key
+        self.__value = value
+        self.__cmp = cmp if cmp else operator.eq
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__key = self.__key
+        result.__value = self.__value
+        result.__cmp = self.__cmp
+        return result
+
+    def matches(self, d) -> bool:
+        d_value = getattr(d, self.__key)
+        return self.__cmp(d_value, self.__value)
+
+
+class NotEqFilter(Filter):
+    def __init__(self, key: str, value, cmp=None):
+        super().__init__()
+        self.__key = key
+        self.__value = value
+        self.__cmp = cmp if cmp else operator.eq
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__key = self.__key
+        result.__value = self.__value
+        result.__cmp = self.__cmp
+        return result
+
+    def matches(self, d) -> bool:
+        d_value = getattr(d, self.__key)
+        return not self.__cmp(d_value, self.__value)
+
+
+class StartsWithFilter(Filter):
+    def __init__(self, key: str, value: str):
+        super().__init__()
+        self.__key = key
+        self.__value = value
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__key = self.__key
+        result.__value = self.__value
+        return result
+
+    def matches(self, d) -> bool:
+        d_value = getattr(d, self.__key)
+        return d_value.startswith(self.__value)
+
+
+class TextFilter(Filter):
+    def __init__(self, key: str, text: str):
+        super().__init__()
+        self.__key = key
+        self.__text = text
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__key = self.__key
+        result.__text = self.__text
+        return result
+
+    def matches(self, d) -> bool:
+        d_value = getattr(d, self.__key)
+        return re.search(self.__text, d_value, re.IGNORECASE)
+
+
+class PartialDateFilter(Filter):
+    def __init__(self, key: str, year: int=None, month: int=None, day: int=None):
+        super().__init__()
+        self.__key = key
+        self.__year = year
+        self.__month = month
+        self.__day = day
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__key = self.__key
+        result.__year = self.__year
+        result.__month = self.__month
+        result.__day = self.__day
+        return result
+
+    def matches(self, d) -> bool:
+        d_value = getattr(d, self.__key)
+        if self.__year and d_value.year != self.__year:
+            return False
+        if self.__month and d_value.month != self.__month:
+            return False
+        if self.__day and d_value.day != self.__day:
+            return False
+        return True
+
+
+class PredicateFilter(Filter):
+    # used for testing, not serializable
+    def __init__(self, predicate):
+        super().__init__()
+        self.__predicate = predicate
+
+    def __deepcopy__(self, memo):
+        result = super().__deepcopy__(memo)
+        result.__predicate = self.__predicate
+        return result
+
+    def matches(self, d) -> bool:
+        return self.__predicate(d)
+
 
 
 class AbstractDataItemsBinding(Binding.Binding):
@@ -51,7 +225,7 @@ class AbstractDataItemsBinding(Binding.Binding):
         self._update_mutex = threading.RLock()
         self.inserters = dict()
         self.removers = dict()
-        self.__filter = None
+        self.__filter = Filter(True)
         self.__sort_key = None
         self.__sort_reverse = False
         self.__change_level = 0
@@ -102,17 +276,16 @@ class AbstractDataItemsBinding(Binding.Binding):
     sort_reverse = property(__get_sort_reverse, __set_sort_reverse)
 
     # thread safe.
-    def __get_filter(self):
+    @property
+    def filter(self) -> Filter:
         """ Return the filter function. """
-        def always_true(dummy):  # pylint: disable=missing-docstring
-            return True
-        return self.__filter if self.__filter else always_true
-    def __set_filter(self, filter_):
+        return self.__filter
+
+    @filter.setter
+    def filter(self, value: Filter) -> None:
         """ Set the filter function. """
-        with self._update_mutex:
-            self.__filter = filter_
+        self.__filter = value
         self._update_data_items()
-    filter = property(__get_filter, __set_filter)
 
     # thread safe
     # data items are the currently filtered and sorted list.
@@ -143,12 +316,12 @@ class AbstractDataItemsBinding(Binding.Binding):
                 high = mid
         return low
 
-    def __find_unsorted_index_for_data_item(self, data_item, master_data_items, data_item_filter):
+    def __find_unsorted_index_for_data_item(self, data_item, master_data_items, filter):
         index = 0
         for data_item_ in master_data_items:
             if data_item_ == data_item:
                 break
-            if data_item_filter(data_item_):
+            if filter.matches(data_item_):
                 index += 1
         return index
 
@@ -161,15 +334,14 @@ class AbstractDataItemsBinding(Binding.Binding):
         with self._update_mutex:
             if self.__change_level > 0:
                 return
-            data_item_filter = self.filter
-            if data_item_filter(data_item):
+            if self.filter.matches(data_item):
                 data_items = self.__data_items
                 sort_key = self.sort_key
                 if sort_key is not None:
                     sort_operator = operator.gt if self.sort_reverse else operator.lt
                     before_index = self.__find_sorted_index_for_data_item(data_item, data_items, sort_key, sort_operator)
                 else:
-                    before_index = self.__find_unsorted_index_for_data_item(data_item, self._get_master_data_items(), data_item_filter)
+                    before_index = self.__find_unsorted_index_for_data_item(data_item, self._get_master_data_items(), self.filter)
                 self.__data_items.insert(before_index, data_item)
                 for inserter in self.inserters.values():
                     inserter(data_item, before_index)
@@ -200,8 +372,7 @@ class AbstractDataItemsBinding(Binding.Binding):
             if self.__change_level > 0:
                 return
             data_items = self.__data_items
-            data_item_filter = self.filter
-            if data_item_filter(data_item):
+            if self.filter.matches(data_item):
                 # data item will be in the list
                 sort_key = self.sort_key
                 if sort_key is not None:
@@ -249,10 +420,9 @@ class AbstractDataItemsBinding(Binding.Binding):
         # construct the data items list by expanding each master data item to
         # include its children
         data_items = list()
-        data_item_filter = self.filter
         for data_item in master_data_items:
             # apply filter
-            if data_item_filter(data_item):
+            if self.filter.matches(data_item):
                 # add data item and its dependent data items
                 data_items.append(data_item)
         return data_items

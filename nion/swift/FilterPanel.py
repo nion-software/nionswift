@@ -2,24 +2,20 @@
     FilterPanel contains classes the implement the tracking of filters for the data panel.
 """
 
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import bisect
 import datetime
 import gettext
 import re
 import threading
-import time
 import weakref
 
 # third party libraries
 # None
 
 # local libraries
+from nion.swift.model import DataItemsBinding
 from nion.swift import Panel
-from nion.ui import CanvasItem
 
 _ = gettext.gettext
 
@@ -35,7 +31,7 @@ _ = gettext.gettext
 # TODO: Add text field browser for searching
 
 
-class FilterController(object):
+class FilterController:
 
     """
         The FilterController creates, updates, and provides access to an item model controller.
@@ -194,33 +190,15 @@ class FilterController(object):
             :param selected_indexes: The selected indexes
             :type selected_indexes: list of ints
         """
-        keys_list = list()
+        partial_date_filters = list()
 
         for index, parent_row, parent_id in selected_indexes:
             item_model_controller = self.item_model_controller
             tree_node = item_model_controller.item_value("tree_node", index, parent_id)
-            keys_list.append(tree_node.keys)
+            partial_date_filters.append(DataItemsBinding.PartialDateFilter("created_local", *tree_node.keys))
 
-        def date_filter(data_item):
-            """ A bound function to filter data items based on the key_list bound variable. """
-            created_local = data_item.created_local
-            indexes = created_local.year, created_local.month, created_local.day
-
-            def matches(match_keys):
-                """ Whether match_keys match indexes, in order. """
-                for i, key in enumerate(match_keys):
-                    if indexes[i] != key:
-                        return False
-                return True
-
-            for keys in keys_list:
-                if matches(keys):
-                    return True
-
-            return False
-
-        if len(keys_list) > 0:
-            self.__date_filter = date_filter
+        if len(partial_date_filters) > 0:
+            self.__date_filter = DataItemsBinding.OrFilter(partial_date_filters)
         else:
             self.__date_filter = None
 
@@ -234,13 +212,8 @@ class FilterController(object):
         """
         text = text.strip() if text else None
 
-        def text_filter(data_item):
-            """ Filter data item on caption and title. """
-            data_item_title = data_item.displayed_title
-            return re.search(text, " ".join((data_item.caption, data_item_title)), re.IGNORECASE)
-
         if text is not None:
-            self.__text_filter = text_filter
+            self.__text_filter = DataItemsBinding.TextFilter("text_for_filter", text)
         else:
             self.__text_filter = None
 
@@ -248,23 +221,17 @@ class FilterController(object):
 
     def __update_filter(self):
         """
-            Create a bound function to combine various filters. Set the resulting filter into the document controller.
+            Create a combined filter. Set the resulting filter into the document controller.
         """
-        def all_filter(data_item):
-            """ A bound function to and all filters. """
-            if self.__date_filter and not self.__date_filter(data_item):
-                return False
-            if self.__text_filter and not self.__text_filter(data_item):
-                return False
-            return True
-
-        if self.__date_filter or self.__text_filter:
-            self.document_controller.display_filter = all_filter
-        else:
-            self.document_controller.display_filter = None
+        filters = list()
+        if self.__date_filter:
+            filters.append(self.__date_filter)
+        if self.__text_filter:
+            filters.append(self.__text_filter)
+        self.document_controller.display_filter = DataItemsBinding.AndFilter(filters)
 
 
-class FilterPanel(object):
+class FilterPanel:
 
     """
         A object to hold the widget for the filter panel.
@@ -319,7 +286,7 @@ class FilterPanel(object):
         self.widget = filter_column
 
 
-class TreeNode(object):
+class TreeNode:
 
     """
         Represents a node in a tree, used for implementing data item filters.

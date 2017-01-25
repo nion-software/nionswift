@@ -90,7 +90,7 @@ class DocumentController(Window.Window):
         # filtered data items binding tracks the filtered items from those in data items binding.
         self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
         self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding, self.selection)
-        self.__last_display_filter = None
+        self.__last_display_filter = DataItemsBinding.Filter(True)
 
         def data_item_will_be_removed(data_item):
             if data_item in self.__filtered_data_items_binding.data_items:
@@ -551,34 +551,26 @@ class DocumentController(Window.Window):
         with binding.changes():  # change filter and sort together
             if data_group is not None:
                 binding.container = data_group
-                binding.filter = None
+                binding.filter = DataItemsBinding.Filter(True)
                 binding.sort_key = None
             elif filter_id == "latest-session":
                 binding.container = self.document_model
-                def latest_session_filter(data_item):
-                    return data_item.session_id == self.document_model.session_id
-                binding.filter = latest_session_filter
+                binding.filter = DataItemsBinding.EqFilter("session_id", self.document_model.session_id)
                 binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
             elif filter_id == "temporary":
                 binding.container = self.document_model
-                def temporary_filter(data_item):
-                    return data_item.category != "persistent"
-                binding.filter = temporary_filter
+                binding.filter = DataItemsBinding.NotEqFilter("category", "persistent")
                 binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
             elif filter_id == "none":  # not intended to be used directly
                 binding.container = self.document_model
-                def none_filter(data_item):
-                    return False
-                binding.filter = none_filter
+                binding.filter = DataItemsBinding.Filter(False)
                 binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
             else:
                 binding.container = self.document_model
-                def all_filter(data_item):
-                    return data_item.category == "persistent"
-                binding.filter = all_filter
+                binding.filter = DataItemsBinding.EqFilter("category", "persistent")
                 binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
 
@@ -592,11 +584,11 @@ class DocumentController(Window.Window):
             self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
 
     @property
-    def display_filter(self):
+    def display_filter(self) -> DataItemsBinding.Filter:
         return self.__filtered_data_items_binding.filter
 
     @display_filter.setter
-    def display_filter(self, display_filter):
+    def display_filter(self, display_filter: DataItemsBinding.Filter) -> None:
         if self.__filtered_data_items_binding is not None:  # during close
             self.__filtered_data_items_binding.filter = display_filter
 
@@ -1173,7 +1165,7 @@ class DocumentController(Window.Window):
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:
             self.__last_display_filter = self.display_filter
-            self.display_filter = None
+            self.display_filter = DataItemsBinding.Filter(True)
         else:
             self.display_filter = self.__last_display_filter
         self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
