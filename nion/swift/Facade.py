@@ -247,6 +247,22 @@ class ComboBoxWidget:
         self.__combo_box_widget.item_getter = value
 
     @property
+    def current_item(self):
+        return self.__combo_box_widget.current_item
+
+    @current_item.setter
+    def current_item(self, value):
+        self.__combo_box_widget.current_item = value
+
+    @property
+    def current_index(self):
+        return self.__combo_box_widget.current_index
+
+    @current_index.setter
+    def current_index(self, value):
+        self.__combo_box_widget.current_index = value
+
+    @property
     def on_current_text_changed(self):
         return self.__combo_box_widget.on_current_text_changed
 
