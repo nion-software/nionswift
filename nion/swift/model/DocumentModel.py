@@ -59,8 +59,11 @@ class FilePersistentStorage:
     def __read_properties(self):
         properties = dict()
         if self.__filepath and os.path.exists(self.__filepath):
-            with open(self.__filepath, "r") as fp:
-                properties = json.load(fp)
+            try:
+                with open(self.__filepath, "r") as fp:
+                    properties = json.load(fp)
+            except Exception:
+                os.replace(self.__filepath, self.__filepath + ".bak")
         # migrations go here
         return properties
 
@@ -89,8 +92,11 @@ class FilePersistentStorage:
 
     def update_properties(self):
         if self.__filepath:
-            with open(self.__filepath, "w") as fp:
+            # atomically overwrite
+            temp_filepath = self.__filepath + ".temp"
+            with open(temp_filepath, "w") as fp:
                 json.dump(self.__properties, fp)
+            os.replace(temp_filepath, self.__filepath)
 
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
