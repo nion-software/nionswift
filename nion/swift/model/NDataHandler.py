@@ -236,6 +236,7 @@ def parse_zip(fp):
     """
     local_files = {}
     dir_files = {}
+    eocd = None
     fp.seek(0)
     while True:
         pos = fp.tell()
@@ -268,6 +269,8 @@ def parse_zip(fp):
             pos2 = struct.unpack('I', fp.read(4))[0]
             eocd = (pos, pos2)
             break
+        else:
+            raise IOError()
     return local_files, dir_files, eocd
 
 

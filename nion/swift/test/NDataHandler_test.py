@@ -141,6 +141,23 @@ class TestNDataHandlerClass(unittest.TestCase):
             #logging.debug("rmtree %s", data_dir)
             shutil.rmtree(data_dir)
 
+    def test_ndata_handles_corrupt_data(self):
+        logging.getLogger().setLevel(logging.DEBUG)
+        now = datetime.datetime.now()
+        current_working_directory = os.getcwd()
+        data_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(data_dir)
+        try:
+            zero_path = os.path.join(data_dir, "zeros.ndata")
+            with open(zero_path, 'wb') as f:
+                f.write(bytearray(1024))
+            with self.assertRaises(IOError):
+                with open(zero_path, "rb") as fp:
+                    NDataHandler.parse_zip(fp)
+        finally:
+            #logging.debug("rmtree %s", data_dir)
+            shutil.rmtree(data_dir)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
