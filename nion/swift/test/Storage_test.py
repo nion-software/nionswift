@@ -2778,6 +2778,29 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].created.date(), datetime.datetime.now().date())
             self.assertEqual(document_model.data_items[0].maybe_data_source.created.date(), datetime.datetime.now().date())
 
+    def test_loading_library_with_two_copies_of_same_uuid_ignores_second_copy(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        try:
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                document_model.append_data_item(data_item)
+                file_path = data_item._test_get_file_path()
+            file_path_base, file_path_ext = os.path.splitext(file_path)
+            shutil.copyfile(file_path, file_path_base + "_" + file_path_ext)
+            # read it back
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, log_migrations=False)
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 1)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()

@@ -9,6 +9,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
@@ -203,6 +204,19 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(document_model.data_items.index(new_data_items[0]), 3)
         self.assertEqual(data_group.data_items.index(new_data_items[0]), 2)
         document_controller.close()
+
+    def test_safe_insert_with_existing_uuid_ignores_insert(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_group = DataGroup.DataGroup()
+            document_model.append_data_group(data_group)
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 8))))
+            data_item_clone = data_item.clone()
+            self.assertEqual(data_item.uuid, data_item_clone.uuid)  # must be True for this test to work
+            index_ref = [0]
+            document_model.safe_insert_data_item(None, data_item, index_ref, logging=False)
+            document_model.safe_insert_data_item(None, data_item, index_ref, logging=False)
+            self.assertEqual(len(document_model.data_items), 1)
 
     def test_remove_graphic_removes_it_from_data_item(self):
         document_model = DocumentModel.DocumentModel()

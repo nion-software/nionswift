@@ -1241,67 +1241,30 @@ class DocumentController(Window.Window):
                 task.update_progress(_("Starting import."), (0, len(file_paths)))
                 task_data = {"headers": ["Number", "File"]}
 
-                class IntRef(object):
-                    def __init__(self, value):
-                        self.value = value
-
-                    def grab(self):
-                        value = self.value
-                        self.value += 1
-                        return value
-
-                index_ref = IntRef(index)
+                index_ref = [index]
 
                 for file_index, file_path in enumerate(file_paths):
                     data = task_data.setdefault("data", list())
                     root_path, file_name = os.path.split(file_path)
                     task_data_entry = [str(file_index + 1), file_name]
                     data.append(task_data_entry)
-                    task.update_progress(_("Importing item {}.").format(file_index + 1),
-                                         (file_index + 1, len(file_paths)), task_data)
+                    task.update_progress(_("Importing item {}.").format(file_index + 1), (file_index + 1, len(file_paths)), task_data)
                     try:
                         data_items = ImportExportManager.ImportExportManager().read_data_items(self.ui, file_path)
-
                         if data_items is not None:
-
-                            # when data is read from the import manager, it has not yet been added to the document.
-                            # this means that data is still in memory and has not been offloaded.
-                            # when it gets added to the document, a write to the database is queued to a background
-                            # thread. the background task will write the object in the background.
-                            # but the data item itself will unload if the data ref count goes to zero, for instance if
-                            # a thumbnail squeezes in before the write occurs.
-                            # to prevent this, the data ref count is incremented here and released after the data
-                            # is grabbed by the storage machinery.
-                            # the data item has an event set up to signal when the data has been grabbed. this method
-                            # waits on that event to ensure the data gets written out.
-                            # TODO: Recover task if something goes wrong while saving data.
-
                             # grab a data ref and initialize the data save events
                             data_item_save_event = dict()
                             for data_item in data_items:
-                                data_item.increment_data_ref_counts()
                                 data_item_save_event[data_item] = threading.Event()
 
-                            def insert_data_item(_document_model, _data_group, _data_items, index_ref):
-                                if _data_group and isinstance(_data_group, DataGroup.DataGroup):
-                                    for data_item in _data_items:
-                                        _document_model.append_data_item(data_item)
-                                        if index_ref.value >= 0:
-                                            _data_group.insert_data_item(index_ref.grab(), data_item)
-                                        else:
-                                            _data_group.append_data_item(data_item)
-                                        data_item_save_event[data_item].set()
-                                else:  # insert into document model only
-                                    for data_item in _data_items:
-                                        if index_ref.value >= 0:
-                                            _document_model.insert_data_item(index_ref.grab(), data_item)
-                                        else:
-                                            _document_model.append_data_item(data_item)
-                                        data_item_save_event[data_item].set()
+                            def safe_insert_data_items(_data_group, _data_items, index_ref):
+                                for data_item in _data_items:
+                                    document_model.safe_insert_data_item(_data_group, data_item, index_ref)
+                                    data_item_save_event[data_item].set()
 
                             # notice that a lambda function is used to snapshot the first three arguments, but the
                             # index_ref argument is shared with all calls so that the items get inserted in order.
-                            self.queue_task(functools.partial(insert_data_item, document_model, data_group, data_items, index_ref))
+                            self.queue_task(functools.partial(safe_insert_data_items, data_group, data_items, index_ref))
 
                             # wait for the save event to occur, then release the data ref.
                             for data_item in data_items:
@@ -1311,7 +1274,6 @@ class DocumentController(Window.Window):
                                     self.periodic()  # make sure periodic gets called at least once
                                     while not data_item_save_event[data_item].wait(0.05):
                                         self.periodic()
-                                data_item.decrement_data_ref_counts()
 
                             received_data_items.extend(data_items)
 

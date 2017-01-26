@@ -1069,6 +1069,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__dependent_data_items = dict()
         self.__source_data_items = dict()
         self.__data_items = list()
+        self.__data_item_uuids = set()
         self.__data_item_request_remove_region = dict()
         self.__computation_changed_or_mutated_listeners = dict()
         self.__data_item_request_remove_data_item_listeners = dict()
@@ -1119,12 +1120,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __finish_read(self, data_items: typing.List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
-            self.__data_items.insert(index, data_item)
-            data_item.set_storage_cache(self.storage_cache)
-            self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
-            self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
-            self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
-            data_item.set_data_item_manager(self)
+            if data_item.uuid not in self.__data_item_uuids:  # an error, but don't crash
+                self.__data_items.insert(index, data_item)
+                self.__data_item_uuids.add(data_item.uuid)
+                data_item.set_storage_cache(self.storage_cache)
+                self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
+                self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
+                self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
+                data_item.set_data_item_manager(self)
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
         # mark itself clean after reading all of them in.
         for data_item in data_items:
@@ -1253,8 +1256,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert data_item is not None
         assert data_item not in self.__data_items
         assert before_index <= len(self.__data_items) and before_index >= 0
+        assert data_item.uuid not in self.__data_item_uuids
         # insert in internal list
         self.__data_items.insert(before_index, data_item)
+        self.__data_item_uuids.add(data_item.uuid)
         data_item.set_storage_cache(self.storage_cache)
         data_item.persistent_object_context = self.persistent_object_context
         data_item.persistent_object_context._ensure_persistent_storage(data_item)
@@ -1287,6 +1292,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This method is NOT threadsafe.
         """
         # remove data item from any computations
+        assert data_item.uuid in self.__data_item_uuids
         with self.__computation_queue_lock:
             for computation_queue_item in self.__computation_pending_queue + self.__computation_active_items:
                 if computation_queue_item.buffered_data_source in data_item.data_sources:
@@ -1313,6 +1319,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         index = self.__data_items.index(data_item)
         # do actual removal
         del self.__data_items[index]
+        self.__data_item_uuids.remove(data_item.uuid)
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
@@ -1578,6 +1585,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     # this message comes from a data item when it wants to be removed from the document. ugh.
     def __request_remove_data_item(self, data_item):
         DataGroup.get_data_item_container(self, data_item).remove_data_item(data_item)
+
+    def safe_insert_data_item(self, data_group, data_item, index_ref, logging=True):
+        if data_group and isinstance(data_group, DataGroup.DataGroup):
+            if not data_item.uuid in self.__data_item_uuids:
+                self.append_data_item(data_item)
+            if index_ref[0] >= 0:
+                data_group.insert_data_item(index_ref[0], data_item)
+                index_ref[0] += 1
+            else:
+                data_group.append_data_item(data_item)
+        elif not data_item.uuid in self.__data_item_uuids:
+            if index_ref[0] >= 0:
+                self.insert_data_item(index_ref[0], data_item)
+                index_ref[0] += 1
+            else:
+                self.append_data_item(data_item)
 
     # TODO: what about thread safety for these classes?
 
