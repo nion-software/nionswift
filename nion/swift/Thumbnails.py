@@ -157,10 +157,7 @@ class ThumbnailDataItemProcessor:
         This method is thread safe and always returns quickly, using the cached data.
         """
         self.__initialize_cache()
-        calculated_data = self.__cached_value
-        if calculated_data is not None:
-            return calculated_data
-        return self.get_default_data()
+        return self.__cached_value
 
     def get_calculated_data(self, ui):
         drawing_context = DisplayPanel.preview(ui, self.__display, 512, 512)
@@ -190,7 +187,9 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
                 thumbnail_processor.mark_data_dirty()
                 thumbnail_processor.recompute_if_necessary(ui)
 
-        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(lambda x: thumbnail_changed(), send=False)
+        no_cached_data = self.__thumbnail_processor.get_cached_data() is None
+
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(lambda x: thumbnail_changed(), send=no_cached_data)
         self.__display_changed_event_listener = display.display_changed_event.listen(thumbnail_changed)
 
         def thumbnail_updated():
