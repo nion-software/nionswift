@@ -539,7 +539,7 @@ class DocumentController(Window.Window):
     def data_browser_controller(self):
         return self.__data_browser_controller
 
-    def update_data_item_binding(self, binding, data_group, filter_id):
+    def __update_data_item_binding(self, binding: DataItemsBinding.AbstractDataItemsBinding, data_group, filter_id):
 
         """
             Update the data item binding with a new container, filter, and sorting.
@@ -576,12 +576,12 @@ class DocumentController(Window.Window):
 
     def create_data_item_binding(self, data_group, filter_id):
         binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.update_data_item_binding(binding, data_group, filter_id)
+        self.__update_data_item_binding(binding, data_group, filter_id)
         return binding
 
     def set_data_group_or_filter(self, data_group, filter_id):
         if self.__data_items_binding is not None:
-            self.update_data_item_binding(self.__data_items_binding, data_group, filter_id)
+            self.__update_data_item_binding(self.__data_items_binding, data_group, filter_id)
 
     @property
     def display_filter(self) -> DataItemsBinding.Filter:

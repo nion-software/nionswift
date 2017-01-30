@@ -14,6 +14,7 @@ import typing
 # None
 
 # local libraries
+from nion.swift.model import DataItem
 from nion.utils import Binding
 from nion.ui import Selection
 
@@ -189,6 +190,8 @@ class PredicateFilter(Filter):
         return self.__predicate(d)
 
 
+SortKeyCallable = typing.Callable[[DataItem.DataItem], typing.Any]
+
 
 class AbstractDataItemsBinding(Binding.Binding):
 
@@ -254,26 +257,29 @@ class AbstractDataItemsBinding(Binding.Binding):
         return ChangeTracker(self)
 
     # thread safe.
-    def __get_sort_key(self):
+    @property
+    def sort_key(self) -> SortKeyCallable:
         """ Return the sort key function (for data item). """
         return self.__sort_key
-    def __set_sort_key(self, sort_key):
+
+    @sort_key.setter
+    def sort_key(self, value: SortKeyCallable) -> None:
         """ Set the sort key function. """
         with self._update_mutex:
-            self.__sort_key = sort_key
+            self.__sort_key = value
         self._update_data_items()
-    sort_key = property(__get_sort_key, __set_sort_key)
 
-    # thread safe.
-    def __get_sort_reverse(self):
+    @property
+    def sort_reverse(self) -> bool:
         """ Return the sort reverse value. """
         return self.__sort_reverse
-    def __set_sort_reverse(self, sort_reverse):
+
+    @sort_reverse.setter
+    def sort_reverse(self, value: bool) -> None:
         """ Set the sort reverse value. """
         with self._update_mutex:
-            self.__sort_reverse = sort_reverse
+            self.__sort_reverse = value
         self._update_data_items()
-    sort_reverse = property(__get_sort_reverse, __set_sort_reverse)
 
     # thread safe.
     @property
@@ -287,13 +293,11 @@ class AbstractDataItemsBinding(Binding.Binding):
         self.__filter = value
         self._update_data_items()
 
-    # thread safe
-    # data items are the currently filtered and sorted list.
-    def __get_data_items(self):
+    @property
+    def data_items(self) -> typing.Sequence[DataItem.DataItem]:
         """ Return the data items. """
         with self._update_mutex:
             return copy.copy(self.__data_items)
-    data_items = property(__get_data_items)
 
     # thread safe
     def _get_master_data_items(self):
