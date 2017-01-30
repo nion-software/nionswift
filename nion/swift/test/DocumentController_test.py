@@ -571,12 +571,11 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            display_binding = document_controller.create_selected_data_item_binding()
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            self.assertEqual(display_binding.data_item, data_item)
+            self.assertEqual(document_controller.selected_data_item, data_item)
 
 
 if __name__ == '__main__':

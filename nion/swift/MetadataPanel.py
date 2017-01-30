@@ -18,7 +18,7 @@ from nion.utils import Geometry
 _ = gettext.gettext
 
 
-class MetadataModel(object):
+class MetadataModel:
     """Represents metadata. Tracks a display specifier for changes to it and its metadata content.
 
     Provides read/write access to metadata via the property.
@@ -26,7 +26,7 @@ class MetadataModel(object):
     Provides a metadata_changed event, always fired on UI thread.
     """
 
-    def __init__(self, document_controller, display_specifier_binding):
+    def __init__(self, document_controller):
         self.__weak_document_controller = weakref.ref(document_controller)
         self.__display_specifier = DataItem.DisplaySpecifier()
         # thread safe.
@@ -35,7 +35,7 @@ class MetadataModel(object):
             def update_display_specifier():
                 self.__set_display_specifier(display_specifier)
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__data_item_changed_event_listener = display_specifier_binding.data_item_changed_event.listen(data_item_changed)
+        self.__data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__metadata_changed_event_listener = None
         self.__metadata = None
@@ -160,8 +160,7 @@ class MetadataPanel(Panel.Panel):
 
         ui = self.ui
 
-        self.__display_binding = document_controller.create_selected_data_item_binding()
-        self.__metadata_model = MetadataModel(document_controller, self.__display_binding)
+        self.__metadata_model = MetadataModel(document_controller)
 
         delegate = MetadataEditorTreeDelegate(dict())
 
@@ -206,8 +205,6 @@ class MetadataPanel(Panel.Panel):
         self.__metadata_changed_event_listener = None
         self.__metadata_model.close()
         self.__metadata_model = None
-        self.__display_binding.close()
-        self.__display_binding = None
         super(MetadataPanel, self).close()
 
     @property

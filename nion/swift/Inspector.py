@@ -47,8 +47,7 @@ class InspectorPanel(Panel.Panel):
 
         # listen for selected display binding changes
         self.__data_item_will_be_removed_event_listener = None
-        self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
-        self.__data_item_changed_event_listener = self.__selected_data_item_binding.data_item_changed_event.listen(self.__data_item_changed)
+        self.__data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
         # top level widget in this inspector is a scroll area.
@@ -73,8 +72,6 @@ class InspectorPanel(Panel.Panel):
         # close the property controller. note: this will close and create
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
-        self.__selected_data_item_binding.close()
-        self.__selected_data_item_binding = None
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         # close the data item inspector
         if self.__display_inspector:

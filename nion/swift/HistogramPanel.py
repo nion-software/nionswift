@@ -480,9 +480,6 @@ class HistogramPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties, debounce=True, sample=True):
         super().__init__(document_controller, panel_id, _("Histogram"))
 
-        # create a binding that updates whenever the selected data item changes
-        self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
-
         def calculate_region_data(display_data_and_metadata, region):
             if region is not None and display_data_and_metadata is not None:
                 if display_data_and_metadata.is_data_1d and isinstance(region, Graphics.IntervalGraphic):
@@ -646,7 +643,7 @@ class TargetDataItemStream(Stream.AbstractStream):
     def value(self):
         return self.__value
 
-    def __selected_data_item_changed(self, data_item):
+    def __selected_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
         if data_item != self.__value:
             self.value_stream.fire(data_item)
             self.__value = data_item
@@ -676,7 +673,7 @@ class TargetBufferedDataSourceStream(Stream.AbstractStream):
     def value(self):
         return self.__value
 
-    def __selected_data_item_changed(self, data_item):
+    def __selected_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         buffered_data_source = display_specifier.buffered_data_source
         if buffered_data_source != self.__value:
@@ -708,7 +705,7 @@ class TargetDisplayStream(Stream.AbstractStream):
     def value(self):
         return self.__value
 
-    def __selected_data_item_changed(self, data_item):
+    def __selected_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         if display != self.__value:

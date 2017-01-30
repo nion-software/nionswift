@@ -56,7 +56,6 @@ class DocumentController(Window.Window):
         self.uuid = uuid.uuid4()
 
         self.task_created_event = Event.Event()
-        self.selected_data_item_changed_event = Event.Event()
         self.cursor_changed_event = Event.Event()
         self.did_close_event = Event.Event()
         self.create_new_document_controller_event = Event.Event()
@@ -109,6 +108,10 @@ class DocumentController(Window.Window):
         self.filter_controller = FilterPanel.FilterController(self)
 
         self.__data_browser_controller = DataPanel.DataBrowserController(self)
+
+        self.selected_data_item_changed_event = Event.Event()
+        self.__selected_data_item = None
+        self.notify_selected_data_item_changed(None)
 
         self.__consoles = list()
 
@@ -619,8 +622,14 @@ class DocumentController(Window.Window):
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
-    def notify_selected_data_item_changed(self, data_item):
-        self.selected_data_item_changed_event.fire(data_item)
+    def notify_selected_data_item_changed(self, data_item: DataItem.DataItem) -> None:
+        if self.__selected_data_item != data_item:
+            self.__selected_data_item = data_item
+            self.selected_data_item_changed_event.fire(data_item)
+
+    @property
+    def selected_data_item(self) -> DataItem.DataItem:
+        return self.__selected_data_item
 
     def select_data_item_in_data_panel(self, data_item):
         """
@@ -1287,10 +1296,6 @@ class DocumentController(Window.Window):
         else:
             return receive_files_on_thread(file_paths, data_group, index, completion_fn)
 
-    # this helps avoid circular imports
-    def create_selected_data_item_binding(self):
-        return SelectedDataItemBinding(self)
-
     def create_context_menu_for_data_item(self, data_item: DataItem.DataItem, container=None):
         menu = self.create_context_menu()
         if data_item:
@@ -1351,53 +1356,3 @@ class DocumentController(Window.Window):
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), dependent_data_item.title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
-
-class SelectedDataItemBinding:
-    """A binding to the selected data item in the document controller.
-
-    The selected data item may be in an image panel, in the data panel, or in another user interface element. The
-    document controller will send selected_data item_changed when the data item changes. This object will listen to the
-    data item to know when its data changes or when it gets deleted.
-
-    It will fire data_item_changed_event(data_item) when a new data item is selected or when the data item or its
-    display mutates internally.
-    """
-    def __init__(self, document_controller):
-        self.document_controller = document_controller
-        self.__data_item = None
-        self.__display_changed_event_listener = None
-        self.data_item_changed_event = Event.Event()
-        self.__selected_data_item_changed_event_listener = self.document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
-        # initialize with the existing value
-        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
-
-    def close(self):
-        self.__selected_data_item_changed_event_listener.close()
-        self.__selected_data_item_changed_event_listener = None
-        # disconnect data item
-        if self.__display_changed_event_listener:
-            self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = None
-        # release references
-        self.__data_item = None
-
-    @property
-    def data_item(self):
-        return self.__data_item
-
-    def __selected_data_item_changed(self, data_item):
-        if self.__data_item != data_item:
-            # disconnect listener from display
-            if self.__display_changed_event_listener:
-                self.__display_changed_event_listener.close()
-                self.__display_changed_event_listener = None
-            # save the new state
-            self.__data_item = data_item
-            # connect listener to display
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-            def display_changed():
-                self.data_item_changed_event.fire(self.__data_item)
-            if display_specifier.display:
-                self.__display_changed_event_listener = display_specifier.display.display_changed_event.listen(display_changed)
-            # notify our listeners
-            display_changed()

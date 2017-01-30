@@ -671,7 +671,7 @@ class DataBrowserController:
 
     def selected_display_items_changed(self, display_items):
         # when the selection is changed in the ui, call this method to synchronize.
-        # it will trigger the SelectedDataItemBinding to update.
+        # it will trigger the selected data item to update.
 
         if len(display_items) == 0:
             data_item = None

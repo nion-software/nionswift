@@ -23,7 +23,7 @@ from nion.utils import Geometry
 _ = gettext.gettext
 
 
-class ComputationModel(object):
+class ComputationModel:
     """Represents a computation. Tracks a display specifier for changes to it and its computation content.
 
     Provides read/write access to the computation_text via the property.
@@ -31,7 +31,7 @@ class ComputationModel(object):
     Provides a computation_text_changed event, always fired on UI thread.
     """
 
-    def __init__(self, document_controller, display_specifier_binding):
+    def __init__(self, document_controller):
         self.__weak_document_controller = weakref.ref(document_controller)
         self.__display_specifier = DataItem.DisplaySpecifier()
         # thread safe.
@@ -39,7 +39,7 @@ class ComputationModel(object):
             def update_display_specifier():
                 self.__set_display_specifier(DataItem.DisplaySpecifier.from_data_item(data_item))
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__data_item_changed_event_listener = display_specifier_binding.data_item_changed_event.listen(data_item_changed)
+        self.__data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__computation_changed_or_mutated_event_listener = None
         self.__computation_variable_inserted_event_listener = None
@@ -420,8 +420,7 @@ class ComputationPanel(Panel.Panel):
 
         ui = self.ui
 
-        self.__selected_data_item_binding = document_controller.create_selected_data_item_binding()
-        self.__computation_model = ComputationModel(document_controller, self.__selected_data_item_binding)
+        self.__computation_model = ComputationModel(document_controller)
 
         self.__sections = list()
 
@@ -567,8 +566,6 @@ class ComputationPanel(Panel.Panel):
         self.__variable_removed_event_listener = None
         self.__computation_model.close()
         self.__computation_model = None
-        self.__selected_data_item_binding.close()
-        self.__selected_data_item_binding = None
         super(ComputationPanel, self).close()
 
     def size_changed(self, width, height):
