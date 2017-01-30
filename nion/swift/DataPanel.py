@@ -766,8 +766,9 @@ class DataGroupModelController:
     controller and responds by updating the item model controller associated with the data group tree view widget. it
     also handles drag and drop and keeps the current selection synchronized with the image panel. """
 
-    def __init__(self, document_controller):
-        self.ui = document_controller.ui
+    def __init__(self, ui, document_model):
+        self.ui = ui
+        self.__document_model = document_model
         self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
         self.item_model_controller.on_item_set_data = self.item_set_data
         self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
@@ -775,11 +776,9 @@ class DataGroupModelController:
         self.item_model_controller.on_remove_rows = self.remove_rows
         self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
         self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid", "text/data_group_uuid"]
-        self.__document_controller_weakref = weakref.ref(document_controller)
-        document_model = self.document_controller.document_model
         self.__document_model_item_inserted_listener = document_model.item_inserted_event.listen(functools.partial(self.item_inserted, document_model))
         self.__document_model_item_removed_listener = document_model.item_removed_event.listen(functools.partial(self.item_removed, document_model))
-        self.__mapping = { document_controller.document_model: self.item_model_controller.root }
+        self.__mapping = { self.__document_model: self.item_model_controller.root }
         self.on_receive_files = None
         # add items that already exist
         self.__data_group_property_changed_listeners = dict()
@@ -787,9 +786,9 @@ class DataGroupModelController:
         self.__data_group_item_removed_listeners = dict()
         self.__data_group_data_item_inserted_listeners = dict()
         self.__data_group_data_item_removed_listeners = dict()
-        data_groups = document_controller.document_model.data_groups
+        data_groups = self.__document_model.data_groups
         for index, data_group in enumerate(data_groups):
-            self.item_inserted(document_controller.document_model, "data_groups", data_group, index)
+            self.item_inserted(self.__document_model, "data_groups", data_group, index)
 
     def close(self):
         # cheap way to unlisten to everything
@@ -820,10 +819,6 @@ class DataGroupModelController:
             logging.debug(indent + str(index) + ": (" + str(child.id) + ") " + value)
             self.log(child.id, indent + "  ")
 
-    @property
-    def document_controller(self):
-        return self.__document_controller_weakref()
-
     # these two methods support the 'count' display for data groups. they count up
     # the data items that are children of the container (which can be a data group
     # or a document controller) and also data items in all of their child groups.
@@ -833,6 +828,7 @@ class DataGroupModelController:
         if hasattr(container, "data_items"):
             for child_data_item in container.data_items:
                 self.__append_data_item_flat(child_data_item, data_items)
+
     def __get_data_item_count_flat(self, container):
         data_items = []
         self.__append_data_item_flat(container, data_items)
@@ -938,7 +934,7 @@ class DataGroupModelController:
 
     def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
         data_group = self.get_data_group_of_parent(parent_row, parent_id)
-        container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
+        container = self.__document_model if parent_row < 0 and parent_id == 0 else data_group
         if data_group and mime_data.has_file_paths:
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
@@ -951,14 +947,14 @@ class DataGroupModelController:
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            data_item = self.document_controller.document_model.get_data_item_by_key(data_item_uuid)
+            data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 data_group.append_data_item(data_item)
                 return action
             return self.item_model_controller.NONE
         if mime_data.has_format("text/data_group_uuid"):
             data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
-            data_group = self.document_controller.document_model.get_data_group_by_uuid(data_group_uuid)
+            data_group = self.__document_model.get_data_group_by_uuid(data_group_uuid)
             if data_group:
                 data_group_copy = copy.deepcopy(data_group)
                 if row >= 0:
@@ -978,7 +974,7 @@ class DataGroupModelController:
 
     def remove_rows(self, row, count, parent_row, parent_id):
         data_group = self.get_data_group_of_parent(parent_row, parent_id)
-        container = self.document_controller.document_model if parent_row < 0 and parent_id == 0 else data_group
+        container = self.__document_model if parent_row < 0 and parent_id == 0 else data_group
         for i in range(count):
             del container.data_groups[row]
         return True
@@ -1040,7 +1036,7 @@ class DataPanel(Panel.Panel):
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
         self.library_model_controller.on_receive_files = self.library_model_receive_files
 
-        self.data_group_model_controller = DataGroupModelController(document_controller)
+        self.data_group_model_controller = DataGroupModelController(ui, document_controller.document_model)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
         self.__blocked = False
