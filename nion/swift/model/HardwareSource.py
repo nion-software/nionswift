@@ -947,9 +947,9 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
     def process(self, data_and_metadata: Core.DataAndMetadata) -> Core.DataAndMetadata:
         return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
 
-    def connect(self, src_data_item):
+    def connect(self, data_item):
         """Connect to the source data item, creating a crop graphic if necessary."""
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(src_data_item)
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         crop_graphic = None
         for graphic in display_specifier.display.graphics:
             if graphic.graphic_id == self.__processor_id:

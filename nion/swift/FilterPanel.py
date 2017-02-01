@@ -63,12 +63,11 @@ class FilterController:
                 This method breaks the date-related metadata out into a list of indexes which are then displayed
                 in tree format for the date browser. in this case, the indexes are added.
             """
-            def perform_insertion():
-                with self.__data_item_tree_mutex:
-                    created_local = data_item.created_local
-                    indexes = created_local.year, created_local.month, created_local.day
-                    self.__data_item_tree.insert_value(indexes, data_item)
-            self.document_controller.queue_task(perform_insertion)
+            assert threading.current_thread() == threading.main_thread()
+            with self.__data_item_tree_mutex:
+                created_local = data_item.created_local
+                indexes = created_local.year, created_local.month, created_local.day
+                self.__data_item_tree.insert_value(indexes, data_item)
 
         # thread safe.
         def data_item_removed(data_item, index):
@@ -78,12 +77,11 @@ class FilterController:
                 This method breaks the date-related metadata out into a list of indexes which are then displayed
                 in tree format for the date browser. in this case, the indexes are removed.
             """
-            def perform_removal():
-                with self.__data_item_tree_mutex:
-                    created = data_item.created_local
-                    indexes = created.year, created.month, created.day
-                    self.__data_item_tree.remove_value(indexes, data_item)
-            self.document_controller.queue_task(perform_removal)
+            assert threading.current_thread() == threading.main_thread()
+            with self.__data_item_tree_mutex:
+                created = data_item.created_local
+                indexes = created.year, created.month, created.day
+                self.__data_item_tree.remove_value(indexes, data_item)
 
         # connect the data_items_binding from the document controller to self.
         # when data items are inserted or removed from the document controller, the inserter and remover methods

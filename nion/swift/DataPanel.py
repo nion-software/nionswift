@@ -639,15 +639,7 @@ class DataBrowserController:
                     # store the selection so we know when it changes
                     self.__data_group = data_group
                     self.__filter_id = filter_id
-                    # update the data group that the data item model is tracking. the changes will be queued to the ui thread even
-                    # though this is already on the ui thread.
                     self.document_controller.set_data_group_or_filter(data_group, filter_id)  # MARK. consolidate to one object.
-                    # when the data group or filter is changed (prior to this handler being called), it will generate a new
-                    # list of items to be displayed in the data browser and that new list will be queued in case it is called on
-                    # a background thread (it isn't in this case). call periodic to actually sync the changes to the data
-                    # browser ui.
-                    self.document_controller.periodic()
-                    # fire the filter changed event
                     self.filter_changed_event.fire(data_group, filter_id)
                     trigger = True
 
@@ -1118,20 +1110,22 @@ class DataPanel(Panel.Panel):
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
         def data_item_inserted(data_item, before_index):
+            assert threading.current_thread() == threading.main_thread()
             display_item = DisplayItem(data_item, ui)
             self.__display_items.insert(before_index, display_item)
             self.data_list_controller.display_item_inserted(display_item, before_index)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 
-        def data_item_removed(index):
+        def data_item_removed(data_item, index):
+            assert threading.current_thread() == threading.main_thread()
             self.data_list_controller.display_item_removed(index)
             self.data_grid_controller.display_item_removed(index)
             self.__display_items[index].close()
             del self.__display_items[index]
 
         self.__binding = document_controller.filtered_data_items_binding
-        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
+        self.__binding.inserters[id(self)] = data_item_inserted
+        self.__binding.removers[id(self)] = data_item_removed
 
         self.__display_items = list()
 

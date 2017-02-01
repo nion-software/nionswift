@@ -513,6 +513,7 @@ class DocumentController(Window.Window):
                     traceback.print_stack()
                 periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
         super().periodic()
+        self.document_model.perform_data_item_updates()
         # t1 = time.time()
         # workspace
         if self.workspace_controller:

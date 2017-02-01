@@ -999,13 +999,15 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_items = list()
 
         def data_item_inserted(data_item, before_index):
+            assert threading.current_thread() == threading.main_thread()
             if self.__display_items is not None:  # closed?
                 display_item = DataPanel.DisplayItem(data_item, ui)
                 self.__display_items.insert(before_index, display_item)
                 self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
                 self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
 
-        def data_item_removed(index):
+        def data_item_removed(data_item, index):
+            assert threading.current_thread() == threading.main_thread()
             if self.__display_items is not None:  # closed?
                 self.__horizontal_data_grid_controller.display_item_removed(index)
                 self.__grid_data_grid_controller.display_item_removed(index)
@@ -1013,8 +1015,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 del self.__display_items[index]
 
         self.__binding = document_controller.filtered_data_items_binding
-        self.__binding.inserters[id(self)] = lambda data_item, before_index: self.document_controller.queue_task(functools.partial(data_item_inserted, data_item, before_index))
-        self.__binding.removers[id(self)] = lambda data_item, index: self.document_controller.queue_task(functools.partial(data_item_removed, index))
+        self.__binding.inserters[id(self)] = data_item_inserted
+        self.__binding.removers[id(self)] = data_item_removed
 
         for index, data_item in enumerate(self.__binding.data_items):
             data_item_inserted(data_item, index)

@@ -1857,24 +1857,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.data_item_changed_event.fire()
                     self.__document_model._update_data_item_reference(self.__key, self.__data_item)
 
-        def update_data(self, data_and_metadata, sub_area):
-            # thread safe
-            self.__document_model.queue_data_item_update(self.data_item, data_and_metadata, sub_area)
-
-    def queue_data_item_update(self, data_item, data_and_metadata, sub_area):
+    def __queue_data_item_update(self, data_item, data_and_metadata, sub_area):
         # put the data update to data_item into the pending_data_item_updates list.
-        # the pending_data_item_updates will be serviced on the main thread.
+        # the pending_data_item_updates will be serviced after all pending queueing is finished.
         # if there is no sub_area and the data_item is already in the queue, just
-        # replace it with the new data. then request to perform the data item updates
-        # (via call_soon) but only if the queue was empty to start with, which avoids
-        # extra update calls.
+        # replace it with the new data.
         if data_item:
             with self.__pending_data_item_updates_lock:
                 # optimize case where sub_area is full area.
                 if sub_area is not None and sub_area[0] == (0, 0) and sub_area[1] == data_and_metadata.data_shape:
                     sub_area = None
                 pending_data_item_updates = list()
-                has_pending = len(self.__pending_data_item_updates) > 0
                 for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
                     if data_item_ == data_item and sub_area_ is None and sub_area is None:
                         pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
@@ -1884,8 +1877,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if data_item:  # if not added yet, see above
                     pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
                 self.__pending_data_item_updates = pending_data_item_updates
-                if not has_pending:
-                    self.__call_soon(self.perform_data_item_updates)
 
     def perform_data_item_updates(self):
         assert threading.current_thread() == threading.main_thread()
@@ -1896,14 +1887,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item.update_data_and_metadata(data_and_metadata, sub_area)
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
-        def update_data_reference_inner():
-            data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
-            if data_item:
-                data_item_references_dict[key] = str(data_item.uuid)
-            else:
-                del data_item_references_dict[key]
-            self._set_persistent_property_value("data_item_references", data_item_references_dict)
-        self.__call_soon(update_data_reference_inner)
+        assert threading.current_thread() == threading.main_thread()
+        data_item_references_dict = copy.deepcopy(self._get_persistent_property_value("data_item_references"))
+        if data_item:
+            data_item_references_dict[key] = str(data_item.uuid)
+        else:
+            del data_item_references_dict[key]
+        self._set_persistent_property_value("data_item_references", data_item_references_dict)
 
     def make_data_item_reference_key(self, *components) -> str:
         return "_".join([str(component) for component in list(components) if component is not None])
@@ -1925,6 +1915,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         Construct a data item reference and assign a data item to it. Update data item session id and session metadata.
         Also connect the data channel processor.
         """
+        assert threading.current_thread() == threading.main_thread()
         session_id = self.session_id
         data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
         with data_item_reference.mutex:
@@ -1940,42 +1931,50 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 data_item.increment_data_ref_counts()
                 self.begin_data_item_transaction(data_item)
                 self.begin_data_item_live(data_item)
-                self.__call_soon(functools.partial(self.append_data_item, data_item))
+                self.append_data_item(data_item)
             # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
-            def update_session_info():
-                if data_item.session_id != session_id:
-                    data_item.session_id = session_id
-                session_metadata = self.session_metadata
-                if data_item.session_metadata != session_metadata:
-                    data_item.session_metadata = session_metadata
-            self.__call_soon(update_session_info)
+            if data_item.session_id != session_id:
+                data_item.session_id = session_id
+            session_metadata = self.session_metadata
+            if data_item.session_metadata != session_metadata:
+                data_item.session_metadata = session_metadata
             if data_channel.processor:
                 src_data_channel = hardware_source.data_channels[data_channel.src_channel_index]
                 src_data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_data_channel.channel_id)).data_item
-                self.__call_soon(functools.partial(data_channel.processor.connect, src_data_item))
+                data_channel.processor.connect(src_data_item)
             return data_item_reference
 
     def __data_channel_start(self, hardware_source, data_channel):
-        data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
-        if data_item:
-            data_item.increment_data_ref_counts()
-            self.begin_data_item_transaction(data_item)
-            self.begin_data_item_live(data_item)
+        def data_channel_start():
+            assert threading.current_thread() == threading.main_thread()
+            data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
+            if data_item:
+                data_item.increment_data_ref_counts()
+                self.begin_data_item_transaction(data_item)
+                self.begin_data_item_live(data_item)
+        self.__call_soon(data_channel_start)
+
 
     def __data_channel_stop(self, hardware_source, data_channel):
-        data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
-        # the order of these two statements is important, at least for now (12/2013)
-        # when the transaction ends, the data will get written to disk, so we need to
-        # make sure it's still in memory. if decrement were to come before the end
-        # of the transaction, the data would be unloaded from memory, losing it forever.
-        if data_item:
-            self.end_data_item_transaction(data_item)
-            self.end_data_item_live(data_item)
-            data_item.decrement_data_ref_counts()
+        def data_channel_stop():
+            assert threading.current_thread() == threading.main_thread()
+            data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
+            # the order of these two statements is important, at least for now (12/2013)
+            # when the transaction ends, the data will get written to disk, so we need to
+            # make sure it's still in memory. if decrement were to come before the end
+            # of the transaction, the data would be unloaded from memory, losing it forever.
+            if data_item:
+                self.end_data_item_transaction(data_item)
+                self.end_data_item_live(data_item)
+                data_item.decrement_data_ref_counts()
+        self.__call_soon(data_channel_stop)
 
     def __data_channel_updated(self, hardware_source, data_channel, data_and_metadata):
-        data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel)
-        data_item_reference.update_data(data_and_metadata, data_channel.sub_area)
+        sub_area = data_channel.sub_area  # evaluate immediately instead of within call_soon callback
+        def data_channel_updated():
+            data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel)
+            self.__queue_data_item_update(data_item_reference.data_item, data_and_metadata, sub_area)
+        self.__call_soon(data_channel_updated)
 
     def __data_channel_states_updated(self, hardware_source, data_channels):
         data_item_states = list()
