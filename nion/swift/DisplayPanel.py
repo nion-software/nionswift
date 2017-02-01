@@ -964,7 +964,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
 
         def context_menu_event(display_item, x, y, gx, gy):
-            menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
+            menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
             return self.show_context_menu(menu, gx, gy)
 
         self.__selection = document_controller.filtered_data_items_binding.make_selection()
@@ -979,20 +979,20 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             return False
 
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
-        self.__horizontal_data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
+        self.__horizontal_data_grid_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
         self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__horizontal_data_grid_controller.on_display_item_double_clicked = None  # replace current display?
+        self.__horizontal_data_grid_controller.on_data_item_double_clicked = None  # replace current display?
         self.__horizontal_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.__horizontal_data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
+        self.__horizontal_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
         self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection)
-        self.__grid_data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
+        self.__grid_data_grid_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
         self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__grid_data_grid_controller.on_display_item_double_clicked = None  # replace current display?
+        self.__grid_data_grid_controller.on_data_item_double_clicked = None  # replace current display?
         self.__grid_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.__grid_data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
+        self.__grid_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
         self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
         self.__grid_data_grid_controller.on_key_pressed = key_pressed
 

@@ -4,8 +4,8 @@ import functools
 import gettext
 import logging
 import threading
+import typing
 import uuid
-import weakref
 
 # third party libraries
 # None
@@ -179,8 +179,8 @@ class DataListController:
     The controller provides the following callbacks:
         on_delete_display_items(display_items)
         on_key_pressed(key)
-        on_selection_changed(display_items)
-        on_display_item_double_clicked(display_item)
+        on_selection_changed(data_items)
+        on_data_item_double_clicked(data_item)
         on_focus_changed(focused)
         on_context_menu_event(display_item, x, y, gx, gy)
 
@@ -201,7 +201,7 @@ class DataListController:
         self.__clear_task = clear_task
         self.ui = ui
         self.__selection = selection
-        self.on_delete_display_items = None
+        self.on_delete_data_items = None
         self.on_key_pressed = None
 
         self.__display_items = list()
@@ -251,7 +251,7 @@ class DataListController:
         def selection_changed():
             self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
-                self.on_selection_changed([self.__display_items[index] for index in list(self.__selection.indexes)])
+                self.on_selection_changed([self.__display_items[index].data_item for index in list(self.__selection.indexes)])
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
@@ -277,7 +277,7 @@ class DataListController:
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
-        self.on_delete_display_items = None
+        self.on_delete_data_items = None
         self.on_key_pressed = None
 
     def __update_display_items(self):
@@ -297,8 +297,8 @@ class DataListController:
 
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
-        if callable(self.on_delete_display_items):
-            self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
+        if callable(self.on_delete_data_items):
+            self.on_delete_data_items([self.__display_items[index].data_item for index in self.__selection.indexes])
 
     # this message comes from the canvas item when a key is pressed
     def _key_pressed(self, key):
@@ -365,10 +365,10 @@ class DataGridController:
         display_item_removed(index) - ui thread
 
     The controller provides the following callbacks:
-        on_delete_display_items(display_items)
+        on_delete_data_items(data_items)
         on_key_pressed(key)
-        on_selection_changed(display_items)
-        on_display_item_double_clicked(display_item)
+        on_selection_changed(data_items)
+        on_data_item_double_clicked(data_item)
         on_focus_changed(focused)
         on_context_menu_event(display_item, x, y, gx, gy)
         on_drag_started(mime_data, thumbnail_data)
@@ -391,7 +391,7 @@ class DataGridController:
         self.__clear_task = clear_task
         self.ui = ui
         self.__selection = selection
-        self.on_delete_display_items = None
+        self.on_delete_data_items = None
         self.on_key_pressed = None
 
         self.__display_items = list()
@@ -453,7 +453,7 @@ class DataGridController:
         def selection_changed():
             self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
-                self.on_selection_changed([self.__display_items[index] for index in list(self.__selection.indexes)])
+                self.on_selection_changed([self.__display_items[index].data_item for index in list(self.__selection.indexes)])
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
@@ -482,7 +482,7 @@ class DataGridController:
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
-        self.on_delete_display_items = None
+        self.on_delete_data_items = None
         self.on_key_pressed = None
         self.__closed = True
 
@@ -504,8 +504,8 @@ class DataGridController:
 
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
-        if callable(self.on_delete_display_items):
-            self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
+        if callable(self.on_delete_data_items):
+            self.on_delete_data_items([self.__display_items[index].data_item for index in self.__selection.indexes])
 
     # this message comes from the canvas item when a key is pressed
     def _key_pressed(self, key):
@@ -603,7 +603,7 @@ class DataBrowserController:
         self.__data_group = None
         self.__data_item = None
         self.__filter_id = None
-        self.__selected_display_items = list()
+        self.__selected_data_items = list()
         self.filter_changed_event = Event.Event()
         self.selection_changed_event = Event.Event()
         self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
@@ -663,21 +663,21 @@ class DataBrowserController:
 
     @property
     def selected_data_items(self):
-        return [display_item.data_item for display_item in self.__selected_display_items] if self.__focused else list()
+        return self.__selected_data_items if self.__focused else list()
 
     @property
     def data_item(self):
         return self.__data_item if self.__focused else None
 
-    def selected_display_items_changed(self, display_items):
+    def set_selected_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         # when the selection is changed in the ui, call this method to synchronize.
         # it will trigger the selected data item to update.
 
-        if len(display_items) == 0:
+        if len(data_items) == 0:
             data_item = None
             self.set_data_browser_selection(self.__data_group, None, self.__filter_id)
-        elif len(display_items) == 1:
-            data_item = display_items[0].data_item
+        elif len(data_items) == 1:
+            data_item = data_items[0]
             self.set_data_browser_selection(self.__data_group, data_item, self.__filter_id)
         else:
             data_item = None
@@ -685,29 +685,7 @@ class DataBrowserController:
         if self.__focused:
             self.document_controller.notify_selected_data_item_changed(data_item)
 
-        self.__selected_display_items = copy.copy(display_items)
-
-    def create_display_item_context_menu(self, display_item):
-        if display_item is not None:
-            return self.document_controller.create_context_menu_for_data_item(display_item.data_item)
-        else:
-            return self.document_controller.create_context_menu()
-
-    def display_item_double_clicked(self, display_item):
-        self.document_controller.new_window_with_data_item("data", data_item=display_item.data_item)
-
-    def delete_display_items(self, display_items):
-        for display_item in copy.copy(display_items):
-            data_item = display_item.data_item
-            container = self.document_controller.data_items_binding.container
-            container = DataGroup.get_data_item_container(container, data_item)
-            if container and data_item in container.data_items:
-                container.remove_data_item(data_item)
-                # Note: periodic is here because the one in browser display panel is there.
-                # I could not get a test to fail without this statement; but regular use
-                # seems to fail during delete if this isn't here. Argh. Bad design.
-                # TODO: avoid calling periodic by reworking thread support in data panel
-                self.document_controller.periodic()  # keep the display items in data panel consistent.
+        self.__selected_data_items = copy.copy(data_items)
 
 
 class LibraryModelController:
@@ -1117,24 +1095,24 @@ class DataPanel(Panel.Panel):
         master_widget.add_stretch()
 
         def show_context_menu(display_item, x, y, gx, gy):
-            menu = self.__data_browser_controller.create_display_item_context_menu(display_item)
+            menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
             menu.popup(gx, gy)
             return True
 
         selection = self.document_controller.selection
         self.data_list_controller = DataListController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
-        self.data_list_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
+        self.data_list_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
         self.data_list_controller.on_context_menu_event = show_context_menu
-        self.data_list_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
+        self.data_list_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.data_list_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
+        self.data_list_controller.on_delete_data_items = document_controller.delete_data_items
 
         self.data_grid_controller = DataGridController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
-        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.selected_display_items_changed
+        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
         self.data_grid_controller.on_context_menu_event = show_context_menu
-        self.data_grid_controller.on_display_item_double_clicked = self.__data_browser_controller.display_item_double_clicked
+        self.data_grid_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.data_grid_controller.on_delete_display_items = self.__data_browser_controller.delete_display_items
+        self.data_grid_controller.on_delete_data_items = document_controller.delete_data_items
 
         data_list_widget = DataListWidget(ui, self.data_list_controller)
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)

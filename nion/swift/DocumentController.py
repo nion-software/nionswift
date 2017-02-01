@@ -595,6 +595,75 @@ class DocumentController(Window.Window):
         if self.__filtered_data_items_binding is not None:  # during close
             self.__filtered_data_items_binding.filter = display_filter
 
+    def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
+        data_items_copy = copy.copy(self.document_model.data_items)
+        indexes = [data_items_copy.index(data_item) for data_item in data_items]
+        self.selection.set_multiple(indexes)
+        self.__data_browser_controller.set_selected_data_items(data_items)
+        self.__data_browser_controller.focused = True
+
+    # track the selected data item. this can be called by ui elements when
+    # they get focus. the selected data item will stay the same until another ui
+    # element gets focus or the data item is removed from the document.
+    def notify_selected_data_item_changed(self, data_item: DataItem.DataItem) -> None:
+        if self.__selected_data_item != data_item:
+            self.__selected_data_item = data_item
+            self.selected_data_item_changed_event.fire(data_item)
+
+    @property
+    def selected_data_item(self) -> DataItem.DataItem:
+        return self.__selected_data_item
+
+    def select_data_item_in_data_panel(self, data_item: DataItem.DataItem) -> None:
+        """
+            Select the data item in the data panel. Use the existing group and existing
+            filter if data item appears. Otherwise, remove filter and see if it appears.
+            Otherwise switch to Library group.
+        """
+        self.__data_browser_controller.set_data_browser_selection(data_item=data_item)
+
+    def select_data_group_in_data_panel(self, data_group: DataGroup.DataGroup, data_item: DataItem.DataItem=None) -> None:
+        """Select the data group in the data panel."""
+        self.__data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item)
+
+    def select_filter_in_data_panel(self, filter_id: str) -> None:
+        """Select the filter in the data panel."""
+        self.__data_browser_controller.set_data_browser_selection(filter_id=filter_id)
+
+    @property
+    def selected_display_specifier(self):
+        """Return the selected display specifier (data_item, data_source, display).
+
+        The selected display is the display that has keyboard focus in the data panel or a display panel.
+        """
+        # first check for the [focused] data browser
+        data_item = self.__data_browser_controller.data_item
+        if data_item:
+            return DataItem.DisplaySpecifier.from_data_item(data_item)
+        # if not found, check for focused or selected image panel
+        return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
+
+    def create_data_item_context_menu(self, data_item: DataItem.DataItem) -> None:
+        if data_item is not None:
+            return self.create_context_menu_for_data_item(data_item)
+        else:
+            return self.create_context_menu()
+
+    def data_item_double_clicked(self, data_item: DataItem.DataItem) -> None:
+        self.new_window_with_data_item("data", data_item=data_item)
+
+    def delete_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
+        for data_item in copy.copy(data_items):
+            container = self.__data_items_binding.container
+            container = DataGroup.get_data_item_container(container, data_item)
+            if container and data_item in container.data_items:
+                container.remove_data_item(data_item)
+                # Note: periodic is here because the one in browser display panel is there.
+                # I could not get a test to fail without this statement; but regular use
+                # seems to fail during delete if this isn't here. Argh. Bad design.
+                # TODO: avoid calling periodic by reworking thread support in data panel
+                self.periodic()  # keep the display items in data panel consistent.
+
     def register_display_panel(self, display_panel):
         pass
 
@@ -618,39 +687,6 @@ class DocumentController(Window.Window):
             # means that which selected data item is selected has changed.
             data_item = selected_display_panel.data_item if selected_display_panel else None
             self.notify_selected_data_item_changed(data_item)
-
-    # track the selected data item. this can be called by ui elements when
-    # they get focus. the selected data item will stay the same until another ui
-    # element gets focus or the data item is removed from the document.
-    def notify_selected_data_item_changed(self, data_item: DataItem.DataItem) -> None:
-        if self.__selected_data_item != data_item:
-            self.__selected_data_item = data_item
-            self.selected_data_item_changed_event.fire(data_item)
-
-    @property
-    def selected_data_item(self) -> DataItem.DataItem:
-        return self.__selected_data_item
-
-    def select_data_item_in_data_panel(self, data_item):
-        """
-            Select the data item in the data panel. Use the existing group and existing
-            filter if data item appears. Otherwise, remove filter and see if it appears.
-            Otherwise switch to Library group.
-        """
-        self.__data_browser_controller.set_data_browser_selection(data_item=data_item)
-
-    @property
-    def selected_display_specifier(self):
-        """Return the selected display specifier (data_item, data_source, display).
-
-        The selected display is the display that has keyboard focus in the data panel or a display panel.
-        """
-        # first check for the [focused] data browser
-        data_item = self.__data_browser_controller.data_item
-        if data_item:
-            return DataItem.DisplaySpecifier.from_data_item(data_item)
-        # if not found, check for focused or selected image panel
-        return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
 
     def next_result_display_panel(self):
         for display_panel in self.workspace.display_panels:

@@ -64,19 +64,19 @@ class TestDataPanelClass(unittest.TestCase):
         display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
         display_panel.set_displayed_data_item(data_item1)
         data_panel = document_controller.find_dock_widget("data-panel").panel
-        document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item1)
+        document_controller.select_data_item_in_data_panel(data_item=data_item1)
         document_controller.periodic()
         document_controller.selected_display_panel = display_panel
         # first delete a child of a data item
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         self.assertEqual(len(data_group.data_items), 5)
-        document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item1a)
+        document_controller.select_data_item_in_data_panel(data_item=data_item1a)
         # document_controller.selection.set(3)  # set above by date_item instead
         data_panel.data_list_controller._delete_pressed()
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
         # now delete a child of a data group
         self.assertEqual(len(data_group.data_items), 4)
-        document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item2)
+        document_controller.select_data_item_in_data_panel(data_item=data_item2)
         # document_controller.selection.set(2)  # set above by date_item instead
         data_panel.data_list_controller._delete_pressed()
         self.assertEqual(len(data_group.data_items), 2)
@@ -97,7 +97,6 @@ class TestDataPanelClass(unittest.TestCase):
         display_panel.set_displayed_data_item(data_item)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         self.assertEqual(len(document_model.data_items), 3)
-        document_controller.data_browser_controller.focused = True
         document_controller.selection.set_multiple([0, 1, 2])
         document_controller.periodic()
         data_panel.data_list_controller._delete_pressed()
@@ -129,17 +128,17 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
         self.assertEqual(data_panel.data_group_widget.index, -1)
         self.assertEqual(document_controller.selection.indexes, set())
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(document_controller.selection.indexes, set([0]))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item2)
+        document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item2)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(document_controller.selection.indexes, set([1]))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
@@ -175,67 +174,67 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(data_panel.data_group_widget.parent_row, -1)
         self.assertEqual(data_panel.data_group_widget.index, -1)
         self.assertEqual(document_controller.selection.indexes, set())
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group1, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(document_controller.selection.indexes, set([0]))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2, data_item=data_item2)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item2)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(document_controller.selection.indexes, set([0]))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group1, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(document_controller.selection.indexes, set([0]))
         # now make sure if a data item is in multiple groups, the right one is selected
         data_group2.append_data_item(data_item1)
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2, data_item=data_item2)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item2)
         document_controller.selection.set(1)
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group1, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
         document_controller.selection.set(0)
-        self.assertEqual(document_controller.data_browser_controller.data_item, data_item1)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(document_controller.selection.indexes, set([0]))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(document_controller.selection.indexes, set([1]))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group1, data_item=data_item1)
-        self.assertEqual(document_controller.data_browser_controller.data_item, data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 0)
         self.assertEqual(document_controller.selection.indexes, set([0]))
         # now make sure group selections are preserved
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group1, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
         data_panel.data_group_widget.on_selection_changed(((1, 0, 1), ))  # data_group1 now has data_group2 selected
         document_controller.selection.clear()  # data_group1 now has no data item selected
-        self.assertIsNone(document_controller.data_browser_controller.data_item)
+        self.assertIsNone(document_controller.selected_display_specifier.data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(document_controller.selection.indexes, set())
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(document_controller.selection.indexes, set([1]))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2)
-        self.assertIsNone(document_controller.data_browser_controller.data_item)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2)
+        self.assertIsNone(document_controller.selected_display_specifier.data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
         self.assertEqual(document_controller.selection.indexes, set())
         # make sure root level is handled ok
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2)
         data_panel.data_group_widget.on_selection_changed(((0, -1, 0), ))
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
         self.assertEqual(data_panel.data_group_widget.index, 1)
@@ -257,20 +256,20 @@ class TestDataPanelClass(unittest.TestCase):
         # finished setting up
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.focused = True
-        document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item1)
+        document_controller.select_data_item_in_data_panel(data_item=data_item1)
         # make sure our preconditions are right
         self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
         # add processing and make sure it appeared
-        self.assertEqual(document_controller.data_browser_controller.data_item, data_item1)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, data_item1)
         inverted_data_item = document_controller.processing_invert().data_item
         self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
         # now make sure data panel shows it as selected
-        self.assertEqual(document_controller.data_browser_controller.data_item, inverted_data_item)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, inverted_data_item)
         # switch away and back and make sure selection is still correct
-        document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item2)
-        document_controller.data_browser_controller.set_data_browser_selection(data_item=inverted_data_item)
-        self.assertEqual(document_controller.data_browser_controller.data_item, inverted_data_item)
+        document_controller.select_data_item_in_data_panel(data_item=data_item2)
+        document_controller.select_data_item_in_data_panel(data_item=inverted_data_item)
+        self.assertEqual(document_controller.selected_display_specifier.data_item, inverted_data_item)
         document_controller.close()
 
     def test_existing_item_gets_initially_added_to_binding_data_items(self):
@@ -291,7 +290,7 @@ class TestDataPanelClass(unittest.TestCase):
         binding.container = data_group
         self.assertTrue(data_item1 in binding.data_items)
         data_panel = document_controller.find_dock_widget("data-panel").panel
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
         binding.close()
         binding = None
         document_controller.close()
@@ -358,7 +357,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
         data_panel = document_controller.find_dock_widget("data-panel").panel
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item2)
+        document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item2)
         document_controller.periodic()
         data_panel.periodic()
         # verify assumptions
@@ -393,9 +392,9 @@ class TestDataPanelClass(unittest.TestCase):
         data_group.append_data_item(data_item)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         data_panel.focused = True
-        self.assertIsNone(document_controller.data_browser_controller.data_item)
+        self.assertIsNone(document_controller.selected_display_specifier.data_item)
         data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
-        self.assertEqual(document_controller.data_browser_controller.data_item, data_group.data_items[0])
+        self.assertEqual(document_controller.selected_display_specifier.data_item, data_group.data_items[0])
         document_controller.close()
 
     def test_data_panel_remove_group(self):
@@ -432,7 +431,7 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller.document_model.insert_data_group(0, green_group)
         document_controller.document_model.append_data_group(data_group1)
         data_panel = document_controller.find_dock_widget("data-panel").panel
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group1, data_item=data_item1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
         self.assertTrue(data_item1 in data_group1.data_items)
         document_controller.selection.set(0)
         data_panel.data_list_controller._delete_pressed()
@@ -515,10 +514,10 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item1b)
         data_group1.append_data_item(data_item1b)
         # now select the first group in the data panel
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group1)
+        document_controller.select_data_group_in_data_panel(data_group=data_group1)
         data_panel = document_controller.find_dock_widget("data-panel").panel
         document_controller.selection.set_multiple([0, 1])
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2)
+        document_controller.select_data_group_in_data_panel(data_group=data_group2)
         document_controller.close()
 
     def test_change_from_filter_to_group_and_back_and_forth_updates_without_recursion(self):
@@ -532,8 +531,8 @@ class TestDataPanelClass(unittest.TestCase):
         data_group2.title = "data_group1"
         document_model.append_data_group(data_group2)
         # now select the first group in the data panel
-        document_controller.data_browser_controller.set_data_browser_selection(filter_id="all")
-        document_controller.data_browser_controller.set_data_browser_selection(data_group=data_group2)
+        document_controller.select_filter_in_data_panel(filter_id="all")
+        document_controller.select_data_group_in_data_panel(data_group=data_group2)
         document_controller.close()
 
     def test_data_panel_list_contents_resize_properly(self):

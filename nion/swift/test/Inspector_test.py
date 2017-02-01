@@ -290,9 +290,8 @@ class TestInspectorClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((32, 32)))
         document_model.append_data_item(data_item)
-        document_controller.data_browser_controller.focused = True
         document_controller.periodic()
-        document_controller.data_browser_controller.set_data_browser_selection(data_item=data_item)  # queues the update
+        document_controller.select_data_item_in_data_panel(data_item=data_item)  # queues the update
         document_model.remove_data_item(data_item)  # removes item while still in queue
         document_controller.periodic()  # execute queue
         document_controller.close()
