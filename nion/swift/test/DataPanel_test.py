@@ -213,7 +213,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(document_controller.selection.indexes, set([0]))
         # now make sure group selections are preserved
         document_controller.select_data_group_in_data_panel(data_group=data_group1, data_item=data_item1)
-        data_panel.data_group_widget.on_selection_changed(((1, 0, 1), ))  # data_group1 now has data_group2 selected
+        data_panel.data_group_widget.on_selection_changed([(1, 0, 1)])  # data_group1 now has data_group2 selected
         document_controller.selection.clear()  # data_group1 now has no data item selected
         self.assertIsNone(document_controller.selected_display_specifier.data_item)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
@@ -233,7 +233,7 @@ class TestDataPanelClass(unittest.TestCase):
         self.assertEqual(document_controller.selection.indexes, set())
         # make sure root level is handled ok
         document_controller.select_data_group_in_data_panel(data_group=data_group2)
-        data_panel.data_group_widget.on_selection_changed(((0, -1, 0), ))
+        data_panel.data_group_widget.on_selection_changed([(0, -1, 0)])
         document_controller.select_data_group_in_data_panel(data_group=data_group2, data_item=data_item1)
         self.assertEqual(data_panel.data_group_widget.parent_id, 1)
         self.assertEqual(data_panel.data_group_widget.parent_row, 0)
@@ -396,6 +396,27 @@ class TestDataPanelClass(unittest.TestCase):
         data_panel.data_group_model_receive_files([":/app/scroll_gem.png"], data_group, index=0, threaded=False)
         self.assertEqual(document_controller.selected_display_specifier.data_item, data_group.data_items[0])
         document_controller.close()
+
+    def test_setting_data_browser_selection_to_multiple_items_via_document_controller_updates_selection_object(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_controller.select_data_items_in_data_panel(document_model.data_items[:-1])
+            self.assertEqual(document_controller.selection.indexes, {1, 2})  # items are ordered newest to oldest
+
+    def test_setting_data_browser_selection_to_multiple_items_via_data_list_controller_updates_selection_object(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel.data_list_controller.on_selection_changed(document_model.data_items[:-1])
+            self.assertEqual(document_controller.selection.indexes, {1, 2})  # items are ordered newest to oldest
 
     def test_data_panel_remove_group(self):
         document_model = DocumentModel.DocumentModel()
@@ -644,6 +665,30 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
             self.assertIn(data_item1, [display_item.data_item for display_item in data_panel.data_list_controller.display_items])
+
+    def test_switching_from_latest_group_to_all_group_displays_all(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item2 = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item3 = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            data_item1.session_id = document_model.session_id
+            data_item2.session_id = "20170101-120000"
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            # index, parent_row, parent_id
+            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 3)
+            data_panel.library_widget.on_selection_changed([(2, -1, 0)])
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            document_controller.periodic()
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 3)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

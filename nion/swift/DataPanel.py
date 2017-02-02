@@ -172,7 +172,6 @@ class DataListController:
     The following methods can be called:
         close()
         periodic()
-        set_selected_index(index)
         display_item_inserted(display_item, before_index) - ui thread
         display_item_removed(index) - ui thread
 
@@ -252,6 +251,7 @@ class DataListController:
             self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed([self.__display_items[index].data_item for index in list(self.__selection.indexes)])
+            self.__list_canvas_item.make_selection_visible()
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
@@ -288,9 +288,6 @@ class DataListController:
             self.__changed_display_items = False
         if changed_display_items:
             self.__list_canvas_item.update()
-
-    def set_selected_index(self, index):
-        self.__selection.set(index)
 
     def make_selection_visible(self):
         self.__list_canvas_item.make_selection_visible()
@@ -360,7 +357,6 @@ class DataGridController:
     The following methods can be called:
         close()
         periodic()
-        set_selected_index(index)
         display_item_inserted(display_item, before_index) - ui thread
         display_item_removed(index) - ui thread
 
@@ -454,6 +450,7 @@ class DataGridController:
             self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed([self.__display_items[index].data_item for index in list(self.__selection.indexes)])
+            self.icon_view_canvas_item.make_selection_visible()
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
@@ -492,9 +489,6 @@ class DataGridController:
             self.__changed_display_items = False
         if changed_display_items:
             self.icon_view_canvas_item.update()
-
-    def set_selected_index(self, index):
-        self.__selection.set(index)
 
     def clear_selection(self):
         self.__selection.clear()
@@ -596,16 +590,28 @@ class DataGridWidget(Widgets.CompositeWidgetBase):
 
 
 class DataBrowserController:
+    """Controls and stores the data browser selection (filter, data group, and data items).
+
+    Notifies the document controller when the data browser selection changes, which updates the data item binding and
+    filtered data item binding.
+
+    Notifies the UI when the data browser selection changes so that it can update to match the selection.
+
+    Notifies the document controller if the selection changes and a single data item is the result. This allows the
+    inspector panels to update accordingly.
+
+    Also tracks whether the data panel has focus or not. If not focused, selected_data_items and data_item properties
+    return None.
+    """
 
     def __init__(self, document_controller):
         self.document_controller = document_controller
         self.__focused = False
         self.__data_group = None
-        self.__data_item = None
         self.__filter_id = None
         self.__selected_data_items = list()
         self.filter_changed_event = Event.Event()
-        self.selection_changed_event = Event.Event()
+        self.selected_data_items_changed_event = Event.Event()
         self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
         # TODO: Restructure data browser controller to avoid using re-entry flag
         self.__blocked = False  # ugh. the smell of bad design.
@@ -620,21 +626,42 @@ class DataBrowserController:
     @focused.setter
     def focused(self, focused):
         if focused:
-            self.document_controller.notify_selected_data_item_changed(self.__data_item)
+            self.document_controller.notify_selected_data_item_changed(self.data_item)
         self.__focused = focused
 
-    def set_data_browser_selection(self, data_group=None, data_item=None, filter_id=None):
+    def set_data_browser_selection(self, *, data_items: typing.Sequence[DataItem.DataItem]=None, data_group=None, filter_id=None):
+        """Set the data browser selection (filter, data group, and data items).
+
+        Passing None for both data_group and filter_id will retain the existing selection.
+
+        Passing None for data_items will retain the existing selection.
+
+        The data item binding and filtered data item binding will be updated (set_data_group_or_filter).
+
+        The UI will be updated to match the selection (filter_changed_event).
+
+        If there is a single selected data item, the selection object will be updated (selected_data_items_changed_event), and the
+         document controller will be informed of a single data item change (notify_selected_data_item_changed).
+        """
         if not self.__blocked:
             self.__blocked = True
             try:
-                trigger = False
-
-                if data_item and data_item.category == "temporary":
-                    filter_id = "temporary"
+                # use existing data group and filter if none are specified
+                if data_group is None and filter_id is None:
+                    data_group = self.__data_group
+                    filter_id = self.__filter_id
                 else:
-                    pass  # use the one that was passed in
+                    data_items = data_items if data_items is not None else list()
+
+                # use existing data items if none are specified
+                data_items = data_items if data_items is not None else self.__selected_data_items
+
+                old_selected_data_items = self.__selected_data_items
+
+                self.__selected_data_items = copy.copy(data_items)
 
                 # check to see if the filter changed
+                trigger = False
                 if data_group != self.__data_group or filter_id != self.__filter_id:
                     # store the selection so we know when it changes
                     self.__data_group = data_group
@@ -643,13 +670,11 @@ class DataBrowserController:
                     self.filter_changed_event.fire(data_group, filter_id)
                     trigger = True
 
-                # check to see if the data item changed
-                if self.__data_item != data_item:
-                    self.__data_item = data_item
-                    trigger = True
+                if trigger or old_selected_data_items != self.__selected_data_items:
+                    self.selected_data_items_changed_event.fire(self.__selected_data_items)
 
-                if trigger:
-                    self.selection_changed_event.fire(data_item)
+                if self.__focused:
+                    self.document_controller.notify_selected_data_item_changed(self.data_item)
             finally:
                 self.__blocked = False
 
@@ -659,25 +684,8 @@ class DataBrowserController:
 
     @property
     def data_item(self):
-        return self.__data_item if self.__focused else None
-
-    def set_selected_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-        # when the selection is changed in the ui, call this method to synchronize.
-        # it will trigger the selected data item to update.
-
-        if len(data_items) == 0:
-            data_item = None
-            self.set_data_browser_selection(self.__data_group, None, self.__filter_id)
-        elif len(data_items) == 1:
-            data_item = data_items[0]
-            self.set_data_browser_selection(self.__data_group, data_item, self.__filter_id)
-        else:
-            data_item = None
-
-        if self.__focused:
-            self.document_controller.notify_selected_data_item_changed(data_item)
-
-        self.__selected_data_items = copy.copy(data_items)
+        data_item = self.__selected_data_items[0] if len(self.__selected_data_items) == 1 else None
+        return data_item if self.__focused else None
 
 
 class LibraryModelController:
@@ -960,7 +968,7 @@ class DataPanel(Panel.Panel):
 
         self.__data_browser_controller = document_controller.data_browser_controller
         self.__filter_changed_event_listener = self.__data_browser_controller.filter_changed_event.listen(self.__data_panel_filter_changed)
-        self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
+        self.__selected_data_items_changed_event_listener = self.__data_browser_controller.selected_data_items_changed_event.listen(self.__data_panel_selected_data_items_changed)
 
         class LibraryItemController:
 
@@ -995,7 +1003,7 @@ class DataPanel(Panel.Panel):
                 del self.__binding.removers[id(self)]
                 self.__binding.close()
 
-        all_items_binding = document_controller.create_data_item_binding(None, None)
+        all_items_binding = document_controller.create_data_item_binding(None, "all")
         all_items_controller = LibraryItemController(_("All"), all_items_binding)
         live_items_binding = document_controller.create_data_item_binding(None, "temporary")
         live_items_controller = LibraryItemController(_("Live"), live_items_binding)
@@ -1009,11 +1017,13 @@ class DataPanel(Panel.Panel):
         self.data_group_model_controller = DataGroupModelController(ui, document_controller.document_model)
         self.data_group_model_controller.on_receive_files = lambda file_paths, data_group, index: self.data_group_model_receive_files(file_paths, data_group, index)
 
-        self.__blocked = False
+        self.__blocked1 = False
+        self.__blocked2 = False
 
         def library_widget_selection_changed(selected_indexes):
-            if not self.__blocked:
-                self.__blocked = True
+            # this message comes from the collection tree widget when the selection changes
+            if not self.__blocked1:
+                self.__blocked1 = True
                 try:
                     index = selected_indexes[0][0] if len(selected_indexes) > 0 else -1
                     if index == 2:
@@ -1021,9 +1031,9 @@ class DataPanel(Panel.Panel):
                     elif index == 1:
                         self.__data_browser_controller.set_data_browser_selection(filter_id="temporary")
                     else:
-                        self.__data_browser_controller.set_data_browser_selection()
+                        self.__data_browser_controller.set_data_browser_selection(filter_id="all")
                 finally:
-                    self.__blocked = False
+                    self.__blocked1 = False
 
         self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18 * 2})
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
@@ -1031,8 +1041,9 @@ class DataPanel(Panel.Panel):
         self.library_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
 
         def data_group_widget_selection_changed(selected_indexes):
-            if not self.__blocked:
-                self.__blocked = True
+            # this message comes from the data group tree widget when the selection changes
+            if not self.__blocked2:
+                self.__blocked2 = True
                 try:
                     if len(selected_indexes) > 0:
                         index, parent_row, parent_id = selected_indexes[0]
@@ -1041,7 +1052,7 @@ class DataPanel(Panel.Panel):
                         data_group = None
                     self.__data_browser_controller.set_data_browser_selection(data_group=data_group)
                 finally:
-                    self.__blocked = False
+                    self.__blocked2 = False
 
         def data_group_widget_key_pressed(index, parent_row, parent_id, key):
             if key.is_delete:
@@ -1093,14 +1104,14 @@ class DataPanel(Panel.Panel):
 
         selection = self.document_controller.selection
         self.data_list_controller = DataListController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
-        self.data_list_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
+        self.data_list_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
         self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.data_list_controller.on_delete_data_items = document_controller.delete_data_items
 
         self.data_grid_controller = DataGridController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
-        self.data_grid_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
+        self.data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
         self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
@@ -1189,7 +1200,7 @@ class DataPanel(Panel.Panel):
     def close(self):
         # binding should not be closed since it isn't created in this object
         self.splitter.save_state("window/v1/data_panel_splitter")
-        self.__data_browser_controller.set_data_browser_selection()
+        # self.__data_browser_controller.set_data_browser_selection()
         del self.__binding.inserters[id(self)]
         del self.__binding.removers[id(self)]
         # close the models
@@ -1212,8 +1223,8 @@ class DataPanel(Panel.Panel):
         self.__display_items = None
         self.__filter_changed_event_listener.close()
         self.__filter_changed_event_listener = None
-        self.__selection_changed_event_listener.close()
-        self.__selection_changed_event_listener = None
+        self.__selected_data_items_changed_event_listener.close()
+        self.__selected_data_items_changed_event_listener = None
         # button group
         self.__view_button_group.close()
         self.__view_button_group = None
@@ -1242,30 +1253,18 @@ class DataPanel(Panel.Panel):
             else:
                 self.library_widget.set_current_row(0, -1, 0)  # select the 'all' group
 
-    def __data_panel_selection_changed(self, data_item):
+    def __data_panel_selected_data_items_changed(self, data_items: typing.Sequence[DataItem.DataItem]):
         # update the data item selection by determining the new index of the item, if any.
-        data_item_index = -1
+        indexes = set()
         for index in range(len(self.__display_items)):
-            if data_item == self.__display_items[index].data_item:
-                data_item_index = index
-                break
-        if self.data_view_widget.current_index == 0:
-            if data_item_index >= 0:
-                self.data_list_controller.set_selected_index(data_item_index)
-                self.data_list_controller.make_selection_visible()
-            else:
-                self.document_controller.selection.clear()
-        else:
-            if data_item_index >= 0:
-                self.data_grid_controller.set_selected_index(data_item_index)
-                self.data_grid_controller.make_selection_visible()
-            else:
-                self.document_controller.selection.clear()
+            if self.__display_items[index].data_item in data_items:
+                indexes.add(index)
+        self.document_controller.selection.set_multiple(indexes)
 
     def library_model_receive_files(self, file_paths, threaded=True):
         def receive_files_complete(received_data_items):
             def select_library_all():
-                self.__data_browser_controller.set_data_browser_selection(data_item=received_data_items[0])
+                self.__data_browser_controller.set_data_browser_selection(data_items=[received_data_items[0]])
             if len(received_data_items) > 0:
                 self.queue_task(select_library_all)
 
@@ -1279,7 +1278,7 @@ class DataPanel(Panel.Panel):
     def data_group_model_receive_files(self, file_paths, data_group, index, threaded=True):
         def receive_files_complete(received_data_items):
             def select_data_group_and_data_item():
-                self.__data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=received_data_items[0])
+                self.__data_browser_controller.set_data_browser_selection(data_group=data_group, data_items=[received_data_items[0]])
             if len(received_data_items) > 0:
                 if threaded:
                     self.queue_task(select_data_group_and_data_item)

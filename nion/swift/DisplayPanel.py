@@ -961,7 +961,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__data_item_display_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
 
         self.__data_browser_controller = DataPanel.DataBrowserController(document_controller)
-        self.__selection_changed_event_listener = self.__data_browser_controller.selection_changed_event.listen(self.__data_panel_selection_changed)
+        self.__selected_data_items_changed_event_listener = self.__data_browser_controller.selected_data_items_changed_event.listen(self.__data_panel_selected_data_items_changed)
 
         def context_menu_event(display_item, x, y, gx, gy):
             menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
@@ -979,7 +979,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             return False
 
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
-        self.__horizontal_data_grid_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
+        self.__horizontal_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
         self.__horizontal_data_grid_controller.on_data_item_double_clicked = None  # replace current display?
         self.__horizontal_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
@@ -988,7 +988,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
         self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection)
-        self.__grid_data_grid_controller.on_selection_changed = self.__data_browser_controller.set_selected_data_items
+        self.__grid_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
         self.__grid_data_grid_controller.on_data_item_double_clicked = None  # replace current display?
         self.__grid_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
@@ -1068,8 +1068,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         for display_item in self.__display_items:
             display_item.close()
         self.__display_items = None
-        self.__selection_changed_event_listener.close()
-        self.__selection_changed_event_listener = None
+        self.__selected_data_items_changed_event_listener.close()
+        self.__selected_data_items_changed_event_listener = None
         self.document_controller.filtered_data_items_binding.release_selection(self.__selection)
         self.__selection = None
         super().close()
@@ -1328,16 +1328,16 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return super()._handle_key_pressed(key)
 
     def __cycle_display(self):
-        # make sure the item is selected if it is in the list
-        self.__update_selection_to_data_item()
         # the second part of the if statement below handles the case where the data item has been changed by
         # the user so the cycle should go back to the main display.
         if self.__data_item_display_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__data_item_changed):
             if self.__horizontal_browser_canvas_item.visible:
                 self.__switch_to_grid_browser()
+                self.__update_selection_to_data_item()
                 self.__grid_data_grid_controller.icon_view_canvas_item.request_focus()
             else:
                 self.__switch_to_horizontal_browser()
+                self.__update_selection_to_data_item()
                 self.__horizontal_data_grid_controller.icon_view_canvas_item.request_focus()
         else:
             self.__switch_to_no_browser()
@@ -1388,7 +1388,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         display.graphic_selection.add_range(range(len(display.graphics)))
         return True
 
-    def __data_panel_selection_changed(self, data_item):
+    def __data_panel_selected_data_items_changed(self, data_items):
+        data_item = data_items[0] if len(data_items) == 1 else None
         self.set_displayed_data_item(data_item)
         self.__data_item_changed = True
 

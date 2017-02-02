@@ -572,7 +572,7 @@ class DocumentController(Window.Window):
                 binding.filter = DataItemsBinding.Filter(False)
                 binding.sort_key = DataItem.sort_by_date_key
                 binding.sort_reverse = True
-            else:
+            else:  # "all"
                 binding.container = self.document_model
                 binding.filter = DataItemsBinding.EqFilter("category", "persistent")
                 binding.sort_key = DataItem.sort_by_date_key
@@ -597,10 +597,10 @@ class DocumentController(Window.Window):
             self.__filtered_data_items_binding.filter = display_filter
 
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-        data_items_copy = copy.copy(self.document_model.data_items)
-        indexes = [data_items_copy.index(data_item) for data_item in data_items]
+        all_data_items = self.filtered_data_items_binding.data_items
+        indexes = [all_data_items.index(data_item) for data_item in data_items]
         self.selection.set_multiple(indexes)
-        self.__data_browser_controller.set_selected_data_items(data_items)
+        self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.__data_browser_controller.focused = True
 
     # track the selected data item. this can be called by ui elements when
@@ -621,11 +621,13 @@ class DocumentController(Window.Window):
             filter if data item appears. Otherwise, remove filter and see if it appears.
             Otherwise switch to Library group.
         """
-        self.__data_browser_controller.set_data_browser_selection(data_item=data_item)
+        data_items = [data_item] if data_item else None
+        self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
 
     def select_data_group_in_data_panel(self, data_group: DataGroup.DataGroup, data_item: DataItem.DataItem=None) -> None:
         """Select the data group in the data panel."""
-        self.__data_browser_controller.set_data_browser_selection(data_group=data_group, data_item=data_item)
+        data_items = [data_item] if data_item else None
+        self.__data_browser_controller.set_data_browser_selection(data_group=data_group, data_items=data_items)
 
     def select_filter_in_data_panel(self, filter_id: str) -> None:
         """Select the filter in the data panel."""
