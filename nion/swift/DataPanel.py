@@ -749,6 +749,7 @@ class DataGroupModelController:
         self.__document_model = document_model
         self.item_model_controller = self.ui.create_item_model_controller(["display", "edit"])
         self.item_model_controller.on_item_set_data = self.item_set_data
+        self.item_model_controller.on_can_drop_mime_data = self.can_drop_mime_data
         self.item_model_controller.on_item_drop_mime_data = self.item_drop_mime_data
         self.item_model_controller.on_item_mime_data = self.item_mime_data
         self.item_model_controller.on_remove_rows = self.remove_rows
@@ -909,6 +910,28 @@ class DataGroupModelController:
             return item.row, item.parent.row, item.parent.id
         else:
             return -1, -1, 0
+
+    def can_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
+        data_group = self.get_data_group_of_parent(parent_row, parent_id)
+        if data_group and mime_data.has_file_paths:
+            return row < 0  # only accept drops ONTO items, not BETWEEN items
+        if data_group and mime_data.has_format("text/data_item_uuid"):
+            if row >= 0:  # only accept drops ONTO items, not BETWEEN items
+                return False
+            # if the data item exists in this document, then it is copied to the
+            # target group. if it doesn't exist in this document, then it is coming
+            # from another document and can't be handled here.
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
+            if data_item:
+                return True
+            return False
+        if mime_data.has_format("text/data_group_uuid"):
+            data_group_uuid = uuid.UUID(mime_data.data_as_string("text/data_group_uuid"))
+            data_group = self.__document_model.get_data_group_by_uuid(data_group_uuid)
+            if data_group:
+                return True
+        return False
 
     def item_drop_mime_data(self, mime_data, action, row, parent_row, parent_id):
         data_group = self.get_data_group_of_parent(parent_row, parent_id)
