@@ -109,7 +109,7 @@ class Application:
 
     def migrate_library(self, workspace_dir, library_path, welcome_message=True):
         """ Migrate library to latest version. """
-        library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
+        library_storage = DocumentModel.FilePersistentStorage(library_path)
         version = library_storage.get_version()
         if welcome_message:
             logging.debug("Library at version %s.", version)
@@ -158,7 +158,7 @@ class Application:
         else:
             if welcome_message:
                 logging.debug("Using existing document %s", library_path)
-            library_storage = DocumentModel.FilePersistentStorage(library_path, create=False)
+            library_storage = DocumentModel.FilePersistentStorage(library_path)
         persistent_object_context = DocumentModel.PersistentDataItemContext([file_persistent_storage_system], False, False)
         counts = persistent_object_context.read_data_items_version_stats()
         if counts[2] > 0:
