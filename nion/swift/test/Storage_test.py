@@ -571,7 +571,6 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
         document_controller.close()
 
-    # make sure thumbnail raises exception if a bad operation is involved
     def test_adding_data_item_to_data_group_twice_raises_exception(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -582,6 +581,26 @@ class TestStorageClass(unittest.TestCase):
             document_model.data_groups[0].append_data_item(data_item)
             with self.assertRaises(AssertionError):
                 document_model.data_groups[0].append_data_item(data_item)
+
+    def test_reading_data_group_with_duplicate_data_items_discards_duplicates(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.FilePersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8))))
+            data_group = DataGroup.DataGroup()
+            data_group.append_data_item(document_model.data_items[0])
+            data_group.append_data_item(document_model.data_items[1])
+            document_model.append_data_group(data_group)
+        library_properties = library_storage.properties
+        library_properties['data_groups'][0]['data_item_uuids'][1] = library_properties['data_groups'][0]['data_item_uuids'][0]
+        library_storage._set_properties(library_properties)
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            self.assertEqual(len(document_model.data_groups[0].data_items), 1)
 
     def test_insert_item_with_transaction(self):
         cache_name = ":memory:"

@@ -48,7 +48,7 @@ class FilePersistentStorage:
     # this class is used to store the data for the library itself.
     # it is not used for library items.
 
-    def __init__(self, filepath=None, create=True):
+    def __init__(self, filepath=None):
         self.__filepath = filepath
         self.__properties = self.__read_properties()
         self.__properties_lock = threading.RLock()
@@ -67,10 +67,23 @@ class FilePersistentStorage:
         # migrations go here
         return properties
 
-    def __get_properties(self):
+    def __write_properties(self):
+        if self.__filepath:
+            # atomically overwrite
+            temp_filepath = self.__filepath + ".temp"
+            with open(temp_filepath, "w") as fp:
+                json.dump(self.__properties, fp)
+            os.replace(temp_filepath, self.__filepath)
+
+    @property
+    def properties(self):
         with self.__properties_lock:
             return copy.deepcopy(self.__properties)
-    properties = property(__get_properties)
+
+    def _set_properties(self, properties):
+        """Set the properties; used for testing."""
+        with self.__properties_lock:
+            self.__properties = properties
 
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
@@ -90,14 +103,6 @@ class FilePersistentStorage:
             self.__update_modified_and_get_storage_dict(parent)
         return storage_dict
 
-    def update_properties(self):
-        if self.__filepath:
-            # atomically overwrite
-            temp_filepath = self.__filepath + ".temp"
-            with open(temp_filepath, "w") as fp:
-                json.dump(self.__properties, fp)
-            os.replace(temp_filepath, self.__filepath)
-
     def insert_item(self, parent, name, before_index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
@@ -105,14 +110,14 @@ class FilePersistentStorage:
             item_dict = item.write_to_dict()
             item_list.insert(before_index, item_dict)
             item.persistent_object_context = parent.persistent_object_context
-        self.update_properties()
+        self.__write_properties()
 
     def remove_item(self, parent, name, index, item):
         storage_dict = self.__update_modified_and_get_storage_dict(parent)
         with self.__properties_lock:
             item_list = storage_dict[name]
             del item_list[index]
-        self.update_properties()
+        self.__write_properties()
         item.persistent_object_context = None
 
     def set_item(self, parent, name, item):
@@ -125,13 +130,13 @@ class FilePersistentStorage:
             else:
                 if name in storage_dict:
                     del storage_dict[name]
-        self.update_properties()
+        self.__write_properties()
 
     def set_property(self, object, name, value):
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
-        self.update_properties()
+        self.__write_properties()
 
 
 class DataItemStorage:

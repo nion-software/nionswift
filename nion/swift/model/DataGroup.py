@@ -85,7 +85,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
                 return [uuid.UUID(uuid_str) for uuid_str in value]
         self.define_type("data_group")
         self.define_property("title", _("Untitled"), validate=self.__validate_title, changed=self.__property_changed)
-        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
+        self.define_property("data_item_uuids", list(), validate=self.__validate_data_item_uuids, converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.define_relationship("data_groups", data_group_factory, insert=self.__insert_data_group, remove=self.__remove_data_group)
         self.__get_data_item_by_uuid = None
         self.__data_items = list()
@@ -99,6 +99,9 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
 
     def __validate_title(self, value):
         return str(value) if value is not None else str()
+
+    def __validate_data_item_uuids(self, data_item_uuids):
+        return list(collections.OrderedDict.fromkeys(data_item_uuids))
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -122,6 +125,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
 
     def insert_data_item(self, before_index, data_item):
         assert data_item not in self.__data_items
+        assert data_item.uuid not in self.data_item_uuids
         self.__data_items.insert(before_index, data_item)
         self.data_item_inserted_event.fire(self, data_item, before_index, self.__moving)
         self.update_counted_data_items(collections.Counter([data_item]))
@@ -140,9 +144,9 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.data_item_uuids = data_item_uuids
         self.notify_property_changed("data_item_uuids")
 
-    def __get_data_items(self):
+    @property
+    def data_items(self):
         return tuple(self.__data_items)
-    data_items = property(__get_data_items)
 
     def append_data_group(self, data_group):
         self.insert_data_group(len(self.data_groups), data_group)
@@ -167,9 +171,9 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
     def __remove_data_group(self, name, index, data_group):
         self.subtract_counted_data_items(data_group.counted_data_items)
 
-    def __get_counted_data_items(self):
+    @property
+    def counted_data_items(self):
         return self.__counted_data_items
-    counted_data_items = property(__get_counted_data_items)
 
     def update_counted_data_items(self, counted_data_items):
         self.__counted_data_items.update(counted_data_items)
