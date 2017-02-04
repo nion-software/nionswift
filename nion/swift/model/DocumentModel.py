@@ -1025,7 +1025,7 @@ class ComputationQueueItem:
                 if self.valid:  # TODO: race condition for 'valid'
                     def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
                         data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
-                        with buffered_data_source._changes():
+                        with data_item.data_item_changes(), buffered_data_source._changes():
                             if data_item_data_clone_modified > data_item_data_modified:
                                 buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
                             data_item_clone_recorder.apply(data_item)
@@ -1078,6 +1078,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_request_remove_region = dict()
         self.__computation_changed_or_mutated_listeners = dict()
         self.__data_item_request_remove_data_item_listeners = dict()
+        self.__data_item_data_changed_listeners = dict()
         self.__data_item_references = dict()
         self.__recompute_lock = threading.RLock()
         self.__recompute_finished_event = Event.Event()
@@ -1132,6 +1133,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
                 self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
                 self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
+                self.__data_item_data_changed_listeners[data_item.uuid] = data_item.data_item_data_changed_event.listen(self.__handle_data_item_data_changed)
                 data_item.set_data_item_manager(self)
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
         # mark itself clean after reading all of them in.
@@ -1268,6 +1270,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.set_storage_cache(self.storage_cache)
         data_item.persistent_object_context = self.persistent_object_context
         data_item.persistent_object_context._ensure_persistent_storage(data_item)
+        data_item.session_id = self.session_id
         persistent_storage = data_item.persistent_object_context._get_persistent_storage_for_object(data_item)
         if persistent_storage and not persistent_storage.write_delayed:
             # don't directly write data item, or else write_pending is not cleared on data item
@@ -1279,6 +1282,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if data_item.maybe_data_source:
             self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source.computation)
         self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
+        self.__data_item_data_changed_listeners[data_item.uuid] = data_item.data_item_data_changed_event.listen(self.__handle_data_item_data_changed)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
@@ -1332,6 +1336,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         del self.__data_item_request_remove_region[data_item.uuid]
         self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
         del self.__computation_changed_or_mutated_listeners[data_item.uuid]
+        self.__data_item_data_changed_listeners[data_item.uuid].close()
+        del self.__data_item_data_changed_listeners[data_item.uuid]
         self.__data_item_request_remove_data_item_listeners[data_item.uuid].close()
         del self.__data_item_request_remove_data_item_listeners[data_item.uuid]
         # update data item count
@@ -1376,6 +1382,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if source_data_item.is_live:
             self.begin_data_item_live(target_data_item)
         self.dependency_added_event.fire(source_data_item, target_data_item)
+
+    def __handle_data_item_data_changed(self, data_item):
+        data_item.session_id = self.session_id
 
     def __handle_computation_changed_or_mutated(self, data_item, computation):
         """Establish the dependencies between data items based on the computation."""
@@ -1777,19 +1786,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__buffered_data_source = data_item.maybe_data_source
                         self.changed_event = Event.Event()
                         self.deleted_event = Event.Event()
-                        def data_and_metadata_changed():
+                        def data_item_changed():
                             self.changed_event.fire()
                         def data_item_will_be_removed(data_item):
                             if data_item == self.__data_item:
                                 self.deleted_event.fire()
-                        self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed)
+                        self.__data_item_changed_event_listener = self.__buffered_data_source.data_item_changed_event.listen(data_item_changed)
                         self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                     @property
                     def value(self):
                         return self.__data_item
                     def close(self):
-                        self.__data_and_metadata_changed_event_listener.close()
-                        self.__data_and_metadata_changed_event_listener = None
+                        self.__data_item_changed_event_listener.close()
+                        self.__data_item_changed_event_listener = None
                         self.__data_item_will_be_removed_event_listener.close()
                         self.__data_item_will_be_removed_event_listener = None
                 if data_item:

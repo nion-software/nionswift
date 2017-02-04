@@ -933,6 +933,38 @@ class TestDataItemClass(unittest.TestCase):
                 data_item.session_id = "20000630-150201"
             self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
 
+    def test_data_item_added_to_library_gets_current_session(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item)
+            self.assertEqual(data_item.session_id, document_model.session_id)
+
+    def test_data_item_gets_current_session_when_data_is_modified(self):
+        document_model = DocumentModel.DocumentModel()
+        document_model.session_id = '20000630-150200'
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2)))
+            data_item.category = 'temporary'
+            document_model.append_data_item(data_item)
+            document_model.start_new_session()
+            self.assertNotEqual(data_item.session_id, document_model.session_id)
+            with data_item.maybe_data_source.data_ref() as data_ref:
+                data_ref.master_data = numpy.ones((4, 4))
+            self.assertEqual(data_item.session_id, document_model.session_id)
+
+    def test_data_item_keeps_session_unmodified_when_metadata_is_changed(self):
+        document_model = DocumentModel.DocumentModel()
+        document_model.session_id = '20000630-150200'
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2)))
+            data_item.category = 'temporary'
+            document_model.append_data_item(data_item)
+            document_model.start_new_session()
+            self.assertNotEqual(data_item.session_id, document_model.session_id)
+            data_item.title = 'new title'
+            self.assertEqual(data_item.session_id, '20000630-150200')
+
     def test_processed_data_item_has_source_data_modified_equal_to_sources_data_modifed(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

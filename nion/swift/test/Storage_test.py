@@ -2678,7 +2678,7 @@ class TestStorageClass(unittest.TestCase):
             changed_ref = [False]
             def changed():
                 changed_ref[0] = True
-            changed_event_listener = document_model.data_items[1].maybe_data_source.data_and_metadata_changed_event.listen(changed)
+            changed_event_listener = document_model.data_items[1].maybe_data_source.data_item_changed_event.listen(changed)
             with contextlib.closing(changed_event_listener):
                 document_model.recompute_all()
                 assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)

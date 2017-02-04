@@ -500,13 +500,13 @@ class CalibrationsInspectorSection(InspectorSection):
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         self.__list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
         self.add_widget_to_content(self.__list_widget)
-        def handle_data_and_metadata_changed():
+        def handle_data_item_changed():
             # handle threading specially for tests
             if threading.current_thread() != threading.main_thread():
                 self.widget.add_task("update_calibration_list" + str(id(self)), self.__build_calibration_list)
             else:
                 self.__build_calibration_list()
-        self.__data_and_metadata_changed_event_listener = self.__buffered_data_source.data_and_metadata_changed_event.listen(handle_data_and_metadata_changed)
+        self.__data_item_changed_event_listener = self.__buffered_data_source.data_item_changed_event.listen(handle_data_item_changed)
         self.__build_calibration_list()
         # create the intensity row
         intensity_calibration = self.__buffered_data_source.intensity_calibration or Calibration.Calibration()
@@ -539,8 +539,8 @@ class CalibrationsInspectorSection(InspectorSection):
         self.finish_widget_content()
 
     def close(self):
-        self.__data_and_metadata_changed_event_listener.close()
-        self.__data_and_metadata_changed_event_listener = None
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
         # close the bound calibrations
         for calibration_observable in self.__calibration_observables:
             calibration_observable.close()

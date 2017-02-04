@@ -635,7 +635,6 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item2)
 
-    @unittest.expectedFailure
     def test_processing_temporary_data_item_keeps_temporary_items_displayed(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -671,6 +670,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             data_item1.session_id = document_model.session_id
             data_item2.session_id = "20170101-120000"
+            data_item3.session_id = "20170101-120000"
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
             data_panel.library_widget.on_selection_changed([(0, -1, 0)])
@@ -696,6 +696,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             data_item1.session_id = document_model.session_id
             data_item2.session_id = "20170101-120000"
+            data_item3.session_id = "20170101-120000"
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
             data_panel.library_widget.on_selection_changed([(0, -1, 0)])

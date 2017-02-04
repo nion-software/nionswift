@@ -182,7 +182,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__computation_mutated_event_listener = None  # incoming to know when the computation changes internally
         self.__computation_cascade_delete_event_listener = None
         self.computation_changed_or_mutated_event = Event.Event()  # outgoing message
-        self.data_and_metadata_changed_event = Event.Event()
+        self.data_item_changed_event = Event.Event()
+        self.data_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
         self.request_remove_data_item_because_computation_removed_event = Event.Event()
         self.request_remove_region_because_data_item_removed_event = Event.Event()
@@ -419,6 +420,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(self.__data_and_metadata.dimensional_calibrations))
             self._set_persistent_property_value("metadata", self.__data_and_metadata.metadata)
         self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
+        self.data_changed_event.fire(self)
 
     def set_data_and_metadata(self, data_and_metadata, data_modified=None):
         """Sets the underlying data and data-metadata to the data_and_metadata.
@@ -678,7 +680,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         # to pass on the next value.
         if change_count == 0 and changed:
             data_and_metadata = self.data_and_metadata
-            self.data_and_metadata_changed_event.fire()
+            self.data_item_changed_event.fire()
             for display in self.displays:
                 display.update_data(data_and_metadata)
 
@@ -801,7 +803,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     writer_version = 10
 
     def __init__(self, data=None, item_uuid=None, large_format=False):
-        super(DataItem, self).__init__()
+        super().__init__()
         global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format  # hint for file format
@@ -827,7 +829,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__request_remove_listeners = list()
         self.__request_remove_region_listeners = list()
         self.__computation_changed_or_mutated_event_listeners = list()
-        self.__data_and_metadata_changed_event_listeners = list()
+        self.__data_item_changed_event_listeners = list()
+        self.__data_changed_event_listeners = list()
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
@@ -835,6 +838,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.request_remove_region_event = Event.Event()
         self.request_remove_data_item_event = Event.Event()
         self.computation_changed_or_mutated_event = Event.Event()
+        self.data_item_data_changed_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_content_changed = False
@@ -874,9 +878,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         for data_source in self.data_sources:
             self.__disconnect_data_source(0, data_source)
             data_source.close()
-        for listener in self.__data_and_metadata_changed_event_listeners:
+        for listener in self.__data_item_changed_event_listeners:
             listener.close()
-        self.__data_and_metadata_changed_event_listeners = list()
+        self.__data_item_changed_event_listeners = list()
+        for listener in self.__data_changed_event_listeners:
+            listener.close()
+        self.__data_changed_event_listeners = list()
         for connection in copy.copy(self.connections):
             connection.close()
         assert self._about_to_be_removed
@@ -1013,7 +1020,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.
         # this can occur during acquisition. any other cases?
-        super(DataItem, self).persistent_object_context_changed()
+        super().persistent_object_context_changed()
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
 
@@ -1031,7 +1038,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         with self.data_item_changes():
             for data_source in copy.copy(self.data_sources):
                 self.remove_data_source(data_source)
-            super(DataItem, self).read_from_dict(properties)
+            super().read_from_dict(properties)
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
                 timestamp = datetime.datetime.now()
                 self._get_persistent_property("created").value = timestamp
@@ -1218,6 +1225,9 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def __computation_changed_or_mutated(self, computation):
         self.computation_changed_or_mutated_event.fire(self, computation)
 
+    def __handle_data_changed(self, data_source):
+        self.data_item_data_changed_event.fire(self)
+
     def __insert_data_source(self, name, before_index, data_source):
         data_source.set_dependent_data_item(self)
         data_source.set_data_item_manager(self.__data_item_manager)
@@ -1235,15 +1245,16 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__request_remove_region_listeners.insert(before_index, data_source.request_remove_region_because_data_item_removed_event.listen(request_remove_region))
         self.__computation_changed_or_mutated_event_listeners.insert(before_index, data_source.computation_changed_or_mutated_event.listen(self.__computation_changed_or_mutated))
         self.__computation_changed_or_mutated(data_source.computation)
+        self.__data_changed_event_listeners.insert(before_index, data_source.data_changed_event.listen(self.__handle_data_changed))
         # being in transaction state means that data sources have their data loaded.
         # so load data here to keep the books straight when the transaction state is exited.
         if self.__in_transaction_state:
             data_source.increment_data_ref_count()
-        def data_and_metadata_changed():
+        def data_item_changed():
             if not self._is_reading:
                 self.__write_delay_data_changed = True
-                self.data_item_content_changed_event.fire()
-        self.__data_and_metadata_changed_event_listeners.insert(before_index, data_source.data_and_metadata_changed_event.listen(data_and_metadata_changed))
+                self.notify_data_item_content_changed()
+        self.__data_item_changed_event_listeners.insert(before_index, data_source.data_item_changed_event.listen(data_item_changed))
         self.notify_data_item_content_changed()
         # the document model watches for new data sources via observing.
         # send this message to make data_sources observable.
@@ -1255,8 +1266,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_source.close()
 
     def __disconnect_data_source(self, index, data_source):
-        self.__data_and_metadata_changed_event_listeners[index].close()
-        del self.__data_and_metadata_changed_event_listeners[index]
+        self.__data_item_changed_event_listeners[index].close()
+        del self.__data_item_changed_event_listeners[index]
         data_source.set_dependent_data_item(None)
         data_source.set_data_item_manager(None)
         self.__request_remove_listeners[index].close()
@@ -1265,6 +1276,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         del self.__request_remove_region_listeners[index]
         self.__computation_changed_or_mutated_event_listeners[index].close()
         del self.__computation_changed_or_mutated_event_listeners[index]
+        self.__data_changed_event_listeners[index].close()
+        del self.__data_changed_event_listeners[index]
         # being in transaction state means that data sources have their data loaded.
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.__in_transaction_state:
@@ -1297,7 +1310,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_property_changed(self, key):
-        super(DataItem, self).notify_property_changed(key)
+        super().notify_property_changed(key)
         self.notify_data_item_content_changed()
 
     @property
