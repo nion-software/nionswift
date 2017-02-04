@@ -960,7 +960,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__data_item_display_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
 
-        self.__data_browser_controller = DataPanel.DataBrowserController(document_controller)
+        self.__data_browser_controller = document_controller.create_data_browser_controller_for_display_panel()
+
         self.__selected_data_items_changed_event_listener = self.__data_browser_controller.selected_data_items_changed_event.listen(self.__data_panel_selected_data_items_changed)
 
         def context_menu_event(display_item, x, y, gx, gy):

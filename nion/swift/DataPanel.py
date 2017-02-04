@@ -612,12 +612,19 @@ class DataBrowserController:
         self.__selected_data_items = list()
         self.filter_changed_event = Event.Event()
         self.selected_data_items_changed_event = Event.Event()
-        self.document_controller.set_data_group_or_filter(None, None)  # MARK. consolidate to one object.
+        self.__first = True
         # TODO: Restructure data browser controller to avoid using re-entry flag
         self.__blocked = False  # ugh. the smell of bad design.
 
     def close(self):
         pass
+
+    def clone_for_display_panel(self) -> 'DataBrowserController':
+        """Used to create a duplicate copy for the display panel."""
+        data_browser_controller = DataBrowserController(self.document_controller)
+        data_browser_controller.__data_group = self.__data_group
+        data_browser_controller.__filter_id = self.__filter_id
+        return data_browser_controller
 
     @property
     def focused(self):
@@ -662,7 +669,8 @@ class DataBrowserController:
 
                 # check to see if the filter changed
                 trigger = False
-                if data_group != self.__data_group or filter_id != self.__filter_id:
+                if data_group != self.__data_group or filter_id != self.__filter_id or self.__first:
+                    self.__first = False
                     # store the selection so we know when it changes
                     self.__data_group = data_group
                     self.__filter_id = filter_id
@@ -1219,6 +1227,8 @@ class DataPanel(Panel.Panel):
 
         self._data_list_widget = data_list_widget
         self._data_grid_widget = data_grid_widget
+
+        self.__data_browser_controller.set_data_browser_selection()
 
     def close(self):
         # binding should not be closed since it isn't created in this object

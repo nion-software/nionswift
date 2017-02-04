@@ -30,6 +30,24 @@ class TestDataPanelClass(unittest.TestCase):
     def tearDown(self):
         pass
 
+    def test_data_panel_has_initial_selection(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            document_controller.periodic()
+            # data items
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            # filter
+            self.assertEqual(data_panel.library_widget.parent_id, 0)
+            self.assertEqual(data_panel.library_widget.parent_row, -1)
+            self.assertEqual(data_panel.library_widget.index, 0)
+            # data group
+            self.assertEqual(data_panel.data_group_widget.parent_id, 0)
+            self.assertEqual(data_panel.data_group_widget.parent_row, -1)
+            self.assertEqual(data_panel.data_group_widget.index, -1)
+
     # make sure we can delete top level items, and child items
     def test_image_panel_delete(self):
         document_model = DocumentModel.DocumentModel()
@@ -689,6 +707,42 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel.library_widget.on_selection_changed([(0, -1, 0)])
             document_controller.periodic()
             self.assertEqual(data_panel.data_list_controller.display_item_count, 3)
+
+    def test_new_display_panel_does_not_change_the_filter(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            document_controller.periodic()
+            # select temporary items
+            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            document_controller.periodic()
+            # check assumptions, temporary group selected
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 0)
+            self.assertEqual(data_panel.library_widget.parent_id, 0)
+            self.assertEqual(data_panel.library_widget.parent_row, -1)
+            self.assertEqual(data_panel.library_widget.index, 1)
+            # create display panel
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
+            document_controller.selected_display_panel = display_panel
+            # create a temporary data item
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            data_item.category = "temporary"
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            # check that changing display updates to the one temporary data item in the data panel
+            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            # filter
+            self.assertEqual(data_panel.library_widget.parent_id, 0)
+            self.assertEqual(data_panel.library_widget.parent_row, -1)
+            self.assertEqual(data_panel.library_widget.index, 1)
+            # data group
+            self.assertEqual(data_panel.data_group_widget.parent_id, 0)
+            self.assertEqual(data_panel.data_group_widget.parent_row, -1)
+            self.assertEqual(data_panel.data_group_widget.index, -1)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

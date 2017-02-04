@@ -543,6 +543,9 @@ class DocumentController(Window.Window):
     def data_browser_controller(self):
         return self.__data_browser_controller
 
+    def create_data_browser_controller_for_display_panel(self) -> DataPanel.DataBrowserController:
+        return self.__data_browser_controller.clone_for_display_panel()
+
     def __update_data_item_binding(self, binding: DataItemsBinding.AbstractDataItemsBinding, data_group, filter_id):
 
         """
