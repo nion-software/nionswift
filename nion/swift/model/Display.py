@@ -440,6 +440,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__graphic_selection_changed_event_listener = self.graphic_selection.changed_event.listen(graphic_selection_changed)
         self.about_to_be_removed_event = Event.Event()
         self.display_changed_event = Event.Event()
+        self.display_data_will_change_event = Event.Event()
         self.display_type_changed_event = Event.Event()
         self.display_graphic_selection_changed_event = Event.Event()
         self.display_graphic_will_remove_event = Event.Event()
@@ -742,6 +743,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.notify_property_changed(property_name)
         self.display_changed_event.fire()
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
+            self.display_data_will_change_event.fire()
             getattr(self.__calculated_display_values, "_set_" + property_name)(value)
             self.__send_next_calculated_display_values()
         if property_name in ("dimensional_calibration_style", ):

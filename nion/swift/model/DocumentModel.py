@@ -1793,6 +1793,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                 self.deleted_event.fire()
                         self.__data_item_changed_event_listener = self.__buffered_data_source.data_item_changed_event.listen(data_item_changed)
                         self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
+                        self.__display_values_event_listener = self.__buffered_data_source.displays[0].display_data_will_change_event.listen(data_item_changed)
                     @property
                     def value(self):
                         return self.__data_item
@@ -1801,6 +1802,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_item_changed_event_listener = None
                         self.__data_item_will_be_removed_event_listener.close()
                         self.__data_item_will_be_removed_event_listener = None
+                        self.__display_values_event_listener.close()
+                        self.__display_values_event_listener = None
                 if data_item:
                     return BoundDataItem(data_item)
             elif specifier_type == "region":

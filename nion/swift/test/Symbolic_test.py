@@ -382,7 +382,7 @@ class TestSymbolicClass(unittest.TestCase):
             data = DocumentModel.evaluate_data(computation).data
             assert numpy.array_equal(data, d[9:42, 19:45])
 
-    def test_evaluate_computation_within_document_model_gives_correct_value(self):
+    def test_evaluate_computation_gives_correct_value(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
@@ -393,7 +393,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_and_metadata = DocumentModel.evaluate_data(computation)
             self.assertTrue(numpy.array_equal(data_and_metadata.data, -data))
 
-    def test_computation_within_document_model_fires_needs_update_event_when_data_changes(self):
+    def test_computation_fires_needs_update_event_when_data_changes(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
@@ -410,7 +410,26 @@ class TestSymbolicClass(unittest.TestCase):
                     dr.data += 1.5
             self.assertTrue(needs_update_ref[0])
 
-    def test_computation_within_document_model_fires_needs_update_event_when_metadata_changes(self):
+    def test_computation_fires_needs_update_event_when_display_data_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = ((numpy.random.randn(2, 2, 2, 2) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("a.display_xdata"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computed_data_item = DataItem.DataItem(data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            # verify assumptions
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data[0, 0, ...], computed_data_item.maybe_data_source.data))
+            # change display, check
+            data_item.maybe_data_source.displays[0].collection_index = 1, 1
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data[1, 1, ...], computed_data_item.maybe_data_source.data))
+
+    def test_computation_fires_needs_update_event_when_metadata_changes(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
@@ -428,7 +447,7 @@ class TestSymbolicClass(unittest.TestCase):
                 data_item.maybe_data_source.metadata = metadata
             self.assertTrue(needs_update_ref[0])
 
-    def test_computation_within_document_model_does_not_update_when_graphic_changes_on_source(self):
+    def test_computation_does_not_update_when_graphic_changes_on_source(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
@@ -445,7 +464,7 @@ class TestSymbolicClass(unittest.TestCase):
                 data_item.maybe_data_source.displays[0].graphics[0].position = (0.3, 0.4)
             self.assertFalse(needs_update_ref[0])
 
-    def test_computation_within_document_model_fires_needs_update_event_when_object_property(self):
+    def test_computation_fires_needs_update_event_when_object_property(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.random.randn(64, 64)
@@ -466,7 +485,7 @@ class TestSymbolicClass(unittest.TestCase):
                 data_item.maybe_data_source.displays[0].graphics[0].size = 0.53, 0.43
             self.assertTrue(needs_update_ref[0])
 
-    def test_computation_within_document_model_fires_needs_update_event_when_variable_or_object_added(self):
+    def test_computation_fires_needs_update_event_when_variable_or_object_added(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.random.randn(64, 64)
@@ -544,7 +563,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             document_model.remove_data_item(new_data_item)
 
-    def test_evaluate_corrupt_computation_within_document_model_gives_sensible_response(self):
+    def test_evaluate_corrupt_computation_gives_sensible_response(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
