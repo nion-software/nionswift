@@ -2,6 +2,7 @@
 import collections
 import copy
 import math
+import threading
 
 # third party libraries
 import numpy
@@ -75,6 +76,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.wants_mouse_events = True
 
         font_size = 12
+
+        self.__closing_lock = threading.RLock()
+        self.__closed = False
 
         self.__last_data = None
 
@@ -168,32 +172,42 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     def close(self):
         # call super
-        super(LinePlotCanvasItem, self).close()
+        with self.__closing_lock:
+            self.__closed = True
+        super().close()
 
     def update_line_plot_display_state(self, data, data_shape, displayed_intensity_calibration: Calibration.Calibration, displayed_dimensional_calibration: Calibration.Calibration, metadata: dict, display_properties) -> None:
-        """ Update the display state. """
-        self.__data = data
-        self.__data_shape = data_shape
-        self.__dimensional_calibration = displayed_dimensional_calibration
-        self.__intensity_calibration = displayed_intensity_calibration
-        self.__y_min = display_properties["y_min"]
-        self.__y_max = display_properties["y_max"]
-        self.__y_style = display_properties["y_style"]
-        self.__left_channel = display_properties["left_channel"]
-        self.__right_channel = display_properties["right_channel"]
-        self.__legend_labels = display_properties["legend_labels"]
-        if self.__display_frame_rate_id:
-            frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
-            if frame_index != self.__display_frame_rate_last_index:
-                Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                self.__display_frame_rate_last_index = frame_index
-            if id(self.__data) != id(self.__last_data):
-                Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                self.__last_data = self.__data
-        # update the cursor info
-        self.__update_cursor_info()
-        # finally, trigger the paint thread (if there still is one) to update
-        self.update()
+        # this method may trigger a layout of its parent scroll area. however, the parent scroll
+        # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
+        # that this object is not closeable while this method is running; and this method should not
+        # run if the object is already closed.
+        with self.__closing_lock:
+            if self.__closed:
+                return
+            assert not self.__closed
+            """ Update the display state. """
+            self.__data = data
+            self.__data_shape = data_shape
+            self.__dimensional_calibration = displayed_dimensional_calibration
+            self.__intensity_calibration = displayed_intensity_calibration
+            self.__y_min = display_properties["y_min"]
+            self.__y_max = display_properties["y_max"]
+            self.__y_style = display_properties["y_style"]
+            self.__left_channel = display_properties["left_channel"]
+            self.__right_channel = display_properties["right_channel"]
+            self.__legend_labels = display_properties["legend_labels"]
+            if self.__display_frame_rate_id:
+                frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+                if frame_index != self.__display_frame_rate_last_index:
+                    Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                    self.__display_frame_rate_last_index = frame_index
+                if id(self.__data) != id(self.__last_data):
+                    Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                    self.__last_data = self.__data
+            # update the cursor info
+            self.__update_cursor_info()
+            # finally, trigger the paint thread (if there still is one) to update
+            self.update()
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)

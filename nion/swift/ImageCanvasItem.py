@@ -278,7 +278,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__update_layout_handle = None
         self.__update_layout_handle_lock = threading.RLock()
+
         self.__closing_lock = threading.RLock()
+        self.__closed = False
 
         self.__last_image_zoom = 1.0
         self.__last_image_norm_center = (0.5, 0.5)
@@ -325,15 +327,13 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_frame_rate_id = None
         self.__display_frame_rate_last_index = 0
 
-        self.__closed = False
-
     def close(self):
-        with self.__update_layout_handle_lock:
-            update_layout_handle = self.__update_layout_handle
-            if update_layout_handle:
-                update_layout_handle.cancel()
-                self.__update_layout_handle = None
         with self.__closing_lock:
+            with self.__update_layout_handle_lock:
+                update_layout_handle = self.__update_layout_handle
+                if update_layout_handle:
+                    update_layout_handle.cancel()
+                    self.__update_layout_handle = None
             self.__closed = True
         super().close()
 
@@ -346,40 +346,42 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     # this method is called on a thread.
     def update_image_display_state(self, data_rgba, data_shape, dimension_calibration, metadata):
         # this method may trigger a layout of its parent scroll area. however, the parent scroll
-        # area may already be closed. this is a stop-gap guess at a solution.
+        # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
+        # that this object is not closeable while this method is running; and this method should not
+        # run if the object is already closed.
         with self.__closing_lock:
             if self.__closed:
                 return
-        assert not self.__closed
-        # first take care of listeners and update the __display field
-        # next get rid of data associated with canvas items
-        self.__data_rgba = data_rgba
-        self.__data_shape = data_shape
-        # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-        self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
-        if self.__display_frame_rate_id:
-            frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
-            if frame_index != self.__display_frame_rate_last_index:
-                Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                self.__display_frame_rate_last_index = frame_index
-            if id(self.__data_rgba) != id(self.__last_data_rgb):
-                Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                self.__last_data_rgb = self.__data_rgba
-        # update the cursor info
-        self.__update_cursor_info()
-        def update_layout():
-            # layout. this makes sure that the info overlay gets updated too.
-            self.__update_image_canvas_size()
-            # trigger updates
-            self.__bitmap_canvas_item.update()
-            with self.__update_layout_handle_lock:
-                self.__update_layout_handle = None
-        if self.__event_loop:
-            with self.__update_layout_handle_lock:
-                update_layout_handle = self.__update_layout_handle
-                if update_layout_handle:
-                    update_layout_handle.cancel()
-                self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
+            assert not self.__closed
+            # first take care of listeners and update the __display field
+            # next get rid of data associated with canvas items
+            self.__data_rgba = data_rgba
+            self.__data_shape = data_shape
+            # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
+            self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
+            if self.__display_frame_rate_id:
+                frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+                if frame_index != self.__display_frame_rate_last_index:
+                    Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                    self.__display_frame_rate_last_index = frame_index
+                if id(self.__data_rgba) != id(self.__last_data_rgb):
+                    Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                    self.__last_data_rgb = self.__data_rgba
+            # update the cursor info
+            self.__update_cursor_info()
+            def update_layout():
+                # layout. this makes sure that the info overlay gets updated too.
+                self.__update_image_canvas_size()
+                # trigger updates
+                self.__bitmap_canvas_item.update()
+                with self.__update_layout_handle_lock:
+                    self.__update_layout_handle = None
+            if self.__event_loop:
+                with self.__update_layout_handle_lock:
+                    update_layout_handle = self.__update_layout_handle
+                    if update_layout_handle:
+                        update_layout_handle.cancel()
+                    self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
