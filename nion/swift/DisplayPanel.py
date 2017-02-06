@@ -1,5 +1,5 @@
 # standard libraries
-import asyncio
+import contextlib
 import functools
 import gettext
 import json
@@ -10,7 +10,6 @@ import threading
 import uuid
 import weakref
 
-from nion.data import Calibration
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
 from nion.swift import ImageCanvasItem
@@ -1732,21 +1731,23 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     if display_type == "line_plot":
         frame_width, frame_height = width, int(width / 1.618)
         display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
-        DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
-        display_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(height=frame_height, width=frame_width))
-        display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
-        with drawing_context.saver():
-            drawing_context.translate(0, (frame_width - frame_height) * 0.5)
-            display_canvas_item._repaint(drawing_context)
+        with contextlib.closing(display_canvas_item):
+            DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
+            display_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(height=frame_height, width=frame_width))
+            display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+            with drawing_context.saver():
+                drawing_context.translate(0, (frame_width - frame_height) * 0.5)
+                display_canvas_item._repaint(drawing_context)
 
     elif display_type == "image":
         display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, None, draw_background=False)
-        display_canvas_item.set_fit_mode()
-        DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
-        displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-        graphics = display.graphics
-        display_canvas_item.update_layout((0, 0), (height, width))
-        display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
-        display_canvas_item._repaint(drawing_context)
+        with contextlib.closing(display_canvas_item):
+            display_canvas_item.set_fit_mode()
+            DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
+            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+            graphics = display.graphics
+            display_canvas_item.update_layout((0, 0), (height, width))
+            display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+            display_canvas_item._repaint(drawing_context)
 
     return drawing_context
