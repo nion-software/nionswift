@@ -442,8 +442,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_changed_event = Event.Event()
         self.display_type_changed_event = Event.Event()
         self.display_graphic_selection_changed_event = Event.Event()
-        self.display_processor_needs_recompute_event = Event.Event()
-        self.display_processor_data_updated_event = Event.Event()
         self.display_graphic_will_remove_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
@@ -978,14 +976,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 full_pos[-1] = pos[0]
                 value_text = self.__get_calibrated_value_text(data_and_metadata.get_data_value(full_pos), intensity_calibration)
         return position_text, value_text
-
-    # called from processors
-    def processor_needs_recompute(self, processor):
-        self.display_processor_needs_recompute_event.fire(processor)
-
-    # called from processors
-    def processor_data_updated(self, processor):
-        self.display_processor_data_updated_event.fire(processor)
 
 
 def display_factory(lookup_id):

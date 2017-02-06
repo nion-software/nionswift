@@ -57,7 +57,6 @@ class ThumbnailDataItemProcessor:
         self.__cache.set_cached_value_dirty(self.__display, self.__cache_property_name)
         self.__initialize_cache()
         self.__cached_value_dirty = True
-        self.__display.processor_needs_recompute(self)
 
     def __initialize_cache(self):
         """Initialize the cache values (cache values are used for optimization)."""
@@ -137,7 +136,6 @@ class ThumbnailDataItemProcessor:
                     self.__cached_value_dirty = None
                     self.__cached_value_time = 0
             self.__recompute_lock.release()
-            self.__display.processor_data_updated(self)
             if callable(self.on_thumbnail_updated):
                 self.on_thumbnail_updated()
             self.__recompute_lock.acquire()
