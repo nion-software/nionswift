@@ -72,6 +72,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("cascade_delete", changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
+        self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
 
     def __repr__(self):
@@ -157,6 +158,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             self.notify_property_changed("display_label")
         if name in ("specifier"):
             self.notify_property_changed("specifier_uuid_str")
+            self.needs_rebind_event.fire()
         self.changed_event.fire()
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
@@ -388,6 +390,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
         self.__variable_changed_event_listeners = dict()
+        self.__variable_needs_rebind_event_listeners = dict()
         self.__bound_items = dict()
         self.__bound_item_changed_event_listeners = dict()
         self.__bound_item_deleted_event_listeners = dict()
@@ -555,9 +558,17 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.__bound_item_changed_event_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
             self.__bound_item_deleted_event_listeners[variable.uuid] = bound_item.deleted_event.listen(deleted)
 
+        def rebind():
+            self.__unbind_variable(variable)
+            self.__bind_variable(variable)
+
+        self.__variable_needs_rebind_event_listeners[variable.uuid] = variable.needs_rebind_event.listen(rebind)
+
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
         del self.__variable_changed_event_listeners[variable.uuid]
+        self.__variable_needs_rebind_event_listeners[variable.uuid].close()
+        del self.__variable_needs_rebind_event_listeners[variable.uuid]
         if variable.uuid in self.__bound_items:
             bound_item = self.__bound_items[variable.uuid]
             if bound_item:

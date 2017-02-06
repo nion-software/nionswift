@@ -1163,6 +1163,36 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data2 + 1))
 
+    def test_computation_in_document_is_still_live_when_region_specifier_uuid_str_changes(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            src_data = ((numpy.abs(numpy.random.randn(10, 10)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(src_data)
+            region1 = Graphics.RectangleGraphic()
+            region1.bounds = Geometry.FloatRect.from_tlhw(0.0, 0.0, 0.5, 0.5)
+            data_item.maybe_data_source.displays[0].add_graphic(region1)
+            region2 = Graphics.RectangleGraphic()
+            region2.bounds = Geometry.FloatRect.from_tlhw(0.5, 0.5, 0.5, 0.5)
+            data_item.maybe_data_source.displays[0].add_graphic(region2)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("xd.crop(a.xdata, r.bounds)"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            r = computation.create_object("r", document_model.get_object_specifier(region1))
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            # verify assumptions
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[0:5, 0:5]))
+            # now switch the region uuid
+            r.specifier_uuid_str = str(region2.uuid)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[5:10, 5:10]))
+            # and make sure recompute happens when new region uuid changes
+            region2.bounds = Geometry.FloatRect.from_tlhw(0.0, 0.0, 0.5, 0.5)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[0:5, 0:5]))
+
     def test_computation_with_raw_reference_copies(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
