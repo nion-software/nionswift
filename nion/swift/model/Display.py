@@ -194,9 +194,7 @@ class CalculatedDisplayValues:
         self.__display_range = None
         self.__display_rgba = None
 
-        self.__display_data_and_metadata_dirty = False
-        self.__data_range_dirty = False
-        self.__data_sample_dirty = False
+        self.__display_data_dirty = False
         self.__display_range_dirty = False
         self.__display_rgba_dirty = False
 
@@ -221,9 +219,7 @@ class CalculatedDisplayValues:
     def copy_and_calculate(self) -> "CalculatedDisplayValues":
         with self.__lock:
             calculated_display_values = copy.copy(self)
-            self.__display_data_and_metadata_dirty = False
-            self.__data_range_dirty = False
-            self.__data_sample_dirty = False
+            self.__display_data_dirty = False
             self.__display_range_dirty = False
             self.__display_rgba_dirty = False
         calculated_display_values._set_parent(self)
@@ -242,54 +238,42 @@ class CalculatedDisplayValues:
     def _set_data_and_metadata(self, value):
         self.__data_and_metadata = value
         with self.__lock:
-            self.__display_data_and_metadata_dirty = True
-            self.__data_range_dirty = True
-            self.__data_sample_dirty = True
+            self.__display_data_dirty = True
             self.__display_range_dirty = True
             self.__display_rgba_dirty = True
 
     def _set_sequence_index(self, value):
         self.__sequence_index = value
         with self.__lock:
-            self.__display_data_and_metadata_dirty = True
-            self.__data_range_dirty = True
-            self.__data_sample_dirty = True
+            self.__display_data_dirty = True
             self.__display_range_dirty = True
             self.__display_rgba_dirty = True
 
     def _set_collection_index(self, value):
         self.__collection_index = value
         with self.__lock:
-            self.__display_data_and_metadata_dirty = True
-            self.__data_range_dirty = True
-            self.__data_sample_dirty = True
+            self.__display_data_dirty = True
             self.__display_range_dirty = True
             self.__display_rgba_dirty = True
 
     def _set_slice_center(self, value):
         self.__slice_center = value
         with self.__lock:
-            self.__display_data_and_metadata_dirty = True
-            self.__data_range_dirty = True
-            self.__data_sample_dirty = True
+            self.__display_data_dirty = True
             self.__display_range_dirty = True
             self.__display_rgba_dirty = True
 
     def _set_slice_width(self, value):
         self.__slice_width = value
         with self.__lock:
-            self.__display_data_and_metadata_dirty = True
-            self.__data_range_dirty = True
-            self.__data_sample_dirty = True
+            self.__display_data_dirty = True
             self.__display_range_dirty = True
             self.__display_rgba_dirty = True
 
     def _set_complex_display_type(self, value):
         self.__complex_display_type = value
         with self.__lock:
-            self.__display_data_and_metadata_dirty = True
-            self.__data_range_dirty = True
-            self.__data_sample_dirty = True
+            self.__display_data_dirty = True
             self.__display_range_dirty = True
             self.__display_rgba_dirty = True
 
@@ -305,11 +289,9 @@ class CalculatedDisplayValues:
             self.__display_rgba_dirty = True
 
     def __calculate(self):
-        if self.__display_data_and_metadata_dirty:
+        if self.__display_data_dirty:
             self.__display_data_and_metadata = self.__calculate_display_data_and_metadata()
-        if self.__data_range_dirty:
             self.__data_range = self.__calculate_data_range()
-        if self.__data_sample_dirty:
             self.__data_sample = self.__calculate_data_sample()
         if self.__display_range_dirty:
             self.__display_range = self.__calculate_display_range()
