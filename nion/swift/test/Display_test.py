@@ -353,18 +353,18 @@ class TestDisplayClass(unittest.TestCase):
             self.assertEqual(display_specifier.display.color_map_id, 'elephant')
             self.assertIsNotNone(display_specifier.display.color_map_data)
 
-    def test_calling_auto_display_limits_resets_display_limits_to_none(self):
+    def test_reset_display_limits_resets_display_limits_to_none(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
             data_item.maybe_data_source.displays[0].display_limits = 0.5, 1.5
             self.assertIsNotNone(data_item.maybe_data_source.displays[0].display_limits)  # check assumptions
-            data_item.maybe_data_source.displays[0].auto_display_limits()
+            data_item.maybe_data_source.displays[0].reset_display_limits()
             self.assertIsNone(data_item.maybe_data_source.displays[0].display_limits)
             preview = data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_rgba
             self.assertIsNotNone(preview)
 
-    def test_auto_display_limits_on_various_value_types_write_to_clean_json(self):
+    def test_reset_display_limits_on_various_value_types_write_to_clean_json(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             dtypes = (numpy.float32, numpy.float64, numpy.complex64, numpy.complex128, numpy.int16, numpy.uint16, numpy.int32, numpy.uint32)
@@ -372,10 +372,10 @@ class TestDisplayClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
                 document_model.append_data_item(data_item)
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                display_specifier.display.auto_display_limits()
+                display_specifier.display.reset_display_limits()
                 Utility.clean_dict(data_item.properties)
 
-    def test_auto_display_limits_on_complex_data_gives_reasonable_results(self):
+    def test_reset_display_limits_on_complex_data_gives_reasonable_results(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.ones((16, 16), numpy.complex64)
@@ -385,13 +385,13 @@ class TestDisplayClass(unittest.TestCase):
             data_item.maybe_data_source.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.display.auto_display_limits()
+            display_specifier.display.reset_display_limits()
             # the display limit should never be less than the display data minimum
             display_range = display_specifier.display.get_calculated_display_values(True).display_range
             self.assertLess(numpy.amin(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data), display_range[0])
             self.assertAlmostEqual(numpy.amax(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data), display_range[1])
 
-    def test_data_range_still_valid_after_auto_display_limits(self):
+    def test_data_range_still_valid_after_reset_display_limits(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data = numpy.ones((16, 16))
@@ -400,8 +400,22 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_range = display_specifier.display.get_calculated_display_values(True).data_range
             self.assertIsNotNone(data_range)
-            display_specifier.display.auto_display_limits()
+            display_specifier.display.reset_display_limits()
             self.assertEqual(data_range, display_specifier.display.get_calculated_display_values(True).data_range)
+
+    def test_auto_display_limits_works(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data = numpy.empty((100, 100))
+            data[0:50, :] = 1
+            data[50:100, :] = 2
+            data[0, 0] = 0
+            data[99, 99] = 3
+            data_item = DataItem.DataItem(data)
+            data_item.maybe_data_source.displays[0].auto_display_limits()
+            low, high = data_item.maybe_data_source.displays[0].display_limits
+            self.assertAlmostEqual(low, 0.9)
+            self.assertAlmostEqual(high, 2.1)
 
     def test_display_range_is_recalculated_with_new_data(self):
         document_model = DocumentModel.DocumentModel()

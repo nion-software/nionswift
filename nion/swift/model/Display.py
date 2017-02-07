@@ -473,9 +473,18 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def data_and_metadata_for_display_panel(self):
         return self.__data_and_metadata
 
-    def auto_display_limits(self):
-        # auto set the display limits if not yet set and data is complex
+    def reset_display_limits(self):
+        """Reset display limits so that they are auto calculated whenever the data changes."""
         self.display_limits = None
+
+    def auto_display_limits(self):
+        """Calculate best display limits and set them."""
+        display_data_and_metadata = self.get_calculated_display_values(True).display_data_and_metadata
+        data = display_data_and_metadata.data if display_data_and_metadata else None
+        if data is not None:
+            percentiles = numpy.nanpercentile(data.flatten(), (0.1, 99.9))
+            range = percentiles[1] - percentiles[0]
+            self.display_limits = percentiles[0] - range * 0.1, percentiles[1] + range * 0.1
 
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         left = None

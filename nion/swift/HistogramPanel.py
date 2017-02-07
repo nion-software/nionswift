@@ -360,7 +360,7 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
                     upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
                     display.display_limits = (lower_display_limit, upper_display_limit)
                 else:
-                    display.auto_display_limits()
+                    display.reset_display_limits()
 
         def cursor_changed(canvas_x):
             if callable(cursor_changed_fn):
