@@ -437,6 +437,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                         # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                         # NOTE: change writer_version in DataItem.py
                         data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+                        data_item.large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
                         data_item.begin_reading()
                         persistent_storage = DataItemStorage(storage_handler=storage_handler, data_item=data_item, properties=properties)
                         data_item.read_from_dict(persistent_storage.properties)

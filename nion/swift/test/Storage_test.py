@@ -2820,6 +2820,55 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_snapshot_copies_storage_format(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        try:
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage)
+            with contextlib.closing(document_model):
+                data_item1 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                data_item2 = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
+                data_item2.large_format = True
+                document_model.append_data_item(data_item1)
+                document_model.append_data_item(data_item2)
+            # read it back
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, log_migrations=False)
+            with contextlib.closing(document_model):
+                data_item1 = document_model.data_items[0]
+                data_item2 = document_model.data_items[1]
+                data_item1a = document_model.get_snapshot_new(data_item1)
+                data_item2a = document_model.get_snapshot_new(data_item2)
+                data_item1b = copy.deepcopy(data_item1)
+                data_item2b = copy.deepcopy(data_item2)
+                document_model.append_data_item(data_item1b)
+                document_model.append_data_item(data_item2b)
+                file_path1 = data_item1._test_get_file_path()
+                file_path2 = data_item2._test_get_file_path()
+                file_path1a = data_item1a._test_get_file_path()
+                file_path2a = data_item2a._test_get_file_path()
+                file_path1b = data_item1b._test_get_file_path()
+                file_path2b = data_item2b._test_get_file_path()
+            file_path1_base, file_path1_ext = os.path.splitext(file_path1)
+            file_path2_base, file_path2_ext = os.path.splitext(file_path2)
+            file_path1a_base, file_path1a_ext = os.path.splitext(file_path1a)
+            file_path2a_base, file_path2a_ext = os.path.splitext(file_path2a)
+            file_path1b_base, file_path1b_ext = os.path.splitext(file_path1b)
+            file_path2b_base, file_path2b_ext = os.path.splitext(file_path2b)
+            # check assumptions
+            self.assertNotEqual(file_path1_ext, file_path2_ext)
+            # check results
+            self.assertEqual(file_path1_ext, file_path1a_ext)
+            self.assertEqual(file_path2_ext, file_path2a_ext)
+            self.assertEqual(file_path1_ext, file_path1b_ext)
+            self.assertEqual(file_path2_ext, file_path2b_ext)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def disabled_test_document_controller_disposes_threads(self):
         thread_count = threading.activeCount()
         document_model = DocumentModel.DocumentModel()

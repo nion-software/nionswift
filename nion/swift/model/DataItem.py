@@ -839,6 +839,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __deepcopy__(self, memo):
         data_item_copy = DataItem()
+        # format
+        data_item_copy.large_format = self.large_format
         # metadata
         data_item_copy.metadata = self.metadata
         data_item_copy.created = self.created
