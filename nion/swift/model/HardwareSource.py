@@ -923,6 +923,7 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
         self.__crop_graphic = None
         self.__crop_listener = None
         self.__remove_listener = None
+        self.__data_item_changed_event_listener = None
 
     @property
     def label(self):
@@ -947,8 +948,23 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
     def process(self, data_and_metadata: Core.DataAndMetadata) -> Core.DataAndMetadata:
         return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
 
-    def connect(self, data_item):
-        """Connect to the source data item, creating a crop graphic if necessary."""
+    def connect(self, data_item_reference):
+        """Connect to the data item reference, creating a crop graphic if necessary.
+
+        If the data item reference does not yet have an associated data item, add a
+        listener and wait for the data item to be set, then connect.
+        """
+        data_item = data_item_reference.data_item
+        if data_item:
+            self.__connect_data_item(data_item)
+        else:
+            def data_item_changed():
+                self.__data_item_changed_event_listener.close()
+                self.connect(data_item_reference)  # ugh. recursive mess.
+            self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
+
+    def __connect_data_item(self, data_item):
+        assert threading.current_thread() == threading.main_thread()
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         crop_graphic = None
         for graphic in display_specifier.display.graphics:

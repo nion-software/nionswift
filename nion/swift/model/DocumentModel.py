@@ -1839,12 +1839,68 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return Symbolic.ComputationVariable.resolve_extension_object_specifier(specifier)
 
     class DataItemReference:
+        """A data item reference to coordinate data item access between acquisition and main thread.
+
+        Call start/stop a matching number of times to start/stop using the data reference (from the
+        acquisition thread).
+
+        Set data_item property when it is created (from the UI thread).
+
+        This class will also track when the data item is deleted and handle it appropriately if it
+        happens while the acquisition thread is using it.
+        """
         def __init__(self, document_model: "DocumentModel", key: str, data_item: DataItem.DataItem=None):
             self.__document_model = document_model
             self.__key = key
             self.__data_item = data_item
+            self.__starts = 0
+            self.__pending_starts = 0
             self.mutex = threading.RLock()
             self.data_item_changed_event = Event.Event()
+
+        def start(self):
+            """Start using the data item reference. Must call stop a matching number of times.
+
+            Increments ref counts and begins transaction/live state.
+
+            Keeps track of pending starts if the data item has not yet been set.
+
+            This call is thread safe.
+            """
+            if self.__data_item:
+                self.__start()
+            else:
+                self.__pending_starts += 1
+
+        def stop(self):
+            """Stop using the data item reference. Must have called start a matching number of times.
+
+            Decrements ref counts and ends transaction/live state.
+
+            Keeps track of pending starts if the data item has not yet been set.
+
+            This call is thread safe.
+            """
+            if self.__data_item:
+                self.__stop()
+            else:
+                self.__pending_starts -= 1
+
+        def __start(self):
+            self.__data_item.increment_data_ref_counts()
+            self.__document_model.begin_data_item_transaction(self.__data_item)
+            self.__document_model.begin_data_item_live(self.__data_item)
+            self.__starts += 1
+
+        def __stop(self):
+            # the order of these two statements is important, at least for now (12/2013)
+            # when the transaction ends, the data will get written to disk, so we need to
+            # make sure it's still in memory. if decrement were to come before the end
+            # of the transaction, the data would be unloaded from memory, losing it forever.
+            self.__document_model.end_data_item_transaction(self.__data_item)
+            self.__document_model.end_data_item_live(self.__data_item)
+            self.__data_item.decrement_data_ref_counts()
+            self.__starts -= 1
 
         # this method gets called directly from the document model
         def data_item_inserted(self, data_item):
@@ -1854,6 +1910,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         def data_item_removed(self, data_item):
             with self.mutex:
                 if data_item == self.__data_item:
+                    # when this data item is removed, it can no longer be used.
+                    # but to ensure that start/stop calls are matching in the case where this item
+                    # is removed and then a new item is set, we need to copy the number of starts
+                    # to the pending starts so when the new item is set, start gets called the right
+                    # number of times to match the stops that will eventually be called.
+                    self.__pending_starts = self.__starts
+                    self.__starts = 0
                     self.__data_item = None
 
         @property
@@ -1866,14 +1929,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             with self.mutex:
                 if self.__data_item != value:
                     self.__data_item = value
+                    # start (internal) for each pending start.
+                    for i in range(self.__pending_starts):
+                        self.__start()
+                    self.__pending_starts = 0
                     self.data_item_changed_event.fire()
-                    self.__document_model._update_data_item_reference(self.__key, self.__data_item)
 
     def __queue_data_item_update(self, data_item, data_and_metadata, sub_area):
         # put the data update to data_item into the pending_data_item_updates list.
-        # the pending_data_item_updates will be serviced after all pending queueing is finished.
         # if there is no sub_area and the data_item is already in the queue, just
         # replace it with the new data.
+        # the pending_data_item_updates will be serviced when the main thread calls
+        # perform_data_item_updates.
         if data_item:
             with self.__pending_data_item_updates_lock:
                 # optimize case where sub_area is full area.
@@ -1926,67 +1993,63 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         Construct a data item reference and assign a data item to it. Update data item session id and session metadata.
         Also connect the data channel processor.
+
+        This method is thread safe.
         """
-        assert threading.current_thread() == threading.main_thread()
         session_id = self.session_id
-        data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
+        key = self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)
+        data_item_reference = self.get_data_item_reference(key)
         with data_item_reference.mutex:
             data_item = data_item_reference.data_item
             # if we still don't have a data item, create it.
-            if not data_item:
+            if data_item is None:
                 data_item = DataItem.DataItem()
                 data_item.title = "%s (%s)" % (hardware_source.display_name, data_channel.name) if data_channel.name else hardware_source.display_name
                 data_item.category = "temporary"
                 buffered_data_source = DataItem.BufferedDataSource()
                 data_item.append_data_source(buffered_data_source)
                 data_item_reference.data_item = data_item
-                data_item.increment_data_ref_counts()
-                self.begin_data_item_transaction(data_item)
-                self.begin_data_item_live(data_item)
-                self.append_data_item(data_item)
-            # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
-            if data_item.session_id != session_id:
-                data_item.session_id = session_id
-            session_metadata = self.session_metadata
-            if data_item.session_metadata != session_metadata:
-                data_item.session_metadata = session_metadata
-            if data_channel.processor:
-                src_data_channel = hardware_source.data_channels[data_channel.src_channel_index]
-                src_data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_data_channel.channel_id)).data_item
-                data_channel.processor.connect(src_data_item)
+
+                def append_data_item():
+                    self.append_data_item(data_item)
+                    self._update_data_item_reference(key, data_item)
+
+                self.__call_soon(append_data_item)
+
+            def update_session():
+                # update the session, but only if necessary (this is an optimization to prevent unnecessary display updates)
+                if data_item.session_id != session_id:
+                    data_item.session_id = session_id
+                session_metadata = self.session_metadata
+                if data_item.session_metadata != session_metadata:
+                    data_item.session_metadata = session_metadata
+                if data_channel.processor:
+                    src_data_channel = hardware_source.data_channels[data_channel.src_channel_index]
+                    src_data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, src_data_channel.channel_id))
+                    data_channel.processor.connect(src_data_item_reference)
+
+            self.__call_soon(update_session)
             return data_item_reference
 
     def __data_channel_start(self, hardware_source, data_channel):
         def data_channel_start():
             assert threading.current_thread() == threading.main_thread()
-            data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
-            if data_item:
-                data_item.increment_data_ref_counts()
-                self.begin_data_item_transaction(data_item)
-                self.begin_data_item_live(data_item)
+            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
+            data_item_reference.start()
         self.__call_soon(data_channel_start)
 
 
     def __data_channel_stop(self, hardware_source, data_channel):
         def data_channel_stop():
             assert threading.current_thread() == threading.main_thread()
-            data_item = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id)).data_item
-            # the order of these two statements is important, at least for now (12/2013)
-            # when the transaction ends, the data will get written to disk, so we need to
-            # make sure it's still in memory. if decrement were to come before the end
-            # of the transaction, the data would be unloaded from memory, losing it forever.
-            if data_item:
-                self.end_data_item_transaction(data_item)
-                self.end_data_item_live(data_item)
-                data_item.decrement_data_ref_counts()
+            data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
+            data_item_reference.stop()
         self.__call_soon(data_channel_stop)
 
     def __data_channel_updated(self, hardware_source, data_channel, data_and_metadata):
         sub_area = data_channel.sub_area  # evaluate immediately instead of within call_soon callback
-        def data_channel_updated():
-            data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel)
-            self.__queue_data_item_update(data_item_reference.data_item, data_and_metadata, sub_area)
-        self.__call_soon(data_channel_updated)
+        data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel)
+        self.__queue_data_item_update(data_item_reference.data_item, data_and_metadata, sub_area)
 
     def __data_channel_states_updated(self, hardware_source, data_channels):
         data_item_states = list()
