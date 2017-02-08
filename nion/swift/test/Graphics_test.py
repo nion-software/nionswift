@@ -842,6 +842,30 @@ class TestGraphicsClass(unittest.TestCase):
 
         document_controller.close()
 
+    def test_selected_graphics_get_priority_when_dragging_middles(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            header_height = display_panel._content_for_test.header_canvas_item.header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            rect_graphic1 = Graphics.RectangleGraphic()
+            rect_graphic2 = Graphics.RectangleGraphic()
+            rect_graphic1.bounds = (0.4, 0.4), (0.2, 0.2)
+            rect_graphic2.bounds = (0.25, 0.25), (0.5, 0.5)
+            display_specifier.display.add_graphic(rect_graphic1)
+            display_specifier.display.add_graphic(rect_graphic2)
+            display_specifier.display.graphic_selection.set(0)
+            # now the smaller rectangle (selected) is behind the larger one
+            display_panel.display_canvas_item.simulate_drag((500, 500), (600, 600))
+            # make sure the smaller one gets dragged
+            self.assertAlmostEqualPoint(Geometry.FloatRect.make(rect_graphic1.bounds).center, Geometry.FloatPoint(y=0.6, x=0.6))
+            self.assertAlmostEqualPoint(Geometry.FloatRect.make(rect_graphic2.bounds).center, Geometry.FloatPoint(y=0.5, x=0.5))
+
     def test_removing_graphic_from_display_closes_it(self):
         # make the document controller
         document_model = DocumentModel.DocumentModel()

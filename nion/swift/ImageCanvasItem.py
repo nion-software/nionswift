@@ -511,7 +511,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             widget_mapping = self.__get_mouse_mapping()
             part_specs = list()
             specific_part_spec = None
-            for graphic_index, graphic in enumerate(graphics):
+            # the graphics are drawn in order, which means the graphics with the higher index are "on top" of the
+            # graphics with the lower index. but priority should also be given to selected graphics. so sort the
+            # graphics according to whether they are selected or not (selected ones go later), then by their index.
+            for graphic_index, graphic in sorted(enumerate(graphics), key=lambda ig: (ig[0] in selection_indexes, ig[0])):
                 if isinstance(graphic, (Graphics.PointTypeGraphic, Graphics.LineTypeGraphic, Graphics.RectangleTypeGraphic, Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                     already_selected = graphic_index in selection_indexes
                     move_only = not already_selected or multiple_items_selected
