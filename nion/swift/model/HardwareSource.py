@@ -565,6 +565,7 @@ class HardwareSource:
         self.abort_event = Event.Event()
         self.acquisition_state_changed_event = Event.Event()
         self.data_item_states_changed_event = Event.Event()
+        self.call_soon_event = Event.Event()
         self.__break_for_closing = False
         self.__acquire_thread_trigger = threading.Event()
         self.__tasks = dict()  # type: typing.Dict[str, AcquisitionTask]
@@ -585,6 +586,9 @@ class HardwareSource:
         # acquire_thread should always be non-null here, otherwise close was called twice.
         self.__acquire_thread.join()
         self.__acquire_thread = None
+
+    def _call_soon(self, fn):
+        self.call_soon_event.fire_any(fn)
 
     def __acquire_thread_loop(self):
         # acquire_thread_trigger should be set whenever the task list change.

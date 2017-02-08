@@ -1104,6 +1104,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_channel_states_updated_listeners = dict()
         self.__last_data_items_dict = dict()  # maps hardware source to list of data items for that hardware source
 
+        self.__hardware_source_call_soon_event_listeners = dict()
+
         self.__pending_data_item_updates_lock = threading.RLock()
         self.__pending_data_item_updates = list()
 
@@ -2073,6 +2075,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         hardware_source.data_item_states_changed(data_item_states)
 
     def __hardware_source_added(self, hardware_source: HardwareSource.HardwareSource) -> None:
+        self.__hardware_source_call_soon_event_listeners[hardware_source.hardware_source_id] = hardware_source.call_soon_event.listen(self.__call_soon)
         self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id] = hardware_source.data_channel_states_updated.listen(functools.partial(self.__data_channel_states_updated, hardware_source))
         for data_channel in hardware_source.data_channels:
             data_channel_updated_listener = data_channel.data_channel_updated_event.listen(functools.partial(self.__data_channel_updated, hardware_source, data_channel))
@@ -2087,6 +2090,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 hardware_source.clean_data_item(data_item, data_channel)
 
     def __hardware_source_removed(self, hardware_source):
+        self.__hardware_source_call_soon_event_listeners[hardware_source.hardware_source_id].close()
+        del self.__hardware_source_call_soon_event_listeners[hardware_source.hardware_source_id]
         self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id].close()
         del self.__data_channel_states_updated_listeners[hardware_source.hardware_source_id]
         for listener in self.__data_channel_updated_listeners.get(hardware_source.hardware_source_id, list()):
