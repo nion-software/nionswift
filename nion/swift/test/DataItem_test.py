@@ -333,6 +333,19 @@ class TestDataItemClass(unittest.TestCase):
         data_item_copy = copy.deepcopy(data_item)
         self.assertNotEqual(data_item.uuid, data_item_copy.uuid)
 
+    def test_deepcopy_data_item_should_produce_new_data(self):
+        data = numpy.zeros((8, 8), numpy.uint32)
+        data_item = DataItem.DataItem(data)
+        data_item_copy = copy.deepcopy(data_item)
+        data_item_snap = data_item.snapshot()
+        self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data))
+        self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data_item_copy.maybe_data_source.data))
+        self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data_item_snap.maybe_data_source.data))
+        data[0, 0] = 1
+        self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data))
+        self.assertFalse(numpy.array_equal(data_item.maybe_data_source.data, data_item_copy.maybe_data_source.data))
+        self.assertFalse(numpy.array_equal(data_item.maybe_data_source.data, data_item_snap.maybe_data_source.data))
+
     def test_copy_data_item_should_raise_exception(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         with self.assertRaises(AssertionError):
