@@ -809,7 +809,7 @@ class Graphic:
 
 
 class DataItem:
-    release = ["title", "data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
+    release = ["title", "created", "modified", "data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
         "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "graphics", "display",
         "add_point_region", "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region",
         "mask_xdata"]
@@ -824,6 +824,26 @@ class DataItem:
     @property
     def specifier(self):
         return ObjectSpecifier("data_item", self.__data_item.uuid)
+
+    @property
+    def created(self) -> datetime.datetime:
+        """Return the created timestamp (UTC) as a datetime object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.created
+
+    @property
+    def modified(self) -> datetime.datetime:
+        """Return the modified timestamp (UTC) as a datetime object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.modified
 
     @property
     def title(self) -> str:
