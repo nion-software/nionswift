@@ -707,6 +707,30 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_data_changes_update_large_format_file(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        try:
+            zeros = numpy.zeros((8, 8), numpy.uint32)
+            ones = numpy.ones((8, 8), numpy.uint32)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(ones)
+                data_item.large_format = True
+                document_model.append_data_item(data_item)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                with document_model.data_items[0].maybe_data_source.data_ref() as dr:
+                    dr.data = zeros
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system])
+            with contextlib.closing(document_model):
+                self.assertTrue(numpy.array_equal(document_model.data_items[0].maybe_data_source.data, zeros))
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_writing_empty_data_item_returns_expected_values(self):
         cache_name = ":memory:"
         current_working_directory = os.getcwd()

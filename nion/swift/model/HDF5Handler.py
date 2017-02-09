@@ -95,14 +95,27 @@ class HDF5Handler:
             assert data is not None
             self.__ensure_open()
             json_properties = None
-            if "data" in self.__fp:
+            # handle three cases:
+            #   1 - 'data' doesn't yet exist (require_dataset)
+            #   2 - 'data' exists but is a different size (delete, then require_dataset)
+            #   3 - 'data' exists and is the same size (overwrite)
+            if not "data" in self.__fp:
+                # case 1
+                self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, data=data)
+            else:
                 self.__dataset = self.__fp["data"]
                 if self.__dataset.shape != data.shape or self.__dataset.dtype != data.dtype:
+                    # case 2
                     json_properties = self.__dataset.attrs.get("properties", "")
+                    self.__dataset = None
                     self.__fp.close()
+                    self.__fp = None
                     os.remove(self.__file_path)
                     self.__ensure_open()
-            self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, data=data)
+                    self.__dataset = self.__fp.require_dataset("data", shape=data.shape, dtype=data.dtype, data=data)
+                else:
+                    # case 3
+                    self.__dataset[:] = data
             if json_properties is not None:
                 self.__dataset.attrs["properties"] = json_properties
             self.__fp.flush()
