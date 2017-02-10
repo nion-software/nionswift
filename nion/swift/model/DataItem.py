@@ -867,6 +867,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_changed_event_listeners = list()
         for connection in copy.copy(self.connections):
             connection.close()
+        # close the storage handler
+        if self.persistent_object_context:
+            persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
+            if persistent_storage:
+                persistent_storage.close()
+            self.persistent_object_context._set_persistent_storage_for_object(self, None)
+            self.persistent_object_context = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True

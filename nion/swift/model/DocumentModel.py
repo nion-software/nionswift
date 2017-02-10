@@ -159,6 +159,11 @@ class DataItemStorage:
         self.__weak_data_item = weakref.ref(data_item) if data_item else None
         self.write_delayed = False
 
+    def close(self):
+        if self.__storage_handler:
+            self.__storage_handler.close()
+            self.__storage_handler = None
+
     @property
     def data_item(self):
         return self.__weak_data_item() if self.__weak_data_item else None
@@ -262,6 +267,11 @@ class MemoryStorageSystem:
             self.__properties = properties
             self.__data = data
             self.__data_read_event = data_read_event
+
+        def close(self):
+            self.__uuid = None
+            self.__properties = None
+            self.__data = None
 
         @property
         def reference(self):
@@ -1208,6 +1218,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_thread_pool.close()
         for data_item in self.data_items:
             data_item.about_to_be_removed()
+            data_item.set_data_item_manager(None)
             data_item.close()
         self.storage_cache.close()
 
