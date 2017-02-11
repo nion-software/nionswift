@@ -62,6 +62,20 @@ class TestFacadeClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(document_model.data_items[2].maybe_data_source.data_and_metadata.data, data2))
             self.assertTrue(numpy.array_equal(document_model.data_items[3].maybe_data_source.data_and_metadata.data, data3))
 
+    def test_library_and_data_items_can_be_compared_for_equality(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item2)
+            api = Facade.get_api("~1.0", "~1.0")
+            self.assertEqual(api.library, api.library)
+            self.assertEqual(api.library.data_items, api.library.data_items)
+
+
     def test_create_data_item_from_data_as_sequence(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = self.app.create_document_controller(document_model, "library")

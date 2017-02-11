@@ -93,6 +93,24 @@ nionlib_public = [
 alias = {"API_1": "API"}
 
 
+class SharedInstance(type):
+    """A metadclass for API objects to return the same instance if the underlying object is the same.
+
+    This ensures that API objects using this metaclass can be compared for equality.
+    """
+    def __init__(cls, name, bases, d):
+        super(SharedInstance, cls).__init__(name, bases, d)
+        cls.instances = dict()
+
+    def __call__(cls, *args, **kw):
+        assert len(args) == 1
+        instance = cls.instances.get(args[0])
+        if not instance:
+            instance = super(SharedInstance, cls).__call__(*args, **kw)
+            cls.instances[args[0]] = instance
+        return instance
+
+
 class ObjectSpecifier:
 
     def __init__(self, object_type, object_uuid=None, object_id=None):
@@ -565,7 +583,7 @@ class Panel(PanelModule.Panel):
             self.on_close()
 
 
-class Graphic:
+class Graphic(metaclass=SharedInstance):
 
     release = ["type", "label", "graphic_type", "graphic_id", "get_property", "set_property", "region", "mask_xdata_with_shape", "angle", "bounds", "center", "end",
         "interval", "position", "size", "start", "vector", "width"]
@@ -808,7 +826,7 @@ class Graphic:
         self.set_property("width", value)
 
 
-class DataItem:
+class DataItem(metaclass=SharedInstance):
     release = ["title", "created", "modified", "data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
         "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "graphics", "display",
         "add_point_region", "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region",
@@ -1164,7 +1182,7 @@ class DataItem:
             traceback.print_stack()
 
 
-class DisplayPanel:
+class DisplayPanel(metaclass=SharedInstance):
 
     release = ["data_item", "set_data_item"]
 
@@ -1210,7 +1228,7 @@ class DisplayPanel:
             display_panel.set_displayed_data_item(data_item._data_item)
 
 
-class Display:
+class Display(metaclass=SharedInstance):
 
     release = ["display_type", "selected_graphics", "graphics", "data_item", "get_graphic_by_id"]
 
@@ -1258,7 +1276,7 @@ class Display:
         return None
 
 
-class DataGroup:
+class DataGroup(metaclass=SharedInstance):
 
     release = ["add_data_item"]
 
@@ -1429,7 +1447,7 @@ class ViewTask:
         return self.__data_channel_buffer.grab_earliest()
 
 
-class HardwareSource:
+class HardwareSource(metaclass=SharedInstance):
 
     release = ["close", "profile_index", "get_default_frame_parameters", "get_frame_parameters", "get_frame_parameters_for_profile_by_index",
         "set_frame_parameters", "set_frame_parameters_for_profile_by_index", "start_playing", "stop_playing", "abort_playing", "is_playing",
@@ -1635,7 +1653,7 @@ class HardwareSource:
         self.__hardware_source.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
 
-class Instrument:
+class Instrument(metaclass=SharedInstance):
 
     """Represents an instrument with controls and properties.
 
@@ -1774,10 +1792,11 @@ class Instrument:
         return result_str
 
 
-class Library:
+class Library(metaclass=SharedInstance):
 
     release = ["data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
-        "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source", "get_data_item_by_uuid", "get_graphic_by_uuid"]
+        "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source", "get_data_item_by_uuid", "get_graphic_by_uuid",
+        "get_source_data_items", "get_dependent_data_items"]
 
     def __init__(self, document_model: DocumentModelModule.DocumentModel):
         self.__document_model = document_model
@@ -1813,6 +1832,28 @@ class Library:
         Scriptable: Yes
         """
         return [DataItem(data_item) for data_item in self.__document_model.data_items]
+
+    def get_source_data_items(self, data_item: DataItem) -> typing.List[DataItem]:
+        """Return the list of data items that are data sources for the data item.
+
+        :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return [DataItem(data_item) for data_item in self._document_model.get_source_data_items(data_item._data_item)] if data_item else None
+
+    def get_dependent_data_items(self, data_item: DataItem) -> typing.List[DataItem]:
+        """Return the dependent data items the data item argument.
+
+        :return: The list of :py:class:`nion.swift.Facade.DataItem` objects.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return [DataItem(data_item) for data_item in self._document_model.get_dependent_data_items(data_item._data_item)] if data_item else None
 
     def create_data_item(self, title: str=None) -> DataItem:
         """Create an empty data item in the library.
@@ -1991,7 +2032,7 @@ class Library:
         return None
 
 
-class DocumentWindow:
+class DocumentWindow(metaclass=SharedInstance):
 
     release = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display", "target_data_item",
         "show_get_string_message_box", "show_confirmation_message_box", "queue_task", "add_data", "create_data_item_from_data",
@@ -2136,7 +2177,7 @@ class DocumentWindow:
         return DataGroup(self.__document_controller.document_model.get_or_create_data_group(title))
 
 
-class Application:
+class Application(metaclass=SharedInstance):
 
     release = ["library", "document_controllers", "document_windows"]
 
