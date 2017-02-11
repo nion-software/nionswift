@@ -16,6 +16,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import Application
 from nion.swift import Facade
@@ -23,7 +24,6 @@ from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Utility
 from nion.ui import TestUI
 from nion.utils import Recorder
 
@@ -910,6 +910,17 @@ class TestDataItemClass(unittest.TestCase):
             with data_item.data_sources[0].data_ref() as data_ref:
                 data_ref.master_data = numpy.zeros((2, 2))
             self.assertGreater(data_item.modified, modified)
+
+    def test_changing_data_updates_xdata_timestamp(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            timestamp = datetime.datetime(2000, 1, 1)
+            data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2)), timestamp=timestamp)
+            data_item = DataItem.new_data_item(data_and_metadata)
+            document_model.append_data_item(data_item)
+            with data_item.data_sources[0].data_ref() as data_ref:
+                data_ref.data = numpy.zeros((2, 2))
+            self.assertGreater(data_item.maybe_data_source.data_and_metadata.timestamp, timestamp)
 
     def test_data_item_in_transaction_does_not_write_until_end_of_transaction(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()

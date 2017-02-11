@@ -539,7 +539,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             while len(dimensional_calibrations) > len(dimensional_shape):
                 dimensional_calibrations.pop(-1)
         metadata = data_and_metadata.metadata if data_and_metadata else None
-        timestamp = data_and_metadata.timestamp if data_and_metadata else None
+        timestamp = None  # always update when the data is modified
         self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp), data_modified)
 
     def increment_data_ref_count(self):
