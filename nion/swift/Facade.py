@@ -40,7 +40,7 @@ import gettext
 import pickle
 import threading
 import typing
-import uuid
+import uuid as uuid_module
 
 # third party libraries
 import numpy
@@ -129,7 +129,7 @@ class ObjectSpecifier:
         object_type = d.get("object_type")
         object_uuid_str = d.get("object_uuid")
         object_id = d.get("object_id")
-        object_uuid = uuid.UUID(object_uuid_str) if object_uuid_str else None
+        object_uuid = uuid_module.UUID(object_uuid_str) if object_uuid_str else None
         document_model = ApplicationModule.app.document_controllers[0].document_model
         if object_type == "application":
             return Application(ApplicationModule.app)
@@ -145,9 +145,9 @@ class ObjectSpecifier:
                     return DisplayPanel(display_panel)
             return None
         elif object_type == "data_item":
-            return DataItem(document_model.get_data_item_by_uuid(uuid.UUID(object_uuid_str)))
+            return DataItem(document_model.get_data_item_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type == "data_group":
-            return DataGroup(document_model.get_data_group_by_uuid(uuid.UUID(object_uuid_str)))
+            return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type in ("region", "graphic"):
             for data_item in document_model.data_items:
                 for data_source in data_item.data_sources:
@@ -585,7 +585,7 @@ class Panel(PanelModule.Panel):
 
 class Graphic(metaclass=SharedInstance):
 
-    release = ["type", "label", "graphic_type", "graphic_id", "get_property", "set_property", "region", "mask_xdata_with_shape", "angle", "bounds", "center", "end",
+    release = ["uuid", "type", "label", "graphic_type", "graphic_id", "get_property", "set_property", "region", "mask_xdata_with_shape", "angle", "bounds", "center", "end",
         "interval", "position", "size", "start", "vector", "width"]
 
     graphic_to_region_type_map = {
@@ -608,6 +608,16 @@ class Graphic(metaclass=SharedInstance):
     @property
     def specifier(self):
         return ObjectSpecifier("graphic", self.__graphic.uuid)
+
+    @property
+    def uuid(self) -> uuid_module.UUID:
+        """Return the uuid of this object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__graphic.uuid
 
     @property
     def type(self) -> str:
@@ -827,7 +837,7 @@ class Graphic(metaclass=SharedInstance):
 
 
 class DataItem(metaclass=SharedInstance):
-    release = ["title", "created", "modified", "data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
+    release = ["uuid", "title", "created", "modified", "data", "set_data", "xdata", "display_xdata", "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
         "set_dimensional_calibrations", "metadata", "set_metadata", "data_and_metadata", "set_data_and_metadata", "regions", "graphics", "display",
         "add_point_region", "add_rectangle_region", "add_ellipse_region", "add_line_region", "add_interval_region", "add_channel_region", "remove_region",
         "mask_xdata"]
@@ -842,6 +852,16 @@ class DataItem(metaclass=SharedInstance):
     @property
     def specifier(self):
         return ObjectSpecifier("data_item", self.__data_item.uuid)
+
+    @property
+    def uuid(self) -> uuid_module.UUID:
+        """Return the uuid of this object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_item.uuid
 
     @property
     def created(self) -> datetime.datetime:
@@ -1230,7 +1250,7 @@ class DisplayPanel(metaclass=SharedInstance):
 
 class Display(metaclass=SharedInstance):
 
-    release = ["display_type", "selected_graphics", "graphics", "data_item", "get_graphic_by_id"]
+    release = ["uuid", "display_type", "selected_graphics", "graphics", "data_item", "get_graphic_by_id"]
 
     def __init__(self, display):
         self.__display = display
@@ -1238,6 +1258,16 @@ class Display(metaclass=SharedInstance):
     @property
     def specifier(self):
         return ObjectSpecifier("display", self.__display.uuid)
+
+    @property
+    def uuid(self) -> uuid_module.UUID:
+        """Return the uuid of this object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__display.uuid
 
     @property
     def display_type(self) -> str:
@@ -1278,7 +1308,7 @@ class Display(metaclass=SharedInstance):
 
 class DataGroup(metaclass=SharedInstance):
 
-    release = ["add_data_item"]
+    release = ["uuid", "add_data_item"]
 
     def __init__(self, data_group):
         self.__data_group = data_group
@@ -1286,6 +1316,16 @@ class DataGroup(metaclass=SharedInstance):
     @property
     def specifier(self):
         return ObjectSpecifier("data_group", self.__data_group.uuid)
+
+    @property
+    def uuid(self) -> uuid_module.UUID:
+        """Return the uuid of this object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_group.uuid
 
     def add_data_item(self, data_item: DataItem) -> None:
         """Add a data item to the group.
@@ -1794,7 +1834,7 @@ class Instrument(metaclass=SharedInstance):
 
 class Library(metaclass=SharedInstance):
 
-    release = ["data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
+    release = ["uuid", "data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
         "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source", "get_data_item_by_uuid", "get_graphic_by_uuid",
         "get_source_data_items", "get_dependent_data_items"]
 
@@ -1808,6 +1848,16 @@ class Library(metaclass=SharedInstance):
     @property
     def specifier(self):
         return ObjectSpecifier("library")
+
+    @property
+    def uuid(self) -> uuid_module.UUID:
+        """Return the uuid of this object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__document_model.uuid
 
     @property
     def data_item_count(self) -> int:
@@ -2004,7 +2054,7 @@ class Library(metaclass=SharedInstance):
             data_item = document_model.get_data_item_reference(data_item_reference_key).data_item
         return DataItem(data_item) if data_item else None
 
-    def get_data_item_by_uuid(self, data_item_uuid: uuid.UUID) -> DataItem:
+    def get_data_item_by_uuid(self, data_item_uuid: uuid_module.UUID) -> DataItem:
         """Get the data item with the given UUID.
 
         .. versionadded:: 1.0
@@ -2015,7 +2065,7 @@ class Library(metaclass=SharedInstance):
         data_item = self._document_model.get_data_item_by_uuid(data_item_uuid)
         return DataItem(data_item) if data_item else None
 
-    def get_graphic_by_uuid(self, graphic_uuid: uuid.UUID) -> Graphic:
+    def get_graphic_by_uuid(self, graphic_uuid: uuid_module.UUID) -> Graphic:
         """Get the graphic with the given UUID.
 
         .. versionadded:: 1.0
