@@ -1017,6 +1017,9 @@ class DataItem(metaclass=SharedInstance):
     def metadata(self) -> dict:
         """Return a copy of the metadata as a dict.
 
+        For best future compatibility, prefer using the ``get_metadata_value`` and ``set_metadata_value`` methods over
+        directly accessing ``metadata``.
+
         .. versionadded:: 1.0
 
         Scriptable: Yes
@@ -1024,17 +1027,164 @@ class DataItem(metaclass=SharedInstance):
         return self.__data_item.maybe_data_source.metadata
 
     def set_metadata(self, metadata: dict) -> None:
-        """Set the metadata.
+        """Set the metadata dict.
 
         :param metadata: The metadata dict.
 
         The metadata dict must be convertible to JSON, e.g. ``json.dumps(metadata)`` must succeed.
+
+        For best future compatibility, prefer using the ``get_metadata_value`` and ``set_metadata_value`` methods over
+        directly accessing ``metadata``.
 
         .. versionadded:: 1.0
 
         Scriptable: Yes
         """
         self.__data_item.maybe_data_source.metadata = metadata
+
+    session_key_map = {
+        'stem.session.site': {'path': ['site'], 'type': 'string'},
+        'stem.session.instrument': {'path': ['instrument'], 'type': 'string'},
+        'stem.session.task': {'path': ['task'], 'type': 'string'},
+        'stem.session.microscopist': {'path': ['microscopist'], 'type': 'string'},
+        'stem.session.sample': {'path': ['sample'], 'type': 'string'},
+        'stem.session.sample_area': {'path': ['sample_area'], 'type': 'string'},
+    }
+
+    key_map = {
+        'stem.high_tension_v': {'path': ['hardware_source', 'autostem', 'high_tension_v'], 'type': 'integer'},
+        'stem.hardware_source.id': {'path': ['hardware_source', 'hardware_source_id'], 'type': 'string'},
+        'stem.hardware_source.name': {'path': ['hardware_source', 'hardware_source_name'], 'type': 'string'},
+
+        'stem.camera.binning': {'path': ['hardware_source', 'binning'], 'type': 'integer'},
+        'stem.camera.channel_id': {'path': ['hardware_source', 'channel_id'], 'type': 'string'},
+        'stem.camera.channel_index': {'path': ['hardware_source', 'channel_index'], 'type': 'integer'},
+        'stem.camera.channel_name': {'path': ['hardware_source', 'channel_name'], 'type': 'string'},
+        'stem.camera.exposure_s': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
+        'stem.camera.frame_index': {'path': ['hardware_source', 'frame_index'], 'type': 'integer'},
+        'stem.camera.valid_rows': {'path': ['hardware_source', 'valid_rows'], 'type': 'integer'},
+
+        'stem.scan.center_x_nm': {'path': ['hardware_source', 'center_x_nm'], 'type': 'real'},
+        'stem.scan.center_y_nm': {'path': ['hardware_source', 'center_y_nm'], 'type': 'real'},
+        'stem.scan.channel_id': {'path': ['hardware_source', 'channel_id'], 'type': 'string'},
+        'stem.scan.channel_index': {'path': ['hardware_source', 'channel_index'], 'type': 'integer'},
+        'stem.scan.channel_name': {'path': ['hardware_source', 'channel_name'], 'type': 'string'},
+        'stem.scan.frame_time_s': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
+        'stem.scan.fov_nm': {'path': ['hardware_source', 'fov_nm'], 'type': 'real'},
+        'stem.scan.frame_index': {'path': ['hardware_source', 'frame_index'], 'type': 'integer'},
+        'stem.scan.pixel_time_us': {'path': ['hardware_source', 'pixel_time_us'], 'type': 'real'},
+        'stem.scan.rotation_rad': {'path': ['hardware_source', 'rotation_rad'], 'type': 'real'},
+        'stem.scan.scan_id': {'path': ['hardware_source', 'scan_id'], 'type': 'string'},
+        'stem.scan.valid_rows': {'path': ['hardware_source', 'valid_rows'], 'type': 'integer'},
+    }
+
+    # TODO: add group maps to map dotted key to a metadata dict
+    # TODO: add dict typing which converts the dict to json when externalized
+
+    def get_metadata_value(self, key: str) -> typing.Any:
+        """Get the metadata value for the given key.
+
+        There are a set of predefined keys that, when used, will be type checked and be interoperable with other
+        applications. Please consult reference documentation for valid keys.
+
+        If using a custom key, we recommend structuring your keys in the '<group>.<attribute>' format followed
+        by the predefined keys. e.g. 'session.instrument' or 'camera.binning'.
+
+        Also note that some predefined keys map to the metadata ``dict`` but others do not. For this reason, prefer
+        using the ``metadata_value`` methods over directly accessing ``metadata``.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        desc = self.__class__.session_key_map.get(key)
+        if desc is not None:
+            v = self._data_item.session_metadata
+            for k in desc['path']:
+                v =  v.get(k) if v is not None else None
+            return v
+        desc = self.__class__.key_map.get(key)
+        if desc is not None:
+            v = self._data_item.maybe_data_source.metadata
+            for k in desc['path']:
+                v =  v.get(k) if v is not None else None
+            return v
+        raise KeyError()
+
+    def set_metadata_value(self, key: str, value: typing.Any) -> None:
+        """Set the metadata value for the given key.
+
+        There are a set of predefined keys that, when used, will be type checked and be interoperable with other
+        applications. Please consult reference documentation for valid keys.
+
+        If using a custom key, we recommend structuring your keys in the '<group>.<attribute>' format followed
+        by the predefined keys. e.g. 'session.instrument' or 'camera.binning'.
+
+        Also note that some predefined keys map to the metadata ``dict`` but others do not. For this reason, prefer
+        using the ``metadata_value`` methods over directly accessing ``metadata``.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        desc = self.__class__.session_key_map.get(key)
+        if desc is not None:
+            d0 = self._data_item.session_metadata
+            d = d0
+            for k in desc['path'][:-1]:
+                d =  d.setdefault(k, dict()) if d is not None else None
+            if d is not None:
+                d[desc['path'][-1]] = value
+                self._data_item.session_metadata = d0
+                return
+        desc = self.__class__.key_map.get(key)
+        if desc is not None:
+            d0 = self.__data_item.maybe_data_source.metadata
+            d = d0
+            for k in desc['path'][:-1]:
+                d =  d.setdefault(k, dict()) if d is not None else None
+            if d is not None:
+                d[desc['path'][-1]] = value
+                self.__data_item.maybe_data_source.metadata = d0
+                return
+        raise KeyError()
+
+    def delete_metadata_value(self, key: str) -> None:
+        """Delete the metadata value for the given key.
+
+        There are a set of predefined keys that, when used, will be type checked and be interoperable with other
+        applications. Please consult reference documentation for valid keys.
+
+        If using a custom key, we recommend structuring your keys in the '<dotted>.<group>.<attribute>' format followed
+        by the predefined keys. e.g. 'stem.session.instrument' or 'stm.camera.binning'.
+
+        Also note that some predefined keys map to the metadata ``dict`` but others do not. For this reason, prefer
+        using the ``metadata_value`` methods over directly accessing ``metadata``.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        desc = self.__class__.session_key_map.get(key)
+        if desc is not None:
+            d0 = self._data_item.session_metadata
+            d = d0
+            for k in desc['path'][:-1]:
+                d =  d.setdefault(k, dict()) if d is not None else None
+            if d is not None and desc['path'][-1] in d:
+                d.pop(desc['path'][-1], None)
+                self._data_item.session_metadata = d0
+                return
+        desc = self.__class__.key_map.get(key)
+        if desc is not None:
+            d0 = self.__data_item.maybe_data_source.metadata
+            d = d0
+            for k in desc['path'][:-1]:
+                d =  d.setdefault(k, dict()) if d is not None else None
+            if d is not None and desc['path'][-1] in d:
+                d.pop(desc['path'][-1], None)
+                self.__data_item.maybe_data_source.metadata = d0
+                return
 
     @property
     def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
@@ -1811,7 +1961,7 @@ class Instrument(metaclass=SharedInstance):
         self.__instrument.set_property(name, str(value))
 
     def get_property_as_float_point(self, name: str) -> Geometry.FloatPoint:
-        return tuple(Geometry.FloatPoint.make(self.__instrument.get_property(name)))
+        return Geometry.FloatPoint.make(self.__instrument.get_property(name))
 
     def set_property_as_float_point(self, name: str, value: Geometry.FloatPoint) -> None:
         self.__instrument.set_property(name, tuple(Geometry.FloatPoint.make(value)))
