@@ -1246,6 +1246,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __session_metadata_changed(self, name, value):
         self.notify_property_changed("session_metadata")
 
+    def has_session_field(self, field_id: str) -> bool:
+        return field_id in self.session_metadata
+
     def set_session_field(self, field_id: str, value: str) -> None:
         session_metadata = self.session_metadata
         session_metadata[field_id] = str(value)
@@ -1253,6 +1256,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_session_field(self, field_id: str) -> str:
         return self.session_metadata.get(field_id)
+
+    def delete_session_field(self, field_id: str) -> None:
+        session_metadata = self.session_metadata
+        session_metadata.pop(field_id, None)
+        self.session_metadata = session_metadata
 
     def append_workspace(self, workspace):
         self.insert_workspace(len(self.workspaces), workspace)
