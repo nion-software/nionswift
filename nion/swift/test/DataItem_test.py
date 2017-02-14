@@ -346,6 +346,29 @@ class TestDataItemClass(unittest.TestCase):
         self.assertFalse(numpy.array_equal(data_item.maybe_data_source.data, data_item_copy.maybe_data_source.data))
         self.assertFalse(numpy.array_equal(data_item.maybe_data_source.data, data_item_snap.maybe_data_source.data))
 
+    def test_snapshot_data_item_should_not_copy_computation(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data1 = (numpy.random.randn(8, 8) * 100).astype(numpy.int32)
+            data2 = (numpy.random.randn(8, 8) * 100).astype(numpy.int32)
+            data_item = DataItem.DataItem(data1)
+            document_model.append_data_item(data_item)
+            data_item_copy = document_model.get_crop_new(data_item)
+            document_model.recompute_all()
+            data_item_snap = document_model.get_snapshot_new(data_item_copy)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data1))
+            self.assertTrue(numpy.array_equal(data_item_copy.maybe_data_source.data, data1[2:6, 2:6]))
+            self.assertTrue(numpy.array_equal(data_item_snap.maybe_data_source.data, data1[2:6, 2:6]))
+            with data_item.maybe_data_source.data_ref() as data_ref:
+                data_ref.data = data2
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data2))
+            self.assertTrue(numpy.array_equal(data_item_copy.maybe_data_source.data, data2[2:6, 2:6]))
+            self.assertTrue(numpy.array_equal(data_item_snap.maybe_data_source.data, data1[2:6, 2:6]))
+            self.assertIsNotNone(data_item_copy.maybe_data_source.computation)
+            self.assertIsNone(data_item_snap.maybe_data_source.computation)
+
     def test_copy_data_item_should_raise_exception(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         with self.assertRaises(AssertionError):

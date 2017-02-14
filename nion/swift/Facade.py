@@ -2025,7 +2025,7 @@ class Library(metaclass=SharedInstance):
                "get_data_item_by_uuid", "get_graphic_by_uuid",
                "get_source_data_items", "get_dependent_data_items", "has_library_value", "get_library_value",
                "set_library_value", "delete_library_value",
-               "copy_data_item"]
+               "copy_data_item", "snapshot_data_item"]
 
     def __init__(self, document_model: DocumentModelModule.DocumentModel):
         self.__document_model = document_model
@@ -2176,6 +2176,17 @@ class Library(metaclass=SharedInstance):
         Scriptable: No
         """
         data_item = copy.deepcopy(data_item._data_item)
+        self.__document_model.append_data_item(data_item)
+        return DataItem(data_item)
+
+    def snapshot_data_item(self, data_item: DataItem) -> DataItem:
+        """Snapshot a data item. Similar to copy but with a data snapshot.
+
+        .. versionadded:: 1.0
+
+        Scriptable: No
+        """
+        data_item = data_item._data_item.snapshot()
         self.__document_model.append_data_item(data_item)
         return DataItem(data_item)
 

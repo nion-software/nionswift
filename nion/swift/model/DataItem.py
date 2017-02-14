@@ -255,6 +255,18 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             data_source.add_display(display.clone())
         return data_source
 
+    def snapshot(self):
+        """
+            Take a snapshot and return a new buffered data source. A snapshot is a copy of everything
+            except the data and operation which are replaced by new data with the operation
+            applied or "burned in".
+        """
+        buffered_data_source_copy = BufferedDataSource()
+        buffered_data_source_copy.set_data_and_metadata(copy.deepcopy(self.data_and_metadata))
+        for display in self.displays:
+            buffered_data_source_copy.add_display(copy.deepcopy(display))
+        return buffered_data_source_copy
+
     def read_from_dict(self, properties):
         with self._changes():
             for display in self.displays:
@@ -902,7 +914,22 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             except the data and operation which are replaced by new data with the operation
             applied or "burned in".
         """
-        return copy.deepcopy(self)
+        data_item_copy = DataItem()
+        # format
+        data_item_copy.large_format = self.large_format
+        # metadata
+        data_item_copy.metadata = self.metadata
+        data_item_copy.session_metadata = self.session_metadata
+        data_item_copy.created = self.created
+        data_item_copy.session_id = self.session_id
+        data_item_copy.source_file_path = self.source_file_path
+        # data sources
+        for data_source in copy.copy(data_item_copy.data_sources):
+            data_item_copy.remove_data_source(data_source)
+        for data_source in self.data_sources:
+            data_item_copy.append_data_source(data_source.snapshot())
+        # the data source connection will be established when this copy is inserted.
+        return data_item_copy
 
     def connect_data_items(self, data_items, lookup_data_item):
         for data_item_uuid in self.data_item_uuids:
