@@ -843,6 +843,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item_copy.large_format = self.large_format
         # metadata
         data_item_copy.metadata = self.metadata
+        data_item_copy.session_metadata = self.session_metadata
         data_item_copy.created = self.created
         data_item_copy.session_id = self.session_id
         data_item_copy.source_file_path = self.source_file_path

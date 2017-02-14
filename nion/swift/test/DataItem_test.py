@@ -989,6 +989,18 @@ class TestDataItemClass(unittest.TestCase):
             data_item.title = 'new title'
             self.assertEqual(data_item.session_id, '20000630-150200')
 
+    def test_data_item_copy_copies_session_info(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2)))
+            session_metadata = data_item.session_metadata
+            session_metadata['site'] = 'Home'
+            data_item.session_metadata = session_metadata
+            document_model.append_data_item(data_item)
+            data_item_copy = copy.deepcopy(data_item)
+            document_model.append_data_item(data_item_copy)
+            self.assertEqual(data_item_copy.session_metadata, data_item.session_metadata)
+
     def test_processed_data_item_has_source_data_modified_equal_to_sources_data_modifed(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

@@ -35,6 +35,7 @@
 """
 
 # standard libraries
+import copy
 import datetime
 import gettext
 import pickle
@@ -2018,10 +2019,13 @@ class Instrument(metaclass=SharedInstance):
 
 
 class Library(metaclass=SharedInstance):
-
-    release = ["uuid", "data_item_count", "data_items", "create_data_item", "create_data_item_from_data", "create_data_item_from_data_and_metadata",
-        "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source", "get_data_item_by_uuid", "get_graphic_by_uuid",
-        "get_source_data_items", "get_dependent_data_items", "has_library_value", "get_library_value", "set_library_value", "delete_library_value"]
+    release = ["uuid", "data_item_count", "data_items", "create_data_item", "create_data_item_from_data",
+               "create_data_item_from_data_and_metadata",
+               "get_or_create_data_group", "data_ref_for_data_item", "get_data_item_for_hardware_source",
+               "get_data_item_by_uuid", "get_graphic_by_uuid",
+               "get_source_data_items", "get_dependent_data_items", "has_library_value", "get_library_value",
+               "set_library_value", "delete_library_value",
+               "copy_data_item"]
 
     def __init__(self, document_model: DocumentModelModule.DocumentModel):
         self.__document_model = document_model
@@ -2161,6 +2165,17 @@ class Library(metaclass=SharedInstance):
         data_item = DataItemModule.new_data_item(data_and_metadata)
         if title is not None:
             data_item.title = title
+        self.__document_model.append_data_item(data_item)
+        return DataItem(data_item)
+
+    def copy_data_item(self, data_item: DataItem) -> DataItem:
+        """Copy a data item.
+
+        .. versionadded:: 1.0
+
+        Scriptable: No
+        """
+        data_item = copy.deepcopy(data_item._data_item)
         self.__document_model.append_data_item(data_item)
         return DataItem(data_item)
 
