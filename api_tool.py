@@ -70,6 +70,8 @@ def annotation_to_str(annotation):
     if annotation is None:
         return "None"
 
+    annotation_name = getattr(annotation, "__name__", None)
+
     if type(annotation) == str:
         annotation = getattr(module, annotation)
         return "\"{}\"".format(annotation.__name__)
@@ -84,33 +86,35 @@ def annotation_to_str(annotation):
         return "str"
     if annotation == dict:
         return "dict"
-    if annotation.__name__ == "Calibration":
+    if annotation_name == "Calibration":
         return "Calibration.Calibration"
-    if annotation.__name__ == "DataAndMetadata":
+    if annotation_name == "DataAndMetadata":
         return "DataAndMetadata.DataAndMetadata"
-    if annotation.__name__ == "FloatPoint":
+    if annotation_name == "DataDescriptor":
+        return "DataAndMetadata.DataDescriptor"
+    if annotation_name == "FloatPoint":
         return "Geometry.FloatPoint"
 
     classes = ["Application", "DataGroup", "DataItem", "Display", "DisplayPanel", "DocumentWindow", "Graphic", "HardwareSource", "Instrument",
         "Library", "RecordTask", "Region", "ViewTask"]
 
-    if annotation.__name__ in classes:
-        return annotation.__name__
+    if annotation_name in classes:
+        return annotation_name
 
-    if annotation.__name__ == "ndarray":
+    if annotation_name == "ndarray":
         return "numpy.ndarray"
-    if issubclass(annotation, typing.List):
+    if annotation_name == typing.List.__name__:
         return "typing.List[{}]".format(annotation_to_str(annotation.__args__[0]))
-    if issubclass(annotation, typing.Sequence):
+    if annotation_name == typing.Sequence.__name__:
         return "typing.Sequence[{}]".format(annotation_to_str(annotation.__args__[0]))
-    if issubclass(annotation, typing.Tuple):
-        return "typing.Tuple[{}]".format(", ".join(annotation_to_str(tuple_param) for tuple_param in annotation.__tuple_params__))
-    if issubclass(annotation, typing.Union):
+    if annotation_name == typing.Tuple.__name__:
+        return "typing.Tuple[{}]".format(", ".join(annotation_to_str(tuple_param) for tuple_param in annotation.__args__))
+    if annotation_name == "Union":
         return "typing.Union[{}]".format(", ".join(annotation_to_str(union_param) for union_param in annotation.__union_params__))
     if isinstance(annotation, type):
         class_ = annotation.__class__
         if class_ is not None:
-            return class_.__qualname__
+            return f"{annotation.__module__}.{annotation.__qualname__}"
         return dir(annotation)
     return str(annotation)
 
@@ -120,8 +124,10 @@ def default_to_str(default):
 if is_proxy:
     print("from .Pickler import Unpickler")
 else:
+    print("import datetime")
     print("import numpy")
     print("import typing")
+    print("import uuid")
     print("from nion.data import Calibration")
     print("from nion.data import DataAndMetadata")
     print("from nion.utils import Geometry")
