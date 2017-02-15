@@ -2115,10 +2115,6 @@ class Library(metaclass=SharedInstance):
     def create_data_item_from_data(self, data: numpy.ndarray, title: str=None) -> DataItem:
         """Create a data item in the library from an ndarray.
 
-        For efficiency, this method will directly use the data object without copying it. This means that the data
-        should be considered to be owned by the library once this call is made. Changing the data outside of this API
-        will result in undefined behavior.
-
         The data for the data item will be written to disk immediately and unloaded from memory. If you wish to delay
         writing to disk and keep using the data, create an empty data item and use the data item methods to modify
         the data.
@@ -2144,10 +2140,6 @@ class Library(metaclass=SharedInstance):
 
     def create_data_item_from_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, title: str=None) -> DataItem:
         """Create a data item in the library from a data and metadata object.
-
-        For efficiency, this method will directly use the data within the data_and_metadata object without copying
-        it. This means that the data should be considered to be owned by the library once this call is made. Changing
-        the data outside of this API will result in undefined behavior.
 
         The data for the data item will be written to disk immediately and unloaded from memory. If you wish to delay
         writing to disk and keep using the data, create an empty data item and use the data item methods to modify
@@ -2715,7 +2707,7 @@ class API_1:
 
         Scriptable: No
         """
-        return self.create_data_and_metadata(data, intensity_calibration, dimensional_calibrations, metadata, timestamp)
+        return self.create_data_and_metadata(numpy.copy(data), intensity_calibration, dimensional_calibrations, metadata, timestamp)
 
     def create_data_and_metadata_io_handler(self, io_handler_delegate):
         """Create an I/O handler that reads and writes a single data_and_metadata.

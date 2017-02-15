@@ -75,7 +75,6 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(api.library, api.library)
             self.assertEqual(api.library.data_items, api.library.data_items)
 
-
     def test_create_data_item_from_data_as_sequence(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = self.app.create_document_controller(document_model, "library")
@@ -259,6 +258,53 @@ class TestFacadeClass(unittest.TestCase):
         api = Facade.get_api("~1.0", "~1.0")
         self.assertIsNone(api.get_hardware_source_by_id("nonexistent_hardware", "~1.0"))
         self.assertIsNone(api.get_instrument_by_id("nonexistent_instrument", "~1.0"))
+
+    def test_create_data_item_from_data_copies_data(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0", "~1.0")
+            data = numpy.random.randn(2, 2)
+            data_item = api.library.create_data_item_from_data(data)
+            data[:, :] = numpy.random.randn(2, 2)
+            self.assertFalse(numpy.array_equal(data, data_item.data))
+
+    def test_create_data_item_from_xdata_copies_data(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0", "~1.0")
+            data = numpy.random.randn(2, 2)
+            xdata = api.create_data_and_metadata_from_data(data)
+            data_item = api.library.create_data_item_from_data_and_metadata(xdata)
+            data[:, :] = numpy.random.randn(2, 2)
+            self.assertFalse(numpy.array_equal(data, data_item.data))
+
+    def test_create_empty_data_item_and_set_data_copies_data(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0", "~1.0")
+            data = numpy.random.randn(2, 2)
+            data_item = api.library.create_data_item()
+            data_item.set_data(data)
+            data[:, :] = numpy.random.randn(2, 2)
+            self.assertFalse(numpy.array_equal(data, data_item.data))
+
+    def test_create_empty_data_item_and_set_xdata_copies_data(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0", "~1.0")
+            data = numpy.random.randn(2, 2)
+            data_item = api.library.create_data_item()
+            data_item.xdata = api.create_data_and_metadata_from_data(data)
+            data[:, :] = numpy.random.randn(2, 2)
+            self.assertFalse(numpy.array_equal(data, data_item.data))
 
 
 if __name__ == '__main__':
