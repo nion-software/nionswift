@@ -42,3 +42,47 @@ class TestImageClass(unittest.TestCase):
         expanded = Image.rebin_1d(src, 600)
         self.assertAlmostEqual(numpy.mean(src), numpy.mean(expanded))
         self.assertAlmostEqual(numpy.var(src), numpy.var(expanded))
+
+    def test_scale_cubic_is_symmetry(self):
+        src1 = numpy.zeros((8, 8))
+        src2 = numpy.zeros((9, 9))
+        src1[3:5, 3:5] = 1
+        src2[3:6, 3:6] = 1
+        src1s = (Image.scaled(src1, (12, 12), 'cubic')*1000).astype(numpy.int)
+        src2s = (Image.scaled(src1, (12, 12), 'cubic')*1000).astype(numpy.int)
+        src1t = (Image.scaled(src1, (13, 13), 'cubic')*1000).astype(numpy.int)
+        src2t = (Image.scaled(src1, (13, 13), 'cubic')*1000).astype(numpy.int)
+        self.assertTrue(numpy.array_equal(src1s[0:6, 0:6], src1s[0:6, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src1s[0:6, 0:6], src1s[12:5:-1, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src1s[0:6, 0:6], src1s[12:5:-1, 0:6]))
+        self.assertTrue(numpy.array_equal(src2s[0:6, 0:6], src2s[0:6, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src2s[0:6, 0:6], src2s[12:5:-1, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src2s[0:6, 0:6], src2s[12:5:-1, 0:6]))
+        self.assertTrue(numpy.array_equal(src1t[0:6, 0:6], src1t[0:6, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src1t[0:6, 0:6], src1t[13:6:-1, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src1t[0:6, 0:6], src1t[13:6:-1, 0:6]))
+        self.assertTrue(numpy.array_equal(src2t[0:6, 0:6], src2t[0:6, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src2t[0:6, 0:6], src2t[13:6:-1, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src2t[0:6, 0:6], src2t[13:6:-1, 0:6]))
+
+    def test_scale_linear_is_symmetry(self):
+        src1 = numpy.zeros((8, 8))
+        src2 = numpy.zeros((9, 9))
+        src1[3:5, 3:5] = 1
+        src2[3:6, 3:6] = 1
+        src1s = (Image.scaled(src1, (12, 12), 'linear')*1000).astype(numpy.int)
+        src2s = (Image.scaled(src1, (12, 12), 'linear')*1000).astype(numpy.int)
+        src1t = (Image.scaled(src1, (13, 13), 'linear')*1000).astype(numpy.int)
+        src2t = (Image.scaled(src1, (13, 13), 'linear')*1000).astype(numpy.int)
+        self.assertTrue(numpy.array_equal(src1s[0:6, 0:6], src1s[0:6, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src1s[0:6, 0:6], src1s[12:5:-1, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src1s[0:6, 0:6], src1s[12:5:-1, 0:6]))
+        self.assertTrue(numpy.array_equal(src2s[0:6, 0:6], src2s[0:6, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src2s[0:6, 0:6], src2s[12:5:-1, 12:5:-1]))
+        self.assertTrue(numpy.array_equal(src2s[0:6, 0:6], src2s[12:5:-1, 0:6]))
+        self.assertTrue(numpy.array_equal(src1t[0:6, 0:6], src1t[0:6, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src1t[0:6, 0:6], src1t[13:6:-1, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src1t[0:6, 0:6], src1t[13:6:-1, 0:6]))
+        self.assertTrue(numpy.array_equal(src2t[0:6, 0:6], src2t[0:6, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src2t[0:6, 0:6], src2t[13:6:-1, 13:6:-1]))
+        self.assertTrue(numpy.array_equal(src2t[0:6, 0:6], src2t[13:6:-1, 0:6]))
