@@ -2138,6 +2138,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         """Create a new data item with computation specified by processing_id, inputs, and region_list_map.
+
+        The region_list_map associates a list of graphics corresponding to the required regions with a computation source (key).
         """
         region_list_map = region_list_map or dict()
 
