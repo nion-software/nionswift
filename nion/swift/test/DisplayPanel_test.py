@@ -13,6 +13,7 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import DisplayPanel
 from nion.swift import ImageCanvasItem
+from nion.swift import LinePlotCanvasItem
 from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
@@ -1317,6 +1318,46 @@ class TestDisplayPanelClass(unittest.TestCase):
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         document_controller.periodic()
         self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+
+    def test_image_display_canvas_item_only_updates_if_display_data_changes(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8, 8))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(240, 240)
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            display = data_item.maybe_data_source.displays[0]
+            display.update_calculated_display_values()
+            update_count = display_panel.display_canvas_item._update_count
+            display._send_display_values_for_test()
+            display.update_calculated_display_values()
+            document_controller.periodic()
+            self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
+
+    def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(240, 640)
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+            display = data_item.maybe_data_source.displays[0]
+            display.update_calculated_display_values()
+            update_count = display_panel.display_canvas_item._update_count
+            display._send_display_values_for_test()
+            display.update_calculated_display_values()
+            document_controller.periodic()
+            self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display

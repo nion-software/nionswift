@@ -287,6 +287,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__image_canvas_mode = "fit"
 
         self.__last_data_rgb = None
+        self.__graphics_changed = False
 
         # create the child canvas items
         # the background
@@ -353,40 +354,42 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             if self.__closed:
                 return
             assert not self.__closed
-            # first take care of listeners and update the __display field
-            # next get rid of data associated with canvas items
-            self.__data_rgba = data_rgba
-            self.__data_shape = data_shape
             # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
             self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
-            if self.__display_frame_rate_id:
-                frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
-                if frame_index != self.__display_frame_rate_last_index:
-                    Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                    self.__display_frame_rate_last_index = frame_index
-                if id(self.__data_rgba) != id(self.__last_data_rgb):
-                    Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                    self.__last_data_rgb = self.__data_rgba
-            # update the cursor info
-            self.__update_cursor_info()
-            def update_layout():
-                # layout. this makes sure that the info overlay gets updated too.
-                self.__update_image_canvas_size()
-                # trigger updates
-                self.__bitmap_canvas_item.update()
-                with self.__update_layout_handle_lock:
-                    self.__update_layout_handle = None
-            if self.__event_loop:
-                with self.__update_layout_handle_lock:
-                    update_layout_handle = self.__update_layout_handle
-                    if update_layout_handle:
-                        update_layout_handle.cancel()
-                    self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
+            # if the data changes, update the display.
+            if data_rgba is not self.__data_rgba or self.__graphics_changed:
+                self.__graphics_changed = False
+                self.__data_rgba = data_rgba
+                self.__data_shape = data_shape
+                if self.__display_frame_rate_id:
+                    frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+                    if frame_index != self.__display_frame_rate_last_index:
+                        Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                        self.__display_frame_rate_last_index = frame_index
+                    if id(self.__data_rgba) != id(self.__last_data_rgb):
+                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                        self.__last_data_rgb = self.__data_rgba
+                # update the cursor info
+                self.__update_cursor_info()
+                def update_layout():
+                    # layout. this makes sure that the info overlay gets updated too.
+                    self.__update_image_canvas_size()
+                    # trigger updates
+                    self.__bitmap_canvas_item.update()
+                    with self.__update_layout_handle_lock:
+                        self.__update_layout_handle = None
+                if self.__event_loop:
+                    with self.__update_layout_handle_lock:
+                        update_layout_handle = self.__update_layout_handle
+                        if update_layout_handle:
+                            update_layout_handle.cancel()
+                        self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
         self.__graphics_canvas_item.update_graphics(displayed_shape, self.__graphics, self.__graphic_selection)
+        self.__graphics_changed = True
 
     def __update_image_canvas_zoom(self, new_image_zoom):
         if self.__data_shape is not None:

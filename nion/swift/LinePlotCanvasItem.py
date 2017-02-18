@@ -80,6 +80,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
+        self.__data = None
         self.__last_data = None
 
         self.line_graph_canvas_item = None
@@ -185,29 +186,40 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if self.__closed:
                 return
             assert not self.__closed
-            """ Update the display state. """
-            self.__data = data
-            self.__data_shape = data_shape
-            self.__dimensional_calibration = displayed_dimensional_calibration
-            self.__intensity_calibration = displayed_intensity_calibration
-            self.__y_min = display_properties["y_min"]
-            self.__y_max = display_properties["y_max"]
-            self.__y_style = display_properties["y_style"]
-            self.__left_channel = display_properties["left_channel"]
-            self.__right_channel = display_properties["right_channel"]
-            self.__legend_labels = display_properties["legend_labels"]
-            if self.__display_frame_rate_id:
-                frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
-                if frame_index != self.__display_frame_rate_last_index:
-                    Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                    self.__display_frame_rate_last_index = frame_index
-                if id(self.__data) != id(self.__last_data):
-                    Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                    self.__last_data = self.__data
-            # update the cursor info
-            self.__update_cursor_info()
-            # finally, trigger the paint thread (if there still is one) to update
-            self.update()
+            # Update the display state.
+            changed = False
+            changed = changed or data is not self.__data
+            changed = changed or displayed_intensity_calibration != self.__intensity_calibration
+            changed = changed or displayed_dimensional_calibration != self.__dimensional_calibration
+            changed = changed or self.__y_min != display_properties["y_min"]
+            changed = changed or self.__y_max != display_properties["y_max"]
+            changed = changed or self.__y_style != display_properties["y_style"]
+            changed = changed or self.__left_channel != display_properties["left_channel"]
+            changed = changed or self.__right_channel != display_properties["right_channel"]
+            changed = changed or self.__legend_labels != display_properties["legend_labels"]
+            if changed:
+                self.__data = data
+                self.__data_shape = data_shape
+                self.__dimensional_calibration = displayed_dimensional_calibration
+                self.__intensity_calibration = displayed_intensity_calibration
+                self.__y_min = display_properties["y_min"]
+                self.__y_max = display_properties["y_max"]
+                self.__y_style = display_properties["y_style"]
+                self.__left_channel = display_properties["left_channel"]
+                self.__right_channel = display_properties["right_channel"]
+                self.__legend_labels = display_properties["legend_labels"]
+                if self.__display_frame_rate_id:
+                    frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+                    if frame_index != self.__display_frame_rate_last_index:
+                        Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                        self.__display_frame_rate_last_index = frame_index
+                    if id(self.__data) != id(self.__last_data):
+                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                        self.__last_data = self.__data
+                # update the cursor info
+                self.__update_cursor_info()
+                # finally, trigger the paint thread (if there still is one) to update
+                self.update()
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)

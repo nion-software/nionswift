@@ -825,6 +825,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                         calculated_display_values_thread.start()
                         self.__calculated_display_values_thread = calculated_display_values_thread
 
+    def _send_display_values_for_test(self):
+        self.__send_next_calculated_display_values()
+
     def update_calculated_display_values(self) -> None:
         """Update the display values and store the latest version.
 

@@ -842,7 +842,6 @@ class TestHardwareSourceClass(unittest.TestCase):
                 self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(count_ref[0], 1)
 
-    @unittest.expectedFailure
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         with contextlib.closing(document_controller):
