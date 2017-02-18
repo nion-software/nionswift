@@ -850,8 +850,6 @@ class DisplayTransientsStream(Stream.AbstractStream):
     def value(self):
         return self.__value
 
-    # self.__next_calculated_display_values_listener =
-
     def __display_changed(self, display):
         def handle_next_calculated_display_values(calculated_display_values):
             new_value = getattr(calculated_display_values, self.__property_name)

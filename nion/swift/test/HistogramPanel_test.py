@@ -141,6 +141,8 @@ class TestHistogramPanelClass(unittest.TestCase):
             data_ref.master_data = data
         self.display_specifier.display.slice_center = 15
         self.display_specifier.display.slice_width = 2
+        # get the values twice: one to finish anything pending, and one to get the correct values
+        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
         self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
         statistics_dict = self.histogram_panel._statistics_widget._statistics_func_value_model._evaluate_immediate()
         self.assertAlmostEqual(float(statistics_dict["mean"]), numpy.average(numpy.sum(data[..., 14:16], -1)))

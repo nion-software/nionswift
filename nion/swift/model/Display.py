@@ -226,7 +226,7 @@ class CalculatedDisplayValues:
         calculated_display_values.__calculate()
         return calculated_display_values
 
-    def values(self):
+    def values(self) -> DisplayValues:
         return DisplayValues(self.__display_data_and_metadata, self.__data_range, self.__data_sample, self.__display_range, self.__display_rgba)
 
     def _get_display_data_and_metadata(self):
@@ -394,9 +394,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
         self.__calculated_display_values = CalculatedDisplayValues()
         self.__calculated_display_values_available_event = Event.Event()
-        self.__calculated_display_values_lock = threading.RLock()
+        self.__calculated_display_values_lock = threading.RLock()  # lock for display values pending flag
         self.__calculated_display_values_thread = None
-        self.__calculated_display_values_thread_lock = threading.RLock()
+        self.__calculated_display_values_thread_lock = threading.RLock()  # lock for starting and stopping thread
         self.__calculated_display_values_pending = False
 
         self._calculated_display_values_test_exception = False  # used for testing
@@ -427,11 +427,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_graphic_selection_changed_event = Event.Event()
         self.display_graphic_will_remove_event = Event.Event()
         self._about_to_be_removed = False
+        self.__calculated_display_values_thread_ok = True
         self._closed = False
 
     def close(self):
         self.will_close_event.fire()
         with self.__calculated_display_values_thread_lock:
+            self.__calculated_display_values_thread_ok = False
             if self.__calculated_display_values_thread:
                 self.__calculated_display_values_thread.join()
                 self.__calculated_display_values_thread = None
@@ -765,49 +767,84 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__send_next_calculated_display_values()
         return listener
 
-    def __send_next_calculated_display_values(self):
+    def __calculate_display_values(self) -> None:
+        """Calculate the display values and send out the calculated values to listeners.
+
+        This method should be called from a thread.
+
+        If the underlying data changes while this method is computing, the values pending flag
+        will be set; and if that occurs, this method will be relaunched in another thread.
+
+        The thread-after-thread is used instead of a while loop as a simple way to tell when the
+        current display values have been calculated (join on the thread).
+
+        When shutting down this class, however, we need to ensure that another thread is not
+        launched; to do that there is a values_thread_ok flag which can be cleared to prevent
+        additional threads from being launched.
+        """
+        try:
+            if self._calculated_display_values_test_exception:  # for testing
+                raise Exception()
+            # calculate the display values
+            next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
+            display_values = next_calculated_display_values.values()
+            # send them to listeners
+            self.__calculated_display_values_available_event.fire(display_values)
+        except Exception as e:
+            if not self._calculated_display_values_test_exception:
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
+            self._calculated_display_values_test_exception = False  # for testing
+        with self.__calculated_display_values_lock:
+            was_pending = self.__calculated_display_values_pending
+            self.__calculated_display_values_pending = False
+            if was_pending and self.__calculated_display_values_thread_ok:
+                with self.__calculated_display_values_thread_lock:
+                    calculated_display_values_thread = threading.Thread(target=self.__calculate_display_values)
+                    calculated_display_values_thread.start()
+                    self.__calculated_display_values_thread = calculated_display_values_thread
+            else:
+                self.__calculated_display_values_thread = None
+
+    def __send_next_calculated_display_values(self) -> None:
+        """Start thread to send next display values, if necessary.
+
+        If the thread is already running, set the display values pending flag.
+
+        Otherwise, start the thread to calculate the display values.
+        """
         with self.__calculated_display_values_lock:
             if self.__calculated_display_values_thread:
                 self.__calculated_display_values_pending = True
             else:
                 self.__calculated_display_values_pending = False
-
-                def calculate_display_values():
-                    while True:
-                        try:
-                            if self._calculated_display_values_test_exception:  # for testing
-                                raise Exception()
-                            next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
-                            display_values = next_calculated_display_values.values()
-                            self.__calculated_display_values_available_event.fire(display_values)
-                        except Exception as e:
-                            if not self._calculated_display_values_test_exception:
-                                import traceback
-                                traceback.print_exc()
-                                traceback.print_stack()
-                            self._calculated_display_values_test_exception = False  # for testing
-                        with self.__calculated_display_values_lock:
-                            was_pending = self.__calculated_display_values_pending
-                            self.__calculated_display_values_pending = False
-                            if not was_pending:
-                                self.__calculated_display_values_thread = None
-                                break
-
                 if self.__calculated_display_values_available_event.listener_count > 0:
                     with self.__calculated_display_values_thread_lock:
-                        self.__calculated_display_values_thread = threading.Thread(target=calculate_display_values)
-                        self.__calculated_display_values_thread.start()
+                        calculated_display_values_thread = threading.Thread(target=self.__calculate_display_values)
+                        calculated_display_values_thread.start()
+                        self.__calculated_display_values_thread = calculated_display_values_thread
 
-    def update_calculated_display_values(self):
-        if self.__calculated_display_values_thread:
-            self.__calculated_display_values_thread.join()
+    def update_calculated_display_values(self) -> None:
+        """Update the display values and store the latest version.
+
+        If a calculation thread is running, wait for it to end, at which point the values will be stored and the
+        changed message will be sent.
+
+        Otherwise, immediately calculate and store the values and send out the changed message.
+        """
+        with self.__calculated_display_values_thread_lock:
+            calculated_display_values_thread = self.__calculated_display_values_thread
+        if calculated_display_values_thread:
+            calculated_display_values_thread.join()
         else:
             next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
             with self.__calculated_display_values_lock:
                 self.__calculated_display_values_pending = False
             self.__calculated_display_values_available_event.fire(next_calculated_display_values.values())
 
-    def get_calculated_display_values(self, immediate: bool = False):
+    def get_calculated_display_values(self, immediate: bool = False) -> DisplayValues:
+        """Return the display values, optionally forcing calculation."""
         if immediate:
             self.update_calculated_display_values()
         return self.__calculated_display_values.values()
