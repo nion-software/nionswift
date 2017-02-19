@@ -1970,24 +1970,41 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 # optimize case where sub_area is full area.
                 if sub_area is not None and sub_area[0] == (0, 0) and sub_area[1] == data_and_metadata.data_shape:
                     sub_area = None
+                # if the sub area is None (full frame), then only the full frame should be updated at the earliest
+                # possible queue position.
+                # if the sub area is specified, then the earliest smaller sub area should be replaced with the
+                # new data.
+                # in both cases, later updates should be ignored.
+                found = False
                 pending_data_item_updates = list()
-                for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
-                    if data_item_ == data_item and sub_area is None:
-                        pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
-                        data_item = None  # flag it as already added
-                    elif data_item_ == data_item and sub_area_ is not None and sub_area is not None and sub_area_[0][0] == sub_area[0][0] and sub_area_[1][0] <= sub_area[1][0]:
-                        pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
-                        data_item = None  # flag it as already added
-                    else:
-                        pending_data_item_updates.append((data_item_, data_and_metadata_, sub_area_))
-                if data_item:  # if not added yet, see above
+                if sub_area is None:
+                    for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
+                        # does it match? if so and not yet found, put the new data into the matching
+                        # slot; but then filter the rest of the matches.
+                        if data_item_ == data_item:
+                            if not found:
+                                pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
+                                found = True
+                        else:
+                            pending_data_item_updates.append((data_item_, data_and_metadata_, sub_area_))
+                else:
+                    for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
+                        # does it match? if so and not yet found, put the new data into the matching
+                        # slot; but then filter the rest of the matches.
+                        if data_item_ == data_item and sub_area_ is not None:
+                            if not found:
+                                pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
+                                found = True
+                        else:
+                            pending_data_item_updates.append((data_item_, data_and_metadata_, sub_area_))
+                if not found:  # if not added yet, add it
                     pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
                 self.__pending_data_item_updates = pending_data_item_updates
 
     def perform_data_item_updates(self):
         assert threading.current_thread() == threading.main_thread()
         with self.__pending_data_item_updates_lock:
-            pending_data_item_updates = copy.copy(self.__pending_data_item_updates)
+            pending_data_item_updates = self.__pending_data_item_updates
             self.__pending_data_item_updates = list()
         for data_item, data_and_metadata, sub_area in pending_data_item_updates:
             data_item.update_data_and_metadata(data_and_metadata, sub_area)

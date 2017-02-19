@@ -494,10 +494,6 @@ class DocumentController(Window.Window):
         return listener
 
     def periodic(self):
-        # import time
-        # t0 = time.time()
-        # logging.debug("t start %s ", t0)
-        # perform any pending operations
         with self.__weak_periodic_listeners_mutex:
             periodic_listeners = copy.copy(self.__weak_periodic_listeners)
         current_time = time.time()
@@ -514,14 +510,8 @@ class DocumentController(Window.Window):
                 periodic_listener.next_scheduled_time = current_time + periodic_listener.interval
         super().periodic()
         self.document_model.perform_data_item_updates()
-        # t1 = time.time()
-        # workspace
         if self.workspace_controller:
             self.workspace_controller.periodic()
-        # t2 = time.time()
-        # self.filter_controller.periodic()
-        # t3 = time.time()
-        # logging.debug("t end %s %s %s", t1-t0, t2-t1, t3-t2)
 
     @property
     def workspace_controller(self):

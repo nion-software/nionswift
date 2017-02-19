@@ -335,16 +335,6 @@ def _test_get_next_data_elements_to_finish_returns_full_frames(testcase, hardwar
     testcase.assertNotEqual(extended_data_list[0].data[0, 0], 0)
     testcase.assertNotEqual(extended_data_list[0].data[-1, -1], 0)
 
-def _test_get_next_data_elements_to_finish_produces_data_item_full_frames(testcase, hardware_source, document_controller):
-    hardware_source.start_playing()
-    try:
-        hardware_source.get_next_xdatas_to_finish()
-    finally:
-        hardware_source.abort_playing(sync_timeout=3.0)
-    document_controller.periodic()
-    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[0, 0], 0)
-    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.data[-1, -1], 0)
-
 def _test_exception_during_view_halts_playback(testcase, hardware_source, exposure):
     enabled = [False]
     def raise_exception():
@@ -567,11 +557,6 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         with contextlib.closing(document_controller):
             _test_get_next_data_elements_to_finish_returns_full_frames(self, hardware_source, document_controller)
-
-    def test_get_next_data_elements_to_finish_produces_data_item_full_frames(self):
-        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
-        with contextlib.closing(document_controller):
-            _test_get_next_data_elements_to_finish_produces_data_item_full_frames(self, hardware_source, document_controller)
 
     def test_exception_during_view_halts_playback(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -889,6 +874,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             display_panel.set_displayed_data_item(document_model.data_items[0])
             document_controller.periodic()
             self.assertEqual(document_model._get_pending_data_item_updates_count(), 0)
+            hardware_source.start_playing(sync_timeout=3.0)
+            hardware_source.stop_playing(sync_timeout=3.0)
             hardware_source.start_playing(sync_timeout=3.0)
             hardware_source.stop_playing(sync_timeout=3.0)
             self.assertEqual(document_model._get_pending_data_item_updates_count(), 1)

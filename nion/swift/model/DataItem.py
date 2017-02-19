@@ -396,6 +396,31 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             return self.persistent_object_context.load_data(self)
         return None
 
+    def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, sub_area: Tuple[Tuple[int, int], Tuple[int, int]]=None) -> None:
+        with self._changes():
+            self.increment_data_ref_count()
+            try:
+                data = data_and_metadata.data
+                master_data = self.__data_and_metadata.data if self.__data_and_metadata else None
+                data_matches = master_data is not None and data.shape == master_data.shape and data.dtype == master_data.dtype
+                if data_matches and sub_area is not None:
+                    top = sub_area[0][0]
+                    bottom = sub_area[0][0] + sub_area[1][0]
+                    left = sub_area[0][1]
+                    right = sub_area[0][1] + sub_area[1][1]
+                    master_data[top:bottom, left:right] = data[top:bottom, left:right]
+                else:
+                    master_data = data.copy()
+
+                # update the data
+                intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
+                dimensional_calibrations = data_and_metadata.dimensional_calibrations if data_and_metadata else None
+                metadata = data_and_metadata.metadata if data_and_metadata else None
+                new_extended_data = DataAndMetadata.new_data_and_metadata(master_data, intensity_calibration, dimensional_calibrations, metadata)
+                self.set_data_and_metadata(new_extended_data)
+            finally:
+                self.decrement_data_ref_count()
+
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
         self.__data_and_metadata = data_and_metadata
         if self.__data_and_metadata:
@@ -409,7 +434,9 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self._set_persistent_property_value("datum_dimension_count", self.__data_and_metadata.datum_dimension_count)
             self._set_persistent_property_value("intensity_calibration", self.__data_and_metadata.intensity_calibration)
             self._set_persistent_property_value("dimensional_calibrations", CalibrationList(self.__data_and_metadata.dimensional_calibrations))
-            self._set_persistent_property_value("metadata", self.__data_and_metadata.metadata)
+            metadata_copy = copy.deepcopy(self.__data_and_metadata.metadata)
+            self.__metadata = metadata_copy
+            self._set_persistent_property_value("metadata", metadata_copy)
         self.data_modified = data_modified if data_modified else datetime.datetime.utcnow()
         self.data_changed_event.fire(self)
 
@@ -503,7 +530,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         with self._changes():
             self.__data_and_metadata._set_metadata(metadata)
             self.__metadata = copy.deepcopy(metadata)
-            self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
+            self._set_persistent_property_value("metadata", self.__metadata)
             self.__change_changed = True
 
     def set_metadata(self, metadata):
@@ -1108,35 +1135,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         assert threading.current_thread() == threading.main_thread()
         display_specifier = DisplaySpecifier.from_data_item(self)
         assert display_specifier.buffered_data_source and display_specifier.display
-        with self.data_item_changes(), display_specifier.buffered_data_source._changes():
-            with display_specifier.buffered_data_source.data_ref() as data_ref:
-                data = data_and_metadata.data
-                data_matches = data_ref.master_data is not None and data.shape == data_ref.master_data.shape and data.dtype == data_ref.master_data.dtype
-                if data_matches:
-                    if sub_area is not None:
-                        top = sub_area[0][0]
-                        bottom = sub_area[0][0] + sub_area[1][0]
-                        left = sub_area[0][1]
-                        right = sub_area[0][1] + sub_area[1][1]
-                        data_ref.master_data[top:bottom, left:right] = data[top:bottom, left:right]
-                    else:
-                        data_ref.master_data[:] = data[:]
-                    data_ref.data_updated()  # trigger change notifications
-                else:
-                    data_ref.master_data = data.copy()
-            # spatial calibrations
-            dimensional_calibrations = data_and_metadata.dimensional_calibrations
-            if len(dimensional_calibrations) == len(display_specifier.buffered_data_source.dimensional_shape):
-                for dimension, dimension_calibration in enumerate(dimensional_calibrations):
-                    display_specifier.buffered_data_source.set_dimensional_calibration(dimension, dimension_calibration)
-            display_specifier.buffered_data_source.set_intensity_calibration(data_and_metadata.intensity_calibration)
-            # properties (general tags)
-            properties = data_and_metadata.metadata.get("hardware_source", dict())
-            buffered_data_source = display_specifier.buffered_data_source
-            metadata = buffered_data_source.metadata
-            hardware_source_metadata = metadata.setdefault("hardware_source", dict())
-            hardware_source_metadata.update(Utility.clean_dict(properties))
-            buffered_data_source.metadata = metadata
+        with self.data_item_changes():
+            display_specifier.buffered_data_source.update_data_and_metadata(data_and_metadata, sub_area)
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()
