@@ -30,15 +30,6 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-        # create the histogram canvas object
-        class CanvasItemContainer(object):
-            def __init__(self):
-                self.root_container = self
-                self.mouse_canvas_item = None
-            def draw(self):
-                pass
-            def _child_updated(self, child):
-                pass
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None, debounce=False, sample=False)
         self.histogram_canvas_item = self.histogram_panel._histogram_widget._histogram_canvas_item
         self.display = self.display_specifier.display

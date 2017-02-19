@@ -826,7 +826,6 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
             self.assertEqual(len(document_model.data_items), 2)
 
-    @unittest.expectedFailure
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_image(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         with contextlib.closing(document_controller):
@@ -837,10 +836,34 @@ class TestHardwareSourceClass(unittest.TestCase):
             count_ref = [0]
             def metric_update():
                 count_ref[0] += 1
+            update_count = display_panel.display_canvas_item._update_count
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
                 self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(count_ref[0], 1)
+            self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 1)
+
+    def test_partial_frame_acquisition_generates_single_canvas_update_event_for_each_segment(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        with contextlib.closing(document_controller):
+            hardware_source.image = numpy.ones((4, 4))
+            display_panel = document_controller.selected_display_panel
+            self.__acquire_one(document_controller, hardware_source)
+            display_panel.set_displayed_data_item(document_model.data_items[0])
+            count_ref = [0]
+            def metric_update():
+                count_ref[0] += 1
+            update_count = display_panel.display_canvas_item._update_count
+            with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
+                self.assertEqual(count_ref[0], 0)
+                hardware_source.sleep = 0.03  # each partial will sleep for this long
+                hardware_source.start_playing(sync_timeout=3.0)
+                time.sleep(0.05)  # make sure we're in the 2nd partial
+                document_controller.periodic()
+                hardware_source.stop_playing(sync_timeout=3.0)
+                document_controller.periodic()
+            self.assertEqual(count_ref[0], 2)
+            self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 2)
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()

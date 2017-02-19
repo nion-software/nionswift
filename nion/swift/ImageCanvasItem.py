@@ -373,11 +373,12 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__update_cursor_info()
                 def update_layout():
                     # layout. this makes sure that the info overlay gets updated too.
-                    self.__update_image_canvas_size()
-                    # trigger updates
-                    self.__bitmap_canvas_item.update()
-                    with self.__update_layout_handle_lock:
-                        self.__update_layout_handle = None
+                    with self.update_context():
+                        self.__update_image_canvas_size()
+                        # trigger updates
+                        self.__bitmap_canvas_item.update()
+                        with self.__update_layout_handle_lock:
+                            self.__update_layout_handle = None
                 if self.__event_loop:
                     with self.__update_layout_handle_lock:
                         update_layout_handle = self.__update_layout_handle
