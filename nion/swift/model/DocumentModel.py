@@ -1972,7 +1972,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     sub_area = None
                 pending_data_item_updates = list()
                 for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
-                    if data_item_ == data_item and sub_area_ is None and sub_area is None:
+                    if data_item_ == data_item and sub_area is None:
+                        pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
+                        data_item = None  # flag it as already added
+                    elif data_item_ == data_item and sub_area_ is not None and sub_area is not None and sub_area_[0][0] == sub_area[0][0] and sub_area_[1][0] <= sub_area[1][0]:
                         pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
                         data_item = None  # flag it as already added
                     else:
@@ -1988,6 +1991,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__pending_data_item_updates = list()
         for data_item, data_and_metadata, sub_area in pending_data_item_updates:
             data_item.update_data_and_metadata(data_and_metadata, sub_area)
+
+    # for testing
+    def _get_pending_data_item_updates_count(self):
+        return len(self.__pending_data_item_updates)
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         assert threading.current_thread() == threading.main_thread()

@@ -880,6 +880,19 @@ class TestHardwareSourceClass(unittest.TestCase):
                 self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(count_ref[0], 1)
 
+    def test_partial_frame_acquisition_avoids_unnecessary_merges(self):
+        document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
+        with contextlib.closing(document_controller):
+            hardware_source.image = numpy.ones((4, 4))
+            display_panel = document_controller.selected_display_panel
+            self.__acquire_one(document_controller, hardware_source)
+            display_panel.set_displayed_data_item(document_model.data_items[0])
+            document_controller.periodic()
+            self.assertEqual(document_model._get_pending_data_item_updates_count(), 0)
+            hardware_source.start_playing(sync_timeout=3.0)
+            hardware_source.stop_playing(sync_timeout=3.0)
+            self.assertEqual(document_model._get_pending_data_item_updates_count(), 1)
+
     def test_two_acquisitions_succeed(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         with contextlib.closing(document_controller):
