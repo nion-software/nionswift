@@ -968,7 +968,7 @@ class DataItem(metaclass=SharedInstance):
         Scriptable: Yes
         """
         with self.__data_item.maybe_data_source.data_ref() as data_ref:
-            data_ref.data = data
+            data_ref.data = numpy.copy(data)
 
     def set_data(self, data: numpy.ndarray) -> None:
         """Set the data.
@@ -979,8 +979,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        with self.__data_item.maybe_data_source.data_ref() as data_ref:
-            data_ref.data = data
+        self.data = data
 
     @property
     def xdata(self) -> DataAndMetadata.DataAndMetadata:

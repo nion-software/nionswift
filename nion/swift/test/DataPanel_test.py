@@ -80,26 +80,26 @@ class TestDataPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item3)
         data_group.append_data_item(data_item3)
         display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
-        display_panel.set_displayed_data_item(data_item1)
-        data_panel = document_controller.find_dock_widget("data-panel").panel
-        document_controller.select_data_item_in_data_panel(data_item=data_item1)
-        document_controller.periodic()
-        document_controller.selected_display_panel = display_panel
-        # first delete a child of a data item
-        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
-        self.assertEqual(len(data_group.data_items), 5)
-        document_controller.select_data_item_in_data_panel(data_item=data_item1a)
-        # document_controller.selection.set(3)  # set above by date_item instead
-        data_panel.data_list_controller._delete_pressed()
-        self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
-        # now delete a child of a data group
-        self.assertEqual(len(data_group.data_items), 4)
-        document_controller.select_data_item_in_data_panel(data_item=data_item2)
-        # document_controller.selection.set(2)  # set above by date_item instead
-        data_panel.data_list_controller._delete_pressed()
-        self.assertEqual(len(data_group.data_items), 2)
-        canvas_item = display_panel.canvas_item
-        display_panel.close()
+        with contextlib.closing(display_panel):
+            display_panel.set_displayed_data_item(data_item1)
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            document_controller.select_data_item_in_data_panel(data_item=data_item1)
+            document_controller.periodic()
+            document_controller.selected_display_panel = display_panel
+            # first delete a child of a data item
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 1)
+            self.assertEqual(len(data_group.data_items), 5)
+            document_controller.select_data_item_in_data_panel(data_item=data_item1a)
+            # document_controller.selection.set(3)  # set above by date_item instead
+            data_panel.data_list_controller._delete_pressed()
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item1)), 0)
+            # now delete a child of a data group
+            self.assertEqual(len(data_group.data_items), 4)
+            document_controller.select_data_item_in_data_panel(data_item=data_item2)
+            # document_controller.selection.set(2)  # set above by date_item instead
+            data_panel.data_list_controller._delete_pressed()
+            self.assertEqual(len(data_group.data_items), 2)
+            canvas_item = display_panel.canvas_item
         canvas_item.close()  # this is the order in workspace close
         document_controller.close()
 
@@ -728,22 +728,23 @@ class TestDataPanelClass(unittest.TestCase):
             # create display panel
             data_panel = document_controller.find_dock_widget("data-panel").panel
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
-            document_controller.selected_display_panel = display_panel
-            # create a temporary data item
-            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
-            data_item.category = "temporary"
-            document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
-            # check that changing display updates to the one temporary data item in the data panel
-            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
-            # filter
-            self.assertEqual(data_panel.library_widget.parent_id, 0)
-            self.assertEqual(data_panel.library_widget.parent_row, -1)
-            self.assertEqual(data_panel.library_widget.index, 1)
-            # data group
-            self.assertEqual(data_panel.data_group_widget.parent_id, 0)
-            self.assertEqual(data_panel.data_group_widget.parent_row, -1)
-            self.assertEqual(data_panel.data_group_widget.index, -1)
+            with contextlib.closing(display_panel.canvas_item), contextlib.closing(display_panel):
+                document_controller.selected_display_panel = display_panel
+                # create a temporary data item
+                data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+                data_item.category = "temporary"
+                document_model.append_data_item(data_item)
+                display_panel.set_displayed_data_item(data_item)
+                # check that changing display updates to the one temporary data item in the data panel
+                self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+                # filter
+                self.assertEqual(data_panel.library_widget.parent_id, 0)
+                self.assertEqual(data_panel.library_widget.parent_row, -1)
+                self.assertEqual(data_panel.library_widget.index, 1)
+                # data group
+                self.assertEqual(data_panel.data_group_widget.parent_id, 0)
+                self.assertEqual(data_panel.data_group_widget.parent_row, -1)
+                self.assertEqual(data_panel.data_group_widget.index, -1)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

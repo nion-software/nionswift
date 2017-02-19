@@ -129,11 +129,11 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_connection_updates_interval_descriptors_on_line_profile_graphic_from_source(self):
         document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
             line_profile_display_specifier = document_controller.processing_line_profile()
@@ -148,11 +148,11 @@ class TestConnectionClass(unittest.TestCase):
 
     def test_connection_updates_interval_descriptors_when_interval_mutates(self):
         document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
             line_profile_display_specifier = document_controller.processing_line_profile()

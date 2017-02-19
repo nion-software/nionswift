@@ -36,7 +36,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(100, 100 + header_height)
             # run test
             document_controller.tool_mode = "line-profile"
@@ -53,7 +53,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(100, 100 + header_height)
             # run test
             document_controller.tool_mode = "line-profile"
@@ -71,7 +71,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item.maybe_data_source.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "x")
@@ -87,7 +87,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item.maybe_data_source.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "x")
@@ -101,7 +101,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
@@ -123,7 +123,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             rect_region = Graphics.RectangleGraphic()
@@ -149,7 +149,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             rect_region = Graphics.RectangleGraphic()
@@ -174,7 +174,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             rect_region1 = Graphics.RectangleGraphic()
@@ -200,7 +200,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             rect_region1 = Graphics.RectangleGraphic()
@@ -223,7 +223,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             DataItem.DisplaySpecifier.from_data_item(data_item).display.display_type = "image"
-            header_height = Panel.HeaderCanvasItem().header_height
+            header_height = Panel.HeaderCanvasItem.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
 
 

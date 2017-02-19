@@ -870,31 +870,33 @@ class TestGraphicsClass(unittest.TestCase):
         # make the document controller
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((10, 10)))
-        document_model.append_data_item(data_item)
-        display_panel.set_displayed_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        graphic = Graphics.PointGraphic()
-        display_specifier.display.add_graphic(graphic)
-        self.assertFalse(graphic._closed)
-        display_specifier.display.remove_graphic(graphic)
-        self.assertTrue(graphic._closed)
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            graphic = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(graphic)
+            self.assertFalse(graphic._closed)
+            display_specifier.display.remove_graphic(graphic)
+            self.assertTrue(graphic._closed)
 
     def test_removing_data_item_closes_graphic_attached_to_display(self):
         # make the document controller
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((10, 10)))
-        document_model.append_data_item(data_item)
-        display_panel.set_displayed_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        graphic = Graphics.PointGraphic()
-        display_specifier.display.add_graphic(graphic)
-        self.assertFalse(graphic._closed)
-        document_model.remove_data_item(data_item)
-        self.assertTrue(graphic._closed)
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            graphic = Graphics.PointGraphic()
+            display_specifier.display.add_graphic(graphic)
+            self.assertFalse(graphic._closed)
+            document_model.remove_data_item(data_item)
+            self.assertTrue(graphic._closed)
 
     def test_removing_region_closes_associated_drawn_graphic(self):
         document_model = DocumentModel.DocumentModel()

@@ -30,7 +30,7 @@ class TestInfoPanelClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((1000, )))
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
+        header_height = Panel.HeaderCanvasItem.header_height
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
@@ -45,7 +45,7 @@ class TestInfoPanelClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         data_item.data_sources[0].displays[0].dimensional_calibration_style = "relative-top-left"
         display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
+        header_height = Panel.HeaderCanvasItem.header_height
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
@@ -85,7 +85,7 @@ class TestInfoPanelClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((10, 10, 4)))
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
+        header_height = Panel.HeaderCanvasItem.header_height
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         display_panel.display_canvas_item.mouse_entered()
         display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
@@ -100,7 +100,7 @@ class TestInfoPanelClass(unittest.TestCase):
         data_item.maybe_data_source.displays[0].dimensional_calibration_style = "pixels-top-left"
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
+        header_height = Panel.HeaderCanvasItem.header_height
         info_panel = document_controller.find_dock_widget("info-panel").panel
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         display_panel.display_canvas_item.mouse_entered()
@@ -123,7 +123,7 @@ class TestInfoPanelClass(unittest.TestCase):
         display.sequence_index = 4
         display.dimensional_calibration_style = "pixels-top-left"
         display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
+        header_height = Panel.HeaderCanvasItem.header_height
         info_panel = document_controller.find_dock_widget("info-panel").panel
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         display_panel.display_canvas_item.mouse_entered()
@@ -146,7 +146,7 @@ class TestInfoPanelClass(unittest.TestCase):
         display.collection_index = 20, 30
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
+        header_height = Panel.HeaderCanvasItem.header_height
         info_panel = document_controller.find_dock_widget("info-panel").panel
         display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
         display_panel.display_canvas_item.mouse_entered()

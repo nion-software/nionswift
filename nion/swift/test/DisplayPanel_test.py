@@ -72,7 +72,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
+        header_height = Panel.HeaderCanvasItem.header_height
         self.display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
 
     def tearDown(self):
@@ -106,21 +106,21 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_image_panel_gets_destructed(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
-        # add some extra refs for fun
-        canvas_item = display_panel.canvas_item
-        container = CanvasItem.SplitterCanvasItem()
-        container.add_canvas_item(canvas_item)
-        canvas_widget = self.app.ui.create_canvas_widget()
-        canvas_widget.canvas_item.add_canvas_item(container)
-        # now take the weakref
-        display_panel_weak_ref = weakref.ref(display_panel)
-        canvas_item = display_panel.canvas_item
-        display_panel.close()
-        canvas_item.close()  # this is the order in workspace close
-        display_panel = None
-        self.assertIsNone(display_panel_weak_ref())
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
+            # add some extra refs for fun
+            canvas_item = display_panel.canvas_item
+            container = CanvasItem.SplitterCanvasItem()
+            container.add_canvas_item(canvas_item)
+            canvas_widget = self.app.ui.create_canvas_widget()
+            canvas_widget.canvas_item.add_canvas_item(container)
+            # now take the weakref
+            display_panel_weak_ref = weakref.ref(display_panel)
+            canvas_item = display_panel.canvas_item
+            display_panel.close()
+            canvas_item.close()  # this is the order in workspace close
+            display_panel = None
+            self.assertIsNone(display_panel_weak_ref())
 
     # user deletes data item that is displayed. make sure we remove the display.
     def test_deleting_data_item_removes_it_from_image_panel(self):
@@ -1294,30 +1294,32 @@ class TestDisplayPanelClass(unittest.TestCase):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
-        document_model.append_data_item(data_item1)
-        data_item = document_model.get_crop_new(data_item1)
-        data_item.maybe_data_source.displays[0].display_type = "line_plot"
-        display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
-        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
-        document_controller.periodic()
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+            document_model.append_data_item(data_item1)
+            data_item = document_model.get_crop_new(data_item1)
+            data_item.maybe_data_source.displays[0].display_type = "line_plot"
+            display_panel.set_displayed_data_item(data_item)
+            header_height = Panel.HeaderCanvasItem.header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+            document_controller.periodic()
 
     def test_display_2d_collection_with_2d_datum_displays_image(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem()
-        data_item.append_data_source(DataItem.BufferedDataSource())
-        data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
-        document_model.append_data_item(data_item)
-        display_panel.set_displayed_data_item(data_item)
-        header_height = Panel.HeaderCanvasItem().header_height
-        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
-        document_controller.periodic()
-        self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem()
+            data_item.append_data_source(DataItem.BufferedDataSource())
+            data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            header_height = Panel.HeaderCanvasItem.header_height
+            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
 
     def test_image_display_canvas_item_only_updates_if_display_data_changes(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)

@@ -255,7 +255,7 @@ class FilterPanel:
         header_canvas_item = Panel.HeaderCanvasItem(_("Filter"))
 
         header_widget = ui.create_canvas_widget(properties={"height": header_canvas_item.header_height})
-        header_widget.canvas_item.add_canvas_item(Panel.HeaderCanvasItem(_("Filter")))
+        header_widget.canvas_item.add_canvas_item(header_canvas_item)
 
         filter_bar_row = ui.create_row_widget()
         filter_bar_row.add(ui.create_label_widget(_("Search")))

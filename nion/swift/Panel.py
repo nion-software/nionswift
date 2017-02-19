@@ -107,13 +107,14 @@ class OutputPanel(Panel):
 
 class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
+    header_height = 20 if sys.platform == "win32" else 22
+
     def __init__(self, title=None, label=None, display_close_control=False):
         super().__init__()
         self.wants_mouse_events = True
         self.__title = title if title else ""
         self.__label = label if label else ""
         self.__display_close_control = display_close_control
-        self.header_height = 20 if sys.platform == "win32" else 22
         self.sizing.set_fixed_height(self.header_height)
         self.on_select_pressed = None
         self.on_drag_pressed = None
