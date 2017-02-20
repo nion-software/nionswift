@@ -396,31 +396,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             return self.persistent_object_context.load_data(self)
         return None
 
-    def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, sub_area: Tuple[Tuple[int, int], Tuple[int, int]]=None) -> None:
-        with self._changes():
-            self.increment_data_ref_count()
-            try:
-                data = data_and_metadata.data
-                master_data = self.__data_and_metadata.data if self.__data_and_metadata else None
-                data_matches = master_data is not None and data.shape == master_data.shape and data.dtype == master_data.dtype
-                if data_matches and sub_area is not None:
-                    top = sub_area[0][0]
-                    bottom = sub_area[0][0] + sub_area[1][0]
-                    left = sub_area[0][1]
-                    right = sub_area[0][1] + sub_area[1][1]
-                    master_data[top:bottom, left:right] = data[top:bottom, left:right]
-                else:
-                    master_data = data.copy()
-
-                # update the data
-                intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
-                dimensional_calibrations = data_and_metadata.dimensional_calibrations if data_and_metadata else None
-                metadata = data_and_metadata.metadata if data_and_metadata else None
-                new_extended_data = DataAndMetadata.new_data_and_metadata(master_data, intensity_calibration, dimensional_calibrations, metadata)
-                self.set_data_and_metadata(new_extended_data)
-            finally:
-                self.decrement_data_ref_count()
-
     def __set_data_metadata_direct(self, data_and_metadata, data_modified=None):
         self.__data_and_metadata = data_and_metadata
         if self.__data_and_metadata:
@@ -446,23 +421,27 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         Note: this does not make a copy of the data.
         """
         with self._changes():
-            if data_and_metadata:
-                data = data_and_metadata.data
-                data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
-                intensity_calibration = data_and_metadata.intensity_calibration
-                dimensional_calibrations = data_and_metadata.dimensional_calibrations
-                metadata = data_and_metadata.metadata
-                timestamp = data_and_metadata.timestamp
-                data_descriptor = data_and_metadata.data_descriptor
-                new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data, data_descriptor)
-            else:
-                new_data_and_metadata = None
-            self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
-            if self.__data_and_metadata is not None:
-                if self.persistent_object_context:
-                    self.persistent_object_context.rewrite_data_item_data(self._data_item)  # ouch, up reference to data item
-                    self.__data_and_metadata.unloadable = True
-            self.__change_changed = True
+            self.increment_data_ref_count()
+            try:
+                if data_and_metadata:
+                    data = data_and_metadata.data
+                    data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
+                    intensity_calibration = data_and_metadata.intensity_calibration
+                    dimensional_calibrations = data_and_metadata.dimensional_calibrations
+                    metadata = data_and_metadata.metadata
+                    timestamp = data_and_metadata.timestamp
+                    data_descriptor = data_and_metadata.data_descriptor
+                    new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data, data_descriptor)
+                else:
+                    new_data_and_metadata = None
+                self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
+                if self.__data_and_metadata is not None:
+                    if self.persistent_object_context:
+                        self.persistent_object_context.rewrite_data_item_data(self._data_item)  # ouch, up reference to data item
+                        self.__data_and_metadata.unloadable = True
+                self.__change_changed = True
+            finally:
+                self.decrement_data_ref_count()
 
     def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
         self.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data, data_modified))
@@ -1131,12 +1110,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         if data_item_change_count == 0 and data_item_content_changed:
             self.data_item_content_changed_event.fire()
 
-    def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata, sub_area: Tuple[Tuple[int, int], Tuple[int, int]]=None) -> None:
+    def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         assert threading.current_thread() == threading.main_thread()
         display_specifier = DisplaySpecifier.from_data_item(self)
         assert display_specifier.buffered_data_source and display_specifier.display
         with self.data_item_changes():
-            display_specifier.buffered_data_source.update_data_and_metadata(data_and_metadata, sub_area)
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()

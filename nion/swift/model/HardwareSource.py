@@ -14,7 +14,6 @@ This module also defines individual functions that can be used to collect data f
 import configparser
 import contextlib
 import copy
-import datetime
 import enum
 import functools
 import gettext
@@ -26,11 +25,12 @@ import typing
 import traceback
 import uuid
 
+# library imports
+import numpy
+
 # local imports
-from nion.data import Calibration
 from nion.data import Core
 from nion.data import DataAndMetadata
-from nion.data import Image
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
@@ -514,12 +514,12 @@ class DataChannel:
         """Called from hardware source when new data arrives."""
         self.__state = state
         self.__sub_area = sub_area
-        self.__data_and_metadata = data_and_metadata
 
         hardware_source_id = self.__hardware_source.hardware_source_id
         channel_index = self.index
         channel_id = self.channel_id
         channel_name = self.name
+        metadata = copy.deepcopy(data_and_metadata.metadata)
         hardware_source_metadata = dict()
         hardware_source_metadata["hardware_source_id"] = hardware_source_id
         hardware_source_metadata["channel_index"] = channel_index
@@ -529,9 +529,28 @@ class DataChannel:
             hardware_source_metadata["channel_name"] = channel_name
         if view_id:
             hardware_source_metadata["view_id"] = view_id
-        data_and_metadata.metadata.setdefault("hardware_source", dict()).update(hardware_source_metadata)
+        metadata.setdefault("hardware_source", dict()).update(hardware_source_metadata)
 
-        self.data_channel_updated_event.fire(data_and_metadata)
+        data = data_and_metadata.data
+        master_data = self.__data_and_metadata.data if self.__data_and_metadata else None
+        data_matches = master_data is not None and data.shape == master_data.shape and data.dtype == master_data.dtype
+        if data_matches and sub_area is not None:
+            top = sub_area[0][0]
+            bottom = sub_area[0][0] + sub_area[1][0]
+            left = sub_area[0][1]
+            right = sub_area[0][1] + sub_area[1][1]
+            master_data = numpy.copy(master_data)
+            master_data[top:bottom, left:right] = data[top:bottom, left:right]
+        else:
+            master_data = data.copy()
+
+        intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
+        dimensional_calibrations = data_and_metadata.dimensional_calibrations if data_and_metadata else None
+        new_extended_data = DataAndMetadata.new_data_and_metadata(master_data, intensity_calibration, dimensional_calibrations, metadata)
+
+        self.__data_and_metadata = new_extended_data
+
+        self.data_channel_updated_event.fire(new_extended_data)
         self.is_dirty = True
 
     def start(self):

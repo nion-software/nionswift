@@ -7,6 +7,7 @@ import unittest
 
 import numpy
 
+from nion.data import DataAndMetadata
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
@@ -662,9 +663,11 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_partial_acquisition_only_updates_sub_area(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.zeros((256, 256)) + 16)
+            data = numpy.zeros((256, 256)) + 16
+            data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
             document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source.hardware_source_id, "a"), data_item)
+            hardware_source.data_channels[0].update(DataAndMetadata.new_data_and_metadata(data), "complete", None, None)
             hardware_source.exposure = 0.02
             hardware_source.start_playing()
             time.sleep(0.01)

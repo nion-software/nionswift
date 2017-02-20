@@ -1959,46 +1959,25 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__pending_starts = 0
                     self.data_item_changed_event.fire()
 
-    def __queue_data_item_update(self, data_item, data_and_metadata, sub_area):
+    def __queue_data_item_update(self, data_item, data_and_metadata):
         # put the data update to data_item into the pending_data_item_updates list.
-        # if there is no sub_area and the data_item is already in the queue, just
-        # replace it with the new data.
         # the pending_data_item_updates will be serviced when the main thread calls
         # perform_data_item_updates.
         if data_item:
             with self.__pending_data_item_updates_lock:
-                # optimize case where sub_area is full area.
-                if sub_area is not None and sub_area[0] == (0, 0) and sub_area[1] == data_and_metadata.data_shape:
-                    sub_area = None
-                # if the sub area is None (full frame), then only the full frame should be updated at the earliest
-                # possible queue position.
-                # if the sub area is specified, then the earliest smaller sub area should be replaced with the
-                # new data.
-                # in both cases, later updates should be ignored.
                 found = False
                 pending_data_item_updates = list()
-                if sub_area is None:
-                    for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
-                        # does it match? if so and not yet found, put the new data into the matching
-                        # slot; but then filter the rest of the matches.
-                        if data_item_ == data_item:
-                            if not found:
-                                pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
-                                found = True
-                        else:
-                            pending_data_item_updates.append((data_item_, data_and_metadata_, sub_area_))
-                else:
-                    for data_item_, data_and_metadata_, sub_area_ in self.__pending_data_item_updates:
-                        # does it match? if so and not yet found, put the new data into the matching
-                        # slot; but then filter the rest of the matches.
-                        if data_item_ == data_item and sub_area_ is not None:
-                            if not found:
-                                pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
-                                found = True
-                        else:
-                            pending_data_item_updates.append((data_item_, data_and_metadata_, sub_area_))
+                for data_item_, data_and_metadata_ in self.__pending_data_item_updates:
+                    # does it match? if so and not yet found, put the new data into the matching
+                    # slot; but then filter the rest of the matches.
+                    if data_item_ == data_item:
+                        if not found:
+                            pending_data_item_updates.append((data_item, data_and_metadata))
+                            found = True
+                    else:
+                        pending_data_item_updates.append((data_item_, data_and_metadata_))
                 if not found:  # if not added yet, add it
-                    pending_data_item_updates.append((data_item, data_and_metadata, sub_area))
+                    pending_data_item_updates.append((data_item, data_and_metadata))
                 self.__pending_data_item_updates = pending_data_item_updates
 
     def perform_data_item_updates(self):
@@ -2006,8 +1985,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         with self.__pending_data_item_updates_lock:
             pending_data_item_updates = self.__pending_data_item_updates
             self.__pending_data_item_updates = list()
-        for data_item, data_and_metadata, sub_area in pending_data_item_updates:
-            data_item.update_data_and_metadata(data_and_metadata, sub_area)
+        for data_item, data_and_metadata in pending_data_item_updates:
+            data_item.update_data_and_metadata(data_and_metadata)
 
     # for testing
     def _get_pending_data_item_updates_count(self):
@@ -2095,9 +2074,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__call_soon(data_channel_stop)
 
     def __data_channel_updated(self, hardware_source, data_channel, data_and_metadata):
-        sub_area = data_channel.sub_area  # evaluate immediately instead of within call_soon callback
         data_item_reference = self.__construct_data_item_reference(hardware_source, data_channel)
-        self.__queue_data_item_update(data_item_reference.data_item, data_and_metadata, sub_area)
+        self.__queue_data_item_update(data_item_reference.data_item, data_and_metadata)
 
     def __data_channel_states_updated(self, hardware_source, data_channels):
         data_item_states = list()
