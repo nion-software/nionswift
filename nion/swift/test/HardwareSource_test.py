@@ -828,7 +828,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
                 self.__acquire_one(document_controller, hardware_source)
-            self.assertEqual(count_ref[0], 1)
+            # metric update event is no longer reliable with threaded layer painting
+            # self.assertEqual(count_ref[0], 1)
             self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 1)
 
     def test_partial_frame_acquisition_generates_single_canvas_update_event_for_each_segment(self):
@@ -850,7 +851,8 @@ class TestHardwareSourceClass(unittest.TestCase):
                 document_controller.periodic()
                 hardware_source.stop_playing(sync_timeout=3.0)
                 document_controller.periodic()
-            self.assertEqual(count_ref[0], 2)
+            # metric update event is no longer reliable with threaded layer painting
+            # self.assertEqual(count_ref[0], 2)
             self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 2)
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
@@ -863,10 +865,13 @@ class TestHardwareSourceClass(unittest.TestCase):
             count_ref = [0]
             def metric_update():
                 count_ref[0] += 1
+            update_count = display_panel.display_canvas_item._update_count
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
                 self.__acquire_one(document_controller, hardware_source)
-            self.assertEqual(count_ref[0], 1)
+            # metric update event is no longer reliable with threaded layer painting
+            # self.assertEqual(count_ref[0], 1)
+            self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 1)
 
     def test_partial_frame_acquisition_avoids_unnecessary_merges(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
