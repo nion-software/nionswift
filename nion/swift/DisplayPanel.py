@@ -1737,7 +1737,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
             display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
             with drawing_context.saver():
                 drawing_context.translate(0, (frame_width - frame_height) * 0.5)
-                display_canvas_item._repaint(drawing_context)
+                display_canvas_item._repaint_immediate(drawing_context)
 
     elif display_type == "image":
         display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, None, draw_background=False)
@@ -1748,6 +1748,6 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
             graphics = display.graphics
             display_canvas_item.update_layout((0, 0), (height, width))
             display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
-            display_canvas_item._repaint(drawing_context)
+            display_canvas_item._repaint_immediate(drawing_context)
 
     return drawing_context
