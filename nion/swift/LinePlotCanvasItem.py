@@ -510,7 +510,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             elif key.is_right_arrow:
                 self.delegate.nudge_selected_graphics(mapping, Geometry.FloatPoint(y=0, x=amount))
             return True
-        if key.key == 70 and key.modifiers.control and key.modifiers.alt:
+        if key.key == 70 and key.modifiers.shift and key.modifiers.alt:
             if self.__display_frame_rate_id is None:
                 self.__display_frame_rate_id = str(id(self))
             else:

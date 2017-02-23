@@ -915,7 +915,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             if key.text == ")":
                 self.set_fill_mode()
                 return True
-            if key.key == 70 and key.modifiers.control and key.modifiers.alt:
+            if key.key == 70 and key.modifiers.shift and key.modifiers.alt:
                 if self.__display_frame_rate_id is None:
                     self.__display_frame_rate_id = str(id(self))
                 else:
