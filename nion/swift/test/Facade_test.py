@@ -75,6 +75,19 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(api.library, api.library)
             self.assertEqual(api.library.data_items, api.library.data_items)
 
+    def test_graphic_is_invalid_if_source_is_removed(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0", "~1.0")
+            library = api.library
+            data_item = library.create_data_item_from_data(numpy.zeros((16, 16)))
+            self.assertEqual(len(Facade.Graphic.instances), 0)
+            graphic = data_item.add_point_region(10, 10)
+            self.assertEqual(len(Facade.Graphic.instances), 1)
+            graphic = None
+            self.assertEqual(len(Facade.Graphic.instances), 0)
+
     def test_create_data_item_from_data_as_sequence(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = self.app.create_document_controller(document_model, "library")
