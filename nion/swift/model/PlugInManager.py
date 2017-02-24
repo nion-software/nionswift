@@ -2,6 +2,7 @@
 import collections
 import copy
 import importlib
+import importlib.util
 import inspect
 import json
 import logging
@@ -131,6 +132,7 @@ def load_plug_ins(app, root_dir):
 
     invalid_manifests = list()
     version_map = dict()
+    module_exists_map = dict()
 
     progress = True
     while progress:
@@ -170,6 +172,17 @@ def load_plug_ins(app, root_dir):
                     manifest_valid = False
                 if not manifest_valid:
                     continue
+                for module in manifest.get("modules", list()):
+                    if module in module_exists_map:
+                        module_exists = module_exists_map.get(module)
+                    else:
+                        module_exists = importlib.util.find_spec(module) is not None
+                        module_exists_map[module] = module_exists
+                    if not module_exists:
+                        logging.info("Plug-in '" + relative_path + "' NOT loaded.")
+                        logging.info("Cannot satisfy requirement (%s): %s", module, manifest_path)
+                        manifest_valid = False
+                        break
                 for requirement in manifest.get("requires", list()):
                     # TODO: see https://packaging.pypa.io/en/latest/
                     requirement_components = requirement.split()
