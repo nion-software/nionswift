@@ -1007,7 +1007,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             # the next section does gaussian blur for image decimation in the case where the destination rectangle
             # is smaller than the source. this results in lower performance, but higher quality display.
             height_ratio = (self.__bitmap_canvas_item.canvas_size.height / data_rgba.shape[0]) if data_rgba is not None and data_rgba.shape[0] > 0 else 1
-            if height_ratio < 1:
+            if False and height_ratio < 1:
                 sigma = 0.5 * ((1.0 / height_ratio) - 1.0)
                 data_rgba_copy = numpy.empty_like(data_rgba)
                 data_rgba_u8_view = data_rgba.view(numpy.uint8).reshape(data_rgba.shape + (-1, ))
