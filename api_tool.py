@@ -154,6 +154,7 @@ for class_name in getattr(module, class_list_property):
         # print("    ### {}".format(argspec))
         doc = class_functions_dict[member_name].get("doc")
         raw_arg_strings = list()
+        raw_pass_arg_strings = list()
         arg_strings = list()
         for arg in argspec.args:
             annotation = argspec.annotations.get(arg)
@@ -162,10 +163,28 @@ for class_name in getattr(module, class_list_property):
             else:
                 arg_strings.append("{}".format(arg))
             raw_arg_strings.append("{}".format(arg))
+            raw_pass_arg_strings.append(f"{arg}")
         default_count = len(argspec.defaults) if argspec.defaults else 0
         for index in range(default_count):
             arg_index = -default_count + index
-            arg_strings[arg_index] = "{}{}".format(arg_strings[arg_index], default_to_str(argspec.defaults[index]))
+            default_value_str = default_to_str(argspec.defaults[index])
+            arg_strings[arg_index] = "{}{}".format(arg_strings[arg_index], default_value_str)
+            raw_arg_strings[arg_index] = f"{raw_arg_strings[arg_index]}{default_value_str}"
+            raw_pass_arg_strings[arg_index] = f"{raw_pass_arg_strings[arg_index]}={raw_pass_arg_strings[arg_index]}"
+        if len(argspec.kwonlyargs) > 0:
+            arg_strings.append("*")
+            raw_arg_strings.append("*")
+            for kwarg in argspec.kwonlyargs:
+                annotation = argspec.annotations.get(kwarg)
+                if annotation is not None:
+                    arg_string = "{}: {}".format(kwarg, annotation_to_str(annotation))
+                else:
+                    arg_string = "{}".format(kwarg)
+                default_value_str = default_to_str(argspec.kwonlydefaults[kwarg])
+                arg_string = "{}{}".format(arg_string, default_value_str)
+                arg_strings.append(arg_string)
+                raw_arg_strings.append("{}{}".format(kwarg, default_value_str))
+                raw_pass_arg_strings.append(f"{kwarg}={kwarg}")
         if "return" in argspec.annotations:
             return_type = " -> {}".format(annotation_to_str(argspec.annotations["return"]))
             is_return_none = argspec.annotations["return"] is None
@@ -180,7 +199,7 @@ for class_name in getattr(module, class_list_property):
         if doc and not is_proxy:
             print("        \"\"\"{}\"\"\"".format(doc))
         if is_proxy:
-            arg_str = "".join(", " + raw_arg_string for raw_arg_string in raw_arg_strings[1:])
+            arg_str = "".join(", " + raw_arg_string for raw_arg_string in raw_pass_arg_strings[1:])
             is_threadsafe = member_name in threadsafe
             if is_return_none:
                 if is_threadsafe:
