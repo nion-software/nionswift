@@ -693,7 +693,7 @@ class Graphic(metaclass=SharedInstance):
     def get_property(self, property: str):
         return getattr(self.__graphic, property)
 
-    def set_property(self, property: str, value):
+    def set_property(self, property: str, value) -> None:
         setattr(self.__graphic, property, value)
 
     def mask_xdata_with_shape(self, shape: DataAndMetadata.ShapeType) -> DataAndMetadata.DataAndMetadata:
@@ -1912,7 +1912,7 @@ class Instrument(metaclass=SharedInstance):
     def specifier(self):
         return ObjectSpecifier("instrument", object_id=self.__instrument.instrument_id)
 
-    def set_control_output(self, name: str, value: float, options: dict=None) -> None:
+    def set_control_output(self, name: str, value: float, *, options: dict=None) -> None:
         """Set the value of a control asynchronously.
 
         :param name: The name of the control (string).
@@ -1925,7 +1925,15 @@ class Instrument(metaclass=SharedInstance):
             inform: True to keep dependent control outputs constant by adjusting their internal values. False is
             default.
 
-        Default value of confirm is False. Default confirm_tolerance_factor is 1.0. Default confirm_timeout is 16.0 (seconds).
+        Default value of confirm is False.
+
+        Default confirm_tolerance_factor is 1.0. A value of 1.0 is the nominal tolerance for that control. Passing a
+        higher tolerance factor (for example 1.5) will increase the permitted error margin and passing lower tolerance
+        factor (for example 0.5) will decrease the permitted error margin and consequently make a timeout more likely.
+        The tolerance factor value 0.0 is a special value which removes all checking and only waits for any change at
+        all and then returns.
+
+        Default confirm_timeout is 16.0 (seconds).
 
         Raises exception if control with name doesn't exist.
 
