@@ -123,6 +123,18 @@ def default_to_str(default):
 
 if is_proxy:
     print("from .Pickler import Unpickler")
+    print("")
+    print("def call_method(target, method_name, *args, **kwargs):")
+    print("    return Unpickler.call_method(target._proxy, target, method_name, *args, **kwargs)")
+    print("")
+    print("def call_threadsafe_method(target, method_name, *args, **kwargs):")
+    print("    return Unpickler.call_threadsafe_method(target._proxy, target, method_name, *args, **kwargs)")
+    print("")
+    print("def get_property(target, property_name):")
+    print("    return Unpickler.get_property(target._proxy, target, property_name)")
+    print("")
+    print("def set_property(target, property_name, value):")
+    print("    return Unpickler.set_property(target._proxy, target, property_name, value)")
 else:
     print("import datetime")
     print("import numpy")
@@ -146,7 +158,7 @@ for class_name in getattr(module, class_list_property):
     if is_proxy:
         print("")
         print("    def __init__(self, proxy, specifier):")
-        print("        self.__proxy = proxy")
+        print("        self._proxy = proxy")
         print("        self.specifier = specifier")
     class_functions_dict = class_dict.get("functions", dict())
     for member_name in sorted(class_functions_dict.keys()):
@@ -203,14 +215,14 @@ for class_name in getattr(module, class_list_property):
             is_threadsafe = member_name in threadsafe
             if is_return_none:
                 if is_threadsafe:
-                    print("        Unpickler.call_threadsafe_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+                    print("        call_threadsafe_method(self, '{}'{})".format(member_name, arg_str))
                 else:
-                    print("        Unpickler.call_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+                    print("        call_method(self, '{}'{})".format(member_name, arg_str))
             else:
                 if is_threadsafe:
-                    print("        return Unpickler.call_threadsafe_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+                    print("        call_threadsafe_method(self, '{}'{})".format(member_name, arg_str))
                 else:
-                    print("        return Unpickler.call_method(self.__proxy, self, '{}'{})".format(member_name, arg_str))
+                    print("        return call_method(self, '{}'{})".format(member_name, arg_str))
         else:
             print("        ...")
     class_properties_dict = class_dict.get("properties", dict())
@@ -231,7 +243,7 @@ for class_name in getattr(module, class_list_property):
             if doc and not is_proxy:
                 print("        \"\"\"{}\"\"\"".format(doc))
             if is_proxy:
-                print("        return Unpickler.get_property(self.__proxy, self, '{}')".format(property_name))
+                print("        return get_property(self, '{}')".format(property_name))
             else:
                 print("        ...")
         set_dict = class_properties_dict[property_name].get("set")
@@ -252,7 +264,7 @@ for class_name in getattr(module, class_list_property):
             if doc and not is_proxy:
                 print("        \"\"\"{}\"\"\"".format(doc))
             if is_proxy:
-                print("        Unpickler.set_property(self.__proxy, self, '{}', value)".format(property_name))
+                print("        set_property(self, '{}', value)".format(property_name))
             else:
                 print("        ...")
 if not is_proxy:
