@@ -62,6 +62,15 @@ class TestInfoPanelClass(unittest.TestCase):
         self.assertEqual(p, "500.0, 0.0")
         self.assertEqual(v, "0")
 
+    def test_cursor_over_1d_multiple_data_but_2_datum_dimensions_displays_without_exception(self):
+        data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(False, 0, 2))
+        data_item = DataItem.new_data_item(data_and_metadata)
+        display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+        display.dimensional_calibration_style = "pixels-top-left"
+        p, v = display.get_value_and_position_text((500,))
+        self.assertEqual(p, "500.0, 0.0")
+        self.assertEqual(v, "0")
+
     def test_cursor_over_1d_sequence_data_displays_without_exception(self):
         data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.zeros((4, 1000), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 1))
         data_item = DataItem.new_data_item(data_and_metadata)

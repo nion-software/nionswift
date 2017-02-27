@@ -951,6 +951,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         else:
             pos = tuple(self.collection_index[0:collection_dimension_count]) + pos
 
+        while len(pos) < data_and_metadata.datum_dimension_count:
+            pos = (0,) + tuple(pos)
+
         assert len(pos) == len(data_and_metadata.dimensional_shape)
 
         position_text = ""
