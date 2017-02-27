@@ -546,6 +546,9 @@ class API:
     def create_data_and_metadata_io_handler(self, io_handler_delegate):
         return call_method(self, 'create_data_and_metadata_io_handler', io_handler_delegate)
 
+    def create_data_descriptor(self, is_sequence, collection_dimension_count, datum_dimension_count):
+        return call_method(self, 'create_data_descriptor', is_sequence, collection_dimension_count, datum_dimension_count)
+
     def create_hardware_source(self, hardware_source_delegate):
         return call_method(self, 'create_hardware_source', hardware_source_delegate)
 

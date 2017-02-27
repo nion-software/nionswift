@@ -2648,9 +2648,11 @@ class API_1:
     # Allowed: add keyword arguments to end of existing methods as long as the default doesn't change functionality.
     # Allowed: add methods as long as they are optional.
 
-    release = ["create_calibration", "create_data_and_metadata", "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
-        "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids", "get_all_instrument_ids",
-        "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task"]
+    release = ["create_calibration", "create_data_descriptor", "create_data_and_metadata",
+               "create_data_and_metadata_from_data", "create_data_and_metadata_io_handler",
+               "create_menu_item", "create_hardware_source", "create_panel", "get_all_hardware_source_ids",
+               "get_all_instrument_ids",
+               "get_hardware_source_by_id", "get_instrument_by_id", "application", "library", "queue_task"]
 
     def __init__(self, ui_version, app):
         super().__init__()
