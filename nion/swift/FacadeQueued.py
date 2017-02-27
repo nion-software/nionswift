@@ -2,6 +2,7 @@ import threading
 
 
 all_classes = {
+    "API",
     "Application",
     "DataGroup",
     "DataItem",
