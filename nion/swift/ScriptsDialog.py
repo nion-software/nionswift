@@ -241,8 +241,6 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__q = collections.deque()
         self.__output_queue = collections.deque()
 
-        self.__skip_finished = False
-
     def close(self):
         self.document_controller.clear_task(str(id(self)))
         super().close()
@@ -264,6 +262,8 @@ class RunScriptDialog(Dialog.ActionDialog):
         return cancel_row
 
     def run_script(self, script_path: str) -> None:
+        self.__output_widget.text = None
+
         script_name = os.path.basename(script_path)
 
         with open(script_path) as f:
@@ -317,25 +317,25 @@ class RunScriptDialog(Dialog.ActionDialog):
                 exec(compiled, g)
             except Exception:
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
-                self.alert(_("An exception was raised."), _("Close"))
-                self.__skip_finished = True
 
         self.__stack.current_index = 1
 
-        self.run(functools.partial(run_it, compiled))
+        self.run(script_path, functools.partial(run_it, compiled))
 
-    def run(self, func):
+    def run(self, script_path, func):
         def func_run(func):
             try:
                 func(self)
             except Exception:
                 pass
 
-            if not self.__skip_finished:
-                self.alert("Finished")
+            result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
 
             with self.__lock:
-                self.__q.append(self.request_close)
+                if result:
+                    self.__q.append(functools.partial(self.run_script, script_path))
+                else:
+                    self.__q.append(self.request_close)
                 self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
 
         self.__thread = threading.Thread(target=func_run, args=(func,))
