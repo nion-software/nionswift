@@ -1854,31 +1854,31 @@ class HardwareSource(metaclass=SharedInstance):
     def get_property_as_float(self, name):
         return float(self.__hardware_source.get_property(name))
 
-    def set_property_as_float(self, name, value):
+    def set_property_as_float(self, name, value) -> None:
         self.__hardware_source.set_property(name, float(value))
 
     def get_property_as_int(self, name):
         return int(self.__hardware_source.get_property(name))
 
-    def set_property_as_int(self, name, value):
+    def set_property_as_int(self, name, value) -> None:
         self.__hardware_source.set_property(name, int(value))
 
     def get_property_as_bool(self, name):
         return bool(self.__hardware_source.get_property(name))
 
-    def set_property_as_bool(self, name, value):
+    def set_property_as_bool(self, name, value) -> None:
         self.__hardware_source.set_property(name, bool(value))
 
     def get_property_as_str(self, name):
         return str(self.__hardware_source.get_property(name))
 
-    def set_property_as_str(self, name, value):
+    def set_property_as_str(self, name, value) -> None:
         self.__hardware_source.set_property(name, str(value))
 
     def get_property_as_float_point(self, name):
         return tuple(Geometry.FloatPoint.make(self.__hardware_source.get_property(name)))
 
-    def set_property_as_float_point(self, name, value):
+    def set_property_as_float_point(self, name, value) -> None:
         self.__hardware_source.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
 
