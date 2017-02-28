@@ -12,12 +12,14 @@ parser = argparse.ArgumentParser(description='Generate API type stub files.')
 parser.add_argument('--classes', dest='class_list_property', required=True, help='Class list property')
 parser.add_argument('--levels', dest='levels', required=True, nargs='+', help='Level property')
 parser.add_argument('--proxy', dest='is_proxy', required=False, nargs='?', const=True, default=False, help='Whether to generate proxy function bodies')
+parser.add_argument('--summary', dest='is_summary', required=False, nargs='?', const=True, default=False, help='Whether to generate summary text')
 args = parser.parse_args()
 
 module = importlib.import_module("nion.swift.Facade")
 class_list_property = args.class_list_property
 levels = args.levels
 is_proxy = args.is_proxy
+is_summary = args.is_summary
 
 class_dicts = dict()
 
@@ -121,46 +123,276 @@ def annotation_to_str(annotation):
 def default_to_str(default):
     return "={}".format(default)
 
-if is_proxy:
-    print("from .Pickler import Unpickler")
-    print("")
-    print("def call_method(target, method_name, *args, **kwargs):")
-    print("    return Unpickler.call_method(target._proxy, target, method_name, *args, **kwargs)")
-    print("")
-    print("def call_threadsafe_method(target, method_name, *args, **kwargs):")
-    print("    return Unpickler.call_threadsafe_method(target._proxy, target, method_name, *args, **kwargs)")
-    print("")
-    print("def get_property(target, property_name):")
-    print("    return Unpickler.get_property(target._proxy, target, property_name)")
-    print("")
-    print("def set_property(target, property_name, value):")
-    print("    return Unpickler.set_property(target._proxy, target, property_name, value)")
-else:
-    print("import datetime")
-    print("import numpy")
-    print("import typing")
-    print("import uuid")
-    print("from nion.data import Calibration")
-    print("from nion.data import DataAndMetadata")
-    print("from nion.utils import Geometry")
 
-for class_name in getattr(module, class_list_property):
+class TypeProducer:
+    def reorder_class_names(self, class_names: typing.Sequence[str]) -> typing.Sequence[str]:
+        return class_names
+
+    def print_header(self, class_names: typing.Sequence[str]):
+        print("import datetime")
+        print("import numpy")
+        print("import typing")
+        print("import uuid")
+        print("from nion.data import Calibration")
+        print("from nion.data import DataAndMetadata")
+        print("from nion.utils import Geometry")
+
+    def print_class(self, class_name: str) -> None:
+        print("")
+        print("")
+        print("class {}:".format(class_name))
+
+    def print_class_doc(self, doc: str) -> None:
+        if doc:
+            print("    \"\"\"{}\"\"\"".format(doc))
+
+    def print_init(self) -> None:
+        pass
+
+    def print_methods_begin(self) -> None:
+        pass
+
+    def print_method_def(self, member_name: str, arg_strings: typing.Sequence[str], raw_arg_strings: typing.Sequence[str], return_type: str) -> None:
+        print("")
+        print("    def {}({}){}:".format(member_name, ", ".join(arg_strings), return_type))
+
+    def print_method_doc(self, doc: str) -> None:
+        if doc:
+            print("        \"\"\"{}\"\"\"".format(doc))
+
+    def print_method_body(self, member_name: str, arg_str: str, is_threadsafe: bool, is_return_none: bool) -> None:
+        print("        ...")
+
+    def print_methods_end(self) -> None:
+        pass
+
+    def print_properties_begin(self) -> None:
+        pass
+
+    def print_get_property_def(self, property_name: str, property_return_str: str) -> None:
+        print("")
+        print("    @property")
+        print("    def {}(self){}:".format(property_name, property_return_str))
+
+    def print_get_property_doc(self, doc: str) -> None:
+        if doc:
+            print("        \"\"\"{}\"\"\"".format(doc))
+
+    def print_get_property_body(self, property_name: str) -> None:
+        print("        ...")
+
+    def print_set_property_def(self, property_name: str, property_type_str: str) -> None:
+        print("")
+        print("    @{}.setter".format(property_name))
+        print("    def {}(self, value{}) -> None:".format(property_name, property_type_str))
+
+    def print_set_property_doc(self, doc: str) -> None:
+        if doc:
+            print("        \"\"\"{}\"\"\"".format(doc))
+
+    def print_set_property_body(self, property_name: str) -> None:
+        print("        ...")
+
+    def print_properties_end(self) -> None:
+        pass
+
+    def print_footer(self):
+        print("")
+        print("version = \"~1.0\"")
+
+
+class SummaryProducer:
+    def reorder_class_names(self, class_names: typing.Sequence[str]) -> typing.Sequence[str]:
+        return sorted(class_names)
+
+    def print_header(self, class_names: typing.Sequence[str]):
+        print(".. _api-quick:")
+        print("")
+        print("API Quick Summary")
+        print("=================")
+        print("")
+        for class_name in class_names:
+            print(f"   - {class_name}_")
+
+    def print_class(self, class_name: str) -> None:
+        print("")
+        print(f".. _{class_name}:")
+        print("")
+        print(f"{class_name}")
+        print("-" * len(class_name))
+        print(f"class :py:class:`nion.typeshed.API_1_0.{class_name}`")
+        print("")
+        self.class_name = class_name
+
+    def print_class_doc(self, doc: str) -> None:
+        pass
+
+    def print_init(self) -> None:
+        pass
+
+    def print_methods_begin(self) -> None:
+        print("**Methods**")
+
+    def print_method_def(self, member_name: str, arg_strings: typing.Sequence[str], raw_arg_strings: typing.Sequence[str], return_type: str) -> None:
+        print(f"   - :py:meth:`{member_name} <nion.typeshed.API_1_0.{self.class_name}.{member_name}>`")
+
+    def print_method_doc(self, doc: str) -> None:
+        pass
+
+    def print_method_body(self, member_name: str, arg_str: str, is_threadsafe: bool, is_return_none: bool) -> None:
+        pass
+
+    def print_methods_end(self) -> None:
+        print("")
+
+    def print_properties_begin(self) -> None:
+        print("**Properties**")
+
+    def print_get_property_def(self, property_name: str, property_return_str: str) -> None:
+        print(f"   - :py:attr:`{property_name} <nion.typeshed.API_1_0.{self.class_name}.{property_name}>`")
+
+    def print_get_property_doc(self, doc: str) -> None:
+        pass
+
+    def print_get_property_body(self, property_name: str) -> None:
+        pass
+
+    def print_set_property_def(self, property_name: str, property_type_str: str) -> None:
+        pass
+
+    def print_set_property_doc(self, doc: str) -> None:
+        pass
+
+    def print_set_property_body(self, property_name: str) -> None:
+        pass
+
+    def print_properties_end(self) -> None:
+        print("")
+
+    def print_footer(self):
+        pass
+
+
+class ProxyProducer:
+    def reorder_class_names(self, class_names: typing.Sequence[str]) -> typing.Sequence[str]:
+        return class_names
+
+    def print_header(self, class_names: typing.Sequence[str]):
+        print("from .Pickler import Unpickler")
+        print("")
+        print("def call_method(target, method_name, *args, **kwargs):")
+        print("    return Unpickler.call_method(target._proxy, target, method_name, *args, **kwargs)")
+        print("")
+        print("def call_threadsafe_method(target, method_name, *args, **kwargs):")
+        print("    return Unpickler.call_threadsafe_method(target._proxy, target, method_name, *args, **kwargs)")
+        print("")
+        print("def get_property(target, property_name):")
+        print("    return Unpickler.get_property(target._proxy, target, property_name)")
+        print("")
+        print("def set_property(target, property_name, value):")
+        print("    return Unpickler.set_property(target._proxy, target, property_name, value)")
+
+    def print_class(self, class_name: str) -> None:
+        print("")
+        print("")
+        print("class {}:".format(class_name))
+
+    def print_class_doc(self, doc: str) -> None:
+        pass
+
+    def print_init(self) -> None:
+        print("")
+        print("    def __init__(self, proxy, specifier):")
+        print("        self._proxy = proxy")
+        print("        self.specifier = specifier")
+
+    def print_methods_begin(self) -> None:
+        pass
+
+    def print_method_def(self, member_name: str, arg_strings: typing.Sequence[str], raw_arg_strings: typing.Sequence[str], return_type: str) -> None:
+        print("")
+        print("    def {}({}):".format(member_name, ", ".join(raw_arg_strings)))
+
+    def print_method_doc(self, doc: str) -> None:
+        pass
+
+    def print_method_body(self, member_name: str, arg_str: str, is_threadsafe: bool, is_return_none: bool) -> None:
+        if is_return_none:
+            if is_threadsafe:
+                print("        call_threadsafe_method(self, '{}'{})".format(member_name, arg_str))
+            else:
+                print("        call_method(self, '{}'{})".format(member_name, arg_str))
+        else:
+            if is_threadsafe:
+                print("        return call_threadsafe_method(self, '{}'{})".format(member_name, arg_str))
+            else:
+                print("        return call_method(self, '{}'{})".format(member_name, arg_str))
+
+    def print_methods_end(self) -> None:
+        pass
+
+    def print_properties_begin(self) -> None:
+        pass
+
+    def print_get_property_def(self, property_name: str, property_return_str: str) -> None:
+        print("")
+        print("    @property")
+        print("    def {}(self):".format(property_name))
+
+    def print_get_property_doc(self, doc: str) -> None:
+        pass
+
+    def print_get_property_body(self, property_name: str) -> None:
+        print("        return get_property(self, '{}')".format(property_name))
+
+    def print_set_property_def(self, property_name: str, property_type_str: str) -> None:
+        print("")
+        print("    @{}.setter".format(property_name))
+        print("    def {}(self, value):".format(property_name))
+
+    def print_set_property_doc(self, doc: str) -> None:
+        pass
+
+    def print_set_property_body(self, property_name: str) -> None:
+        print("        set_property(self, '{}', value)".format(property_name))
+
+    def print_properties_end(self) -> None:
+        pass
+
+    def print_footer(self):
+        pass
+
+
+if is_proxy:
+    producer = ProxyProducer()
+elif is_summary:
+    producer = SummaryProducer()
+else:
+    producer = TypeProducer()
+
+class_names = producer.reorder_class_names(getattr(module, class_list_property))
+
+aliased_class_names = list()
+for class_name in class_names:
+    class_dict = class_dicts[class_name]
+    class_name = class_dict["name"]
+    class_name = getattr(module, "alias", dict()).get(class_name, class_name)
+    aliased_class_names.append(class_name)
+
+producer.print_header(aliased_class_names)
+
+for class_name in class_names:
     class_dict = class_dicts[class_name]
     class_name = class_dict["name"]
     class_name = getattr(module, "alias", dict()).get(class_name, class_name)
     doc = class_dict.get("doc")
     threadsafe = class_dict.get("threadsafe")
-    print("")
-    print("")
-    print("class {}:".format(class_name))
-    if doc and not is_proxy:
-        print("    \"\"\"{}\"\"\"".format(doc))
-    if is_proxy:
-        print("")
-        print("    def __init__(self, proxy, specifier):")
-        print("        self._proxy = proxy")
-        print("        self.specifier = specifier")
+    producer.print_class(class_name)
+    producer.print_class_doc(doc)
+    producer.print_init()
     class_functions_dict = class_dict.get("functions", dict())
+    if len(class_functions_dict.keys()) > 0:
+        producer.print_methods_begin()
     for member_name in sorted(class_functions_dict.keys()):
         argspec = class_functions_dict[member_name]["fullargspec"]
         # print("    ### {}".format(argspec))
@@ -203,29 +435,16 @@ for class_name in getattr(module, class_list_property):
         else:
             return_type = ""
             is_return_none = False
-        print("")
-        if is_proxy:
-            print("    def {}({}):".format(member_name, ", ".join(raw_arg_strings)))
-        else:
-            print("    def {}({}){}:".format(member_name, ", ".join(arg_strings), return_type))
-        if doc and not is_proxy:
-            print("        \"\"\"{}\"\"\"".format(doc))
-        if is_proxy:
-            arg_str = "".join(", " + raw_arg_string for raw_arg_string in raw_pass_arg_strings[1:])
-            is_threadsafe = member_name in threadsafe
-            if is_return_none:
-                if is_threadsafe:
-                    print("        call_threadsafe_method(self, '{}'{})".format(member_name, arg_str))
-                else:
-                    print("        call_method(self, '{}'{})".format(member_name, arg_str))
-            else:
-                if is_threadsafe:
-                    print("        call_threadsafe_method(self, '{}'{})".format(member_name, arg_str))
-                else:
-                    print("        return call_method(self, '{}'{})".format(member_name, arg_str))
-        else:
-            print("        ...")
+        arg_str = "".join(", " + raw_arg_string for raw_arg_string in raw_pass_arg_strings[1:])
+        is_threadsafe = member_name in threadsafe
+        producer.print_method_def(member_name, arg_strings, raw_arg_strings, return_type)
+        producer.print_method_doc(doc)
+        producer.print_method_body(member_name, arg_str, is_threadsafe, is_return_none)
+    if len(class_functions_dict.keys()) > 0:
+        producer.print_methods_end()
     class_properties_dict = class_dict.get("properties", dict())
+    if len(class_properties_dict.keys()) > 0:
+        producer.print_properties_begin()
     for property_name in sorted(class_properties_dict.keys()):
         get_dict = class_properties_dict[property_name].get("get")
         if get_dict:
@@ -234,18 +453,9 @@ for class_name in getattr(module, class_list_property):
             annotations = get_dict.get("annotations", dict())
             if "return" in annotations:
                 property_return_str = " -> {}".format(annotation_to_str(annotations["return"]))
-            print("")
-            print("    @property")
-            if is_proxy:
-                print("    def {}(self):".format(property_name))
-            else:
-                print("    def {}(self){}:".format(property_name, property_return_str))
-            if doc and not is_proxy:
-                print("        \"\"\"{}\"\"\"".format(doc))
-            if is_proxy:
-                print("        return get_property(self, '{}')".format(property_name))
-            else:
-                print("        ...")
+            producer.print_get_property_def(property_name, property_return_str)
+            producer.print_get_property_doc(doc)
+            producer.print_get_property_body(property_name)
         set_dict = class_properties_dict[property_name].get("set")
         if set_dict:
             doc = set_dict.get("doc")
@@ -254,19 +464,10 @@ for class_name in getattr(module, class_list_property):
             for k, v in annotations.items():
                 if k != "return":
                     property_type_str = ": {}".format(annotation_to_str(v))
-            print("")
-            # print("    ### {}".format(annotations))
-            print("    @{}.setter".format(property_name))
-            if is_proxy:
-                print("    def {}(self, value):".format(property_name))
-            else:
-                print("    def {}(self, value{}) -> None:".format(property_name, property_type_str))
-            if doc and not is_proxy:
-                print("        \"\"\"{}\"\"\"".format(doc))
-            if is_proxy:
-                print("        set_property(self, '{}', value)".format(property_name))
-            else:
-                print("        ...")
-if not is_proxy:
-    print("")
-    print("version = \"~1.0\"")
+            producer.print_set_property_def(property_name, property_type_str)
+            producer.print_set_property_doc(doc)
+            producer.print_set_property_body(property_name)
+    if len(class_properties_dict.keys()) > 0:
+        producer.print_properties_end()
+
+producer.print_footer()
