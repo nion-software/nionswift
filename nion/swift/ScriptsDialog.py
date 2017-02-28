@@ -113,7 +113,7 @@ class RunScriptDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller):
         ui = document_controller.ui
-        super().__init__(ui, _("Interactive Dialog"), document_controller.app)
+        super().__init__(ui, _("Interactive Dialog"), document_controller.app, persistent_id="ScriptsDialog")
 
         self.ui = ui
         self.document_controller = document_controller
