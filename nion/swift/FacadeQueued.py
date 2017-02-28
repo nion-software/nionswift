@@ -629,13 +629,13 @@ class HardwareSource:
         return call_method(self, 'get_property_as_str', name)
 
     def grab_next_to_finish(self, timeout=None):
-        call_threadsafe_method(self, 'grab_next_to_finish', timeout=timeout)
+        return call_threadsafe_method(self, 'grab_next_to_finish', timeout=timeout)
 
     def grab_next_to_start(self, frame_parameters=None, channels_enabled=None, timeout=None):
-        call_threadsafe_method(self, 'grab_next_to_start', frame_parameters=frame_parameters, channels_enabled=channels_enabled, timeout=timeout)
+        return call_threadsafe_method(self, 'grab_next_to_start', frame_parameters=frame_parameters, channels_enabled=channels_enabled, timeout=timeout)
 
     def record(self, frame_parameters=None, channels_enabled=None, timeout=None):
-        call_threadsafe_method(self, 'record', frame_parameters=frame_parameters, channels_enabled=channels_enabled, timeout=timeout)
+        return call_threadsafe_method(self, 'record', frame_parameters=frame_parameters, channels_enabled=channels_enabled, timeout=timeout)
 
     def set_frame_parameters(self, frame_parameters):
         call_method(self, 'set_frame_parameters', frame_parameters)
