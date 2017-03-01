@@ -862,15 +862,20 @@ class TestHardwareSourceClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
             display_panel.set_displayed_data_item(document_model.data_items[0])
+            display_panel.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            display_panel.display_canvas_item._layer_thread_suppress = True
             count_ref = [0]
             def metric_update():
                 count_ref[0] += 1
+            display_panel.display_canvas_item.trackit = True
             update_count = display_panel.display_canvas_item._update_count
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
                 self.__acquire_one(document_controller, hardware_source)
             # metric update event is no longer reliable with threaded layer painting
             # self.assertEqual(count_ref[0], 1)
+            # display_panel.display_canvas_item._repaint_loop_one()
+            display_panel.data_item.maybe_data_source.displays[0].update_calculated_display_values()
             self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 1)
 
     def test_partial_frame_acquisition_avoids_unnecessary_merges(self):
