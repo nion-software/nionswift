@@ -531,7 +531,9 @@ class HistogramPanel(Panel.Panel):
         display_stream = TargetDisplayStream(document_controller)
         self.__buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller).add_ref()
         region_stream = TargetRegionStream(display_stream)
-        display_data_and_metadata_stream = DisplayTransientsStream(display_stream, "display_data_and_metadata", cmp=numpy.array_equal)
+        def compare_data(a, b):
+            return numpy.array_equal(a.data if a else None, b.data if b else None)
+        display_data_and_metadata_stream = DisplayTransientsStream(display_stream, "display_data_and_metadata", cmp=compare_data)
         display_range_stream = DisplayTransientsStream(display_stream, "display_range")
         region_data_and_metadata_func_stream = Stream.CombineLatestStream((display_data_and_metadata_stream, region_stream), calculate_region_data_func)
         histogram_widget_data_func_stream = Stream.CombineLatestStream((region_data_and_metadata_func_stream, display_range_stream), calculate_histogram_widget_data_func)
