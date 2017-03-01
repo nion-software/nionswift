@@ -74,8 +74,10 @@ def call_method(target, method_name, *args, **kwargs):
     return getattr(object, method_name)(*args, **kwargs)
 
 def call_threadsafe_method(target, method_name, *args, **kwargs):
-    method = getattr(target, method_name)
-    return method(*args, **kwargs)
+    object = convert_from_facade(target)
+    args = convert_from_facade(args)
+    kwargs = convert_from_facade(kwargs)
+    return getattr(object, method_name)(*args, **kwargs)
 
 @queued
 def get_property(target, property_name):
