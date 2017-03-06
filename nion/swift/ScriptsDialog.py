@@ -1,6 +1,7 @@
 # system imports
 import ast
 import collections
+import contextlib
 import copy
 import functools
 import gettext
@@ -314,7 +315,18 @@ class RunScriptDialog(Dialog.ActionDialog):
                 g["api_broker"] = APIBroker()
                 g["print"] = self.print
                 g["input"] = self.get_string
-                exec(compiled, g)
+
+                print_fn = self.print
+                class StdoutCatcher:
+                    def __init__(self):
+                        pass
+                    def write(self, stuff):
+                        print_fn(stuff.rstrip())
+                    def flush(self):
+                        pass
+                stdout = StdoutCatcher()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
+                    exec(compiled, g)
             except Exception:
                 self.print("{}: {}".format(_("Error"), traceback.format_exc()))
 
