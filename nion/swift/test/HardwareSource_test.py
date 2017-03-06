@@ -62,6 +62,47 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
         return SimpleAcquisitionTask(False, self.sleep, self.image)
 
 
+class LinePlotAcquisitionTask(HardwareSource.AcquisitionTask):
+
+    def __init__(self, is_continuous, sleep):
+        super().__init__(is_continuous)
+        self.sleep = sleep
+
+    def make_data_element(self):
+        return {
+            "version": 1,
+            "data": numpy.zeros((16,2)),
+            "collection_dimension_count": 1,
+            "datum_dimension_count": 1,
+            "properties": {
+                "exposure": 0.5,
+                "autostem": { "high_tension_v": 140000 },
+                "hardware_source_name": "hardware source",
+                "hardware_source_id": "simple_hardware_source"
+            }
+        }
+
+    def _acquire_data_elements(self):
+        time.sleep(self.sleep)
+        data_element = self.make_data_element()
+        return [data_element]
+
+
+class LinePlotHardwareSource(HardwareSource.HardwareSource):
+
+    def __init__(self, sleep=0.05):
+        super().__init__("described_hardware_source", "DescribedHardwareSource")
+        self.add_data_channel()
+        self.sleep = sleep
+        self.image = numpy.zeros((256, 256))
+
+    def _create_acquisition_view_task(self) -> LinePlotAcquisitionTask:
+        return LinePlotAcquisitionTask(True, self.sleep)
+
+    def _create_acquisition_record_task(self) -> LinePlotAcquisitionTask:
+        return LinePlotAcquisitionTask(False, self.sleep)
+
+
 class SummedHardwareSource(HardwareSource.HardwareSource):
 
     def __init__(self, sleep=0.05):
@@ -463,6 +504,14 @@ class TestHardwareSourceClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=persistent_storage_systems)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         hardware_source = SummedHardwareSource()
+        hardware_source.exposure = 0.01
+        HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
+        return document_controller, document_model, hardware_source
+
+    def __setup_line_plot_hardware_source(self, persistent_storage_systems=None):
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=persistent_storage_systems)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        hardware_source = LinePlotHardwareSource()
         hardware_source.exposure = 0.01
         HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
         return document_controller, document_model, hardware_source
@@ -964,6 +1013,15 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(document_model.data_items[0], data_item._data_item)
             self.assertIsNotNone(document_model.data_items[0].maybe_data_source.data)
+
+    def test_hardware_source_grabs_data_with_correct_descriptor(self):
+        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source()
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            xdata = document_model.data_items[0].maybe_data_source.data_and_metadata
+            self.assertEqual(len(xdata.dimensional_shape), 2)
+            self.assertEqual(xdata.collection_dimension_count, 1)
+            self.assertEqual(xdata.datum_dimension_count, 1)
 
     def test_hardware_source_api_grabs_summed_data(self):
         document_controller, document_model, _hardware_source = self.__setup_summed_hardware_source()
