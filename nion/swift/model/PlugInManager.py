@@ -129,6 +129,8 @@ def load_plug_ins(app, root_dir):
             plugin_dirs.extend([PlugInDir(plugins_dir, sorted_relative_path) for sorted_relative_path in sorted_relative_paths])
 
             plugin_paths.append(plugins_dir)
+        else:
+            logging.info("NOT Loading plug-ins from %s (missing)", plugins_dir)
 
     invalid_manifests = list()
     version_map = dict()
