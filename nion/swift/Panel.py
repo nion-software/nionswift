@@ -116,14 +116,13 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
         self.__label = label if label else ""
         self.__display_close_control = display_close_control
         self.__metrics = metrics
-        self.__font = 'normal system "Segoe UI",serif'
+        self.__set_default_style()
         self.sizing.set_fixed_height(self.header_height)
         self.on_select_pressed = None
         self.on_drag_pressed = None
         self.on_close_clicked = None
         self.on_context_menu_clicked = None
         self.__mouse_pressed_position = None
-        self.__set_default_style()
 
     def close(self):
         self.on_select_pressed = None
@@ -135,6 +134,9 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
     def __set_default_style(self):
         if sys.platform == "win32":
+            self.__font = 'normal system "Segoe UI",serif'
+            self.__top_offset = 1
+            self.__text_offset = 4
             self.__start_header_color = "#d9d9d9"
             self.__end_header_color = "#d9d9d9"
             self.__top_stroke_style = '#b8b8b8'
@@ -142,6 +144,9 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
             self.__bottom_stroke_style = '#b8b8b8'
             self.__control_style = '#000000'
         else:
+            self.__font = 'normal 10pt system "Helvetica Neue", serif'
+            self.__top_offset = 0
+            self.__text_offset = 7
             self.__start_header_color = "#ededed"
             self.__end_header_color = "#cacaca"
             self.__top_stroke_style = '#ffffff'
@@ -154,7 +159,7 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
     @property
     def header_height(self):
-        return self.__metrics.get_font_metrics(self.__font, "abc").height + 3 + 4 * self.__metrics.display_scaling
+        return self.__metrics.get_font_metrics(self.__font, "abc").height + 3 + self.__text_offset * self.__metrics.display_scaling
 
     @property
     def title(self):
@@ -253,8 +258,8 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
         with drawing_context.saver():
             drawing_context.begin_path()
             # line is adjust 1/2 pixel down to align to pixel boundary
-            drawing_context.move_to(0, 1.5)
-            drawing_context.line_to(canvas_size.width, 1.5)
+            drawing_context.move_to(0, 0.5 + self.__top_offset)
+            drawing_context.line_to(canvas_size.width, 0.5 + self.__top_offset)
             drawing_context.stroke_style = self.__top_stroke_style
             drawing_context.stroke()
 
@@ -294,11 +299,11 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
             drawing_context.text_align = 'left'
             drawing_context.text_baseline = 'bottom'
             drawing_context.fill_style = '#888'
-            drawing_context.fill_text(self.label, 8, canvas_size.height - 4 * self.__metrics.display_scaling)
+            drawing_context.fill_text(self.label, 8, canvas_size.height - self.__text_offset * self.__metrics.display_scaling)
 
         with drawing_context.saver():
             drawing_context.font = self.__font
             drawing_context.text_align = 'center'
             drawing_context.text_baseline = 'bottom'
             drawing_context.fill_style = '#000'
-            drawing_context.fill_text(self.title, canvas_size.width//2, canvas_size.height - 4 * self.__metrics.display_scaling)
+            drawing_context.fill_text(self.title, canvas_size.width // 2, canvas_size.height - self.__text_offset * self.__metrics.display_scaling)
