@@ -54,7 +54,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem.header_height
+            header_height = display_panel._content_for_test.header_canvas_item.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")

@@ -72,7 +72,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
-        header_height = Panel.HeaderCanvasItem.header_height
+        header_height = self.display_panel._content_for_test.header_canvas_item.header_height
         self.display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
 
     def tearDown(self):
@@ -1301,7 +1301,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = document_model.get_crop_new(data_item1)
             data_item.maybe_data_source.displays[0].display_type = "line_plot"
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem.header_height
+            header_height = display_panel._content_for_test.header_canvas_item.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             document_controller.periodic()
 
@@ -1316,7 +1316,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            header_height = Panel.HeaderCanvasItem.header_height
+            header_height = display_panel._content_for_test.header_canvas_item.header_height
             display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
