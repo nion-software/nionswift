@@ -252,7 +252,7 @@ class FilterPanel:
         date_browser.add(date_browser_tree_widget)
         date_browser.add_stretch()
 
-        header_canvas_item = Panel.HeaderCanvasItem(_("Filter"))
+        header_canvas_item = Panel.HeaderCanvasItem(document_controller, _("Filter"))
 
         header_widget = ui.create_canvas_widget(properties={"height": header_canvas_item.header_height})
         header_widget.canvas_item.add_canvas_item(header_canvas_item)
