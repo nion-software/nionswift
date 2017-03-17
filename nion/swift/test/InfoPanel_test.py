@@ -110,6 +110,7 @@ class TestInfoPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((100, 100, 20)))
             data_item.maybe_data_source.displays[0].dimensional_calibration_style = "pixels-top-left"
             document_model.append_data_item(data_item)
+            data_item.maybe_data_source.displays[0].update_calculated_display_values()
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
             info_panel = document_controller.find_dock_widget("info-panel").panel
@@ -130,6 +131,7 @@ class TestInfoPanelClass(unittest.TestCase):
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((20, 100, 100), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
+            data_item.maybe_data_source.displays[0].update_calculated_display_values()
             display = DataItem.DisplaySpecifier.from_data_item(data_item).display
             display.sequence_index = 4
             display.dimensional_calibration_style = "pixels-top-left"
