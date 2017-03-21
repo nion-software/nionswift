@@ -498,7 +498,7 @@ class CalibrationsInspectorSection(InspectorSection):
         self.__calibration_observables = list()
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
-        self.__list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
+        self.__list_widget = Widgets.TableWidget(ui, lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
         self.__list_widget.widget_id = "calibration_list_widget"
         self.add_widget_to_content(self.__list_widget)
         def handle_data_item_changed():
@@ -1431,7 +1431,7 @@ class GraphicsInspectorSection(InspectorSection):
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
         # create the widgets for each graphic
         # TODO: do not use dynamic list object in graphics inspector; the dynamic aspect is not utilized.
-        list_widget = self.ui.create_new_list_widget(lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
+        list_widget = Widgets.TableWidget(ui, lambda item: self.__create_list_item_widget(item), header_widget, header_for_empty_list_widget)
         list_widget.bind_items(Binding.ListBinding(display, "selected_graphics" if selected_only else "graphics"))
         self.add_widget_to_content(list_widget)
         # create the display calibrations check box row

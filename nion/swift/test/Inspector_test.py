@@ -87,7 +87,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        calibration_row = calibration_list_widget.content_section.children[0]
+        calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
         offset_field = calibration_row.find_widget_by_id("offset")
         scale_field = calibration_row.find_widget_by_id("scale")
         units_field = calibration_row.find_widget_by_id("units")
@@ -106,7 +106,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        calibration_row = calibration_list_widget.content_section.children[0]
+        calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
         units_field = calibration_row.find_widget_by_id("units")
         self.assertEqual(units_field.text, "mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
@@ -642,7 +642,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        content_section = calibration_list_widget.content_section
+        content_section = calibration_list_widget.find_widget_by_id("content_section")
         self.assertEqual(len(content_section.children), 1)
         calibration_row = content_section.children[0]
         label = calibration_row.find_widget_by_id("label")
@@ -653,7 +653,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        content_section = calibration_list_widget.content_section
+        content_section = calibration_list_widget.find_widget_by_id("content_section")
         self.assertEqual(len(content_section.children), 2)
         self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "Y")
         self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "X")
@@ -663,7 +663,7 @@ class TestInspectorClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
         calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        content_section = calibration_list_widget.content_section
+        content_section = calibration_list_widget.find_widget_by_id("content_section")
         self.assertEqual(len(content_section.children), 3)
         self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "0")
         self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "1")
