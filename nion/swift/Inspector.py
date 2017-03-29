@@ -465,8 +465,8 @@ class CalibrationToObservable(Observable.Observable):
 
 
 def make_calibration_style_chooser(ui, display):
-    display_calibration_style_options = ((_("Calibrated"), "calibrated"), (_("Pixels (Top Left)"), "pixels-top-left"), (_("Pixels (Center)"), "pixels-center"), (_("Relative (Top Left)"), "relative-top-left"), (_("Relative (Center)"), "relative-center"))
-    display_calibration_style_reverse_map = {"calibrated": 0, "pixels-top-left": 1, "pixels-center": 2, "relative-top-left": 3, "relative-center": 4}
+    display_calibration_style_options = ((_("Calibrated (Top Left)"), "calibrated"), (_("Calibrated (Center)"), "calibrated-center"), (_("Pixels (Top Left)"), "pixels-top-left"), (_("Pixels (Center)"), "pixels-center"), (_("Relative (Top Left)"), "relative-top-left"), (_("Relative (Center)"), "relative-center"))
+    display_calibration_style_reverse_map = {"calibrated": 0, "calibrated-center": 1, "pixels-top-left": 2, "pixels-center": 3, "relative-top-left": 4, "relative-center": 5}
 
     class CalibrationStyleIndexConverter:
         """
@@ -1352,7 +1352,7 @@ def make_annular_ring_mode_chooser(ui, ring):
             if value >= 0 and value < len(annular_ring_mode_options):
                 return annular_ring_mode_options[value][1]
             else:
-                return "calibrated"
+                return "band-pass"
 
     display_calibration_style_chooser = ui.create_combo_box_widget(items=annular_ring_mode_options, item_getter=operator.itemgetter(0))
     display_calibration_style_chooser.bind_current_index(Binding.PropertyBinding(ring, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))

@@ -742,7 +742,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if property_name in ("dimensional_calibration_style", ):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
-            self._get_persistent_property("display_calibrated_values").value = value == "calibrated"
+            self._get_persistent_property("display_calibrated_values").value = (value in ("calibrated", "calibrated-center"))
 
     # message sent from buffered_data_source when data changes.
     # thread safe
@@ -904,6 +904,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         dimensional_calibration_style = self.dimensional_calibration_style
         if (dimensional_calibration_style is None or dimensional_calibration_style == "calibrated") and self.__data_and_metadata:
             return self.__data_and_metadata.dimensional_calibrations
+        elif dimensional_calibration_style == "calibrated-center" and self.__data_and_metadata:
+            dimensional_calibrations = copy.deepcopy(self.__data_and_metadata.dimensional_calibrations)
+            dimensional_shape = self.__data_and_metadata.dimensional_shape
+            for dimensional_calibration, dimension in zip(dimensional_calibrations, dimensional_shape):
+                dimensional_calibration.offset -= dimension // 2 * dimensional_calibration.scale
+            return dimensional_calibrations
         else:
             dimensional_shape = self.__data_and_metadata.dimensional_shape if self.__data_and_metadata is not None else None
             if dimensional_shape is not None:
@@ -920,7 +926,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def displayed_intensity_calibration(self):
-        if self.dimensional_calibration_style == "calibrated" and self.__data_and_metadata:
+        if (self.dimensional_calibration_style in ("calibrated", "calibrated-center")) and self.__data_and_metadata:
             return self.__data_and_metadata.intensity_calibration
         else:
             return Calibration.Calibration()

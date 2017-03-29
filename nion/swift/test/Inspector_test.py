@@ -27,7 +27,7 @@ from nion.utils import Observable
 Facade.initialize()
 
 
-class TestInspectorClass(unittest.TestCase):
+class TestInspectrorClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
@@ -66,7 +66,6 @@ class TestInspectorClass(unittest.TestCase):
         converter = Inspector.CalibratedSizeFloatToStringConverter(display_specifier.buffered_data_source, display_specifier.display, 0)
         converter.convert(0.5)
 
-    # necessary to make inspector display updated values properly
     def test_adjusting_rectangle_width_should_keep_center_constant(self):
         rect_graphic = Graphics.RectangleGraphic()
         rect_graphic.bounds = ((0.25, 0.25), (0.5, 0.5))
@@ -124,6 +123,26 @@ class TestInspectorClass(unittest.TestCase):
         self.assertEqual(x_widget.text, "128.0 mm")
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
         self.assertEqual(x_widget.text, "128.0 mmm")
+
+    def test_changing_calibration_style_to_calibrated_center_displays_correct_values(self):
+        data_item = DataItem.DataItem(numpy.zeros((100, 100), numpy.uint32))
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        point_graphic = Graphics.PointGraphic()
+        display_specifier.display.add_graphic(point_graphic)
+        graphic_widget = self.app.ui.create_column_widget()
+        display_specifier.display.dimensional_calibration_style = "calibrated-center"
+        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=0, scale=2, units="mm"))
+        display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(offset=0, scale=2, units="mm"))
+        Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.display.graphics[0])
+        x_widget = graphic_widget.find_widget_by_id("x")
+        y_widget = graphic_widget.find_widget_by_id("y")
+        self.assertEqual(x_widget.text, "0.0 mm")
+        self.assertEqual(y_widget.text, "0.0 mm")
+        x_widget.text = "-10"
+        x_widget.on_editing_finished(x_widget.text)
+        y_widget.text = "20"
+        y_widget.on_editing_finished(y_widget.text)
+        self.assertEqual(point_graphic.position, (0.6, 0.45))
 
     def test_graphic_inspector_section_displays_sensible_units(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
