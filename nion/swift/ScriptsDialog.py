@@ -128,7 +128,7 @@ class RunScriptDialog(Dialog.ActionDialog):
         properties = dict()
         properties["min-height"] = 180
         properties["min-width"] = 540
-        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
+        properties["stylesheet"] = "background: white; font: 12px courier, monospace"
 
         self.__output_widget = self.ui.create_text_edit_widget(properties)
 

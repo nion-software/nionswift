@@ -75,7 +75,7 @@ class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
-        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
+        properties["stylesheet"] = "background: white; font: 12px courier, monospace"
         self.widget = self.ui.create_text_edit_widget(properties)
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
         class OutputPanelHandler(logging.Handler):

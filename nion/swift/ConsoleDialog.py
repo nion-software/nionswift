@@ -30,7 +30,7 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         super().__init__(ui.create_column_widget())
 
         properties = properties if properties is not None else dict()
-        properties["stylesheet"] = "background: black; color: white; font-family: Monaco, Courier, monospace"
+        properties["stylesheet"] = "background: black; color: white; font: 12px courier, monospace"
 
         self.prompt = ">>> "
         self.continuation_prompt = "... "
