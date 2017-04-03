@@ -75,7 +75,7 @@ class OutputPanel(Panel):
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, "Output")
         properties["min-height"] = 180
-        properties["stylesheet"] = "background: white; font: 12px courier, monospace"
+        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
         self.widget = self.ui.create_text_edit_widget(properties)
         output_widget = self.widget  # no access to OutputPanel.self inside OutputPanelHandler
         class OutputPanelHandler(logging.Handler):
@@ -134,7 +134,7 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
 
     def __set_default_style(self):
         if sys.platform == "win32":
-            self.__font = 'normal system "Segoe UI",serif'
+            self.__font = 'normal system serif'
             self.__top_offset = 1
             self.__text_offset = 4
             self.__start_header_color = "#d9d9d9"

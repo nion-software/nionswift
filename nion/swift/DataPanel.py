@@ -153,7 +153,7 @@ class DisplayItem:
             draw_rect = ((rect[0][0] + 4, rect[0][1] + 4), (72, 72))
             drawing_context.add(self.__create_thumbnail(draw_rect))
             drawing_context.fill_style = "#000"
-            drawing_context.font = "11px italic"
+            drawing_context.font = "11px serif"
             drawing_context.fill_text(self.title_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12)
             drawing_context.fill_text(self.format_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15)
             drawing_context.fill_text(self.datetime_str, rect[0][1] + 4 + 72 + 4, rect[0][0] + 4 + 12 + 15 + 15)
