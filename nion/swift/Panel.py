@@ -144,7 +144,7 @@ class HeaderCanvasItem(CanvasItem.LayerCanvasItem):
             self.__bottom_stroke_style = '#b8b8b8'
             self.__control_style = '#000000'
         else:
-            self.__font = 'normal 10pt system "Helvetica Neue", serif'
+            self.__font = 'normal 10pt system serif'
             self.__top_offset = 0
             self.__text_offset = 7
             self.__start_header_color = "#ededed"
