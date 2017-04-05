@@ -404,7 +404,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
                 with data_item.maybe_data_source.data_ref() as dr:
                     dr.data += 1.5
@@ -440,7 +440,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
                 metadata = data_item.maybe_data_source.metadata
                 metadata["abc"] = 1
@@ -459,7 +459,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
                 data_item.maybe_data_source.displays[0].graphics[0].position = (0.3, 0.4)
             self.assertFalse(needs_update_ref[0])
@@ -480,7 +480,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
                 data_item.maybe_data_source.displays[0].graphics[0].size = 0.53, 0.43
             self.assertTrue(needs_update_ref[0])
@@ -499,7 +499,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             computation.create_object("a", document_model.get_object_specifier(data_item))
             self.assertTrue(needs_update_ref[0])
             needs_update_ref[0] = False
@@ -1156,7 +1156,7 @@ class TestSymbolicClass(unittest.TestCase):
             needs_update_ref = [False]
             def needs_update():
                 needs_update_ref[0] = True
-            needs_update_event_listener = computation.needs_update_event.listen(needs_update)
+            needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
                 a.specifier = document_model.get_object_specifier(data_item2)
             self.assertTrue(needs_update_ref[0])
@@ -1409,6 +1409,21 @@ class TestSymbolicClass(unittest.TestCase):
             listener = None
             document_controller.periodic()
             self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -src_data))
+
+    def test_computation_on_deleted_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            src_data = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            computed_data_item.maybe_data_source.set_computation(computation)
+            document_model.append_data_item(computed_data_item)
+            document_model.remove_data_item(data_item)
+            document_model.recompute_all()
 
     def disabled_test_reshape_rgb(self):
         assert False

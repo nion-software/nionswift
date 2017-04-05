@@ -359,18 +359,18 @@ class ComputationContext(object):
 class Computation(Observable.Observable, Persistence.PersistentObject):
     """A computation on data and other inputs.
 
-    Watches for changes to the sources and fires a needs_update_event
+    Watches for changes to the sources and fires a computation_mutated_event
     when a new computation needs to occur.
 
     Call parse_expression first to establish the computation. Bind will be automatically called.
 
     Call bind to establish connections after reloading. Call unbind to release connections.
 
-    Listen to needs_update_event and call evaluate in response to perform
+    Listen to computation_mutated_event and call evaluate in response to perform
     computation (on thread).
 
     The computation will listen to any bound items established in the bind method. When those
-    items signal a change, the needs_update_event will be fired.
+    items signal a change, the computation_mutated_event will be fired.
 
     The processing_id is used to specify a computation that may be updated with a different script
     in the future. For instance, the line profile processing via the UI will produce a somewhat
@@ -397,7 +397,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_property_changed_listener = dict()
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
-        self.needs_update_event = Event.Event()
         self.cascade_delete_event = Event.Event()
         self.computation_mutated_event = Event.Event()
         self.variable_inserted_event = Event.Event()
@@ -423,7 +422,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.variable_inserted_event.fire(count, variable)
         self.computation_mutated_event.fire()
         self.needs_update = True
-        self.needs_update_event.fire()
 
     def remove_variable(self, variable: ComputationVariable) -> None:
         self.__unbind_variable(variable)
@@ -432,7 +430,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.variable_removed_event.fire(index, variable)
         self.computation_mutated_event.fire()
         self.needs_update = True
-        self.needs_update_event.fire()
 
     def create_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> ComputationVariable:
         variable = ComputationVariable(name, value_type, value, value_default, value_min, value_max, control_type, specifier, label)
@@ -464,7 +461,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.original_expression = value
             self.processing_id = None
             self.needs_update = True
-            self.needs_update_event.fire()
             self.computation_mutated_event.fire()
 
     @classmethod
@@ -537,7 +533,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
     def __bind_variable(self, variable: ComputationVariable) -> None:
         def needs_update():
             self.needs_update = True
-            self.needs_update_event.fire()
+            self.computation_mutated_event.fire()
 
         def deleted():
             if variable.cascade_delete:

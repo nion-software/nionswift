@@ -75,8 +75,6 @@ class CalibrationList:
     set_dependent_data_item(data_item)
 
     Data sources can subscribe to other data items becoming available via the data item manager.
-
-    set_data_item_manager(data_item_manager)
 """
 
 
@@ -144,8 +142,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, data=None, create_display=True):
         super(BufferedDataSource, self).__init__()
         self.__weak_dependent_data_item = None
-        self.__data_item_manager = None
-        self.__data_item_manager_lock = threading.RLock()
         self.define_type("buffered-data-source")
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
@@ -208,8 +204,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         if self.__computation_mutated_event_listener:
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
-        if self.__data_item_manager:
-            self.__data_item_manager.computation_changed(self._data_item, self, None)
         self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed
@@ -322,15 +316,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         if self.__data_and_metadata:
             self.__data_and_metadata.unloadable = self.persistent_object_context is not None
 
-    def set_data_item_manager(self, data_item_manager):
-        with self.__data_item_manager_lock:
-            computation = self.computation
-            if self.__data_item_manager and computation:
-                self.__data_item_manager.computation_changed(self._data_item, self, None)
-            self.__data_item_manager = data_item_manager
-            if self.__data_item_manager and computation:
-                self.__data_item_manager.computation_changed(self._data_item, self, computation)
-
     def set_dependent_data_item(self, data_item):
         self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
 
@@ -370,18 +355,16 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__computation_mutated_event_listener = None
             self.__computation_cascade_delete_event_listener.close()
             self.__computation_cascade_delete_event_listener= None
-        if self.__data_item_manager:
-            self.__data_item_manager.computation_changed(self._data_item, self, new_computation)
         if new_computation:
             def computation_mutated():
                 self.computation_changed_or_mutated_event.fire(new_computation)
-                self.__metadata_changed()
+                # self.__metadata_changed()
             def computation_cascade_delete():
                 self.request_remove_data_item_because_computation_removed_event.fire()
             self.__computation_mutated_event_listener = new_computation.computation_mutated_event.listen(computation_mutated)
             self.__computation_cascade_delete_event_listener = new_computation.cascade_delete_event.listen(computation_cascade_delete)
         self.computation_changed_or_mutated_event.fire(self.computation)
-        self.__metadata_changed()
+        # self.__metadata_changed()
 
     @property
     def data_metadata(self):
@@ -839,8 +822,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_content_changed = False
-        self.__data_item_manager = None
-        self.__data_item_manager_lock = threading.RLock()
         self.__suspendable_storage_cache = None
         self.r_var = None
         if data is not None:
@@ -1214,7 +1195,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __insert_data_source(self, name, before_index, data_source):
         data_source.set_dependent_data_item(self)
-        data_source.set_data_item_manager(self.__data_item_manager)
         def notify_request_remove_data_item():
             # this message comes from the operation.
             # it is generated when the user deletes a graphic.
@@ -1253,7 +1233,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_changed_event_listeners[index].close()
         del self.__data_item_changed_event_listeners[index]
         data_source.set_dependent_data_item(None)
-        data_source.set_data_item_manager(None)
         self.__request_remove_listeners[index].close()
         del self.__request_remove_listeners[index]
         self.__request_remove_region_listeners[index].close()
@@ -1284,13 +1263,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __remove_connection(self, name, index, connection):
         connection.close()
-
-    def set_data_item_manager(self, data_item_manager):
-        """Set the data item manager. May be called from thread."""
-        with self.__data_item_manager_lock:
-            self.__data_item_manager = data_item_manager
-            for data_source in self.data_sources:
-                data_source.set_data_item_manager(self.__data_item_manager)
 
     # override from storage to watch for changes to this data item. notify observers.
     def notify_property_changed(self, key):
