@@ -434,7 +434,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_data_will_change_event = Event.Event()
         self.display_type_changed_event = Event.Event()
         self.display_graphic_selection_changed_event = Event.Event()
-        self.display_graphic_will_remove_event = Event.Event()
         self._about_to_be_removed = False
         self.__calculated_display_values_thread_ok = True
         self._closed = False
@@ -874,7 +873,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         graphic.about_to_be_removed()
         self.__graphics_map.pop(graphic.uuid)
         self.__disconnect_graphic(graphic, index)
-        self.display_graphic_will_remove_event.fire(graphic)
         graphic.close()
 
     def __disconnect_graphic(self, graphic, index):

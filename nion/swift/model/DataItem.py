@@ -178,13 +178,10 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
         self.__computation_mutated_event_listener = None  # incoming to know when the computation changes internally
-        self.__computation_cascade_delete_event_listener = None
         self.computation_changed_or_mutated_event = Event.Event()  # outgoing message
         self.data_item_changed_event = Event.Event()
         self.data_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
-        self.request_remove_data_item_because_computation_removed_event = Event.Event()
-        self.request_remove_region_because_data_item_removed_event = Event.Event()
         if data is not None:
             with self._changes():
                 dimensional_calibrations = list()
@@ -216,11 +213,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         for display in self.displays:
             display.about_to_be_removed()
         if self.computation:
-            for variable in self.computation.variables:
-                if variable.cascade_delete:
-                    variable_specifier = variable.variable_specifier
-                    if variable_specifier and variable_specifier.get("type") == "region":
-                        self.request_remove_region_because_data_item_removed_event.fire(variable_specifier)
             self.computation_changed_or_mutated_event.fire(None)
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
@@ -356,16 +348,11 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         if old_computation:
             self.__computation_mutated_event_listener.close()
             self.__computation_mutated_event_listener = None
-            self.__computation_cascade_delete_event_listener.close()
-            self.__computation_cascade_delete_event_listener= None
         if new_computation:
             def computation_mutated():
                 self.computation_changed_or_mutated_event.fire(new_computation)
                 # self.__metadata_changed()
-            def computation_cascade_delete():
-                self.request_remove_data_item_because_computation_removed_event.fire()
             self.__computation_mutated_event_listener = new_computation.computation_mutated_event.listen(computation_mutated)
-            self.__computation_cascade_delete_event_listener = new_computation.cascade_delete_event.listen(computation_cascade_delete)
         self.computation_changed_or_mutated_event.fire(self.computation)
         # self.__metadata_changed()
 
@@ -787,9 +774,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     data_item_content_changed is invoked when the content of the data item changes. The changes parameter is a set of
     changes from DATA, METADATA, DISPLAYS, SOURCE. This may be called on a thread.
 
-    request_remove_data_item is invoked when a region associated with an operation is removed by the user. This message
-    can be used to remove the associated dependent data item. This will not be called from a thread.
-
     *Miscellaneous*
 
     Transactions.
@@ -831,8 +815,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__data_items = list()
-        self.__request_remove_listeners = list()
-        self.__request_remove_region_listeners = list()
         self.__computation_changed_or_mutated_event_listeners = list()
         self.__data_item_changed_event_listeners = list()
         self.__data_changed_event_listeners = list()
@@ -840,8 +822,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
-        self.request_remove_region_event = Event.Event()
-        self.request_remove_data_item_event = Event.Event()
         self.computation_changed_or_mutated_event = Event.Event()
         self.data_item_data_changed_event = Event.Event()
         self.__data_item_change_count = 0
@@ -907,7 +887,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
-        self.request_remove_data_item_event = None
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
         assert not self._about_to_be_removed
@@ -1282,18 +1261,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_source.timezone = self.timezone
         data_source.timezone_offset = self.timezone_offset
         data_source.set_dependent_data_item(self)
-        def notify_request_remove_data_item():
-            # this message comes from the operation.
-            # it is generated when the user deletes a graphic.
-            # that informs the display which notifies the graphic which
-            # notifies the operation which notifies this data item. ugh.
-            if self.request_remove_data_item_event:
-                self.request_remove_data_item_event.fire(self)
-        request_remove_listener = data_source.request_remove_data_item_because_computation_removed_event.listen(notify_request_remove_data_item)
-        self.__request_remove_listeners.insert(before_index, request_remove_listener)
-        def request_remove_region(region_specifier):
-            self.request_remove_region_event.fire(region_specifier)
-        self.__request_remove_region_listeners.insert(before_index, data_source.request_remove_region_because_data_item_removed_event.listen(request_remove_region))
         self.__computation_changed_or_mutated_event_listeners.insert(before_index, data_source.computation_changed_or_mutated_event.listen(self.__computation_changed_or_mutated))
         self.__computation_changed_or_mutated(data_source.computation)
         self.__data_changed_event_listeners.insert(before_index, data_source.data_changed_event.listen(self.__handle_data_changed))
@@ -1320,10 +1287,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_changed_event_listeners[index].close()
         del self.__data_item_changed_event_listeners[index]
         data_source.set_dependent_data_item(None)
-        self.__request_remove_listeners[index].close()
-        del self.__request_remove_listeners[index]
-        self.__request_remove_region_listeners[index].close()
-        del self.__request_remove_region_listeners[index]
         self.__computation_changed_or_mutated_event_listeners[index].close()
         del self.__computation_changed_or_mutated_event_listeners[index]
         self.__data_changed_event_listeners[index].close()

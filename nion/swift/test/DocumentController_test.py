@@ -448,7 +448,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             intermediate_display.add_graphic(interval_region)
             target_data_item = document_model.get_invert_new(source_data_item)
             target_computation = target_data_item.maybe_data_source.computation
-            target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I", cascade_delete=True)
+            target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I")
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertIn(target_data_item, document_model.data_items)
@@ -473,8 +473,8 @@ class TestDocumentControllerClass(unittest.TestCase):
             intermediate_display.add_graphic(interval_region2)
             target_data_item = document_model.get_invert_new(source_data_item)
             target_computation = target_data_item.maybe_data_source.computation
-            target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I", cascade_delete=True)
-            target_computation.create_object("interval2", document_model.get_object_specifier(interval_region2), label="I", cascade_delete=True)
+            target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I")
+            target_computation.create_object("interval2", document_model.get_object_specifier(interval_region2), label="I")
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertIn(target_data_item, document_model.data_items)

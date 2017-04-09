@@ -31,7 +31,6 @@ class ComputationVariableType:
         self.type_id = type_id
         self.label = label
         self.object_type = object_type
-        self.object_remove_event = Event.Event()
         self.__objects = dict()  # type: typing.Dict[uuid.UUID, typing.Any]
 
     def get_object_by_uuid(self, object_uuid: uuid.UUID):
@@ -44,7 +43,6 @@ class ComputationVariableType:
     def unregister_object(self, object):
         assert object.uuid in self.__objects
         del self.__objects[object.uuid]
-        self.object_remove_event.fire(object)
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
@@ -69,7 +67,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("specifier", specifier, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
-        self.define_property("cascade_delete", changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
@@ -139,7 +136,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             def __init__(self, variable):
                 self.__variable = variable
                 self.changed_event = Event.Event()
-                self.deleted_event = Event.Event()
                 def property_changed(key):
                     if key == "value":
                         self.changed_event.fire()
@@ -298,19 +294,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
-                            self.deleted_event = Event.Event()
-                            def remove_object(object):
-                                if self.__object == object:
-                                    self.deleted_event.fire()
                             def property_changed(property_name_being_changed):
                                 self.changed_event.fire()
-                            self.__remove_object_listener = computation_variable_type.object_remove_event.listen(remove_object)
                             self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
                         def close(self):
                             self.__property_changed_listener.close()
                             self.__property_changed_listener = None
-                            self.__remove_object_listener.close()
-                            self.__remove_object_listener = None
                         @property
                         def value(self):
                             return self.__object
@@ -393,11 +382,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_needs_rebind_event_listeners = dict()
         self.__bound_items = dict()
         self.__bound_item_changed_event_listeners = dict()
-        self.__bound_item_deleted_event_listeners = dict()
         self.__variable_property_changed_listener = dict()
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
-        self.cascade_delete_event = Event.Event()
         self.computation_mutated_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
@@ -435,10 +422,9 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_object(self, name: str, object_specifier: dict, cascade_delete: bool=False, label: str=None) -> ComputationVariable:
+    def create_object(self, name: str, object_specifier: dict, label: str=None) -> ComputationVariable:
         variable = ComputationVariable(name, specifier=object_specifier, label=label)
         self.add_variable(variable)
-        variable.cascade_delete = cascade_delete
         return variable
 
     def resolve_variable(self, object_specifier: dict) -> ComputationVariable:
@@ -534,10 +520,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.needs_update = True
             self.computation_mutated_event.fire()
 
-        def deleted():
-            if variable.cascade_delete:
-                self.cascade_delete_event.fire()
-
         self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update)
 
         variable_specifier = variable.variable_specifier
@@ -551,7 +533,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__variable_property_changed_listener[variable.uuid] = variable.property_changed_event.listen(lambda k: needs_update())
         if bound_item:
             self.__bound_item_changed_event_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
-            self.__bound_item_deleted_event_listeners[variable.uuid] = bound_item.deleted_event.listen(deleted)
 
         def rebind():
             self.__unbind_variable(variable)
@@ -572,9 +553,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if variable.uuid in self.__bound_item_changed_event_listeners:
             self.__bound_item_changed_event_listeners[variable.uuid].close()
             del self.__bound_item_changed_event_listeners[variable.uuid]
-        if variable.uuid in self.__bound_item_deleted_event_listeners:
-            self.__bound_item_deleted_event_listeners[variable.uuid].close()
-            del self.__bound_item_deleted_event_listeners[variable.uuid]
         if variable.uuid in self.__variable_property_changed_listener:
             self.__variable_property_changed_listener[variable.uuid].close()
             del self.__variable_property_changed_listener[variable.uuid]

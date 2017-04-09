@@ -677,29 +677,29 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                     kws[srcs[i]] = srcs[i] + (".display_data" if info[operation_id].use_display_data else ".data")
                                     if src_data_source.get("type") == "data-item-data-source":
                                         src_uuid = data_source_uuid_to_data_item_uuid.get(src_data_source["buffered_data_source_uuid"], str(uuid.uuid4()))
-                                        variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src = {"label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
                                         variables_list.append(variable_src)
                                         if operation_id == "crop-operation":
-                                            variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                            variable_src = {"label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
                                             variable_src["specifier"] = {"type": "region", "uuid": operation_dict["region_connections"]["crop"], "version": 1}
                                             variables_list.append(variable_src)
                                     elif src_data_source.get("type") == "operation":
                                         src_uuid = data_source_uuid_to_data_item_uuid.get(src_data_source["data_sources"][0]["buffered_data_source_uuid"], str(uuid.uuid4()))
-                                        variable_src = {"cascade_delete": True, "label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src = {"label": info[operation_id].src_labels[i], "name": info[operation_id].src_names[i], "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "data_item", "uuid": src_uuid, "version": 1}
                                         variables_list.append(variable_src)
-                                        variable_src = {"cascade_delete": True, "label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src = {"label": _("Crop Region"), "name": "crop_region", "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "region", "uuid": src_data_source["region_connections"]["crop"], "version": 1}
                                         variables_list.append(variable_src)
                                         kws[srcs[i]] = "xd.crop({}, crop_region.bounds)".format(kws[srcs[i]])
                                 for rc_k, rc_v in operation_dict.get("region_connections", dict()).items():
                                     if rc_k == 'pick':
-                                        variable_src = {"cascade_delete": True, "name": "pick_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src = {"name": "pick_region", "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
                                         variables_list.append(variable_src)
                                     elif rc_k == 'line':
-                                        variable_src = {"cascade_delete": True, "name": "line_region", "type": "variable", "uuid": str(uuid.uuid4())}
+                                        variable_src = {"name": "line_region", "type": "variable", "uuid": str(uuid.uuid4())}
                                         variable_src["specifier"] = {"type": "region", "uuid": rc_v, "version": 1}
                                         variables_list.append(variable_src)
                                 for var in copy.deepcopy(info[operation_id].variables):
@@ -1100,9 +1100,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__source_data_items = dict()
         self.__data_items = list()
         self.__data_item_uuids = set()
-        self.__data_item_request_remove_region = dict()
         self.__computation_changed_or_mutated_listeners = dict()
-        self.__data_item_request_remove_data_item_listeners = dict()
         self.__data_item_data_changed_listeners = dict()
         self.__data_item_references = dict()
         self.__recompute_lock = threading.RLock()
@@ -1155,9 +1153,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_items.insert(index, data_item)
                 self.__data_item_uuids.add(data_item.uuid)
                 data_item.set_storage_cache(self.storage_cache)
-                self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
                 self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
-                self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
                 self.__data_item_data_changed_listeners[data_item.uuid] = data_item.data_item_data_changed_event.listen(self.__handle_data_item_data_changed)
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
         # mark itself clean after reading all of them in.
@@ -1301,10 +1297,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # self.persistent_object_context.write_data_item(data_item)
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
-        self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
         self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
         data_item.fire_computation_changed_or_mutated_event()
-        self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
         self.__data_item_data_changed_listeners[data_item.uuid] = data_item.data_item_data_changed_event.listen(self.__handle_data_item_data_changed)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
@@ -1331,12 +1325,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
                 data_group.remove_data_item(data_item)
-        # remove data items that are entirely dependent on data item being removed
-        # entirely dependent means that the data item has a single data item source
-        # and it matches the data_item being removed.
-        for other_data_item in self.get_dependent_data_items(data_item):
-            if self.get_source_data_items(other_data_item) == [data_item]:  # ordered data sources exactly equal to data item?
-                self.remove_data_item(other_data_item)
         # tell the data item it is about to be removed
         data_item.about_to_be_removed()
         # remove it from the persistent_storage
@@ -1349,32 +1337,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        self.__data_item_request_remove_region[data_item.uuid].close()
-        del self.__data_item_request_remove_region[data_item.uuid]
         self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
         del self.__computation_changed_or_mutated_listeners[data_item.uuid]
         self.__data_item_data_changed_listeners[data_item.uuid].close()
         del self.__data_item_data_changed_listeners[data_item.uuid]
-        self.__data_item_request_remove_data_item_listeners[data_item.uuid].close()
-        del self.__data_item_request_remove_data_item_listeners[data_item.uuid]
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
         self.data_item_removed_event.fire(self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
         self.data_item_deleted_event.fire(data_item)
-
-    def __remove_region_specifier(self, region_specifier) -> None:
-        bound_region = self.resolve_object_specifier(region_specifier)
-        if bound_region:
-            region = bound_region.value
-            for data_item in self.data_items:
-                for data_source in data_item.data_sources:
-                    for display in data_source.displays:
-                        if region in display.graphics:
-                            if not region._about_to_be_removed:  # HACK! to handle document closing. Argh.
-                                display.remove_graphic(region)
-                                break
 
     def __remove_dependency(self, source_data_item, target_data_item):
         with self.__dependent_data_items_lock:
@@ -1626,10 +1598,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             lena_data_item.title = "Lena"
             self.append_data_item(lena_data_item)
 
-    # this message comes from a data item when it wants to be removed from the document. ugh.
-    def __request_remove_data_item(self, data_item):
-        DataGroup.get_data_item_container(self, data_item).remove_data_item(data_item)
-
     def safe_insert_data_item(self, data_group, data_item, index_ref, logging=True):
         if data_group and isinstance(data_group, DataGroup.DataGroup):
             if not data_item.uuid in self.__data_item_uuids:
@@ -1811,14 +1779,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_item = data_item
                         self.__buffered_data_source = data_item.maybe_data_source
                         self.changed_event = Event.Event()
-                        self.deleted_event = Event.Event()
                         def data_item_changed():
                             self.changed_event.fire()
-                        def data_item_will_be_removed(data_item):
-                            if data_item == self.__data_item:
-                                self.deleted_event.fire()
                         self.__data_item_changed_event_listener = self.__buffered_data_source.data_item_changed_event.listen(data_item_changed)
-                        self.__data_item_will_be_removed_event_listener = document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
                         self.__display_values_event_listener = self.__buffered_data_source.displays[0].display_data_will_change_event.listen(data_item_changed)
                     @property
                     def value(self):
@@ -1826,8 +1789,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     def close(self):
                         self.__data_item_changed_event_listener.close()
                         self.__data_item_changed_event_listener = None
-                        self.__data_item_will_be_removed_event_listener.close()
-                        self.__data_item_will_be_removed_event_listener = None
                         self.__display_values_event_listener.close()
                         self.__display_values_event_listener = None
                 if data_item:
@@ -1844,19 +1805,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                         def __init__(self, display, object):
                                             self.__object = object
                                             self.changed_event = Event.Event()
-                                            self.deleted_event = Event.Event()
-                                            def remove_region(region):
-                                                if region == object:
-                                                    self.deleted_event.fire()
-                                            self.__remove_region_listener = display.display_graphic_will_remove_event.listen(remove_region)
                                             def property_changed(property_name_being_changed):
                                                 self.changed_event.fire()
                                             self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
                                         def close(self):
                                             self.__property_changed_listener.close()
                                             self.__property_changed_listener = None
-                                            self.__remove_region_listener.close()
-                                            self.__remove_region_listener = None
                                         @property
                                         def value(self):
                                             return self.__object
@@ -2305,15 +2259,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # process the data item inputs
         for src_name, src_label, input in zip(src_names, src_labels, inputs):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(input[0])
-            computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=src_label, cascade_delete=True)
+            computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=src_label)
         # next process the crop regions
         for crop_name, input in zip(crop_names, inputs):
             if crop_name:
                 assert input[1] is not None
-                computation.create_object(crop_name, self.get_object_specifier(input[1]), label=_("Crop Region"), cascade_delete=True)
+                computation.create_object(crop_name, self.get_object_specifier(input[1]), label=_("Crop Region"))
         # process the regions
         for region_name, region, region_label in regions:
-            computation.create_object(region_name, self.get_object_specifier(region), label=region_label, cascade_delete=True)
+            computation.create_object(region_name, self.get_object_specifier(region), label=region_label)
         # next process the parameters
         for param_dict in processing_description.get("parameters", list()):
             computation.create_variable(param_dict["name"], param_dict["type"], param_dict["value"], value_default=param_dict.get("value_default"),
