@@ -801,40 +801,36 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     writer_version = 10
 
-    def __init__(self, item_uuid=None, large_format=False):
+    def __init__(self, item_uuid=None):
         super().__init__()
         global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
-        self.large_format = large_format  # hint for file format
         self.__container_weak_ref = None
         self.__in_transaction_state = False
         self.__is_live = False
         self.__pending_write = True
         self.__write_delay_modified_count = 0
-        self.__write_delay_data_changed = False
         self.persistent_object_context = None
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
-        # this is not my favorite solution since it limits data item creation to 1000/s but until I find a better solution, this is my compromise.
+        # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
         time.sleep(0.001)
         self.define_property("metadata", dict(), hidden=True, changed=self.__property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
-        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.define_property("category", "persistent", changed=self.__property_changed)
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
         self.define_property("timezone", Utility.get_local_timezone(), changed=self.__timezone_property_changed)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
-        self.__data_items = list()
         self.__session_manager = None
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
-        self.__data_item_change_count = 0
-        self.__data_item_change_count_lock = threading.RLock()
-        self.__data_item_content_changed = False
+        self.__change_count = 0
+        self.__change_count_lock = threading.RLock()
+        self.__content_changed = False
         self.__suspendable_storage_cache = None
         self.r_var = None
         self._about_to_be_removed = False
@@ -848,8 +844,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def __deepcopy__(self, memo):
         library_item_copy = self.__class__()
-        # format
-        library_item_copy.large_format = self.large_format
         # metadata
         library_item_copy.metadata = self.metadata
         library_item_copy.session_metadata = self.session_metadata
@@ -858,7 +852,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         library_item_copy.timezone_offset = self.timezone_offset
         library_item_copy.session_id = self.session_id
         library_item_copy.source_file_path = self.source_file_path
-        # the data source connection will be established when this copy is inserted.
         memo[id(self)] = library_item_copy
         return library_item_copy
 
@@ -910,14 +903,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         return library_item
 
     def snapshot(self):
-        """
-            Take a snapshot and return a new data item. A snapshot is a copy of everything
-            except the data and operation which are replaced by new data with the operation
-            applied or "burned in".
-        """
+        """Return a new library item which is a copy of this one with any dynamic behavior made static."""
         libary_item = self.__class__()
-        # format
-        libary_item.large_format = self.large_format
         # metadata
         libary_item.metadata = self.metadata
         libary_item.session_metadata = self.session_metadata
@@ -929,38 +916,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         return libary_item
 
     def connect_data_items(self, data_items, lookup_data_item):
-        for data_item_uuid in self.data_item_uuids:
-            data_item = lookup_data_item(data_item_uuid)
-            if data_item in data_items:
-                self.__data_items.append(data_item)
-
-    def append_data_item(self, data_item):
-        self.insert_data_item(len(self.__data_items), data_item)
-
-    def insert_data_item(self, before_index, data_item):
-        assert data_item not in self.__data_items
-        self.__data_items.insert(before_index, data_item)
-        data_item_uuids = self.data_item_uuids
-        data_item_uuids.insert(before_index, data_item.uuid)
-        self.data_item_uuids = data_item_uuids
-        self.notify_property_changed("data_item_uuids")
-
-    def remove_data_item(self, data_item):
-        # index = self.__data_items.index(data_item)
-        self.__data_items.remove(data_item)
-        data_item_uuids = self.data_item_uuids
-        data_item_uuids.remove(data_item.uuid)
-        self.data_item_uuids = data_item_uuids
-        self.notify_property_changed("data_item_uuids")
-
-    @property
-    def data_items(self):
-        return tuple(self.__data_items)
+        pass
 
     def set_storage_cache(self, storage_cache):
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
-        for data_source in self.data_sources:
-            data_source.set_storage_cache(self.__suspendable_storage_cache)
 
     @property
     def _suspendable_storage_cache(self):
@@ -970,12 +929,15 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def in_transaction_state(self) -> bool:
         return self.__in_transaction_state
 
-    def _mark_write_delay_data_changed(self):
-        self.__write_delay_data_changed = True
+    def _enter_write_delay_state_inner(self):
+        pass
+
+    def _finish_pending_write_inner(self):
+        pass
 
     def __enter_write_delay_state(self):
         self.__write_delay_modified_count = self.modified_count
-        self.__write_delay_data_changed = False
+        self._enter_write_delay_state_inner()
         if self.persistent_object_context:
             persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
             if persistent_storage:
@@ -989,8 +951,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             self._finish_pending_write()
 
     def _finish_write(self):
-        if self.maybe_data_source:
-            self.persistent_object_context.rewrite_data_item_data(self)
+        pass
 
     def _finish_pending_write(self):
         if self.__pending_write:
@@ -999,8 +960,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         else:
             if self.modified_count > self.__write_delay_modified_count:
                 self.persistent_object_context.rewrite_data_item_properties(self)
-            if self.__write_delay_data_changed:
-                self.persistent_object_context.rewrite_data_item_data(self)
+            self._finish_pending_write_inner()
 
     def _enter_transaction_state(self):
         self.__in_transaction_state = True
@@ -1009,10 +969,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         # suspend disk caching
         if self.__suspendable_storage_cache:
             self.__suspendable_storage_cache.suspend_cache()
-        # tell each data source to load its data.
-        # this prevents paging in and out.
-        for data_source in self.data_sources:
-            data_source.increment_data_ref_count()
 
     def _exit_transaction_state(self):
         self.__in_transaction_state = False
@@ -1022,9 +978,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             self.__suspendable_storage_cache.spill_cache()
         # exit the write delay state.
         self.__exit_write_delay_state()
-        # finally, tell each data source to unload its data.
-        for data_source in self.data_sources:
-            data_source.decrement_data_ref_count()
 
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.
@@ -1034,42 +987,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             self.__enter_write_delay_state()
 
     def update_and_bind_computation(self, computation_context):
-        for buffered_data_source in self.data_sources:
-            computation = buffered_data_source.computation
-            if computation:
-                try:
-                    self.__update_computation(computation, computation_context._processing_descriptions)
-                    computation.bind(computation_context)
-                except Exception as e:
-                    print(str(e))
-
-    def __update_computation(self, computation: Symbolic.Computation, processing_descriptions) -> None:
-        processing_id = computation.processing_id
-        processing_description = processing_descriptions.get(processing_id)
-        if processing_description:
-            src_names = list()
-            src_texts = list()
-            source_dicts = processing_description["sources"]
-            for i, source_dict in enumerate(source_dicts):
-                src_names.append(source_dict["name"])
-                data_expression = source_dict["name"] + (".display_xdata" if source_dict.get("use_display_data", True) else ".xdata")
-                if source_dict.get("croppable", False):
-                    crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
-                    if computation._has_variable(crop_region_variable_name):
-                        data_expression = "xd.crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
-                src_texts.append(data_expression)
-            script = processing_description.get("script")
-            if not script:
-                expression = processing_description.get("expression")
-                if expression:
-                    script = Symbolic.xdata_expression(expression)
-            script = script.format(**dict(zip(src_names, src_texts)))
-            computation._get_persistent_property("original_expression").value = script
+        pass
 
     def data_item_was_inserted(self, computation_context):
-        for data_source in self.data_sources:
-            if data_source.computation:
-                data_source.computation.bind(computation_context)
+        pass
 
     def _test_get_file_path(self):
         if self.persistent_object_context:
@@ -1083,14 +1004,15 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         # block; then make sure that no change notifications actually occur. this makes
         # sure things like cached values are preserved after reading.
         with self.data_item_changes():
-            for data_source in copy.copy(self.data_sources):
-                self.remove_data_source(data_source)
-            super().read_from_dict(properties)
+            self._read_from_dict_inner(properties)
             if self.created is None:  # invalid timestamp -- set property to now but don't trigger change
                 timestamp = datetime.datetime.now()
                 self._get_persistent_property("created").value = timestamp
-            self.__data_item_content_changed = False
+            self.__content_changed = False
         self.__pending_write = False
+
+    def _read_from_dict_inner(self, properties):
+        super().read_from_dict(properties)
 
     @property
     def properties(self):
@@ -1101,16 +1023,16 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def is_live(self):
-        """ Return whether this data item represents a live acquisition data item. """
+        """Return whether this library item represents live acquisition."""
         return self.__is_live
 
     def _enter_live_state(self):
         self.__is_live = True
-        self.notify_data_item_content_changed()  # this will affect is_live, so notify
+        self._notify_library_item_content_changed()  # this will affect is_live, so notify
 
     def _exit_live_state(self):
         self.__is_live = False
-        self.notify_data_item_content_changed()  # this will affect is_live, so notify
+        self._notify_library_item_content_changed()  # this will affect is_live, so notify
 
     def __validate_session_id(self, value):
         assert value is None or datetime.datetime.strptime(value, "%Y%m%d-%H%M%S")
@@ -1122,38 +1044,28 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def data_item_changes(self):
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
-        data_item = self
-        class DataItemChangeContextManager(object):
+        library_item = self
+        class LibraryItemChangeContextManager(object):
             def __enter__(self):
-                data_item.begin_data_item_changes()
+                library_item._begin_library_item_changes()
                 return self
             def __exit__(self, type, value, traceback):
-                data_item.end_data_item_changes()
-        return DataItemChangeContextManager()
+                library_item._end_library_item_changes()
+        return LibraryItemChangeContextManager()
 
-    def begin_data_item_changes(self):
-        with self.__data_item_change_count_lock:
-            self.__data_item_change_count += 1
+    def _begin_library_item_changes(self):
+        with self.__change_count_lock:
+            self.__change_count += 1
 
-    def end_data_item_changes(self):
-        with self.__data_item_change_count_lock:
-            self.__data_item_change_count -= 1
-            data_item_change_count = self.__data_item_change_count
-            data_item_content_changed = self.__data_item_content_changed
-        # if the data item change count is now zero, it means that we're ready
-        # to notify listeners. but only notify listeners if there are actual
-        # changes to report.
-        if data_item_change_count == 0 and data_item_content_changed:
+    def _end_library_item_changes(self):
+        with self.__change_count_lock:
+            self.__change_count -= 1
+            change_count = self.__change_count
+            content_changed = self.__content_changed
+        # if the change count is now zero, it means that we're ready to notify listeners. but only notify listeners if
+        # there are actual changes to report.
+        if change_count == 0 and content_changed:
             self.data_item_content_changed_event.fire()
-
-    def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
-        assert threading.current_thread() == threading.main_thread()
-        display_specifier = DisplaySpecifier.from_data_item(self)
-        assert display_specifier.buffered_data_source and display_specifier.display
-        with self.data_item_changes():
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
-            self.timezone = Utility.get_local_timezone()
-            self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()
@@ -1166,7 +1078,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.__metadata_changed()
 
     def __metadata_changed(self):
-        self.notify_data_item_content_changed()
+        self._notify_library_item_content_changed()
         self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
@@ -1180,11 +1092,21 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         pass
 
     def set_r_value(self, r_var):
-        """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
+        """Used to signal changes to the ref var, which are kept in document controller. ugh."""
         self.r_var = r_var
-        for data_source in self.data_sources:
-            data_source.r_value_changed()
+        self._r_value_changed()
         self.__metadata_changed()
+
+    def _r_value_changed(self):
+        pass
+
+    def increment_data_ref_counts(self):
+        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
+        pass
+
+    def decrement_data_ref_counts(self):
+        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
+        pass
 
     @property
     def displayed_title(self):
@@ -1196,28 +1118,15 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     # call this when the listeners need to be updated (via data_item_content_changed).
     # Calling this method will send the data_item_content_changed method to each listener by using the method
     # data_item_changes.
-    def notify_data_item_content_changed(self):
+    def _notify_library_item_content_changed(self):
         with self.data_item_changes():
-            with self.__data_item_change_count_lock:
-                self.__data_item_content_changed = True
+            with self.__change_count_lock:
+                self.__content_changed = True
 
     # date times
 
     @property
     def date_for_sorting(self):
-        data_modified_list = list()
-        for data_source in self.data_sources:
-            source_data_modified = data_source.source_data_modified
-            if source_data_modified:
-                data_modified_list.append(source_data_modified)
-            else:
-                data_modified = data_source.data_modified
-                if data_modified:
-                    data_modified_list.append(data_modified)
-                else:
-                    data_modified_list.append(self.created)
-        if len(data_modified_list):
-            return max(data_modified_list)
         return self.created
 
     @property
@@ -1267,54 +1176,14 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def __remove_connection(self, name, index, connection):
         connection.close()
 
-    # override from storage to watch for changes to this data item. notify observers.
+    # override from storage to watch for changes to this library item. notify observers.
     def notify_property_changed(self, key):
         super().notify_property_changed(key)
-        self.notify_data_item_content_changed()
+        self._notify_library_item_content_changed()
 
     @property
     def computation(self) -> typing.Optional[Symbolic.Computation]:
-        return self.maybe_data_source.computation if self.maybe_data_source else None
-
-    @property
-    def maybe_data_source(self) -> typing.Optional[BufferedDataSource]:
-        return self.data_sources[0] if len(self.data_sources) == 1 else None
-
-    @property
-    def size_and_data_format_as_string(self):
-        data_source_count = len(self.data_sources)
-        if data_source_count == 0:
-            return _("No Data")
-        elif data_source_count == 1:
-            return self.maybe_data_source.size_and_data_format_as_string
-        else:
-            return _("Multiple Data Sources ({0})".format(data_source_count))
-
-    def increment_data_ref_counts(self):
-        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
-        for data_source in self.data_sources:
-            assert isinstance(data_source, BufferedDataSource)
-            data_source.increment_data_ref_count()
-        for data_item in self.data_items:
-            assert isinstance(data_item, DataItem)
-            data_item.increment_data_ref_counts()
-
-    def decrement_data_ref_counts(self):
-        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
-        for data_source in self.data_sources:
-            assert isinstance(data_source, BufferedDataSource)
-            data_source.decrement_data_ref_count()
-        for data_item in self.data_items:
-            assert isinstance(data_item, DataItem)
-            data_item.decrement_data_ref_counts()
-
-    # primary display
-
-    @property
-    def primary_display_specifier(self):
-        if len(self.data_sources) == 1:
-            return DisplaySpecifier(self, self.data_sources[0], self.data_sources[0].displays[0])
-        return DisplaySpecifier()
+        return None
 
     # descriptive metadata
 
@@ -1367,10 +1236,65 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         return " ".join([self.displayed_title, self.caption])
 
 
+class CompositeLibraryItem(LibraryItem):
+    def __init__(self, item_uuid=None):
+        super().__init__(item_uuid=item_uuid)
+        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
+        self.__data_items = list()
+
+    def __property_changed(self, name, value):
+        self.notify_property_changed(name)
+
+    @property
+    def data_items(self):
+        return tuple(self.__data_items)
+
+    def connect_data_items(self, data_items, lookup_data_item):
+        super().connect_data_items(data_items, lookup_data_item)
+        for data_item_uuid in self.data_item_uuids:
+            data_item = lookup_data_item(data_item_uuid)
+            if data_item in data_items:
+                self.__data_items.append(data_item)
+
+    def append_data_item(self, data_item):
+        self.insert_data_item(len(self.__data_items), data_item)
+
+    def insert_data_item(self, before_index, data_item):
+        assert data_item not in self.__data_items
+        self.__data_items.insert(before_index, data_item)
+        data_item_uuids = self.data_item_uuids
+        data_item_uuids.insert(before_index, data_item.uuid)
+        self.data_item_uuids = data_item_uuids
+        self.notify_property_changed("data_item_uuids")
+
+    def remove_data_item(self, data_item):
+        # index = self.__data_items.index(data_item)
+        self.__data_items.remove(data_item)
+        data_item_uuids = self.data_item_uuids
+        data_item_uuids.remove(data_item.uuid)
+        self.data_item_uuids = data_item_uuids
+        self.notify_property_changed("data_item_uuids")
+
+    def increment_data_ref_counts(self):
+        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
+        super().increment_data_ref_counts()
+        for data_item in self.data_items:
+            data_item.increment_data_ref_counts()
+
+    def decrement_data_ref_counts(self):
+        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
+        super().decrement_data_ref_counts()
+        for data_item in self.data_items:
+            data_item.decrement_data_ref_counts()
+
+
 class DataItem(LibraryItem):
+
     def __init__(self, data=None, item_uuid=None, large_format=False):
-        super().__init__(item_uuid, large_format)
+        super().__init__(item_uuid)
+        self.large_format = large_format
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
+        self.__write_delay_data_changed = False
         self.__data_item_changed_event_listeners = list()
         self.__data_changed_event_listeners = list()
         if data is not None:
@@ -1379,6 +1303,8 @@ class DataItem(LibraryItem):
 
     def __deepcopy__(self, memo):
         data_item_copy = super().__deepcopy__(memo)
+        # format
+        data_item_copy.large_format = self.large_format
         # data sources
         for data_source in copy.copy(data_item_copy.data_sources):
             data_item_copy.remove_data_source(data_source)
@@ -1411,12 +1337,121 @@ class DataItem(LibraryItem):
 
     def snapshot(self):
         data_item = super().snapshot()
+        # format
+        data_item.large_format = self.large_format
         # data sources
         for data_source in copy.copy(data_item.data_sources):
             data_item.remove_data_source(data_source)
         for data_source in self.data_sources:
             data_item.append_data_source(data_source.snapshot())
         return data_item
+
+    def set_storage_cache(self, storage_cache):
+        super().set_storage_cache(storage_cache)
+        for data_source in self.data_sources:
+            data_source.set_storage_cache(self._suspendable_storage_cache)
+
+    def _enter_transaction_state(self):
+        super()._enter_transaction_state()
+        # tell each data source to load its data.
+        # this prevents paging in and out.
+        for data_source in self.data_sources:
+            data_source.increment_data_ref_count()
+
+    def _exit_transaction_state(self):
+        super()._exit_transaction_state()
+        # finally, tell each data source to unload its data.
+        for data_source in self.data_sources:
+            data_source.decrement_data_ref_count()
+
+    def _read_from_dict_inner(self, properties):
+        for data_source in copy.copy(self.data_sources):
+            self.remove_data_source(data_source)
+        super()._read_from_dict_inner(properties)
+
+    def _finish_write(self):
+        super()._finish_write()
+        if self.maybe_data_source:
+            self.persistent_object_context.rewrite_data_item_data(self)
+
+    def _enter_write_delay_state_inner(self):
+        super()._enter_write_delay_state_inner()
+        self.__write_delay_data_changed = False
+
+    def _finish_pending_write_inner(self):
+        super()._finish_pending_write_inner()
+        if self.__write_delay_data_changed:
+            self.persistent_object_context.rewrite_data_item_data(self)
+
+    def _r_value_changed(self):
+        for data_source in self.data_sources:
+            data_source.r_value_changed()
+
+    def update_and_bind_computation(self, computation_context):
+        super().update_and_bind_computation(computation_context)
+        for buffered_data_source in self.data_sources:
+            computation = buffered_data_source.computation
+            if computation:
+                try:
+                    self.__update_computation(computation, computation_context._processing_descriptions)
+                    computation.bind(computation_context)
+                except Exception as e:
+                    print(str(e))
+
+    def __update_computation(self, computation: Symbolic.Computation, processing_descriptions) -> None:
+        processing_id = computation.processing_id
+        processing_description = processing_descriptions.get(processing_id)
+        if processing_description:
+            src_names = list()
+            src_texts = list()
+            source_dicts = processing_description["sources"]
+            for i, source_dict in enumerate(source_dicts):
+                src_names.append(source_dict["name"])
+                data_expression = source_dict["name"] + (".display_xdata" if source_dict.get("use_display_data", True) else ".xdata")
+                if source_dict.get("croppable", False):
+                    crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
+                    if computation._has_variable(crop_region_variable_name):
+                        data_expression = "xd.crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
+                src_texts.append(data_expression)
+            script = processing_description.get("script")
+            if not script:
+                expression = processing_description.get("expression")
+                if expression:
+                    script = Symbolic.xdata_expression(expression)
+            script = script.format(**dict(zip(src_names, src_texts)))
+            computation._get_persistent_property("original_expression").value = script
+
+    def data_item_was_inserted(self, computation_context):
+        super().data_item_was_inserted(computation_context)
+        for data_source in self.data_sources:
+            if data_source.computation:
+                data_source.computation.bind(computation_context)
+
+    @property
+    def date_for_sorting(self):
+        data_modified_list = list()
+        for data_source in self.data_sources:
+            source_data_modified = data_source.source_data_modified
+            if source_data_modified:
+                data_modified_list.append(source_data_modified)
+            else:
+                data_modified = data_source.data_modified
+                if data_modified:
+                    data_modified_list.append(data_modified)
+                else:
+                    data_modified_list.append(self.created)
+        if len(data_modified_list):
+            return max(data_modified_list)
+        return super().date_for_sorting
+
+    def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
+        assert threading.current_thread() == threading.main_thread()
+        display_specifier = DisplaySpecifier.from_data_item(self)
+        assert display_specifier.buffered_data_source and display_specifier.display
+        with self.data_item_changes():
+            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            self.timezone = Utility.get_local_timezone()
+            self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
     def __handle_data_changed(self, data_source):
         self.timezone = Utility.get_local_timezone()
@@ -1436,10 +1471,10 @@ class DataItem(LibraryItem):
             data_source.increment_data_ref_count()
         def data_item_changed():
             if not self._is_reading:
-                self._mark_write_delay_data_changed()
-                self.notify_data_item_content_changed()
+                self.__write_delay_data_changed = True
+                self._notify_library_item_content_changed()
         self.__data_item_changed_event_listeners.insert(before_index, data_source.data_item_changed_event.listen(data_item_changed))
-        self.notify_data_item_content_changed()
+        self._notify_library_item_content_changed()
         # the document model watches for new data sources via observing.
         # send this message to make data_sources observable.
         self.notify_insert_item("data_sources", data_source, before_index)
@@ -1470,6 +1505,46 @@ class DataItem(LibraryItem):
     def remove_data_source(self, data_source):
         """Remove display, but do it through the container, so dependencies can be tracked."""
         self.remove_model_item(self, "data_sources", data_source)
+
+    @property
+    def computation(self) -> typing.Optional[Symbolic.Computation]:
+        return self.maybe_data_source.computation if self.maybe_data_source else None
+
+    @property
+    def maybe_data_source(self) -> typing.Optional[BufferedDataSource]:
+        return self.data_sources[0] if len(self.data_sources) == 1 else None
+
+    @property
+    def size_and_data_format_as_string(self):
+        data_source_count = len(self.data_sources)
+        if data_source_count == 0:
+            return _("No Data")
+        elif data_source_count == 1:
+            return self.maybe_data_source.size_and_data_format_as_string
+        else:
+            return _("Multiple Data Sources ({0})".format(data_source_count))
+
+    def increment_data_ref_counts(self):
+        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
+        super().increment_data_ref_counts()
+        for data_source in self.data_sources:
+            assert isinstance(data_source, BufferedDataSource)
+            data_source.increment_data_ref_count()
+
+    def decrement_data_ref_counts(self):
+        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
+        super().decrement_data_ref_counts()
+        for data_source in self.data_sources:
+            assert isinstance(data_source, BufferedDataSource)
+            data_source.decrement_data_ref_count()
+
+    # primary display
+
+    @property
+    def primary_display_specifier(self):
+        if len(self.data_sources) == 1:
+            return DisplaySpecifier(self, self.data_sources[0], self.data_sources[0].displays[0])
+        return DisplaySpecifier()
 
     def _update_timezone(self):
         for data_source in self.data_sources:
@@ -1539,7 +1614,3 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
     data_item.append_data_source(buffered_data_source)
     buffered_data_source.set_data_and_metadata(data_and_metadata)
     return data_item
-
-
-# preparation for library item branch
-CompositeLibraryItem = DataItem
