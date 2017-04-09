@@ -459,8 +459,8 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                 logging.info("Warning: Duplicate data item %s", data_item.uuid)
                             data_items_by_uuid[data_item.uuid] = data_item
                         else:
-                            data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-                            data_item.large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                            large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                            data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
                             data_item.begin_reading()
                             persistent_storage = DataItemStorage(storage_handler=storage_handler, data_item=data_item, properties=properties)
                             data_item.read_from_dict(persistent_storage.properties)
