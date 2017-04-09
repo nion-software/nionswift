@@ -975,6 +975,10 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
                 persistent_storage.write_delayed = False
             self._finish_pending_write()
 
+    def _finish_write(self):
+        if self.maybe_data_source:
+            self.persistent_object_context.rewrite_data_item_data(self)
+
     def _finish_pending_write(self):
         if self.__pending_write:
             self.persistent_object_context.write_data_item(self)
@@ -1015,6 +1019,48 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         super().persistent_object_context_changed()
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
+
+    def fire_computation_changed_or_mutated_event(self):
+        if self.maybe_data_source:
+            self.computation_changed_or_mutated_event.fire(self, self.maybe_data_source.computation)
+
+    def update_and_bind_computation(self, computation_context):
+        for buffered_data_source in self.data_sources:
+            computation = buffered_data_source.computation
+            if computation:
+                try:
+                    self.__update_computation(computation, computation_context._processing_descriptions)
+                    computation.bind(computation_context)
+                except Exception as e:
+                    print(str(e))
+
+    def __update_computation(self, computation: Symbolic.Computation, processing_descriptions) -> None:
+        processing_id = computation.processing_id
+        processing_description = processing_descriptions.get(processing_id)
+        if processing_description:
+            src_names = list()
+            src_texts = list()
+            source_dicts = processing_description["sources"]
+            for i, source_dict in enumerate(source_dicts):
+                src_names.append(source_dict["name"])
+                data_expression = source_dict["name"] + (".display_xdata" if source_dict.get("use_display_data", True) else ".xdata")
+                if source_dict.get("croppable", False):
+                    crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
+                    if computation._has_variable(crop_region_variable_name):
+                        data_expression = "xd.crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
+                src_texts.append(data_expression)
+            script = processing_description.get("script")
+            if not script:
+                expression = processing_description.get("expression")
+                if expression:
+                    script = Symbolic.xdata_expression(expression)
+            script = script.format(**dict(zip(src_names, src_texts)))
+            computation._get_persistent_property("original_expression").value = script
+
+    def data_item_was_inserted(self, computation_context):
+        for data_source in self.data_sources:
+            if data_source.computation:
+                data_source.computation.bind(computation_context)
 
     def _test_get_file_path(self):
         if self.persistent_object_context:
@@ -1421,3 +1467,7 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
     data_item.append_data_source(buffered_data_source)
     buffered_data_source.set_data_and_metadata(data_and_metadata)
     return data_item
+
+
+# preparation for library item branch
+CompositeLibraryItem = DataItem

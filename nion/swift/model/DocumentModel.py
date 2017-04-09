@@ -448,16 +448,27 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                             storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
                         # NOTE: Search for to-do 'file format' to gather together 'would be nice' changes
                         # NOTE: change writer_version in DataItem.py
-                        data_item = DataItem.DataItem(item_uuid=data_item_uuid)
-                        data_item.large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
-                        data_item.begin_reading()
-                        persistent_storage = DataItemStorage(storage_handler=storage_handler, data_item=data_item, properties=properties)
-                        data_item.read_from_dict(persistent_storage.properties)
-                        self._set_persistent_storage_for_object(data_item, persistent_storage)
-                        data_item.persistent_object_context = self
-                        if self.__log_migrations and data_item.uuid in data_items_by_uuid:
-                            logging.info("Warning: Duplicate data item %s", data_item.uuid)
-                        data_items_by_uuid[data_item.uuid] = data_item
+                        if len(properties.get("data_item_uuids", list())) > 0:
+                            data_item = DataItem.CompositeLibraryItem(item_uuid=data_item_uuid)
+                            data_item.begin_reading()
+                            persistent_storage = DataItemStorage(storage_handler=storage_handler, data_item=data_item, properties=properties)
+                            data_item.read_from_dict(persistent_storage.properties)
+                            self._set_persistent_storage_for_object(data_item, persistent_storage)
+                            data_item.persistent_object_context = self
+                            if self.__log_migrations and data_item.uuid in data_items_by_uuid:
+                                logging.info("Warning: Duplicate data item %s", data_item.uuid)
+                            data_items_by_uuid[data_item.uuid] = data_item
+                        else:
+                            data_item = DataItem.DataItem(item_uuid=data_item_uuid)
+                            data_item.large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
+                            data_item.begin_reading()
+                            persistent_storage = DataItemStorage(storage_handler=storage_handler, data_item=data_item, properties=properties)
+                            data_item.read_from_dict(persistent_storage.properties)
+                            self._set_persistent_storage_for_object(data_item, persistent_storage)
+                            data_item.persistent_object_context = self
+                            if self.__log_migrations and data_item.uuid in data_items_by_uuid:
+                                logging.info("Warning: Duplicate data item %s", data_item.uuid)
+                            data_items_by_uuid[data_item.uuid] = data_item
             except Exception as e:
                 logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
@@ -983,14 +994,13 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         # write the uuid and version explicitly
         self.property_changed(data_item, "uuid", str(data_item.uuid))
         self.property_changed(data_item, "version", DataItem.DataItem.writer_version)
-        if data_item.maybe_data_source:
-            self.rewrite_data_item_data(data_item)
+        data_item._finish_write()
 
     def rewrite_data_item_properties(self, data_item):
         persistent_storage = self._ensure_persistent_storage(data_item)
         persistent_storage.update_properties()
 
-    def rewrite_data_item_data(self, data_item):
+    def rewrite_data_item_data(self, data_item: DataItem.DataItem) -> None:
         persistent_storage = self._ensure_persistent_storage(data_item)
         persistent_storage.update_data(data_item.maybe_data_source.data)
 
@@ -1152,17 +1162,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item in data_items:
             data_item.finish_reading()
         for data_item in data_items:
-            if data_item.maybe_data_source:
-                self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source.computation)
+            data_item.fire_computation_changed_or_mutated_event()
         for data_item in data_items:
-            for buffered_data_source in data_item.data_sources:
-                computation = buffered_data_source.computation
-                if computation:
-                    try:
-                        self.update_computation(computation)
-                        computation.bind(self)
-                    except Exception as e:
-                        print(str(e))
+            data_item.update_and_bind_computation(self)
             data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
         # # initialize data item references
         data_item_references_dict = self._get_persistent_property_value("data_item_references")
@@ -1299,17 +1301,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item._finish_pending_write()  # initially write to disk
         self.__data_item_request_remove_region[data_item.uuid] = data_item.request_remove_region_event.listen(self.__remove_region_specifier)
         self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
-        if data_item.maybe_data_source:
-            self.__handle_computation_changed_or_mutated(data_item, data_item.maybe_data_source.computation)
+        data_item.fire_computation_changed_or_mutated_event()
         self.__data_item_request_remove_data_item_listeners[data_item.uuid] = data_item.request_remove_data_item_event.listen(self.__request_remove_data_item)
         self.__data_item_data_changed_listeners[data_item.uuid] = data_item.data_item_data_changed_event.listen(self.__handle_data_item_data_changed)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
         # handle computation
-        for data_source in data_item.data_sources:
-            if data_source.computation:
-                data_source.computation.bind(self)
+        data_item.data_item_was_inserted(self)
 
     def remove_data_item(self, data_item):
         """Remove data item from document model.
@@ -2371,31 +2370,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         buffered_data_source.set_computation(computation)
 
         return new_data_item
-
-    def update_computation(self, computation: Symbolic.Computation) -> None:
-        if computation:
-            processing_descriptions = self._processing_descriptions
-            processing_id = computation.processing_id
-            processing_description = processing_descriptions.get(processing_id)
-            if processing_description:
-                src_names = list()
-                src_texts = list()
-                source_dicts = processing_description["sources"]
-                for i, source_dict in enumerate(source_dicts):
-                    src_names.append(source_dict["name"])
-                    data_expression = source_dict["name"] + (".display_xdata" if source_dict.get("use_display_data", True) else ".xdata")
-                    if source_dict.get("croppable", False):
-                        crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
-                        if computation._has_variable(crop_region_variable_name):
-                            data_expression = "xd.crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
-                    src_texts.append(data_expression)
-                script = processing_description.get("script")
-                if not script:
-                    expression = processing_description.get("expression")
-                    if expression:
-                        script = Symbolic.xdata_expression(expression)
-                script = script.format(**dict(zip(src_names, src_texts)))
-                computation._get_persistent_property("original_expression").value = script
 
     _processing_descriptions = dict()
     _builtin_processing_descriptions = None

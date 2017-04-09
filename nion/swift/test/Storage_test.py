@@ -2796,7 +2796,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item0)
-            data_item = DataItem.DataItem()
+            data_item = DataItem.CompositeLibraryItem()
             data_item.append_data_item(data_item0)
             document_model.append_data_item(data_item)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])

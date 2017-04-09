@@ -1052,7 +1052,7 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            master_data_item = DataItem.DataItem()
+            master_data_item = DataItem.CompositeLibraryItem()
             master_data_item.append_data_item(document_model.data_items[0])
             master_data_item.append_data_item(document_model.data_items[1])
             document_model.append_data_item(master_data_item)
@@ -1069,7 +1069,7 @@ class TestDataItemClass(unittest.TestCase):
         with contextlib.closing(document_model):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((4, 4))))
-            master_data_item = DataItem.DataItem()
+            master_data_item = DataItem.CompositeLibraryItem()
             master_data_item.append_data_item(document_model.data_items[0])
             master_data_item.append_data_item(document_model.data_items[1])
             document_model.append_data_item(master_data_item)
