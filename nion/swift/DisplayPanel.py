@@ -1287,7 +1287,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
             self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self._data_item, Delegate(), display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
             self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
-        else:
+        elif self.__data_item is not None:
             self.__data_item_display_canvas_item.insert_canvas_item(0, MissingDataCanvasItem(self, self._data_item))
         if self.__data_item_display_canvas_item:
             self.__data_item_display_canvas_item.update()
