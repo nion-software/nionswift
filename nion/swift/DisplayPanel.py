@@ -823,6 +823,7 @@ class DataItemDisplayTypeMonitor:
         self.display_type_changed_event = Event.Event()
         self.__display_changed_event_listener = None
         self.__display_type = None
+        self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
 
     def close(self):
         if self.__display_changed_event_listener:
@@ -834,9 +835,10 @@ class DataItemDisplayTypeMonitor:
         return self.__display_type
 
     def __set_display_type(self, display_type):
-        if self.__display_type != display_type:
+        if self.__display_type != display_type or self.__first:
             self.__display_type = display_type
             self.display_type_changed_event.fire(display_type)
+            self.__first = False
 
     def set_data_item(self, data_item):
         if self.__display_changed_event_listener:
@@ -918,6 +920,39 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
                 thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
+
+
+class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
+    """ Canvas item to draw background_color. """
+    def __init__(self, display_panel_content, data_item):
+        super().__init__()
+        self.__display_panel_content = display_panel_content
+        self.__data_item = data_item
+
+    def context_menu_event(self, x, y, gx, gy):
+        document_controller = self.__display_panel_content.document_controller
+        document_model = document_controller.document_model
+        menu = document_controller.create_context_menu_for_data_item(self.__data_item, container=document_model)
+        return self.__display_panel_content.show_context_menu(menu, gx, gy)
+
+    def _repaint(self, drawing_context):
+        # canvas size
+        canvas_width = self.canvas_size[1]
+        canvas_height = self.canvas_size[0]
+        drawing_context.save()
+        drawing_context.begin_path()
+        drawing_context.rect(0, 0, canvas_width, canvas_height)
+        drawing_context.fill_style = "#CCC"
+        drawing_context.fill()
+        drawing_context.begin_path()
+        drawing_context.rect(0, 0, canvas_width, canvas_height)
+        drawing_context.move_to(0, 0)
+        drawing_context.line_to(canvas_width, canvas_height)
+        drawing_context.move_to(0, canvas_height)
+        drawing_context.line_to(canvas_width, 0)
+        drawing_context.stroke_style = "#444"
+        drawing_context.stroke()
+        drawing_context.restore()
 
 
 class DataDisplayPanelContent(BaseDisplayPanelContent):
@@ -1184,8 +1219,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     def __display_type_changed(self, display_type):
         # called when the display type of the data item changes.
+        if len(self.__data_item_display_canvas_item.canvas_items) > 1:
+            self.__data_item_display_canvas_item.remove_canvas_item(self.__data_item_display_canvas_item.canvas_items[0])
         if self.__display_canvas_item_delegate:
-            self.__data_item_display_canvas_item.remove_canvas_item(self.__display_canvas_item_delegate.display_canvas_item)
             self.__display_canvas_item_delegate.close()
             self.__display_canvas_item_delegate = None
         display_panel_content = self
@@ -1251,6 +1287,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
             self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self._data_item, Delegate(), display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
             self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
+        else:
+            self.__data_item_display_canvas_item.insert_canvas_item(0, MissingDataCanvasItem(self, self._data_item))
         if self.__data_item_display_canvas_item:
             self.__data_item_display_canvas_item.update()
 
