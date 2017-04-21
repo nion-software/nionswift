@@ -189,7 +189,6 @@ class AcquisitionTask:
         is_finished: whether acquisition has finished or not
 
     Finally, the caller can listen to the following events:
-        finished_event(): fired when acquisition is finished, successful or not
         data_elements_changed_event(data_elements, is_continuous, view_id, is_complete, is_stopping):
             fired when data elements change. the state of acquisition is passed too.
 
@@ -219,13 +218,13 @@ class AcquisitionTask:
         self._test_acquire_hook = None
         self.start_event = Event.Event()
         self.stop_event = Event.Event()
-        self.finished_event = Event.Event()
         self.data_elements_changed_event = Event.Event()
+        self.finished_callback_fn = None  # hack to determine when 'record' mode finishes.
+        self.__data_elements = None
 
     def __mark_as_finished(self):
         self.__finished = True
         self.data_elements_changed_event.fire(list(), self.__view_id, False, self.__is_stopping)
-        self.finished_event.fire()
 
     # called from the hardware source
     # note: abort, suspend and execute are always called from the same thread, ensuring that
@@ -695,7 +694,7 @@ class HardwareSource:
 
     # data_elements is a list of data_elements; may be an empty list
     # thread safe
-    def __data_elements_changed(self, data_elements, view_id, is_complete, is_stopping):
+    def __data_elements_changed(self, task, data_elements, view_id, is_complete, is_stopping):
         xdatas = list()
         data_channels = list()
         for data_element in data_elements:
@@ -729,6 +728,9 @@ class HardwareSource:
         self.data_channel_states_updated.fire(data_channels)
         if is_complete:
             self.xdatas_available_event.fire(xdatas)
+            # hack to allow record to know when its data is finished
+            if callable(task.finished_callback_fn):
+                task.finished_callback_fn(xdatas)
 
     def __start(self):
         for data_channel in self.__data_channels:
@@ -748,7 +750,7 @@ class HardwareSource:
         assert not task in self.__tasks.values()
         assert not task_id in self.__tasks
         assert task_id in ('idle', 'view', 'record')
-        self.__data_elements_changed_event_listeners[task_id] = task.data_elements_changed_event.listen(self.__data_elements_changed)
+        self.__data_elements_changed_event_listeners[task_id] = task.data_elements_changed_event.listen(functools.partial(self.__data_elements_changed, task))
         self.__start_event_listeners[task_id] = task.start_event.listen(self.__start)
         self.__stop_event_listeners[task_id] = task.stop_event.listen(self.__stop)
         self.__tasks[task_id] = task
@@ -820,9 +822,10 @@ class HardwareSource:
 
     # call this to start acquisition
     # thread safe
-    def start_recording(self, sync_timeout=None):
+    def start_recording(self, sync_timeout=None, finished_callback_fn=None):
         if not self.is_recording:
             record_task = self._create_acquisition_record_task()
+            record_task.finished_callback_fn = finished_callback_fn
             self._record_task_updated(record_task)
             self.start_task('record', record_task)
         if sync_timeout is not None:

@@ -1103,7 +1103,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_data_changed_listeners = dict()
         self.__data_item_references = dict()
         self.__recompute_lock = threading.RLock()
-        self.__recompute_finished_event = Event.Event()
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
         self.__computation_active_items = list()  # type: typing.List[ComputationQueueItem]
