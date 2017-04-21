@@ -267,6 +267,8 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         script_name = os.path.basename(script_path)
 
+        self.title = os.path.splitext(script_name)[0]
+
         with open(script_path) as f:
             script = f.read()
 
