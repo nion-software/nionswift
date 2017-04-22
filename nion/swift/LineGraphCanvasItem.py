@@ -60,8 +60,6 @@ class LineGraphDataInfo:
         self.__x_axis_valid = False
         self.__y_axis_valid = False
         # y-axis
-        self.__y_tick_precision = None
-        self.__y_tick_values = None
         self.__uncalibrated_data_min = None
         self.__uncalibrated_data_max = None
         self.__calibrated_data_min = None
@@ -131,19 +129,19 @@ class LineGraphDataInfo:
             calibrated_data_min = 0.0 if calibrated_data_min > 0 and not min_specified else calibrated_data_min
             calibrated_data_max = 0.0 if calibrated_data_max < 0 and not max_specified else calibrated_data_max
 
-            graph_minimum, graph_maximum, tick_values, division, precision = Geometry.make_pretty_range(calibrated_data_min, calibrated_data_max)
+            logarithmic = self.data_style == "log"
+            ticker = Geometry.Ticker(calibrated_data_min, calibrated_data_max, logarithmic=logarithmic)
 
             if min_specified:
                 self.__calibrated_data_min = calibrated_data_min
             else:
-                self.__calibrated_data_min = graph_minimum if calibration else graph_minimum
+                self.__calibrated_data_min = ticker.minimum
             if max_specified:
                 self.__calibrated_data_max = calibrated_data_max
             else:
-                self.__calibrated_data_max = graph_maximum if calibration else graph_maximum
+                self.__calibrated_data_max = ticker.maximum
 
-            self.__y_tick_precision = precision
-            self.__y_tick_values = tick_values
+            self.__y_ticker = ticker
 
             if self.data_style == "log":
                 self.__uncalibrated_data_min = math.pow(10, self.__calibrated_data_min)
@@ -167,18 +165,15 @@ class LineGraphDataInfo:
         calibrated_data_max = y_properties.calibrated_data_max
         calibrated_data_range = calibrated_data_max - calibrated_data_min
 
+        ticker = y_properties.ticker
         y_ticks = list()
-        for tick_value in y_properties.y_tick_values:
-            data_tick = tick_value
-            tick_value = math.pow(10.0, tick_value) if self.data_style == "log" else tick_value
-            label = nice_label(tick_value, y_properties.y_tick_precision)
-            # data_tick = calibration.convert_from_calibrated_value(tick_value) if calibration else tick_value
+        for tick_value, tick_label in zip(ticker.values, ticker.labels):
             if calibrated_data_range != 0.0:
-                y_tick = plot_height - plot_height * (data_tick - calibrated_data_min) / calibrated_data_range
+                y_tick = plot_height - plot_height * (tick_value - calibrated_data_min) / calibrated_data_range
             else:
                 y_tick = plot_height - plot_height * 0.5
             if y_tick >= 0 and y_tick <= plot_height:
-                y_ticks.append((y_tick, label))
+                y_ticks.append((y_tick, tick_label))
 
         return y_ticks
 
@@ -186,13 +181,9 @@ class LineGraphDataInfo:
     def y_properties(self):
         if self.uncalibrated_data is None:
             return None
-        y_properties = collections.namedtuple("YProperties",
-                                              ["y_tick_precision", "y_tick_values", "calibrated_data_min",
-                                                  "calibrated_data_max", "uncalibrated_data_min",
-                                                  "uncalibrated_data_max"])
+        y_properties = collections.namedtuple("YProperties", ["ticker", "calibrated_data_min", "calibrated_data_max", "uncalibrated_data_min", "uncalibrated_data_max"])
         self.__prepare_y_axis()
-        return y_properties(self.__y_tick_precision, self.__y_tick_values, self.__calibrated_data_min,
-                            self.__calibrated_data_max, self.__uncalibrated_data_min, self.__uncalibrated_data_max)
+        return y_properties(self.__y_ticker, self.__calibrated_data_min, self.__calibrated_data_max, self.__uncalibrated_data_min, self.__uncalibrated_data_max)
 
     def uncalibrate_y(self, uncalibrated_y_value):
         calibration = self.intensity_calibration
@@ -861,9 +852,9 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
             max_width = 0
             y_range = y_properties.calibrated_data_max - y_properties.calibrated_data_min
-            label = nice_label(y_properties.calibrated_data_max + y_range * 5, y_properties.y_tick_precision)
+            label = y_properties.ticker.value_label(y_properties.calibrated_data_max + y_range * 5)
             max_width = max(max_width, get_font_metrics_fn(font, label).width)
-            label = nice_label(y_properties.calibrated_data_min - y_range * 5, y_properties.y_tick_precision)
+            label = y_properties.ticker.value_label(y_properties.calibrated_data_min - y_range * 5)
             max_width = max(max_width, get_font_metrics_fn(font, label).width)
 
             self.sizing.minimum_width = max_width
