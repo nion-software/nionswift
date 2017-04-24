@@ -904,9 +904,9 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
     def set_data_item(self, data_item):
         self.__data_item = data_item
         while len(self.__source_thumbnails.canvas_items) > 0:
-            self.__source_thumbnails._remove_canvas_item(self.__source_thumbnails.canvas_items[-1], refresh_layout=False)
+            self.__source_thumbnails._remove_canvas_item(self.__source_thumbnails.canvas_items[-1])
         while len(self.__dependent_thumbnails.canvas_items) > 0:
-            self.__dependent_thumbnails._remove_canvas_item(self.__dependent_thumbnails.canvas_items[-1], refresh_layout=False)
+            self.__dependent_thumbnails._remove_canvas_item(self.__dependent_thumbnails.canvas_items[-1])
         # self.__source_thumbnails.remove_all_canvas_items()
         # self.__dependent_thumbnails.remove_all_canvas_items()
         if data_item is not None:
