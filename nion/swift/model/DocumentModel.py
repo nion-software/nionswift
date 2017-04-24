@@ -749,6 +749,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     dst_adjust = int(dst_value)
                     tz_value = datetime_original.get("tz", "+0000")
                     tz_adjust = int(tz_value[0:3]) * 60 + int(tz_value[3:5]) * (-1 if tz_value[0] == '-1' else 1)
+                    timezone = datetime_original.get("timezone")
                     local_datetime = Utility.get_datetime_from_datetime_item(datetime_original)
                     if not local_datetime:
                         local_datetime = datetime.datetime.utcnow()
@@ -759,6 +760,8 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     time_zone_dict = description_metadata.setdefault("time_zone", dict())
                     time_zone_dict["dst"] = dst_value
                     time_zone_dict["tz"] = tz_value
+                    if timezone is not None:
+                        time_zone_dict["timezone"] = timezone
                     properties.pop("datetime_original", None)
                     properties.pop("datetime_modified", None)
                     properties["version"] = 8

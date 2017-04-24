@@ -24,6 +24,7 @@ from nion.swift import Thumbnails
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Utility
 from nion.ui import TestUI
 from nion.utils import Recorder
 
@@ -55,6 +56,8 @@ class TestDataItemClass(unittest.TestCase):
         data_item = DataItem.DataItem(data)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         data_item.title = "data_item"
+        data_item.timezone = "Europe/Athens"
+        data_item.timezone_offset = "+0300"
         metadata = data_item.metadata
         metadata.setdefault("test", dict())["one"] = 1
         metadata.setdefault("test", dict())["two"] = 22
@@ -76,6 +79,8 @@ class TestDataItemClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.buffered_data_source.displays), len(display_specifier2.buffered_data_source.displays))
         # tuples and strings are immutable, so test to make sure old/new are independent
         self.assertEqual(data_item.title, data_item_copy.title)
+        self.assertEqual(data_item.timezone, data_item_copy.timezone)
+        self.assertEqual(data_item.timezone_offset, data_item_copy.timezone_offset)
         data_item.title = "data_item1"
         self.assertNotEqual(data_item.title, data_item_copy.title)
         self.assertEqual(display_specifier.display.display_limits, display_specifier2.display.display_limits)
@@ -628,6 +633,14 @@ class TestDataItemClass(unittest.TestCase):
         data_item_copy = data_item.snapshot()
         self.assertEqual(data_item_copy.metadata.get("test")["one"], 1)
 
+    def test_snapshot_should_copy_timezone(self):
+        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+        data_item.timezone = "Europe/Athens"
+        data_item.timezone_offset = "+0300"
+        data_item_copy = data_item.snapshot()
+        self.assertEqual(data_item.timezone, data_item_copy.timezone)
+        self.assertEqual(data_item.timezone_offset, data_item_copy.timezone_offset)
+
     def test_data_item_allows_adding_of_two_data_sources(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -1159,6 +1172,41 @@ class TestDataItemClass(unittest.TestCase):
             data_item_clone.title = "Firefly"
             data_item_clone_recorder.apply(data_item)
             self.assertEqual(data_item.title, data_item_clone.title)
+
+    def test_timezone_is_stored_on_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            try:
+                Utility.local_timezone_override = ["Europe/Athens"]
+                Utility.local_utcoffset_override = [180]
+                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                document_model.append_data_item(data_item)
+                self.assertEqual(data_item.timezone, "Europe/Athens")
+                self.assertEqual(data_item.timezone_offset, "+0300")
+            finally:
+                Utility.local_timezone_override = None
+                Utility.local_utcoffset_override = None
+
+    def test_timezone_is_encapsulated_in_data_and_metadata(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            try:
+                Utility.local_timezone_override = ["Europe/Athens"]
+                Utility.local_utcoffset_override = [180]
+                data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+                document_model.append_data_item(data_item)
+                xdata = data_item.maybe_data_source.data_and_metadata
+                self.assertEqual(xdata.timezone, "Europe/Athens")
+                self.assertEqual(xdata.timezone_offset, "+0300")
+                Utility.local_timezone_override = ["America/Los_Angeles"]
+                Utility.local_utcoffset_override = [-420]
+                data_item.maybe_data_source.set_data(numpy.zeros((10, 10)))
+                xdata = data_item.maybe_data_source.data_and_metadata
+                self.assertEqual(xdata.timezone, "America/Los_Angeles")
+                self.assertEqual(xdata.timezone_offset, "-0700")
+            finally:
+                Utility.local_timezone_override = None
+                Utility.local_utcoffset_override = None
 
     # modify property/item/relationship on data source, display, region, etc.
     # copy or snapshot

@@ -35,10 +35,20 @@ class TestImportExportManagerClass(unittest.TestCase):
         self.assertEqual(data_item.metadata["description"]["time_zone"]["tz"], data_element["datetime_modified"]["tz"])
         self.assertEqual(data_item.metadata["description"]["time_zone"]["dst"], data_element["datetime_modified"]["dst"])
 
+    def test_convert_data_element_sets_timezone_and_timezone_offset_if_present(self):
+        data_element = dict()
+        data_element["version"] = 1
+        data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
+        data_element["datetime_modified"] = {'tz': '+0300', 'dst': '+60', 'local_datetime': '2015-06-10T19:31:52.780511', 'timezone': 'Europe/Athens'}
+        data_item = ImportExportManager.create_data_item_from_data_element(data_element)
+        self.assertIsNotNone(data_item.created)
+        self.assertEqual(data_item.timezone, "Europe/Athens")
+        self.assertEqual(data_item.timezone_offset, "+0300")
+
     def test_date_formats(self):
         data_item = DataItem.DataItem()
         data_item.created = datetime.datetime(2013, 11, 18, 14, 5, 4, 0)
-        data_item.created_local_as_string
+        self.assertIsNotNone(data_item.created_local_as_string)
 
     def test_sub_area_size_change(self):
         data_element = dict()
@@ -161,11 +171,13 @@ class TestImportExportManagerClass(unittest.TestCase):
     def test_data_item_to_data_element_includes_time_zone(self):
         # created/modified are utc; timezone is specified in metadata/description/time_zone
         data_item = DataItem.DataItem(numpy.zeros((16, 16)))
-        data_item.created = datetime.datetime(2013, 11, 18, 14, 5, 4, 0)  # always utc
-        data_item._set_modified(datetime.datetime(2013, 11, 18, 14, 5, 4, 0))  # always utc
+        data_item.created = datetime.datetime(2013, 6, 18, 14, 5, 4, 0)  # always utc
+        data_item.timezone = "Europe/Athens"
+        data_item.timezone_offset = "+0300"
+        data_item._set_modified(datetime.datetime(2013, 6, 18, 14, 5, 4, 0))  # always utc
         data_item.metadata = {"description": {"time_zone": {"tz": "+0300", "dst": "+60"}}}
         data_element = ImportExportManager.create_data_element_from_data_item(data_item, include_data=False)
-        self.assertEqual(data_element["datetime_modified"], {"dst": "+60", "local_datetime": "2013-11-18T17:05:04", 'tz': "+0300"})
+        self.assertEqual(data_element["datetime_modified"], {"dst": "+60", "local_datetime": "2013-06-18T17:05:04", 'tz': "+0300", 'timezone': "Europe/Athens"})
 
     def test_extended_data_to_data_element_includes_time_zone(self):
         # extended data timestamp is utc; timezone is specified in metadata/description/time_zone

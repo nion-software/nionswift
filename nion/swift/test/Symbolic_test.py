@@ -21,6 +21,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
+from nion.swift.model import Utility
 from nion.ui import TestUI
 from nion.utils import Geometry
 
@@ -1424,6 +1425,32 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.remove_data_item(data_item)
             document_model.recompute_all()
+
+    def test_computation_updates_timezone(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            try:
+                src_data = numpy.random.randn(2, 2)
+                data_item = DataItem.DataItem(src_data)
+                document_model.append_data_item(data_item)
+                computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
+                computation.create_object("a", document_model.get_object_specifier(data_item))
+                Utility.local_timezone_override = [None]
+                Utility.local_utcoffset_override = [0]
+                computed_data_item = DataItem.DataItem(src_data.copy())
+                computed_data_item.maybe_data_source.set_computation(computation)
+                document_model.append_data_item(computed_data_item)
+                self.assertIsNone(computed_data_item.timezone)
+                self.assertEqual(computed_data_item.timezone_offset, "+0000")
+                Utility.local_timezone_override = ["Europe/Athens"]
+                Utility.local_utcoffset_override = [180]
+                document_model.recompute_all()
+                self.assertEqual(computed_data_item.timezone, "Europe/Athens")
+                self.assertEqual(computed_data_item.timezone_offset, "+0300")
+            finally:
+                Utility.local_timezone_override = None
+                Utility.local_utcoffset_override = None
 
     def disabled_test_reshape_rgb(self):
         assert False

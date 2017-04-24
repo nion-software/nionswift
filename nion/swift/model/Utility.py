@@ -17,13 +17,13 @@ import numpy
 # None
 
 
-# dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
+# datetimes are _local_ datetimes and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
 # time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
-# time zone name is for display only and has no specified format
+# timezone is for conversion and is the Olson timezone string.
 # datetime_item is a dictionary with entries for the local_datetime, tz (timezone offset), and
 # dst (daylight savings time offset). it may optionally include tz_name (timezone name), if available.
-def get_datetime_item_from_datetime(datetime_local, tz_minutes=None, dst_minutes=None):
+def get_datetime_item_from_datetime(datetime_local, tz_minutes=None, dst_minutes=None, timezone=None):
     # dst is information, tz already includes dst
     datetime_item = dict()
     datetime_item["local_datetime"] = datetime_local.isoformat()
@@ -33,6 +33,8 @@ def get_datetime_item_from_datetime(datetime_local, tz_minutes=None, dst_minutes
         dst_minutes = 60 if time.localtime().tm_isdst else 0
     datetime_item["tz"] = '{0:+03d}{1:02d}'.format(tz_minutes // 60, tz_minutes % 60)
     datetime_item["dst"] = "+{0:02d}".format(dst_minutes)
+    if timezone is not None:
+        datetime_item["timezone"] = timezone
     return datetime_item
 
 
@@ -40,20 +42,40 @@ def get_current_datetime_item():
     return get_datetime_item_from_datetime(datetime.datetime.now())
 
 
-def get_datetime_item_from_utc_datetime(datetime_utc, tz_minutes=None, dst_minutes=None):
+def get_datetime_item_from_utc_datetime(datetime_utc, tz_minutes=None, dst_minutes=None, timezone=None):
     # dst is information, tz already includes dst
     if tz_minutes is None:
         tz_minutes = int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
-    return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes), tz_minutes, dst_minutes)
+    return get_datetime_item_from_datetime(datetime_utc + datetime.timedelta(minutes=tz_minutes), tz_minutes, dst_minutes, timezone)
 
+local_utcoffset_override = None  # for testing
 try:
     import pytz.reference
     def local_utcoffset_minutes(datetime_local:datetime.datetime=None) -> int:
+        if local_utcoffset_override is not None:
+            return local_utcoffset_override[0]
         datetime_local = datetime_local if datetime_local else datetime.datetime.now()
         return int(pytz.reference.LocalTimezone().utcoffset(datetime_local).total_seconds() // 60)
 except ImportError:
     def local_utcoffset_minutes(datetime_local:datetime.datetime=None) -> int:
+        if local_utcoffset_override is not None:
+            return local_utcoffset_override[0]
         return int(round((datetime.datetime.now() - datetime.datetime.utcnow()).total_seconds())) // 60
+
+class TimezoneMinutesToStringConverter:
+    def convert(self, value):
+        return "{0:+03d}{1:02d}".format(value // 60, value % 60) if value is not None else None
+    def convert_back(self, value):
+        return (int(value[1:3]) * 60 + int(value[3:5])) * (-1 if value[0] == '-' else 1) if value is not None else None
+
+local_timezone_override = None  # for testing
+try:
+    import tzlocal
+    def get_local_timezone():
+        return tzlocal.get_localzone().zone if local_timezone_override is None else local_timezone_override[0]
+except ImportError:
+    def get_local_timezone():
+        return None if local_timezone_override is None else local_timezone_override[0]
 
 # return python datetime object from a datetime_item. may return None if the datetime element is
 # not properly formatted.

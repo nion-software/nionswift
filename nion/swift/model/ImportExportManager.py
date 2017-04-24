@@ -240,7 +240,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
         # time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
         # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
-        # time zone name is for display only and has no specified format
+        # timezone is for conversion and is the Olson timezone string.
         # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
         # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
         # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
@@ -251,8 +251,15 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
             buffered_data_source.created = utc_datetime
         if "time_zone" in data_and_metadata.metadata.get("description", dict()):
             metadata = data_item.metadata
-            metadata.setdefault("description", dict())["time_zone"] = copy.deepcopy(data_and_metadata.metadata["description"]["time_zone"])
+            timezone_dict = copy.deepcopy(data_and_metadata.metadata["description"]["time_zone"])
+            metadata.setdefault("description", dict())["time_zone"] = timezone_dict
             data_item.metadata = metadata
+            timezone = timezone_dict.get("timezone")
+            if timezone is not None:
+                data_item.timezone = timezone
+            timezone_offset = timezone_dict.get("tz")
+            if timezone_offset is not None:
+                data_item.timezone_offset = timezone_offset
         # author
         # sample
         # facility
@@ -330,7 +337,7 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
     # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
     # time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
     # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
-    # time zone name is for display only and has no specified format
+    # timezone is for conversion and is the Olson timezone string.
     # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
     # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
     # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
@@ -340,7 +347,10 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
         local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)
         dst_value = datetime_item.get("dst", "+00")
         tz_value = datetime_item.get("tz", "+0000")
+        timezone = datetime_item.get("timezone")
         time_zone = { "dst": dst_value, "tz": tz_value}
+        if timezone is not None:
+            time_zone["timezone"] = timezone
         # note: dst is informational only; tz already include dst
         tz_adjust = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
         utc_datetime = local_datetime - datetime.timedelta(minutes=tz_adjust)  # tz_adjust already contains dst_adjust
@@ -377,16 +387,21 @@ def create_data_element_from_data_item(data_item, include_data=True):
         data_element["properties"] = copy.deepcopy(buffered_data_source.metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
-        tz_minutes = None
+        tz_value = data_item.timezone_offset
+        timezone = data_item.timezone
         dst_minutes = None
         time_zone_dict = data_item.metadata.get("description", dict()).get("time_zone")
         if time_zone_dict:
             # note: dst is informational only; tz already include dst
-            tz_value = time_zone_dict["tz"]
-            tz_minutes = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
+            if tz_value is None:
+                tz_value = time_zone_dict["tz"]
             dst_minutes = int(time_zone_dict["dst"])
-        data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes)
-        data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes)
+            if timezone is None:
+                timezone = time_zone_dict.get("timezone")
+        if tz_value is not None:
+            tz_minutes = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
+        data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes, timezone)
+        data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(data_item.created, tz_minutes, dst_minutes, timezone)
         data_element["uuid"] = str(data_item.uuid)
         # operation
         # graphics
@@ -415,14 +430,16 @@ def create_data_element_from_extended_data(xdata: DataAndMetadata.DataAndMetadat
     data_element["properties"] = copy.deepcopy(xdata.metadata.get("hardware_source", dict()))
     tz_minutes = None
     dst_minutes = None
+    timezone = None
     time_zone_dict = xdata.metadata.get("description", dict()).get("time_zone")
     if time_zone_dict:
         # note: dst is informational only; tz already include dst
         tz_value = time_zone_dict["tz"]
         tz_minutes = (int(tz_value[1:3]) * 60 + int(tz_value[3:5])) * (-1 if tz_value[0] == '-' else 1)
         dst_minutes = int(time_zone_dict["dst"])
-    data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(xdata.timestamp, tz_minutes, dst_minutes)
-    data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(xdata.timestamp, tz_minutes, dst_minutes)
+        timezone = time_zone_dict.get("timezone")
+    data_element["datetime_modified"] = Utility.get_datetime_item_from_utc_datetime(xdata.timestamp, tz_minutes, dst_minutes, timezone)
+    data_element["datetime_original"] = Utility.get_datetime_item_from_utc_datetime(xdata.timestamp, tz_minutes, dst_minutes, timezone)
     return data_element
 
 

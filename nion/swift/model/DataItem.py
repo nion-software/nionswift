@@ -163,6 +163,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
+        self.__timezone = None  # set by the data item, used when returning data_and_metadata
+        self.__timezone_offset = None  # set by the data item, used when returning data_and_metadata
         self.__data_and_metadata = None
         self.__data_and_metadata_lock = threading.RLock()
         self.__intensity_calibration = None
@@ -299,7 +301,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
                     # doesn't trigger a write to disk or a change modification.
                     self._get_persistent_property("datum_dimension_count").set_value(datum_dimension_count)
                 data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
-                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data_descriptor=data_descriptor)
+                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp,
+                                                                           data_descriptor=data_descriptor, timezone=self.timezone, timezone_offset=self.timezone_offset)
                 with self.__data_ref_count_mutex:
                     self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
                 self.__data_and_metadata.unloadable = self.persistent_object_context is not None
@@ -365,6 +368,26 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__computation_cascade_delete_event_listener = new_computation.cascade_delete_event.listen(computation_cascade_delete)
         self.computation_changed_or_mutated_event.fire(self.computation)
         # self.__metadata_changed()
+
+    @property
+    def timezone(self):
+        return self.__timezone
+
+    @timezone.setter
+    def timezone(self, value):
+        self.__timezone = value
+        if self.__data_and_metadata:
+            self.__data_and_metadata.data_metadata.timezone = self.__timezone
+
+    @property
+    def timezone_offset(self):
+        return self.__timezone_offset
+
+    @timezone_offset.setter
+    def timezone_offset(self, value):
+        self.__timezone_offset = value
+        if self.__data_and_metadata:
+            self.__data_and_metadata.data_metadata.timezone_offset = self.__timezone_offset
 
     @property
     def data_metadata(self):
@@ -803,6 +826,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.define_property("category", "persistent", changed=self.__property_changed)
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
+        self.define_property("timezone", Utility.get_local_timezone(), changed=self.__timezone_property_changed)
+        self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__data_items = list()
@@ -844,6 +869,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item_copy.metadata = self.metadata
         data_item_copy.session_metadata = self.session_metadata
         data_item_copy.created = self.created
+        data_item_copy.timezone = self.timezone
+        data_item_copy.timezone_offset = self.timezone_offset
         data_item_copy.session_id = self.session_id
         data_item_copy.source_file_path = self.source_file_path
         # data sources
@@ -908,6 +935,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_item_copy.metadata = self.metadata
         data_item_copy.session_metadata = self.session_metadata
         data_item_copy.created = self.created
+        data_item_copy.timezone = self.timezone
+        data_item_copy.timezone_offset = self.timezone_offset
         data_item_copy.session_id = self.session_id
         data_item_copy.source_file_path = self.source_file_path
         # data sources
@@ -1143,6 +1172,8 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         assert display_specifier.buffered_data_source and display_specifier.display
         with self.data_item_changes():
             display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            self.timezone = Utility.get_local_timezone()
+            self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()
@@ -1160,6 +1191,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
+
+    def __timezone_property_changed(self, name, value):
+        for data_source in self.data_sources:
+            data_source.timezone = self.timezone
+            data_source.timezone_offset = self.timezone_offset
+        self.__property_changed(name, value)
 
     def set_r_value(self, r_var):
         """Used to signal changes to the data ref var, which are kept in document controller. ugh."""
@@ -1237,9 +1274,13 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.computation_changed_or_mutated_event.fire(self, computation)
 
     def __handle_data_changed(self, data_source):
+        self.timezone = Utility.get_local_timezone()
+        self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
         self.data_item_data_changed_event.fire(self)
 
     def __insert_data_source(self, name, before_index, data_source):
+        data_source.timezone = self.timezone
+        data_source.timezone_offset = self.timezone_offset
         data_source.set_dependent_data_item(self)
         def notify_request_remove_data_item():
             # this message comes from the operation.

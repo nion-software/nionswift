@@ -12,6 +12,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Utility
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
@@ -1051,6 +1052,27 @@ class TestHardwareSourceClass(unittest.TestCase):
                     done_event.set()
             threading.Thread(target=do_record).start()
             done_event.wait(3.0)
+
+    def test_hardware_source_updates_timezone_during_acquisition(self):
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        with contextlib.closing(document_controller):
+            try:
+                hardware_source_id = hardware_source.hardware_source_id
+                Utility.local_timezone_override = [None]
+                Utility.local_utcoffset_override = [0]
+                data_item = DataItem.DataItem(numpy.ones(256) + 1)
+                self.assertIsNone(data_item.timezone)
+                self.assertEqual(data_item.timezone_offset, "+0000")
+                document_model.append_data_item(data_item)
+                document_model.setup_channel(document_model.make_data_item_reference_key(hardware_source_id), data_item)
+                Utility.local_timezone_override = ["Europe/Athens"]
+                Utility.local_utcoffset_override = [180]
+                self.__acquire_one(document_controller, hardware_source)
+                self.assertEqual(data_item.timezone, "Europe/Athens")
+                self.assertEqual(data_item.timezone_offset, "+0300")
+            finally:
+                Utility.local_timezone_override = None
+                Utility.local_utcoffset_override = None
 
 
 if __name__ == '__main__':
