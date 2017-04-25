@@ -1755,6 +1755,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if not match:
                     computation_queue_item = self.__computation_pending_queue.pop(i)
                     self.__computation_active_items.append(computation_queue_item)
+                    break
                 # otherwise, mark it as skipped so that __recompute is called again.
                 # so that it eventually gets serviced.
                 else:
