@@ -79,6 +79,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
             display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.perform_layout()
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
@@ -101,6 +102,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
             display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.perform_layout()
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))

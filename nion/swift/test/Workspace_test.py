@@ -204,12 +204,14 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_focused())
             self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_selected())
             document_controller.selected_display_panel.change_display_panel_content({"type": "image"})
+            root_canvas_item.perform_layout()
             # click in left panel, make sure focus/selected are right
             root_canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_focused())
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
             self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_focused())
             self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_selected())
+            root_canvas_item.perform_layout()
             # click in right panel, make sure focus/selected are right
             root_canvas_item.canvas_widget.simulate_mouse_click(480, 240, modifiers)
             self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_focused())
@@ -308,6 +310,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item1)
             mime_data = MimeData("text/data_item_uuid", str(data_item2.uuid))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
+            root_canvas_item.perform_layout()
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the sizes were updated
@@ -435,6 +438,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(isinstance(root_canvas_item.canvas_items[0].canvas_items[0], CanvasItem.SplitterCanvasItem))
             self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items[0].canvas_items), 2)
             # check that the sizes were updated
+            root_canvas_item.perform_layout()
             self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.width, 320)
             self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.height, 240)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect.width, 320)
@@ -482,6 +486,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[2].set_displayed_data_item(data_item3)
             display_panel2 = document_controller.workspace_controller.display_panels[1]
             document_controller.workspace_controller.remove_display_panel(display_panel2)
+            root_canvas_item.perform_layout()
             self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 240, 640))
             self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(240, 0, 480, 640))
 
@@ -529,6 +534,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
+            root_canvas_item.perform_layout()
             document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_click((12, 308))
 
     def test_dragging_header_to_swap_works(self):
@@ -572,6 +578,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
             document_controller.workspace_controller.display_panels[0].request_focus()
+            root_canvas_item.perform_layout()
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.selected)
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.focused)
             # drag header. can't really test dragging without more test harness support. but make sure it gets this far.

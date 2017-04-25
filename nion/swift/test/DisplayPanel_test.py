@@ -87,8 +87,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.display_canvas_item.update_layout((0, 0), canvas_shape)
         self.display_panel_drawing_context = DrawingContext.DrawingContext()
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
-        # trigger layout
         self.display_panel.display_canvas_item.prepare_display()  # force layout
+        self.display_panel.display_canvas_item.perform_layout()
         return self.display_panel.display_canvas_item
 
     def setup_3d_data(self, canvas_shape=None):
@@ -940,6 +940,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.mouse_position_changed(plot_left + plot_width * 0.5, 100, modifiers)
         line_plot_canvas_item.mouse_released(plot_left + plot_width * 0.5, 100, modifiers)
         # make sure results are correct
+        line_plot_canvas_item.root_container.perform_layout()
         self.assertAlmostEqual(line_plot_display_specifier.display.graphics[0].start, 0.3)
         self.assertAlmostEqual(line_plot_display_specifier.display.graphics[0].end, 0.5)
 
@@ -1162,6 +1163,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_image_display_panel_with_no_image_produces_context_menu_with_correct_item_count(self):
         self.display_panel.set_displayed_data_item(None)
         self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.perform_layout()
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
         # show, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
@@ -1170,6 +1172,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         d = {"type": "image", "display-panel-type": "empty-display-panel"}
         self.display_panel.change_display_panel_content(d)
         self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.perform_layout()
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
         # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
@@ -1179,6 +1182,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.change_display_panel_content(d)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.perform_layout()
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         # show, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 14)
@@ -1188,6 +1192,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.change_display_panel_content(d)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.perform_layout()
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(300, 40, 300, 40)
         # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
@@ -1197,6 +1202,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.change_display_panel_content(d)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.perform_layout()
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(300, 300, 300, 300)
         # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
@@ -1212,6 +1218,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.select_data_items_in_data_panel(self.document_model.data_items)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
+        self.display_panel.canvas_item.root_container.perform_layout()
         self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         self.document_controller.periodic()
         # show, reveal, delete, sep, split h, split v, sep, none, sep, browser, sep
@@ -1359,6 +1366,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display._send_display_values_for_test()
             display.update_calculated_display_values()
             document_controller.periodic()
+            self.display_panel.canvas_item.root_container.perform_layout()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):

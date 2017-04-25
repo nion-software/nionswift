@@ -1480,7 +1480,6 @@ class DisplayPanel:
 
         self.__display_panel_content.set_identifier(self.identifier)
         self.__canvas_item.insert_canvas_item(0, self.__display_panel_content.canvas_item)
-        self.__canvas_item.refresh_layout(True)
 
         workspace_controller = document_controller.workspace_controller
 

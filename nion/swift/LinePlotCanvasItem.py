@@ -387,7 +387,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__line_graph_horizontal_axis_label_canvas_item.size_to_content()
         self.__line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
         self.__line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
-        self.refresh_layout(trigger_update=False)
         self.__data_info = data_info
 
     def mouse_entered(self):

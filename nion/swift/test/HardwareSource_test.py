@@ -874,10 +874,12 @@ class TestHardwareSourceClass(unittest.TestCase):
             count_ref = [0]
             def metric_update():
                 count_ref[0] += 1
+            display_panel.canvas_item.root_container.perform_layout()
             update_count = display_panel.display_canvas_item._update_count
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
                 self.__acquire_one(document_controller, hardware_source)
+            display_panel.canvas_item.root_container.perform_layout()
             # metric update event is no longer reliable with threaded layer painting
             # self.assertEqual(count_ref[0], 1)
             self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 1)
@@ -892,6 +894,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             count_ref = [0]
             def metric_update():
                 count_ref[0] += 1
+            display_panel.canvas_item.root_container.perform_layout()
             update_count = display_panel.display_canvas_item._update_count
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
@@ -899,8 +902,10 @@ class TestHardwareSourceClass(unittest.TestCase):
                 hardware_source.start_playing(sync_timeout=3.0)
                 time.sleep(0.05)  # make sure we're in the 2nd partial
                 document_controller.periodic()
+                display_panel.canvas_item.root_container.perform_layout()
                 hardware_source.stop_playing(sync_timeout=3.0)
                 document_controller.periodic()
+                display_panel.canvas_item.root_container.perform_layout()
             # metric update event is no longer reliable with threaded layer painting
             # self.assertEqual(count_ref[0], 2)
             self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 2)

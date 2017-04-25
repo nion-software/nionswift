@@ -766,13 +766,15 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def size_to_content(self):
         """ Size the canvas item to the proper height. """
-        self.sizing.minimum_height = 0
-        self.sizing.maximum_height = 0
+        new_sizing = self.copy_sizing()
+        new_sizing.minimum_height = 0
+        new_sizing.maximum_height = 0
         data_info = self.data_info
         if data_info:
             if data_info.spatial_calibration and data_info.spatial_calibration.units:
-                self.sizing.minimum_height = self.font_size + 4
-                self.sizing.maximum_height = self.font_size + 4
+                new_sizing.minimum_height = self.font_size + 4
+                new_sizing.maximum_height = self.font_size + 4
+        self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context):
 
@@ -841,8 +843,10 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def size_to_content(self, get_font_metrics_fn):
         """ Size the canvas item to the proper width, the maximum of any label. """
-        self.sizing.minimum_width = 0
-        self.sizing.maximum_width = 0
+        new_sizing = self.copy_sizing()
+
+        new_sizing.minimum_width = 0
+        new_sizing.maximum_width = 0
 
         y_properties = self.data_info.y_properties if self.data_info else None
         if y_properties:
@@ -857,8 +861,10 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
             label = y_properties.ticker.value_label(y_properties.calibrated_data_min - y_range * 5)
             max_width = max(max_width, get_font_metrics_fn(font, label).width)
 
-            self.sizing.minimum_width = max_width
-            self.sizing.maximum_width = max_width
+            new_sizing.minimum_width = max_width
+            new_sizing.maximum_width = max_width
+
+        self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context):
 
@@ -899,13 +905,15 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def size_to_content(self):
         """ Size the canvas item to the proper width. """
-        self.sizing.minimum_width = 0
-        self.sizing.maximum_width = 0
+        new_sizing = self.copy_sizing()
+        new_sizing.minimum_width = 0
+        new_sizing.maximum_width = 0
         data_info = self.data_info
         if data_info:
             if data_info.intensity_calibration and data_info.intensity_calibration.units:
-                self.sizing.minimum_width = self.font_size + 4
-                self.sizing.maximum_width = self.font_size + 4
+                new_sizing.minimum_width = self.font_size + 4
+                new_sizing.maximum_width = self.font_size + 4
+        self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context):
 
