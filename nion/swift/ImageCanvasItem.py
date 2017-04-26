@@ -294,10 +294,12 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # next the zoomable items
         self.__bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#888" if draw_background else "transparent")
         self.__graphics_canvas_item = GraphicsCanvasItem(get_font_metrics_fn)
+        self.__timestamp_canvas_item = CanvasItem.TimestampCanvasItem()
         # put the zoomable items into a composition
         self.__composite_canvas_item = CanvasItem.CanvasItemComposition()
         self.__composite_canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         self.__composite_canvas_item.add_canvas_item(self.__graphics_canvas_item)
+        self.__composite_canvas_item.add_canvas_item(self.__timestamp_canvas_item)
         # and put the composition into a scroll area
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__composite_canvas_item)
         self.scroll_area_canvas_item._constrain_position = False  # temporary until scroll bars are implemented
@@ -312,6 +314,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__data_rgba = None
         self.__data_shape = None
+        self.__data_timestamp = None
         self.__graphics = list()
         self.__graphic_selection = set()
 
@@ -345,7 +348,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     # when the display changes, set the data using this property.
     # doing this will queue an item in the paint thread to repaint.
     # this method is called on a thread.
-    def update_image_display_state(self, data_rgba, data_shape, dimension_calibration, metadata):
+    def update_image_display_state(self, data_rgba, data_shape, data_timestamp, dimension_calibration, metadata):
         # this method may trigger a layout of its parent scroll area. however, the parent scroll
         # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
         # that this object is not closeable while this method is running; and this method should not
@@ -361,6 +364,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphics_changed = False
                 self.__data_rgba = data_rgba
                 self.__data_shape = data_shape
+                self.__data_timestamp = data_timestamp
                 if self.__display_frame_rate_id:
                     frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
                     if frame_index != self.__display_frame_rate_last_index:
@@ -1032,6 +1036,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     data_rgba_u8_copy_view[..., 3] = data_rgba_u8_view[..., 3]
                 data_rgba = data_rgba_copy
             self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
+            # self.__timestamp_canvas_item.timestamp = self.__data_timestamp
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")

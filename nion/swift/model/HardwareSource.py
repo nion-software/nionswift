@@ -546,7 +546,8 @@ class DataChannel:
         data_descriptor = data_and_metadata.data_descriptor
         intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
         dimensional_calibrations = data_and_metadata.dimensional_calibrations if data_and_metadata else None
-        new_extended_data = DataAndMetadata.new_data_and_metadata(master_data, intensity_calibration, dimensional_calibrations, metadata, data_descriptor=data_descriptor)
+        timestamp = data_and_metadata.timestamp
+        new_extended_data = DataAndMetadata.new_data_and_metadata(master_data, intensity_calibration, dimensional_calibrations, metadata, timestamp=timestamp, data_descriptor=data_descriptor)
 
         self.__data_and_metadata = new_extended_data
 

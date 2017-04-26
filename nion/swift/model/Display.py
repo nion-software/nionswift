@@ -179,7 +179,7 @@ class ReferenceCountContext:
         return False
 
 
-DisplayValues = collections.namedtuple("DisplayValues", ("display_data_and_metadata", "data_range", "data_sample", "display_range", "display_rgba"))
+DisplayValues = collections.namedtuple("DisplayValues", ("display_data_and_metadata", "data_range", "data_sample", "display_range", "display_rgba", "display_rgba_timestamp"))
 
 class CalculatedDisplayValues:
 
@@ -193,6 +193,7 @@ class CalculatedDisplayValues:
         self.__data_sample = None
         self.__display_range = None
         self.__display_rgba = None
+        self.__display_rgba_timestamp = None
 
         self.__display_data_dirty = False
         self.__display_range_dirty = False
@@ -227,13 +228,16 @@ class CalculatedDisplayValues:
         return calculated_display_values
 
     def values(self) -> DisplayValues:
-        return DisplayValues(self.__display_data_and_metadata, self.__data_range, self.__data_sample, self.__display_range, self.__display_rgba)
+        return DisplayValues(self.__display_data_and_metadata, self.__data_range, self.__data_sample, self.__display_range, self.__display_rgba, self.__display_rgba_timestamp)
 
     def _get_display_data_and_metadata(self):
         return self.__display_data_and_metadata
 
     def _get_display_rgba(self):
         return self.__display_rgba
+
+    def _get_display_rgba_timestamp(self):
+        return self.__display_rgba_timestamp
 
     def _set_data_and_metadata(self, value):
         self.__data_and_metadata = value
@@ -296,14 +300,18 @@ class CalculatedDisplayValues:
         if self.__display_range_dirty:
             self.__display_range = self.__calculate_display_range()
         if self.__display_rgba_dirty:
-            self.__display_rgba = self.__calculate_display_rgba()
+            self.__display_rgba, self.__display_rgba_timestamp = self.__calculate_display_rgba()
         if self.__parent:
             self.__parent.update_values(self.values())
 
     def __calculate_display_data_and_metadata(self):
         data_and_metadata = self.__data_and_metadata
         if data_and_metadata is not None:
-            return Core.function_display_data(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width, self.__complex_display_type)
+            timestamp = data_and_metadata.timestamp
+            data_and_metadata = Core.function_display_data(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width, self.__complex_display_type)
+            if data_and_metadata:
+                data_and_metadata.data_metadata.timestamp = timestamp
+            return data_and_metadata
         return None
 
     def __calculate_data_range(self):
@@ -354,8 +362,8 @@ class CalculatedDisplayValues:
             data_sample = self.__data_sample
             if data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
                 display_range = calculate_display_range(self.__display_limits, data_range, data_sample, self.__data_and_metadata, self.__complex_display_type)
-                return Core.function_display_rgba(display_data_and_metadata, display_range, self.__color_map_data).data
-        return None
+                return Core.function_display_rgba(display_data_and_metadata, display_range, self.__color_map_data).data, display_data_and_metadata.timestamp
+        return None, None
 
     def update_values(self, values):
         self.__display_data_and_metadata = values.display_data_and_metadata
@@ -363,6 +371,7 @@ class CalculatedDisplayValues:
         self.__data_sample = values.data_sample
         self.__display_range = values.display_range
         self.__display_rgba = values.display_rgba
+        self.__display_rgba_timestamp = values.display_rgba_timestamp
 
 
 class Display(Observable.Observable, Persistence.PersistentObject):
@@ -676,6 +685,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                             dimensional_calibration = Calibration.Calibration()
                     self.display_rgba = calculated_display_values.display_rgba
                     self.display_rgba_shape = display.preview_2d_shape
+                    self.display_rgba_timestamp = calculated_display_values.display_rgba_timestamp
                     self.dimensional_calibration = dimensional_calibration
                     self.metadata = data_and_metadata.metadata
 

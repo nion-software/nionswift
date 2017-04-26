@@ -341,7 +341,7 @@ def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata
     # datetime.datetime.strptime(datetime.datetime.isoformat(datetime.datetime.now()), "%Y-%m-%dT%H:%M:%S.%f" )
     # datetime_modified, datetime_modified_tz, datetime_modified_dst, datetime_modified_tzname is the time at which this image was modified.
     # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
-    timestamp = datetime.datetime.utcnow()
+    timestamp = data_element.get("timestamp", datetime.datetime.utcnow())
     datetime_item = data_element.get("datetime_modified")
     if datetime_item:
         local_datetime = Utility.get_datetime_from_datetime_item(datetime_item)

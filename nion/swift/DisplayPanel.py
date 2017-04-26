@@ -587,6 +587,7 @@ class DataItemDataSourceDisplay:
         if image_display_parameters:
             display_canvas_item.update_image_display_state(image_display_parameters.display_rgba,
                                                            image_display_parameters.display_rgba_shape,
+                                                           image_display_parameters.display_rgba_timestamp,
                                                            image_display_parameters.dimensional_calibration,
                                                            image_display_parameters.metadata)
 
