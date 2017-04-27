@@ -281,6 +281,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
 
 
 def convert_data_element_to_data_and_metadata(data_element) -> DataAndMetadata.DataAndMetadata:
+    # NOTE: takes ownership of data_element['data']
     version = data_element["version"] if "version" in data_element else 1
     if version == 1:
         return convert_data_element_to_data_and_metadata_1(data_element)
@@ -289,7 +290,7 @@ def convert_data_element_to_data_and_metadata(data_element) -> DataAndMetadata.D
 
 
 def convert_data_element_to_data_and_metadata_1(data_element) -> DataAndMetadata.DataAndMetadata:
-    # data
+    # data. takes ownership.
     data = data_element["data"]
     dimensional_shape = Image.dimensional_shape_from_data(data)
     is_sequence = data_element.get("is_sequence", False)

@@ -355,7 +355,7 @@ class AcquisitionTask:
                 complete = False
                 break
 
-        # notify that data elements have changed
+        # notify that data elements have changed. at this point data_elements may contain data stored in low level code.
         self.data_elements_changed_event.fire(data_elements, self.__view_id, complete, self.__is_stopping)
 
         if complete:
@@ -704,11 +704,13 @@ class HardwareSource:
             # find channel_index for channel_id
             channel_index = next((data_channel.index for data_channel in self.__data_channels if data_channel.channel_id == channel_id), 0)
             data_and_metadata = ImportExportManager.convert_data_element_to_data_and_metadata(data_element)
+            # data_and_metadata data may still point to low level code memory at this point.
             channel_state = data_element.get("state", "complete")
             if channel_state != "complete" and is_stopping:
                 channel_state = "marked"
             sub_area = data_element.get("sub_area")
             data_channel = self.__data_channels[channel_index]
+            # data_channel.update will make a copy of the data_and_metadata
             data_channel.update(data_and_metadata, channel_state, sub_area, view_id)
             data_channels.append(data_channel)
             xdatas.append(data_and_metadata)
@@ -728,6 +730,7 @@ class HardwareSource:
 
         self.data_channel_states_updated.fire(data_channels)
         if is_complete:
+            # xdatas are may still be pointing to memory in low level code here
             self.xdatas_available_event.fire(xdatas)
             # hack to allow record to know when its data is finished
             if callable(task.finished_callback_fn):
