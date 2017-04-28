@@ -1006,7 +1006,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__selection = document_controller.filtered_data_items_binding.make_selection()
 
         def data_list_drag_started(mime_data, thumbnail_data):
-            self.content_canvas_item.root_container.canvas_widget.drag(mime_data, thumbnail_data)
+            self.content_canvas_item.drag(mime_data, thumbnail_data)
 
         def key_pressed(key):
             if key.text == "v":
@@ -1345,11 +1345,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
-            root_canvas_item = self.canvas_item.root_container
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(display_specifier.display)
             on_begin_drag = self.on_begin_drag
             if callable(on_begin_drag):
-                on_begin_drag(root_canvas_item.canvas_widget, mime_data, thumbnail_data)
+                on_begin_drag(mime_data, thumbnail_data)
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
@@ -1551,8 +1550,8 @@ class DisplayPanel:
             menu.popup(gx, gy)
             return True
 
-        def begin_drag(canvas_widget, mime_data, thumbnail_data):
-            canvas_widget.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, document_controller))
+        def begin_drag(mime_data, thumbnail_data):
+            self.__canvas_item.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, document_controller))
 
         self.__display_panel_content.on_key_pressed = key_pressed
         self.__display_panel_content.on_key_released = key_released

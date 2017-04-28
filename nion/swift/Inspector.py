@@ -1621,7 +1621,7 @@ def make_image_chooser(ui, document_model, variable):
 
     def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
         # use this convoluted base object for drag so that it doesn't disappear after the drag.
-        column.root_container.widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+        column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     data_item_chooser_widget.on_drag = thumbnail_widget_drag
     data_item_chooser_widget.on_data_item_drop = data_item_drop
