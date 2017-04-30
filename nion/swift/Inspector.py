@@ -1668,6 +1668,7 @@ class VariableWidget(Widgets.CompositeWidgetBase):
             closeable.close()
         self.__variable_needs_rebuild_event_listener.close()
         self.__variable_needs_rebuild_event_listener = None
+        super().close()
 
     def __make_widget_from_variable(self, ui, document_model, variable):
         if variable.variable_type == "boolean":
