@@ -73,10 +73,7 @@ class InspectorPanel(Panel.Panel):
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
         self.__set_display_specifier(DataItem.DisplaySpecifier())
-        # close the data item inspector
-        if self.__display_inspector:
-            self.__display_inspector.close()
-            self.__display_inspector = None
+        self.__display_inspector = None
         self.document_controller.clear_task("update_display" + str(id(self)))
         self.document_controller.clear_task("update_display_inspector" + str(id(self)))
         # finish closing
@@ -96,7 +93,6 @@ class InspectorPanel(Panel.Panel):
             if self.__display_graphic_selection_changed_event_listener:
                 self.__display_graphic_selection_changed_event_listener.close()
                 self.__display_graphic_selection_changed_event_listener = None
-            self.__display_inspector.close()
             self.__display_inspector = None
 
         self.__display_inspector = DataItemInspector(self.ui, self.document_controller.document_model, self.__display_specifier)
@@ -136,7 +132,7 @@ class InspectorPanel(Panel.Panel):
             self.__display_changed_listener = display.display_changed_event.listen(display_changed)
             self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
 
-        self.column.add(self.__display_inspector.widget)
+        self.column.add(self.__display_inspector)
         stretch_column = self.ui.create_column_widget()
         stretch_column.add_stretch()
         self.column.add(stretch_column)
@@ -179,7 +175,7 @@ class InspectorPanel(Panel.Panel):
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
-class InspectorSection:
+class InspectorSection(Widgets.CompositeWidgetBase):
     """A class to manage creation of a widget representing a twist down inspector section.
 
     Represent a section in the inspector. The section is composed of a title in bold and then content. Subclasses should
@@ -191,12 +187,9 @@ class InspectorSection:
     """
 
     def __init__(self, ui, section_id, section_title):
+        self.__section_content_column = ui.create_column_widget()
+        super().__init__(Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open"))
         self.ui = ui  # for use in subclasses
-        self.__section_content_column = self.ui.create_column_widget()
-        self.widget = Widgets.SectionWidget(ui, section_title, self.__section_content_column, "inspector/" + section_id + "/open")
-
-    def close(self):
-        pass
 
     def add_widget_to_content(self, widget):
         """Subclasses should call this to add content in the section's top level column."""
@@ -504,7 +497,7 @@ class CalibrationsInspectorSection(InspectorSection):
         def handle_data_item_changed():
             # handle threading specially for tests
             if threading.current_thread() != threading.main_thread():
-                self.widget.add_task("update_calibration_list" + str(id(self)), self.__build_calibration_list)
+                self.content_widget.add_task("update_calibration_list" + str(id(self)), self.__build_calibration_list)
             else:
                 self.__build_calibration_list()
         self.__data_item_changed_event_listener = self.__buffered_data_source.data_item_changed_event.listen(handle_data_item_changed)
@@ -1752,7 +1745,7 @@ class ComputationInspectorSection(InspectorSection):
         super().close()
 
 
-class DataItemInspector:
+class DataItemInspector(Widgets.CompositeWidgetBase):
     """A class to manage creation of a widget representing an inspector for a display specifier.
 
     A new data item inspector is created whenever the display specifier changes, but not when the content of the items
@@ -1760,11 +1753,13 @@ class DataItemInspector:
     """
 
     def __init__(self, ui, document_model: DocumentModel.DocumentModel, display_specifier: DataItem.DisplaySpecifier):
+        super().__init__(ui.create_column_widget())
+
         self.ui = ui
 
         data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
 
-        content_widget = self.ui.create_column_widget()
+        content_widget = self.content_widget
         content_widget.add_spacing(4)
         if data_item:
             title_row = self.ui.create_row_widget()
@@ -1777,74 +1772,66 @@ class DataItemInspector:
             content_widget.add_spacing(4)
 
         self.__focus_default = None
-        self.__inspector_sections = list()
+        inspector_sections = list()
         display_data_shape = display.preview_2d_shape if buffered_data_source else ()
         display_data_shape = display_data_shape if display_data_shape is not None else ()
         if buffered_data_source and display.graphic_selection.has_selection:
-            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display, selected_only=True))
+            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display, selected_only=True))
             def focus_default():
                 pass
             self.__focus_default = focus_default
         elif buffered_data_source and (len(display_data_shape) == 1 or display.display_type == "line_plot"):
-            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display))
-            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            inspector_sections.append(SessionInspectorSection(self.ui, data_item))
+            inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display))
+            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_sequence:
-                self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
+                inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_collection:
                 if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
-                    self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+                    inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
-                    self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
+                    inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
+            inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
             def focus_default():
-                self.__inspector_sections[0].info_title_label.focused = True
-                self.__inspector_sections[0].info_title_label.select_all()
+                inspector_sections[0].info_title_label.focused = True
+                inspector_sections[0].info_title_label.select_all()
             self.__focus_default = focus_default
         elif buffered_data_source and (len(display_data_shape) == 2 or display.display_type == "image"):
-            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            self.__inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
-            self.__inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            inspector_sections.append(SessionInspectorSection(self.ui, data_item))
+            inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
+            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_sequence:
-                self.__inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
+                inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
             if buffered_data_source.is_collection:
                 if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
-                    self.__inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+                    inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
-                    self.__inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
-            self.__inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
+                    inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
+            inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
             def focus_default():
-                self.__inspector_sections[0].info_title_label.focused = True
-                self.__inspector_sections[0].info_title_label.select_all()
+                inspector_sections[0].info_title_label.focused = True
+                inspector_sections[0].info_title_label.select_all()
             self.__focus_default = focus_default
         elif data_item:
-            self.__inspector_sections.append(InfoInspectorSection(self.ui, data_item))
-            self.__inspector_sections.append(SessionInspectorSection(self.ui, data_item))
+            inspector_sections.append(InfoInspectorSection(self.ui, data_item))
+            inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             def focus_default():
-                self.__inspector_sections[0].info_title_label.focused = True
-                self.__inspector_sections[0].info_title_label.select_all()
+                inspector_sections[0].info_title_label.focused = True
+                inspector_sections[0].info_title_label.select_all()
             self.__focus_default = focus_default
 
-        for inspector_section in self.__inspector_sections:
-            content_widget.add(inspector_section.widget)
+        for inspector_section in inspector_sections:
+            content_widget.add(inspector_section)
 
         content_widget.add_stretch()
 
-        self.widget = content_widget
-
-    def close(self):
-        # close inspectors
-        for inspector in self.__inspector_sections:
-            inspector.close()
-        self.__inspector_sections = None
-
     def _get_inspectors(self):
         """ Return a copy of the list of inspectors. """
-        return copy.copy(self.__inspector_sections)
+        return copy.copy(self.content_widget.children[:-1])
 
     def focus_default(self):
         if self.__focus_default:

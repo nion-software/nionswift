@@ -39,24 +39,24 @@ class TestInspectrorClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
         data_item.title = "Title1"
         inspector_section = Inspector.InfoInspectorSection(self.app.ui, data_item)
-        self.assertEqual(inspector_section.info_title_label.text, "Title1")
-        data_item.title = "Title2"
-        self.assertEqual(inspector_section.info_title_label.text, "Title2")
+        with contextlib.closing(inspector_section):
+            self.assertEqual(inspector_section.info_title_label.text, "Title1")
+            data_item.title = "Title2"
+            self.assertEqual(inspector_section.info_title_label.text, "Title2")
 
     def test_display_limits_inspector_should_bind_to_display_without_errors(self):
         cache_name = ":memory:"
         storage_cache = Cache.DbStorageCache(cache_name)
         document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        # configure the inspectors
-        document_controller.notify_selected_data_item_changed(data_item)
-        document_controller.periodic()  # force UI to update
-        document_controller.notify_selected_data_item_changed(None)
-        # clean up
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            # configure the inspectors
+            document_controller.notify_selected_data_item_changed(data_item)
+            document_controller.periodic()  # force UI to update
+            document_controller.notify_selected_data_item_changed(None)
 
     def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -85,18 +85,19 @@ class TestInspectrorClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=5.1, scale=1.2, units="mm"))
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
-        calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
-        offset_field = calibration_row.find_widget_by_id("offset")
-        scale_field = calibration_row.find_widget_by_id("scale")
-        units_field = calibration_row.find_widget_by_id("units")
-        self.assertEqual(offset_field.text, "5.1000")
-        self.assertEqual(scale_field.text, "1.2000")
-        self.assertEqual(units_field.text, u"mm")
-        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=1.5, scale=2.1, units="mmm"))
-        self.assertEqual(offset_field.text, "1.5000")
-        self.assertEqual(scale_field.text, "2.1000")
-        self.assertEqual(units_field.text, u"mmm")
+        with contextlib.closing(inspector_section):
+            calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
+            calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
+            offset_field = calibration_row.find_widget_by_id("offset")
+            scale_field = calibration_row.find_widget_by_id("scale")
+            units_field = calibration_row.find_widget_by_id("units")
+            self.assertEqual(offset_field.text, "5.1000")
+            self.assertEqual(scale_field.text, "1.2000")
+            self.assertEqual(units_field.text, u"mm")
+            display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(offset=1.5, scale=2.1, units="mmm"))
+            self.assertEqual(offset_field.text, "1.5000")
+            self.assertEqual(scale_field.text, "2.1000")
+            self.assertEqual(units_field.text, u"mmm")
 
     def test_calibration_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -104,12 +105,13 @@ class TestInspectrorClass(unittest.TestCase):
         display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mm"))
         display_specifier.buffered_data_source.set_dimensional_calibration(1, Calibration.Calibration(units="mm"))
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
-        calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
-        units_field = calibration_row.find_widget_by_id("units")
-        self.assertEqual(units_field.text, "mm")
-        display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
-        self.assertEqual(units_field.text, "mmm")
+        with contextlib.closing(inspector_section):
+            calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
+            calibration_row = calibration_list_widget.find_widget_by_id("content_section").children[0]
+            units_field = calibration_row.find_widget_by_id("units")
+            self.assertEqual(units_field.text, "mm")
+            display_specifier.buffered_data_source.set_dimensional_calibration(0, Calibration.Calibration(units="mmm"))
+            self.assertEqual(units_field.text, "mmm")
 
     def test_graphic_inspector_section_follows_spatial_calibration_change(self):
         data_item = DataItem.DataItem(numpy.zeros((256, 256), numpy.uint32))
@@ -243,19 +245,19 @@ class TestInspectrorClass(unittest.TestCase):
     def test_inspector_handles_sliced_3d_data(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        data_item = DataItem.DataItem(numpy.zeros((32, 32, 16)))
-        document_model.append_data_item(data_item)
-        display_panel.set_displayed_data_item(data_item)
-        document_controller.selected_display_panel = None
-        document_controller.selected_display_panel = display_panel
-        document_controller.processing_slice()
-        document_model.recompute_all()
-        display_panel.set_displayed_data_item(document_model.data_items[1])
-        inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
-        document_controller.periodic()
-        self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.zeros((32, 32, 16)))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.selected_display_panel = None
+            document_controller.selected_display_panel = display_panel
+            document_controller.processing_slice()
+            document_model.recompute_all()
+            display_panel.set_displayed_data_item(document_model.data_items[1])
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def test_slice_inspector_section_uses_correct_dimension(self):
         data_item = DataItem.DataItem(numpy.zeros((4, 4, 32), numpy.uint32))
@@ -263,63 +265,66 @@ class TestInspectrorClass(unittest.TestCase):
         display_specifier.display.slice_center = 16
         display_specifier.display.slice_width = 4
         slice_inspector_section = Inspector.SliceInspectorSection(self.app.ui, data_item, display_specifier.buffered_data_source, display_specifier.display)
-        self.assertEqual(slice_inspector_section._slice_center_slider_widget.value, 16)
-        self.assertEqual(slice_inspector_section._slice_center_slider_widget.maximum, 31)
-        self.assertEqual(slice_inspector_section._slice_width_slider_widget.value, 4)
-        self.assertEqual(slice_inspector_section._slice_width_slider_widget.maximum, 31)
-        self.assertEqual(slice_inspector_section._slice_center_line_edit_widget.text, "16")
-        self.assertEqual(slice_inspector_section._slice_width_line_edit_widget.text, "4")
+        with contextlib.closing(slice_inspector_section):
+            self.assertEqual(slice_inspector_section._slice_center_slider_widget.value, 16)
+            self.assertEqual(slice_inspector_section._slice_center_slider_widget.maximum, 31)
+            self.assertEqual(slice_inspector_section._slice_width_slider_widget.value, 4)
+            self.assertEqual(slice_inspector_section._slice_width_slider_widget.maximum, 31)
+            self.assertEqual(slice_inspector_section._slice_center_line_edit_widget.text, "16")
+            self.assertEqual(slice_inspector_section._slice_width_line_edit_widget.text, "4")
 
     def test_image_display_inspector_shows_empty_fields_for_none_display_limits(self):
         data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display)
-        display.display_limits = None
-        self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-        self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-        display.display_limits = (None, None)
-        self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-        self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-        display.display_limits = (1, None)
-        self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
-        self.assertEqual(inspector_section.display_limits_limit_high.text, None)
-        display.display_limits = (None, 2)
-        self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-        self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
-        display.display_limits = (1, 2)
-        self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
-        self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
+        with contextlib.closing(inspector_section):
+            display.display_limits = None
+            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            display.display_limits = (None, None)
+            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            display.display_limits = (1, None)
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, None)
+            display.display_limits = (None, 2)
+            self.assertEqual(inspector_section.display_limits_limit_low.text, None)
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
+            display.display_limits = (1, 2)
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         inspector_section = Inspector.ImageDisplayInspectorSection(self.app.ui, display)
-        self.assertEqual(display.display_limits, None)
-        inspector_section.display_limits_limit_low.text = "1"
-        inspector_section.display_limits_limit_low.editing_finished("1")
-        self.assertEqual(display.display_limits, (1.0, None))
-        inspector_section.display_limits_limit_high.text = "2"
-        inspector_section.display_limits_limit_high.editing_finished("2")
-        self.assertEqual(display.display_limits, (1.0, 2.0))
-        inspector_section.display_limits_limit_low.text = ""
-        inspector_section.display_limits_limit_low.editing_finished("")
-        self.assertEqual(display.display_limits, (None, 2.0))
-        inspector_section.display_limits_limit_high.text = ""
-        inspector_section.display_limits_limit_high.editing_finished("")
-        self.assertEqual(display.display_limits, None)
+        with contextlib.closing(inspector_section):
+            self.assertEqual(display.display_limits, None)
+            inspector_section.display_limits_limit_low.text = "1"
+            inspector_section.display_limits_limit_low.editing_finished("1")
+            self.assertEqual(display.display_limits, (1.0, None))
+            inspector_section.display_limits_limit_high.text = "2"
+            inspector_section.display_limits_limit_high.editing_finished("2")
+            self.assertEqual(display.display_limits, (1.0, 2.0))
+            inspector_section.display_limits_limit_low.text = ""
+            inspector_section.display_limits_limit_low.editing_finished("")
+            self.assertEqual(display.display_limits, (None, 2.0))
+            inspector_section.display_limits_limit_high.text = ""
+            inspector_section.display_limits_limit_high.editing_finished("")
+            self.assertEqual(display.display_limits, None)
 
     def test_inspector_handles_deleted_data(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.zeros((32, 32)))
-        document_model.append_data_item(data_item)
-        document_controller.periodic()
-        document_controller.select_data_item_in_data_panel(data_item=data_item)  # queues the update
-        document_model.remove_data_item(data_item)  # removes item while still in queue
-        document_controller.periodic()  # execute queue
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((32, 32)))
+            document_model.append_data_item(data_item)
+            document_controller.periodic()
+            document_controller.select_data_item_in_data_panel(data_item=data_item)  # queues the update
+            document_model.remove_data_item(data_item)  # removes item while still in queue
+            document_controller.periodic()  # execute queue
 
     def test_inspector_handles_deleted_data_being_displayed(self):
         # if the inspector doesn't watch for the item being deleted, and the inspector's update display
@@ -327,27 +332,27 @@ class TestInspectrorClass(unittest.TestCase):
         # then there will be a pending call using a data item that doesn't exist.
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem(numpy.ones((8, 8)))
-        document_model.append_data_item(data_item)
-        document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
-        # document_controller.periodic()  # this makes it succeed in all cases
-        document_model.remove_data_item(data_item)
-        document_controller.periodic()
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item)
+            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+            # document_controller.periodic()  # this makes it succeed in all cases
+            document_model.remove_data_item(data_item)
+            document_controller.periodic()
 
     def test_inspector_handles_empty_data_item(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        data_item = DataItem.DataItem()
-        document_model.append_data_item(data_item)
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
-        document_controller.selected_display_panel = None
-        document_controller.selected_display_panel = display_panel
-        inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
-        document_controller.periodic()
-        self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.selected_display_panel = None
+            document_controller.selected_display_panel = display_panel
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
 
     def test_inspector_handles_all_graphics_on_1d_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -660,33 +665,36 @@ class TestInspectrorClass(unittest.TestCase):
         data_item = DataItem.DataItem(numpy.zeros((8, )))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
-        calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        content_section = calibration_list_widget.find_widget_by_id("content_section")
-        self.assertEqual(len(content_section.children), 1)
-        calibration_row = content_section.children[0]
-        label = calibration_row.find_widget_by_id("label")
-        self.assertEqual(label.text, "Channel")
+        with contextlib.closing(inspector_section):
+            calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
+            content_section = calibration_list_widget.find_widget_by_id("content_section")
+            self.assertEqual(len(content_section.children), 1)
+            calibration_row = content_section.children[0]
+            label = calibration_row.find_widget_by_id("label")
+            self.assertEqual(label.text, "Channel")
 
     def test_calibration_inspector_shows_correct_labels_for_2d(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8)))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
-        calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        content_section = calibration_list_widget.find_widget_by_id("content_section")
-        self.assertEqual(len(content_section.children), 2)
-        self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "Y")
-        self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "X")
+        with contextlib.closing(inspector_section):
+            calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
+            content_section = calibration_list_widget.find_widget_by_id("content_section")
+            self.assertEqual(len(content_section.children), 2)
+            self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "Y")
+            self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "X")
 
     def test_calibration_inspector_shows_correct_labels_for_3d(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8, 16)))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         inspector_section = Inspector.CalibrationsInspectorSection(self.app.ui, display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display)
-        calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
-        content_section = calibration_list_widget.find_widget_by_id("content_section")
-        self.assertEqual(len(content_section.children), 3)
-        self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "0")
-        self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "1")
-        self.assertEqual(content_section.children[2].find_widget_by_id("label").text, "2")
+        with contextlib.closing(inspector_section):
+            calibration_list_widget = inspector_section._section_content_for_test.find_widget_by_id("calibration_list_widget")
+            content_section = calibration_list_widget.find_widget_by_id("content_section")
+            self.assertEqual(len(content_section.children), 3)
+            self.assertEqual(content_section.children[0].find_widget_by_id("label").text, "0")
+            self.assertEqual(content_section.children[1].find_widget_by_id("label").text, "1")
+            self.assertEqual(content_section.children[2].find_widget_by_id("label").text, "2")
 
     def test_computation_inspector_updates_when_computation_variable_type_changes(self):
         document_model = DocumentModel.DocumentModel()

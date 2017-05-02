@@ -113,13 +113,14 @@ class TestDisplayPanelClass(unittest.TestCase):
             container = CanvasItem.SplitterCanvasItem()
             container.add_canvas_item(canvas_item)
             canvas_widget = self.app.ui.create_canvas_widget()
-            canvas_widget.canvas_item.add_canvas_item(container)
-            # now take the weakref
-            display_panel_weak_ref = weakref.ref(display_panel)
-            canvas_item = display_panel.canvas_item
-            display_panel.close()
-            canvas_item.close()  # this is the order in workspace close
-            display_panel = None
+            with contextlib.closing(canvas_widget):
+                canvas_widget.canvas_item.add_canvas_item(container)
+                # now take the weakref
+                display_panel_weak_ref = weakref.ref(display_panel)
+                canvas_item = display_panel.canvas_item
+                display_panel.close()
+                # canvas_item.close()  # this is the order in workspace close
+                display_panel = None
             self.assertIsNone(display_panel_weak_ref())
 
     # user deletes data item that is displayed. make sure we remove the display.
