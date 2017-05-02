@@ -55,7 +55,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
             for tool_mode in ["interval"]:
@@ -77,9 +77,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_item.maybe_data_source.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
-            display_panel.display_canvas_item.prepare_display()  # force layout
-            display_panel.display_canvas_item.perform_layout()
+            display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
@@ -100,9 +98,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_item.maybe_data_source.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
-            display_panel.display_canvas_item.prepare_display()  # force layout
-            display_panel.display_canvas_item.perform_layout()
+            display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
@@ -123,7 +119,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_item.maybe_data_source.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            display_panel.display_canvas_item.update_layout((0, 0), (640, 480))
+            display_panel.display_canvas_item.layout_immediate((640, 480))
             display_panel.display_canvas_item.prepare_display()  # force layout
             # test
             document_controller.tool_mode = "pointer"

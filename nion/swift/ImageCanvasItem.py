@@ -106,18 +106,10 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             graphics = None
             graphic_selection = None
         assert displayed_shape is None or len(displayed_shape) == 2
-        needs_update = False
-        if self.__displayed_shape != displayed_shape:
-            self.__displayed_shape = displayed_shape
-            needs_update = True
-        if self.__graphics != graphics:
-            self.__graphics = graphics
-            needs_update = True
-        if self.__graphic_selection != graphic_selection:
-            self.__graphic_selection = graphic_selection
-            needs_update = True
-        if needs_update:
-            self.update()
+        self.__displayed_shape = displayed_shape
+        self.__graphics = graphics
+        self.__graphic_selection = graphic_selection
+        self.update()
 
     def _repaint(self, drawing_context):
         if self.__graphics:
@@ -303,7 +295,11 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         # and put the composition into a scroll area
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__composite_canvas_item)
         self.scroll_area_canvas_item._constrain_position = False  # temporary until scroll bars are implemented
-        self.scroll_area_canvas_item.on_layout_updated = lambda canvas_origin, canvas_size, trigger_update: self.__scroll_area_canvas_item_layout_updated(canvas_size, trigger_update)
+
+        def layout_updated(canvas_origin, canvas_size, trigger_update, *, immediate=False):
+            self.__scroll_area_canvas_item_layout_updated(canvas_size, trigger_update, immediate=immediate)
+
+        self.scroll_area_canvas_item.on_layout_updated = layout_updated
         # info overlay (scale marker, etc.)
         self.__info_overlay_canvas_item = InfoOverlayCanvasItem()
         # canvas items get added back to front
@@ -465,7 +461,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return image_canvas_origin, image_canvas_size
 
     # update the image canvas origin and size
-    def __scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, trigger_update):
+    def __scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, trigger_update, *, immediate=False):
         image_canvas_origin, image_canvas_size = self.__calculate_origin_and_size(scroll_area_canvas_size)
         if image_canvas_origin is None or image_canvas_size is None:
             self.__last_image_norm_center = (0.5, 0.5)
@@ -474,7 +470,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__info_overlay_canvas_item.image_canvas_size = None
             return
         dimensional_shape = self.__data_shape
-        self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_update)
+        self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_update, immediate=immediate)
         # the image will be drawn centered within the canvas size
         if dimensional_shape and len(dimensional_shape) >= 2 and dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
             #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
@@ -976,8 +972,22 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 pos_2d = self.map_widget_to_image(self.__last_mouse)
             self.delegate.cursor_changed(pos_2d)
 
+    def _inserted(self, container):
+        # make sure we get 'prepare_render' calls
+        self.layer_container.register_prepare_canvas_item(self)
+
+    def _removed(self, container):
+        # turn off 'prepare_render' calls
+        self.layer_container.unregister_prepare_canvas_item(self)
+
+    def prepare_render(self):
+        self.prepare_display()
+
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)
+
+        if self.__display_frame_rate_id:
+            Utility.fps_tick("display_"+self.__display_frame_rate_id)
 
         if self.__display_frame_rate_id:
             fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
@@ -1009,32 +1019,27 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             finally:
                 drawing_context.restore()
 
-    def _repaint_layer(self, drawing_context):
-        self.prepare_display()
-        if self.__display_frame_rate_id:
-            Utility.fps_tick("display_"+self.__display_frame_rate_id)
-        super()._repaint_layer(drawing_context)
-
     # this method will be invoked from the paint thread.
     # data is calculated and then sent to the image canvas item.
     def prepare_display(self):
         if self.__data_shape is not None:
             # configure the bitmap canvas item
             data_rgba = self.__data_rgba
-            # the next section does gaussian blur for image decimation in the case where the destination rectangle
-            # is smaller than the source. this results in lower performance, but higher quality display.
-            height_ratio = (self.__bitmap_canvas_item.canvas_size.height / data_rgba.shape[0]) if data_rgba is not None and data_rgba.shape[0] > 0 else 1
-            if False and height_ratio < 1:
-                sigma = 0.5 * ((1.0 / height_ratio) - 1.0)
-                data_rgba_copy = numpy.empty_like(data_rgba)
-                data_rgba_u8_view = data_rgba.view(numpy.uint8).reshape(data_rgba.shape + (-1, ))
-                data_rgba_u8_copy_view = data_rgba_copy.view(numpy.uint8).reshape(data_rgba_copy.shape + (-1, ))
-                data_rgba_u8_copy_view[..., 0] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 0], sigma=sigma)
-                data_rgba_u8_copy_view[..., 1] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 1], sigma=sigma)
-                data_rgba_u8_copy_view[..., 2] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 2], sigma=sigma)
-                if data_rgba_u8_view.shape[-1] == 4:
-                    data_rgba_u8_copy_view[..., 3] = data_rgba_u8_view[..., 3]
-                data_rgba = data_rgba_copy
+            if False:
+                # the next section does gaussian blur for image decimation in the case where the destination rectangle
+                # is smaller than the source. this results in lower performance, but higher quality display.
+                height_ratio = (self.__bitmap_canvas_item.canvas_size.height / data_rgba.shape[0]) if data_rgba is not None and data_rgba.shape[0] > 0 else 1
+                if height_ratio < 1:
+                    sigma = 0.5 * ((1.0 / height_ratio) - 1.0)
+                    data_rgba_copy = numpy.empty_like(data_rgba)
+                    data_rgba_u8_view = data_rgba.view(numpy.uint8).reshape(data_rgba.shape + (-1, ))
+                    data_rgba_u8_copy_view = data_rgba_copy.view(numpy.uint8).reshape(data_rgba_copy.shape + (-1, ))
+                    data_rgba_u8_copy_view[..., 0] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 0], sigma=sigma)
+                    data_rgba_u8_copy_view[..., 1] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 1], sigma=sigma)
+                    data_rgba_u8_copy_view[..., 2] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 2], sigma=sigma)
+                    if data_rgba_u8_view.shape[-1] == 4:
+                        data_rgba_u8_copy_view[..., 3] = data_rgba_u8_view[..., 3]
+                    data_rgba = data_rgba_copy
             self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
             # self.__timestamp_canvas_item.timestamp = self.__data_timestamp
 

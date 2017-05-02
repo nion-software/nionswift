@@ -139,7 +139,7 @@ class TestGraphicsClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         display_panel.set_displayed_data_item(data_item)
         header_height = display_panel._content_for_test.header_canvas_item.header_height
-        display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+        display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
 
         def get_extended_attr(object, extended_name):
@@ -851,7 +851,7 @@ class TestGraphicsClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.canvas_widget.on_size_changed(1000, 1000 + header_height)
+            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             rect_graphic1 = Graphics.RectangleGraphic()
             rect_graphic2 = Graphics.RectangleGraphic()

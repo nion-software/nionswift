@@ -16,7 +16,9 @@ from nion.swift.model import Utility
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
+from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.utils import Geometry
 
 
 Facade.initialize()
@@ -874,15 +876,17 @@ class TestHardwareSourceClass(unittest.TestCase):
             count_ref = [0]
             def metric_update():
                 count_ref[0] += 1
-            display_panel.canvas_item.root_container.perform_layout()
-            update_count = display_panel.display_canvas_item._update_count
+            display_panel.display_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            repaint_count = display_panel.display_canvas_item._repaint_count
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
                 self.__acquire_one(document_controller, hardware_source)
-            display_panel.canvas_item.root_container.perform_layout()
+            display_panel.display_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             # metric update event is no longer reliable with threaded layer painting
             # self.assertEqual(count_ref[0], 1)
-            self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 1)
+            self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 1)
 
     def test_partial_frame_acquisition_generates_single_canvas_update_event_for_each_segment(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
@@ -894,21 +898,24 @@ class TestHardwareSourceClass(unittest.TestCase):
             count_ref = [0]
             def metric_update():
                 count_ref[0] += 1
-            display_panel.canvas_item.root_container.perform_layout()
-            update_count = display_panel.display_canvas_item._update_count
+            display_panel.display_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            repaint_count = display_panel.display_canvas_item._repaint_count
             with contextlib.closing(document_controller.workspace_controller._canvas_widget.canvas_item._metric_update_event.listen(metric_update)):
                 self.assertEqual(count_ref[0], 0)
                 hardware_source.sleep = 0.03  # each partial will sleep for this long
                 hardware_source.start_playing(sync_timeout=3.0)
                 time.sleep(0.05)  # make sure we're in the 2nd partial
                 document_controller.periodic()
-                display_panel.canvas_item.root_container.perform_layout()
+                display_panel.display_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+                display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
                 hardware_source.stop_playing(sync_timeout=3.0)
                 document_controller.periodic()
-                display_panel.canvas_item.root_container.perform_layout()
+                display_panel.display_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+                display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             # metric update event is no longer reliable with threaded layer painting
             # self.assertEqual(count_ref[0], 2)
-            self.assertEqual(display_panel.display_canvas_item._update_count, update_count + 2)
+            self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 2)
 
     def test_single_frame_acquisition_generates_single_canvas_update_event_for_line_plot(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()

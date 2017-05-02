@@ -304,7 +304,7 @@ class BaseDisplayPanelContent:
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
         self.__content_canvas_item.on_context_menu_event = handle_context_menu_event
         self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
-        self.__footer_canvas_item = CanvasItem.LayerCanvasItem()
+        self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
 
@@ -904,12 +904,8 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
 
     def set_data_item(self, data_item):
         self.__data_item = data_item
-        while len(self.__source_thumbnails.canvas_items) > 0:
-            self.__source_thumbnails._remove_canvas_item(self.__source_thumbnails.canvas_items[-1])
-        while len(self.__dependent_thumbnails.canvas_items) > 0:
-            self.__dependent_thumbnails._remove_canvas_item(self.__dependent_thumbnails.canvas_items[-1])
-        # self.__source_thumbnails.remove_all_canvas_items()
-        # self.__dependent_thumbnails.remove_all_canvas_items()
+        self.__source_thumbnails.remove_all_canvas_items()
+        self.__dependent_thumbnails.remove_all_canvas_items()
         if data_item is not None:
             for source_data_item in self.__document_model.get_source_data_items(data_item):
                 data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, source_data_item)
@@ -1770,21 +1766,19 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
         display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
         with contextlib.closing(display_canvas_item):
             DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
-            display_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(height=frame_height, width=frame_width))
             display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+
             with drawing_context.saver():
                 drawing_context.translate(0, (frame_width - frame_height) * 0.5)
-                display_canvas_item._repaint_immediate(drawing_context)
+                display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))
 
     elif display_type == "image":
         display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, None, draw_background=False)
         with contextlib.closing(display_canvas_item):
             display_canvas_item.set_fit_mode()
             DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
-            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-            graphics = display.graphics
-            display_canvas_item.update_layout((0, 0), (height, width))
             display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
-            display_canvas_item._repaint_immediate(drawing_context)
+
+            display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=height, width=width))
 
     return drawing_context

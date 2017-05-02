@@ -218,8 +218,20 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         self.__last_data = self.__data
                 # update the cursor info
                 self.__update_cursor_info()
-                # finally, trigger the paint thread (if there still is one) to update
+                # mark all items as needing updates; the actual data updates will be done on the
+                # render thread during prepare_render.
                 self.update()
+                self.line_graph_canvas_item.update()
+                self.__line_graph_background_canvas_item.update()
+                self.__line_graph_regions_canvas_item.update()
+                self.__line_graph_frame_canvas_item.update()
+                self.__line_graph_legend_canvas_item.update()
+                self.__line_graph_vertical_axis_label_canvas_item.update()
+                self.__line_graph_vertical_axis_scale_canvas_item.update()
+                self.__line_graph_vertical_axis_ticks_canvas_item.update()
+                self.__line_graph_horizontal_axis_label_canvas_item.update()
+                self.__line_graph_horizontal_axis_scale_canvas_item.update()
+                self.__line_graph_horizontal_axis_ticks_canvas_item.update()
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
@@ -311,8 +323,22 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__last_data_info = None
             self.__last_data_info_data = None
 
+    def _inserted(self, container):
+        # make sure we get 'prepare_render' calls
+        self.layer_container.register_prepare_canvas_item(self)
+
+    def _removed(self, container):
+        # turn off 'prepare_render' calls
+        self.layer_container.unregister_prepare_canvas_item(self)
+
+    def prepare_render(self):
+        self.prepare_display()
+
     def _repaint(self, drawing_context):
         super(LinePlotCanvasItem, self)._repaint(drawing_context)
+
+        if self.__display_frame_rate_id:
+            Utility.fps_tick("display_"+self.__display_frame_rate_id)
 
         if self.__display_frame_rate_id:
             fps = Utility.fps_get("display_"+self.__display_frame_rate_id)
@@ -343,12 +369,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             finally:
                 drawing_context.restore()
 
-    def _repaint_layer(self, drawing_context):
-        self.prepare_display()
-        if self.__display_frame_rate_id:
-            Utility.fps_tick("display_"+self.__display_frame_rate_id)
-        super(LinePlotCanvasItem, self)._repaint_layer(drawing_context)
-
     def __update_data_info(self, data_info):
         # the display has been changed, so this method has been called. it must be called on the ui thread.
         # data_info is a new copy of data info. it will be owned by this line plot after calling this method.
@@ -371,8 +391,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         for line_graph_data in self.line_graph_canvas_item.line_graph_data_list:
             line_graph_data.data_info = data_info
-
-        self.line_graph_canvas_item.update()
 
         self.__line_graph_background_canvas_item.data_info = data_info
         self.__line_graph_regions_canvas_item.data_info = data_info

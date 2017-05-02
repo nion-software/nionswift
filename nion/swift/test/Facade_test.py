@@ -208,7 +208,7 @@ class TestFacadeClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace("2x1", d)
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertIsNone(document_controller.workspace_controller.display_panels[0].data_item)
             self.assertIsNone(document_controller.workspace_controller.display_panels[1].data_item)
             # test display_data_item

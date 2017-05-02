@@ -372,7 +372,6 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self):
         super().__init__()
         self.__drawing_context = None
-        self.__needs_update = True
         self.__data_info = None
         self.draw_grid = True
         self.background_color = "#FFF"
@@ -384,7 +383,6 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
     @data_info.setter
     def data_info(self, value):
         self.__data_info = value
-        self.__needs_update = True
 
     def _repaint(self, drawing_context):
         # draw the data, if any
@@ -429,7 +427,6 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self):
         super().__init__()
         self.__drawing_context = None
-        self.__needs_update = True
         self.__line_graph_data_list = list()  # type: typing.List[LineGraphData]
 
     @property
@@ -439,7 +436,6 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     @line_graph_data_list.setter
     def line_graph_data_list(self, value):
         self.__line_graph_data_list = value
-        self.__needs_update = True
 
     @property
     def _data_info(self):  # for testing only
@@ -461,22 +457,6 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         return None
 
     def _repaint(self, drawing_context):
-        if not self.__drawing_context and self.canvas_widget:
-            self.__drawing_context = self.canvas_widget.create_drawing_context()
-        if self.__drawing_context:
-            if self.__needs_update:
-                self.__needs_update = False
-                self.__drawing_context.clear()
-                self.__paint(self.__drawing_context)
-            drawing_context.add(self.__drawing_context)
-        else: # handle the non-cache case
-            self.__paint(drawing_context)
-
-    def update(self):
-        self.__needs_update = True
-        super().update()
-
-    def __paint(self, drawing_context):
         # draw the data, if any
         for line_graph_data in self.__line_graph_data_list:
             data_info = line_graph_data.data_info
@@ -658,7 +638,6 @@ class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self):
         super().__init__()
         self.__drawing_context = None
-        self.__needs_update = True
         self.__data_info = None
         self.draw_frame = True
 
@@ -669,7 +648,6 @@ class LineGraphFrameCanvasItem(CanvasItem.AbstractCanvasItem):
     @data_info.setter
     def data_info(self, value):
         self.__data_info = value
-        self.__needs_update = True
 
     def _repaint(self, drawing_context):
         # draw the data, if any
@@ -951,7 +929,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, get_font_metrics_fn):
         super().__init__()
         self.__drawing_context = None
-        self.__needs_update = True
         self.__data_info = None
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.font_size = 12
@@ -963,7 +940,6 @@ class LineGraphLegendCanvasItem(CanvasItem.AbstractCanvasItem):
     @data_info.setter
     def data_info(self, value):
         self.__data_info = value
-        self.__needs_update = True
 
     def _repaint(self, drawing_context):
         # draw the data, if any

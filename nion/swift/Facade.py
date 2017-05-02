@@ -1375,7 +1375,7 @@ class DataItem(metaclass=SharedInstance):
         size = Geometry.fit_to_aspect_ratio(box, aspect_ratio).size
 
         try:
-            display_canvas_item.update_layout(viewbox.origin, viewbox.size)
+            display_canvas_item.update_layout(viewbox.origin, viewbox.size, immediate=True)
             display_type = display.actual_display_type
             display_values = display.get_calculated_display_values()
             if display_type == "image":

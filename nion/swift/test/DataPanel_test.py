@@ -579,11 +579,11 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_panel = document_controller.find_dock_widget("data-panel").panel
         width = 320
-        data_panel._data_list_widget.content_widget.children[0].canvas_item.size_changed(width, 148)
+        data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_bounds.width, width - 16)
         width = 344
-        data_panel._data_list_widget.content_widget.children[0].canvas_item.size_changed(width, 148)
+        data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_bounds.width, width - 16)
         document_controller.close()
@@ -595,7 +595,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32)))
         document_controller.periodic()
         data_panel = document_controller.find_dock_widget("data-panel").panel
-        data_panel._data_list_widget.content_widget.children[0].canvas_item.size_changed(320, 160)
+        data_panel._data_list_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_rect, Geometry.IntRect((0, 0), (800, 304)))
         data_panel.data_list_controller.scroll_bar_canvas_item.simulate_drag((8, 8), (24, 8))
         self.assertEqual(data_panel.data_list_controller.scroll_area_canvas_item.content.canvas_rect, Geometry.IntRect((-80, 0), (800, 304)))
@@ -606,11 +606,11 @@ class TestDataPanelClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_panel = document_controller.find_dock_widget("data-panel").panel
         width = 320
-        data_panel._data_grid_widget.content_widget.children[0].canvas_item.size_changed(width, 148)
+        data_panel._data_grid_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
         self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
         self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.content.canvas_bounds.width, width - 16)
         width = 344
-        data_panel._data_grid_widget.content_widget.children[0].canvas_item.size_changed(width, 148)
+        data_panel._data_grid_widget.content_widget.children[0].canvas_item.layout_immediate(Geometry.IntSize(width=width, height=148))
         self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.canvas_bounds.width, width - 16)
         self.assertEqual(data_panel.data_grid_controller.scroll_area_canvas_item.content.canvas_bounds.width, width - 16)
         document_controller.close()

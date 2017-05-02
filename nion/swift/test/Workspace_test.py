@@ -142,7 +142,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # click in first panel
             modifiers = CanvasItem.KeyboardModifiers()
             root_canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
@@ -175,7 +175,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # click in first panel
             modifiers = CanvasItem.KeyboardModifiers()
             root_canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
@@ -195,7 +195,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # click in right panel and change the display type
             modifiers = CanvasItem.KeyboardModifiers()
             root_canvas_item.canvas_widget.simulate_mouse_click(480, 240, modifiers)
@@ -204,14 +204,14 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_focused())
             self.assertTrue(document_controller.workspace_controller.display_panels[1]._is_selected())
             document_controller.selected_display_panel.change_display_panel_content({"type": "image"})
-            root_canvas_item.perform_layout()
+            root_canvas_item.refresh_layout_immediate()
             # click in left panel, make sure focus/selected are right
             root_canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_focused())
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._is_selected())
             self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_focused())
             self.assertFalse(document_controller.workspace_controller.display_panels[1]._is_selected())
-            root_canvas_item.perform_layout()
+            root_canvas_item.refresh_layout_immediate()
             # click in right panel, make sure focus/selected are right
             root_canvas_item.canvas_widget.simulate_mouse_click(480, 240, modifiers)
             self.assertFalse(document_controller.workspace_controller.display_panels[0]._is_focused())
@@ -227,7 +227,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             # deconstruct
             desc1 = get_layout("2x1")[1]
             desc2 = document_controller.workspace_controller._deconstruct(root_canvas_item.canvas_items[0].canvas_items[0])
@@ -301,7 +301,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
@@ -310,7 +310,7 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item1)
             mime_data = MimeData("text/data_item_uuid", str(data_item2.uuid))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
-            root_canvas_item.perform_layout()
+            root_canvas_item.refresh_layout_immediate()
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the sizes were updated
@@ -339,7 +339,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
@@ -358,7 +358,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
@@ -377,7 +377,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
@@ -396,7 +396,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
@@ -417,7 +417,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item3 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -438,7 +438,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(isinstance(root_canvas_item.canvas_items[0].canvas_items[0], CanvasItem.SplitterCanvasItem))
             self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items[0].canvas_items), 2)
             # check that the sizes were updated
-            root_canvas_item.perform_layout()
+            root_canvas_item.refresh_layout_immediate()
             self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.width, 320)
             self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.height, 240)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect.width, 320)
@@ -453,7 +453,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
@@ -474,7 +474,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("1x2x2"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item3 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -486,7 +486,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[2].set_displayed_data_item(data_item3)
             display_panel2 = document_controller.workspace_controller.display_panels[1]
             document_controller.workspace_controller.remove_display_panel(display_panel2)
-            root_canvas_item.perform_layout()
+            root_canvas_item.refresh_layout_immediate()
             self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 240, 640))
             self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(240, 0, 480, 640))
 
@@ -498,7 +498,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_3x1 = document_controller.workspace_controller.new_workspace("layout", d)
             document_controller.workspace_controller.change_workspace(workspace_3x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item3 = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -527,14 +527,14 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
-            root_canvas_item.perform_layout()
+            root_canvas_item.refresh_layout_immediate()
             document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_click((12, 308))
 
     def test_dragging_header_to_swap_works(self):
@@ -544,7 +544,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
@@ -570,7 +570,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             data_item1 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             data_item2 = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item1)
@@ -578,7 +578,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
             document_controller.workspace_controller.display_panels[0].request_focus()
-            root_canvas_item.perform_layout()
+            root_canvas_item.refresh_layout_immediate()
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.selected)
             self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.focused)
             # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
@@ -605,7 +605,7 @@ class TestWorkspaceClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
             document_controller.workspace_controller.change_workspace(workspace_2x1)
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
@@ -636,7 +636,7 @@ class TestWorkspaceClass(unittest.TestCase):
             d = {"type": "image", "display-panel-type": "browser-display-panel"}
             display_panel.change_display_panel_content(d)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.periodic()
             self.assertIsNone(document_controller.selected_data_item)
             modifiers = CanvasItem.KeyboardModifiers()
@@ -684,7 +684,7 @@ class TestWorkspaceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             document_model.append_data_item(data_item)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             display_panel = document_controller.workspace_controller.display_panels[0]
             mime_data = MimeData("text/data_item_uuid", str(data_item.uuid))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
@@ -706,7 +706,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
             workspace2 = document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
             document_controller.workspace_controller.change_workspace(workspace2)
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
@@ -724,7 +724,7 @@ class TestWorkspaceClass(unittest.TestCase):
                 {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
             workspace1 = document_controller.workspace_controller.new_workspace("1", d)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
             display_panel = document_controller.workspace_controller.display_panels[0]
             display_panel_controller = display_panel._content_for_test._display_panel_controller_for_test
@@ -743,7 +743,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
             workspace2 = document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
             display_panel = document_controller.workspace_controller.display_panels[0]
             display_panel_controller = display_panel._content_for_test._display_panel_controller_for_test
@@ -762,7 +762,7 @@ class TestWorkspaceClass(unittest.TestCase):
             workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
             document_controller.workspace_controller.new_workspace("2", {"type": "image", "display-panel-type": "browser-display-panel"})
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
             display_panel_controller = document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_controller_for_test
             self.assertFalse(display_panel_controller.closed)
@@ -783,7 +783,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[0].change_display_panel_content({"type": "image", "display-panel-type": "browser-display-panel"})
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item1)
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
 
     def test_restore_panel_like_drag_and_drop_closes_display_panel_controller(self):
         DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
@@ -794,7 +794,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             workspace1 = document_controller.workspace_controller.new_workspace("1", {"type": "image", "display-panel-type": "data-display-panel", "controller_type": "test"})
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
-            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
             display_panel_content = document_controller.workspace_controller.display_panels[0]._content_for_test
             self.assertTrue(isinstance(display_panel_content._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
