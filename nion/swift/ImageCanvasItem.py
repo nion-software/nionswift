@@ -296,8 +296,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__composite_canvas_item)
         self.scroll_area_canvas_item._constrain_position = False  # temporary until scroll bars are implemented
 
-        def layout_updated(canvas_origin, canvas_size, trigger_update, *, immediate=False):
-            self.__scroll_area_canvas_item_layout_updated(canvas_size, trigger_update, immediate=immediate)
+        def layout_updated(canvas_origin, canvas_size, *, immediate=False):
+            self.__scroll_area_canvas_item_layout_updated(canvas_size, immediate=immediate)
 
         self.scroll_area_canvas_item.on_layout_updated = layout_updated
         # info overlay (scale marker, etc.)
@@ -461,7 +461,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return image_canvas_origin, image_canvas_size
 
     # update the image canvas origin and size
-    def __scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, trigger_update, *, immediate=False):
+    def __scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, *, immediate=False):
         image_canvas_origin, image_canvas_size = self.__calculate_origin_and_size(scroll_area_canvas_size)
         if image_canvas_origin is None or image_canvas_size is None:
             self.__last_image_norm_center = (0.5, 0.5)
@@ -470,7 +470,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__info_overlay_canvas_item.image_canvas_size = None
             return
         dimensional_shape = self.__data_shape
-        self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, trigger_update, immediate=immediate)
+        self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, immediate=immediate)
         # the image will be drawn centered within the canvas size
         if dimensional_shape and len(dimensional_shape) >= 2 and dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
             #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
@@ -491,7 +491,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def __update_image_canvas_size(self):
         scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
         if scroll_area_canvas_size is not None:
-            self.__scroll_area_canvas_item_layout_updated(scroll_area_canvas_size, True)
+            self.__scroll_area_canvas_item_layout_updated(scroll_area_canvas_size)
             self.__composite_canvas_item.update()
 
     def mouse_clicked(self, x, y, modifiers):

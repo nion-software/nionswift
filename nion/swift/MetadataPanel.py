@@ -181,7 +181,7 @@ class MetadataPanel(Panel.Panel):
 
         def content_height_changed(content_height):
             metadata_editor_canvas_item.sizing.set_fixed_height(content_height + 12)
-            metadata_editor_widget.canvas_item.update_layout(Geometry.IntPoint(), scroll_area.size, True)
+            metadata_editor_widget.canvas_item.update_layout(Geometry.IntPoint(), scroll_area.size)
             if metadata_editor_canvas_item._has_layout:
                 column.size = Geometry.IntSize(height=metadata_editor_canvas_item.canvas_size.height, width=column.size.width)
 
