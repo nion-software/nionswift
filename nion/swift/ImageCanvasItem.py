@@ -98,6 +98,7 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__displayed_shape = None
         self.__graphics = None
+        self.__graphics_for_compare = list()
         self.__graphic_selection = None
 
     def update_graphics(self, displayed_shape, graphics, graphic_selection):
@@ -106,10 +107,20 @@ class GraphicsCanvasItem(CanvasItem.AbstractCanvasItem):
             graphics = None
             graphic_selection = None
         assert displayed_shape is None or len(displayed_shape) == 2
-        self.__displayed_shape = displayed_shape
-        self.__graphics = graphics
-        self.__graphic_selection = graphic_selection
-        self.update()
+        needs_update = False
+        if ((self.__displayed_shape is None) != (displayed_shape is None)) or (self.__displayed_shape != displayed_shape):
+            self.__displayed_shape = displayed_shape
+            needs_update = True
+        graphics_for_compare = [graphic.mime_data_dict() for graphic in (graphics or list())]
+        if graphics_for_compare != self.__graphics_for_compare:
+            self.__graphics = graphics
+            self.__graphics_for_compare = graphics_for_compare
+            needs_update = True
+        if self.__graphic_selection != graphic_selection:
+            self.__graphic_selection = graphic_selection
+            needs_update = True
+        if needs_update:
+            self.update()
 
     def _repaint(self, drawing_context):
         if self.__graphics:

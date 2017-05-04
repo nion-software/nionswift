@@ -1343,11 +1343,45 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             display = data_item.maybe_data_source.displays[0]
             display.update_calculated_display_values()
-            repaint_count = display_panel.display_canvas_item._repaint_count
+            update_count = display_panel.display_canvas_item._update_count
             display._send_display_values_for_test()
             display.update_calculated_display_values()
             document_controller.periodic()
-            self.assertEqual(repaint_count, display_panel.display_canvas_item._repaint_count)
+            self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
+
+    def test_image_display_canvas_item_only_updates_once_if_data_changes(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8, 8))
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 240))
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            update_count = display_panel.display_canvas_item._update_count
+            data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.random.randn(8, 8)))
+            self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
+
+    def test_image_display_canvas_item_only_updates_once_if_graphic_changes(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8, 8))
+            graphic = Graphics.RectangleGraphic()
+            data_item.maybe_data_source.displays[0].add_graphic(graphic)
+            document_model.append_data_item(data_item)
+            display_panel.set_displayed_data_item(data_item)
+            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 240))
+            document_controller.periodic()
+            self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
+            update_count = display_panel.display_canvas_item._update_count
+            graphic.bounds = Geometry.FloatRect.from_tlbr(0.1, 0.1, 0.2, 0.2)
+            self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
@@ -1363,12 +1397,12 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
             display = data_item.maybe_data_source.displays[0]
             display.update_calculated_display_values()
-            repaint_count = display_panel.display_canvas_item._repaint_count
+            update_count = display_panel.display_canvas_item._update_count
             display._send_display_values_for_test()
             display.update_calculated_display_values()
             document_controller.periodic()
             self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-            self.assertEqual(repaint_count, display_panel.display_canvas_item._repaint_count)
+            self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display

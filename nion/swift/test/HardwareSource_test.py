@@ -867,7 +867,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), len(set([d.uuid for d in document_model.data_items])))
             self.assertEqual(len(document_model.data_items), 2)
 
-    def test_single_frame_acquisition_generates_single_canvas_update_event_for_image(self):
+    def test_single_frame_acquisition_generates_single_canvas_repaint_event_for_image(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         with contextlib.closing(document_controller):
             hardware_source.image = numpy.ones((4, 4))
@@ -882,8 +882,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 1)
 
-    def test_single_frame_acquisition_generates_single_canvas_update_event_for_image_threaded(self):
-        CanvasItem._threaded_rendering_enabled = True
+    def test_single_frame_acquisition_generates_single_canvas_update_event_for_image(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
         with contextlib.closing(document_controller):
             hardware_source.image = numpy.ones((4, 4))
@@ -892,19 +891,11 @@ class TestHardwareSourceClass(unittest.TestCase):
             display_panel.set_displayed_data_item(document_model.data_items[0])
             display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             self.__acquire_one(document_controller, hardware_source)
-            time.sleep(0.5)
-            # repaint_count = display_panel.display_canvas_item._repaint_count
-            repaint_count = display_panel.canvas_item.root_container._repaint_count
+            update_count = display_panel.display_canvas_item._update_count
             self.__acquire_one(document_controller, hardware_source)
-            # time.sleep(0.5)
             self.__acquire_one(document_controller, hardware_source)
-            time.sleep(0.5)
-            # display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
-            # display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
-            # display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
-            # new_repaint_count = display_panel.display_canvas_item._repaint_count
-            new_repaint_count = display_panel.canvas_item.root_container._repaint_count
-            self.assertEqual(new_repaint_count, repaint_count + 2)
+            new_update_count = display_panel.display_canvas_item._update_count
+            self.assertEqual(new_update_count, update_count + 2)
 
     def test_partial_frame_acquisition_generates_single_canvas_update_event_for_each_segment(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()

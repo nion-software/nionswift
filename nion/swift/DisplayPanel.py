@@ -548,9 +548,9 @@ class DataItemDataSourceDisplay:
                 # update the display canvas, etc.
                 # thread safe
                 display_values = display.get_calculated_display_values()
-                display_rgba_changed(display_values)
                 display_data_and_metadata_changed(display_values)
                 display_graphic_selection_changed(display.graphic_selection)
+                # note: rgba data will be handled separately in next calculated display values
 
             def handle_next_calculated_display_values(display_values):
                 display_rgba_changed(display_values)
