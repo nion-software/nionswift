@@ -1383,7 +1383,7 @@ class DataItem(metaclass=SharedInstance):
             elif display_type == "line_plot":
                 DisplayPanelModule.DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
             dc = DrawingContext.DrawingContext()
-            display_canvas_item._repaint(dc)
+            display_canvas_item.repaint_immediate(dc, size)
             return dc.to_svg(size, viewbox)
         except Exception as e:
             import traceback

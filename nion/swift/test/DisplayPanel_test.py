@@ -666,7 +666,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         drawing_context = DrawingContext.DrawingContext()
-        line_plot_canvas_item._repaint(drawing_context)
+        line_plot_canvas_item.repaint_immediate(drawing_context, line_plot_canvas_item.canvas_size)
 
     def test_mouse_tracking_contract_scale_by_high_amount(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -680,7 +680,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         drawing_context = DrawingContext.DrawingContext()
-        line_plot_canvas_item._repaint(drawing_context)
+        line_plot_canvas_item.repaint_immediate(drawing_context, line_plot_canvas_item.canvas_size)
 
     def test_mouse_tracking_expand_scale_by_high_amount_with_interval(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -696,7 +696,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         drawing_context = DrawingContext.DrawingContext()
-        line_plot_canvas_item._repaint(drawing_context)
+        line_plot_canvas_item.repaint_immediate(drawing_context, line_plot_canvas_item.canvas_size)
 
     def test_mouse_tracking_contract_scale_by_high_amount_with_interval(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -712,7 +712,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         line_plot_canvas_item.continue_tracking(pos + offset, modifiers)
         line_plot_canvas_item.end_tracking(modifiers)
         drawing_context = DrawingContext.DrawingContext()
-        line_plot_canvas_item._repaint(drawing_context)
+        line_plot_canvas_item.repaint_immediate(drawing_context, line_plot_canvas_item.canvas_size)
 
     def test_mouse_tracking_shrink_scale_by_10_around_non_center(self):
         line_plot_canvas_item = self.setup_line_plot()
@@ -1246,7 +1246,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_ellipse_graphic()
         self.document_controller.add_interval_graphic()
         drawing_context = DrawingContext.DrawingContext()
-        display_canvas_item._repaint(drawing_context)
+        display_canvas_item.repaint_immediate(drawing_context, display_canvas_item.canvas_size)
 
     def test_all_graphic_types_repaint_on_2d_display(self):
         self.document_controller.add_point_graphic()
@@ -1256,7 +1256,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_interval_graphic()
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         drawing_context = DrawingContext.DrawingContext()
-        self.display_panel.display_canvas_item._repaint(drawing_context)
+        self.display_panel.display_canvas_item.repaint_immediate(drawing_context, self.display_panel.display_canvas_item.canvas_size)
 
     def test_all_graphic_types_repaint_on_3d_display(self):
         display_canvas_item = self.setup_3d_data()
@@ -1266,7 +1266,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_ellipse_graphic()
         self.document_controller.add_interval_graphic()
         drawing_context = DrawingContext.DrawingContext()
-        display_canvas_item._repaint(drawing_context)
+        display_canvas_item.repaint_immediate(drawing_context, display_canvas_item.canvas_size)
 
     def test_all_graphic_types_hit_test_on_1d_display(self):
         display_canvas_item = self.setup_line_plot()
@@ -1343,11 +1343,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             display = data_item.maybe_data_source.displays[0]
             display.update_calculated_display_values()
-            update_count = display_panel.display_canvas_item._update_count
+            repaint_count = display_panel.display_canvas_item._repaint_count
             display._send_display_values_for_test()
             display.update_calculated_display_values()
             document_controller.periodic()
-            self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
+            self.assertEqual(repaint_count, display_panel.display_canvas_item._repaint_count)
 
     def test_line_plot_image_display_canvas_item_only_updates_if_display_data_changes(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
@@ -1363,12 +1363,12 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
             display = data_item.maybe_data_source.displays[0]
             display.update_calculated_display_values()
-            update_count = display_panel.display_canvas_item._update_count
+            repaint_count = display_panel.display_canvas_item._repaint_count
             display._send_display_values_for_test()
             display.update_calculated_display_values()
             document_controller.periodic()
             self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-            self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
+            self.assertEqual(repaint_count, display_panel.display_canvas_item._repaint_count)
 
     def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
         # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display

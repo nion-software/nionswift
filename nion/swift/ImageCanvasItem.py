@@ -371,6 +371,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         self.__last_data_rgb = self.__data_rgba
                 # update the cursor info
                 self.__update_cursor_info()
+
                 def update_layout():
                     # layout. this makes sure that the info overlay gets updated too.
                     with self.update_context():
@@ -379,6 +380,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         self.__bitmap_canvas_item.update()
                         with self.__update_layout_handle_lock:
                             self.__update_layout_handle = None
+
                 if self.__event_loop:
                     with self.__update_layout_handle_lock:
                         update_layout_handle = self.__update_layout_handle
