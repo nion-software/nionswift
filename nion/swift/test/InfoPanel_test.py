@@ -140,6 +140,7 @@ class TestInfoPanelClass(unittest.TestCase):
             info_panel = document_controller.find_dock_widget("info-panel").panel
             display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
+            document_controller.periodic()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             document_controller.periodic()
             self.assertEqual(info_panel.label_row_1.text, "Position: 50.0, 50.0, 4.0")
