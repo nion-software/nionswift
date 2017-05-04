@@ -1379,9 +1379,9 @@ class DataItem(metaclass=SharedInstance):
             display_type = display.actual_display_type
             display_values = display.get_calculated_display_values()
             if display_type == "image":
-                DisplayPanelModule.DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
+                DisplayPanelModule.DisplayCanvasItem.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
             elif display_type == "line_plot":
-                DisplayPanelModule.DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
+                DisplayPanelModule.DisplayCanvasItem.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
             dc = DrawingContext.DrawingContext()
             display_canvas_item.repaint_immediate(dc, size)
             return dc.to_svg(size, viewbox)

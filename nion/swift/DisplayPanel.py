@@ -506,61 +506,72 @@ class BaseDisplayPanelContent:
         return False
 
 
-class DataItemDataSourceDisplay:
+class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, data_item, delegate, display_type, get_font_metrics_fn, event_loop):
-        self.__closing_lock = threading.RLock()
-        self.__data_item = data_item
-        self.__delegate = delegate
-        self.__display_type = display_type
-        self.__display_changed_event_listener = None
-        self.__display_graphic_selection_changed_event_listener = None
+        super().__init__()
+        try:
+            self.__closing_lock = threading.RLock()
+            self.__data_item = data_item
+            self.__delegate = delegate
+            self.__display_type = display_type
+            self.__display_changed_event_listener = None
+            self.__display_graphic_selection_changed_event_listener = None
 
-        if self.__display_type == "line_plot":
-            self.__display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, self)
-        elif self.__display_type == "image":
-            self.__display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, self, event_loop)
-            self.__display_canvas_item.set_fit_mode()
-        else:
-            raise Exception("Display type not found " + str(self.__display_type))
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            def display_graphic_selection_changed(graphic_selection):
-                # this message comes from the display when the graphic selection changes
-                displayed_shape = display.preview_2d_shape
-                displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-                graphics = display.graphics
-                self.__display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
+            if self.__display_type == "line_plot":
+                self.__display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, self)
+            elif self.__display_type == "image":
+                self.__display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, self, event_loop)
+                self.__display_canvas_item.set_fit_mode()
+            else:
+                raise Exception("Display type not found " + str(self.__display_type))
 
-            def display_rgba_changed(display_values):
-                with self.__closing_lock:
-                    if self.__display_type == "image":
-                        DataItemDataSourceDisplay.update_image_display(self.__display_canvas_item, display.get_image_display_parameters(display_values))
+            self.add_canvas_item(self.__display_canvas_item)
 
-            def display_data_and_metadata_changed(display_values):
-                with self.__closing_lock:
-                    if self.__display_type == "line_plot":
-                        DataItemDataSourceDisplay.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters(display_values))
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+            display = display_specifier.display
+            if display:
+                def display_graphic_selection_changed(graphic_selection):
+                    # this message comes from the display when the graphic selection changes
+                    displayed_shape = display.preview_2d_shape
+                    displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+                    graphics = display.graphics
+                    self.__display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
 
-            def display_changed():
-                # called when anything in the data item changes, including things like graphics or the data itself.
-                # update the display canvas, etc.
-                # thread safe
-                display_values = display.get_calculated_display_values()
-                display_data_and_metadata_changed(display_values)
-                display_graphic_selection_changed(display.graphic_selection)
-                # note: rgba data will be handled separately in next calculated display values
+                def display_rgba_changed(display_values):
+                    with self.__closing_lock:
+                        if self.__display_type == "image":
+                            DisplayCanvasItem.update_image_display(self.__display_canvas_item, display.get_image_display_parameters(display_values))
 
-            def handle_next_calculated_display_values(display_values):
-                display_rgba_changed(display_values)
-                display_data_and_metadata_changed(display_values)
+                def display_data_and_metadata_changed(display_values):
+                    with self.__closing_lock:
+                        if self.__display_type == "line_plot":
+                            DisplayCanvasItem.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters(display_values))
 
-            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
-            self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
-            self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
+                def display_changed():
+                    # called when anything in the data item changes, including things like graphics or the data itself.
+                    # update the display canvas, etc.
+                    # thread safe
+                    display_values = display.get_calculated_display_values()
+                    display_data_and_metadata_changed(display_values)
+                    display_graphic_selection_changed(display.graphic_selection)
+                    # note: rgba data will be handled separately in next calculated display values
 
-            display_changed()
+                def handle_next_calculated_display_values(display_values):
+                    display_rgba_changed(display_values)
+                    display_data_and_metadata_changed(display_values)
+
+                self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
+                self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+                self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
+
+                # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
+                # layer items (image/line plot) get shut down.
+                display_changed()
+
+        except Exception as e:
+            self.close()
+            raise
 
     def close(self):
         with self.__closing_lock:
@@ -573,6 +584,7 @@ class DataItemDataSourceDisplay:
             if self.__next_calculated_display_values_listener:
                 self.__next_calculated_display_values_listener.close()
                 self.__next_calculated_display_values_listener = None
+        super().close()
 
     @property
     def _data_item(self):
@@ -977,7 +989,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_panel_controller = None
 
         # the display canvas item delegate is an object that provides the canvas item displaying the data item.
-        self.__display_canvas_item_delegate = None
+        self.__display_canvas_item = None
 
         self.on_image_clicked = None
         self.on_image_mouse_pressed = None
@@ -1078,15 +1090,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.on_image_mouse_position_changed = None
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
-        # close the display_canvas_item_delegate down early so that any outstanding threads
-        # don't utilize it during shut down. do not remove the canvas item at this point as
-        # that could trigger an update. just disconnect the delegate.
-        if self.__display_canvas_item_delegate:
-            self.__display_canvas_item_delegate.close()
-            self.__display_canvas_item_delegate = None
+        self.__display_canvas_item = None
         self.set_displayed_data_item(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
-        assert not self.__display_canvas_item_delegate
+        assert not self.__display_canvas_item
         self.__display_type_changed_event_listener.close()
         self.__display_type_changed_event_listener = None
         self.__display_type_monitor.close()
@@ -1112,11 +1119,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     @property
     def _display_canvas_item_delegate(self):
-        return self.__display_canvas_item_delegate
+        return self.__display_canvas_item
 
     @property
     def _display_canvas_item(self):
-        display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
+        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
         return display_canvas_item
 
     @property
@@ -1218,9 +1225,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         # called when the display type of the data item changes.
         if len(self.__data_item_display_canvas_item.canvas_items) > 1:
             self.__data_item_display_canvas_item.remove_canvas_item(self.__data_item_display_canvas_item.canvas_items[0])
-        if self.__display_canvas_item_delegate:
-            self.__display_canvas_item_delegate.close()
-            self.__display_canvas_item_delegate = None
+        self.__display_canvas_item = None
         display_panel_content = self
         if display_type and display_type in ("image", "line_plot"):
             class Delegate:
@@ -1282,8 +1287,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
                     document_controller.display_data_item(new_display_specifier)
 
-            self.__display_canvas_item_delegate = DataItemDataSourceDisplay(self._data_item, Delegate(), display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
-            self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item_delegate.display_canvas_item)
+            self.__display_canvas_item = DisplayCanvasItem(self._data_item, Delegate(), display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
+            self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
         elif self.__data_item is not None:
             self.__data_item_display_canvas_item.insert_canvas_item(0, MissingDataCanvasItem(self, self._data_item))
         if self.__data_item_display_canvas_item:
@@ -1328,7 +1333,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         if self.__data_item_display_canvas_item:  # may be closed
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.__data_item_display_canvas_item.wants_mouse_events = self.__display_canvas_item_delegate is None
+            self.__data_item_display_canvas_item.wants_mouse_events = self.__display_canvas_item is None
             self.__data_item_display_canvas_item.selected = display_specifier.display is not None and self._is_selected()
 
     def _select(self):
@@ -1349,7 +1354,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_pressed(self, key):
-        display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
+        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
         if display_canvas_item and display_canvas_item.key_pressed(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
@@ -1403,7 +1408,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_released(self, key):
-        display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
+        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
         if display_canvas_item and display_canvas_item.key_released(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_released(key):
@@ -1411,7 +1416,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return super()._handle_key_released(key)
 
     def perform_action(self, fn, *args, **keywords):
-        display_canvas_item = self.__display_canvas_item_delegate.display_canvas_item if self.__display_canvas_item_delegate else None
+        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
         target = display_canvas_item
         if hasattr(target, fn):
             getattr(target, fn)(*args, **keywords)
@@ -1765,7 +1770,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
         frame_width, frame_height = width, int(width / 1.618)
         display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
         with contextlib.closing(display_canvas_item):
-            DataItemDataSourceDisplay.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
+            DisplayCanvasItem.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
             display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
 
             with drawing_context.saver():
@@ -1776,7 +1781,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
         display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, None, draw_background=False)
         with contextlib.closing(display_canvas_item):
             display_canvas_item.set_fit_mode()
-            DataItemDataSourceDisplay.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
+            DisplayCanvasItem.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
             display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
 
             display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=height, width=width))
