@@ -85,12 +85,55 @@ class TestComputationPanelClass(unittest.TestCase):
             self.assertIsNone(panel._error_label_for_testing.text)
             panel._text_edit_for_testing.text = "target.xdata = xyz(a.xdata)"
             panel._update_button.on_clicked()
+            # the sequence of periodic/recompute_all is intentional, to test various computation states
+            document_controller.periodic()
+            document_model.recompute_all()
             document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(panel._text_edit_for_testing.text, "target.xdata = xyz(a.xdata)")
             self.assertTrue(len(panel._error_label_for_testing.text) > 0)
             panel._text_edit_for_testing.text = expression
             panel._update_button.on_clicked()
+            # the sequence of periodic/recompute_all is intentional, to test various computation states
+            document_controller.periodic()
+            document_model.recompute_all()
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertEqual(panel._text_edit_for_testing.text, expression)
+            self.assertIsNone(panel._error_label_for_testing.text)
+
+    def test_error_text_cleared_after_invalid_script_becomes_valid(self):
+        # similar to test_invalid_expression_shows_error_and_clears_it except periodic occurs before recompute at end
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            panel = document_controller.find_dock_widget("computation-panel").panel
+            data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation("target.xdata = -a.xdata")
+            computation.create_object("a", document_model.get_object_specifier(data_item1))
+            data_item2.maybe_data_source.set_computation(computation)
+            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
+            document_controller.periodic()  # let the inspector see the computation
+            document_controller.periodic()  # and update the computation
+            expression = panel._text_edit_for_testing.text
+            self.assertIsNone(panel._error_label_for_testing.text)
+            panel._text_edit_for_testing.text = "target.xdata = xyz(a.xdata)"
+            panel._update_button.on_clicked()
+            # the sequence of periodic/recompute_all is intentional, to test various computation states
+            document_controller.periodic()
+            document_model.recompute_all()
+            document_model.recompute_all()
+            document_controller.periodic()
+            self.assertEqual(panel._text_edit_for_testing.text, "target.xdata = xyz(a.xdata)")
+            self.assertTrue(len(panel._error_label_for_testing.text) > 0)
+            panel._text_edit_for_testing.text = expression
+            panel._update_button.on_clicked()
+            # the sequence of periodic/recompute_all is intentional, to test various computation states
+            document_controller.periodic()
+            document_model.recompute_all()
             document_model.recompute_all()
             document_controller.periodic()
             self.assertEqual(panel._text_edit_for_testing.text, expression)

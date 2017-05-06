@@ -1042,7 +1042,7 @@ class ComputationQueueItem:
                 data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
                 data_item_clone_recorder = Recorder.Recorder(data_item_clone)
                 api_data_item = api._new_api_object(data_item_clone)
-                error_text = None
+                error_text = computation.error_text
                 if computation.needs_update:
                     error_text = computation.evaluate_with_target(api, api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)

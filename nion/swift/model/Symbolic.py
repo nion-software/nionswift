@@ -407,9 +407,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         super().read_from_dict(properties)
 
     def __error_changed(self, name, value):
-        if self.error_text != value:
-            self.notify_property_changed(name)
-            self.computation_mutated_event.fire()
+        self.notify_property_changed(name)
+        self.computation_mutated_event.fire()
 
     def __label_changed(self, name, value):
         self.notify_property_changed(name)
