@@ -186,8 +186,6 @@ class RunScriptDialog(Dialog.ActionDialog):
         list_widget_row.add(list_widget)
         list_widget_row.add_spacing(8)
 
-        self.__error_label = ui.create_label_widget(properties={"stylesheet": "color: red"})
-
         close_button_widget = ui.create_push_button_widget(_("Close"))
         close_button_widget.on_clicked = self.request_close
 
@@ -198,12 +196,6 @@ class RunScriptDialog(Dialog.ActionDialog):
         button_row.add_stretch()
         button_row.add(run_button_widget)
         button_row.add_spacing(12)
-
-        error_button_row = ui.create_row_widget()
-        error_button_row.add_spacing(12)
-        error_button_row.add_stretch()
-        error_button_row.add(close_button_widget)
-        error_button_row.add_spacing(12)
 
         select_column = ui.create_column_widget()
         select_column.add_spacing(8)
@@ -217,23 +209,10 @@ class RunScriptDialog(Dialog.ActionDialog):
         run_column.add_spacing(6)
         run_column.add(self.__message_column)
 
-        error_label_row = ui.create_row_widget()
-        error_label_row.add_spacing(12)
-        error_label_row.add(self.__error_label)
-        error_label_row.add_spacing(12)
-
-        error_column = ui.create_column_widget()
-        error_column.add_spacing(8)
-        error_column.add(error_label_row)
-        error_column.add_stretch()
-        error_column.add(error_button_row)
-        error_column.add_spacing(8)
-
         self.__stack = ui.create_stack_widget()
 
         self.__stack.add(select_column)
         self.__stack.add(run_column)
-        self.__stack.add(error_column)
 
         self.content.add(self.__stack)
 
@@ -269,14 +248,15 @@ class RunScriptDialog(Dialog.ActionDialog):
 
         self.title = os.path.splitext(script_name)[0]
 
-        with open(script_path) as f:
-            script = f.read()
-
         try:
+            with open(script_path) as f:
+                script = f.read()
+
             script_ast = ast.parse(script, script_name, 'exec')
         except Exception as e:
-            self.__stack.current_index = 2
-            self.__error_label.text = str(e)
+            self.print(str(e))
+            self.__stack.current_index = 1
+            self.continue_after_parse_error(script_path)
             return
 
         class AddCallFunctionNodeTransformer(ast.NodeTransformer):
@@ -335,6 +315,20 @@ class RunScriptDialog(Dialog.ActionDialog):
         self.__stack.current_index = 1
 
         self.run(script_path, functools.partial(run_it, compiled))
+
+    def continue_after_parse_error(self, script_path):
+        def func_continue():
+            result = self.confirm(_("Finished"), _("Run Again"), _("Close"))
+
+            with self.__lock:
+                if result:
+                    self.__q.append(functools.partial(self.run_script, script_path))
+                else:
+                    self.__q.append(self.request_close)
+                self.document_controller.add_task(str(id(self)), self.__handle_output_and_q)
+
+        self.__thread = threading.Thread(target=func_continue)
+        self.__thread.start()
 
     def run(self, script_path, func):
         def func_run(func):
