@@ -159,13 +159,13 @@ class ObjectSpecifier:
                     for display in data_source.displays:
                         for graphic in display.graphics:
                             if graphic.uuid == object_uuid:
-                                return graphic
+                                return Graphic(graphic)
         elif object_type == "display":
             for data_item in document_model.data_items:
                 for data_source in data_item.data_sources:
                     for display in data_source.displays:
                         if display.uuid == object_uuid:
-                            return display
+                            return Display(display)
         elif object_type == "hardware_source":
             return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
         elif object_type == "instrument":
@@ -3009,14 +3009,6 @@ def get_api(version: str, ui_version: str) -> API_1:
     version is a string in the form "1.0.2".
     """
     return _get_api_with_app(version, ui_version, ApplicationModule.app)
-
-
-def get_data_item(version: str, data_item: DataItemModule.DataItem) -> DataItem:
-    return DataItem(data_item)
-
-
-def get_graphic(version: str, graphic: Graphics.Graphic) -> Graphic:
-    return Graphic(graphic)
 
 
 # this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
