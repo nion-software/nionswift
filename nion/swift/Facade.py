@@ -885,7 +885,7 @@ class DataItem(metaclass=SharedInstance):
     release = ["uuid", "title", "created", "modified", "data", "set_data", "xdata", "display_xdata",
                "intensity_calibration", "set_intensity_calibration", "dimensional_calibrations",
                "set_dimensional_calibrations", "metadata", "set_metadata", "has_metadata_value", "get_metadata_value",
-               "set_metadata_value", "delete_metadata_vale", "data_and_metadata", "set_data_and_metadata", "regions",
+               "set_metadata_value", "delete_metadata_value", "data_and_metadata", "set_data_and_metadata", "regions",
                "graphics", "display", "add_point_region", "add_rectangle_region", "add_ellipse_region",
                "add_line_region", "add_interval_region", "add_channel_region", "remove_region", "mask_xdata"]
 
