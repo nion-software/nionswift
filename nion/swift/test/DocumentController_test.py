@@ -434,8 +434,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(len(display.graphics), 0)
             self.assertNotIn(target_data_item, document_model.data_items)
 
-    # TODO: Fix test_delete_graphic_with_sibling_and_data_item_dependent_on_both_also_cascade_deletes_target
-    @unittest.expectedFailure
     def test_delete_data_item_with_source_region_also_cascade_deletes_target(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -457,8 +455,6 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(intermediate_data_item, document_model.data_items)
             self.assertNotIn(target_data_item, document_model.data_items)
 
-    # TODO: Fix test_delete_graphic_with_sibling_and_data_item_dependent_on_both_also_cascade_deletes_target
-    @unittest.expectedFailure
     def test_delete_graphic_with_sibling_and_data_item_dependent_on_both_also_cascade_deletes_target(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
@@ -482,7 +478,46 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
             self.assertNotIn(target_data_item, document_model.data_items)
-            self.assertEqual(len(intermediate_display.graphics), 0)
+            self.assertNotIn(interval_region1, intermediate_display.graphics)
+            self.assertNotIn(interval_region2, intermediate_display.graphics)
+
+    def test_delete_graphic_with_two_dependencies_deletes_both_dependencies(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            crop_region = Graphics.RectangleGraphic()
+            source_data_item.maybe_data_source.displays[0].add_graphic(crop_region)
+            target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
+            target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
+            self.assertIn(target_data_item1, document_model.data_items)
+            self.assertIn(target_data_item2, document_model.data_items)
+            source_data_item.maybe_data_source.displays[0].remove_graphic(crop_region)
+            self.assertNotIn(target_data_item1, document_model.data_items)
+            self.assertNotIn(target_data_item2, document_model.data_items)
+
+    def test_delete_target_data_item_with_source_region_with_another_target_does_not_delete_source_region(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
+            document_model.append_data_item(source_data_item)
+            crop_region = Graphics.RectangleGraphic()
+            source_data_item.maybe_data_source.displays[0].add_graphic(crop_region)
+            target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
+            target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
+            self.assertIn(target_data_item1, document_model.data_items)
+            self.assertIn(target_data_item2, document_model.data_items)
+            # removing one of two targets should not delete the other target
+            document_model.remove_data_item(target_data_item1)
+            self.assertNotIn(target_data_item1, document_model.data_items)
+            self.assertIn(target_data_item2, document_model.data_items)
+            self.assertIn(crop_region, source_data_item.maybe_data_source.displays[0].graphics)
+            # but removing the last target should delete both the target and the source graphic
+            document_model.remove_data_item(target_data_item2)
+            self.assertNotIn(target_data_item2, document_model.data_items)
+            self.assertNotIn(crop_region, source_data_item.maybe_data_source.displays[0].graphics)
 
     def test_crop_new_works_with_no_rectangle_graphic(self):
         document_model = DocumentModel.DocumentModel()
