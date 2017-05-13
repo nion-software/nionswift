@@ -142,6 +142,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, data=None, create_display=True):
         super(BufferedDataSource, self).__init__()
         self.__weak_dependent_data_item = None
+        self.__container_weak_ref = None
         self.define_type("buffered-data-source")
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
@@ -207,6 +208,15 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
+        self.__container_weak_ref = None
+
+    @property
+    def container(self):
+        return self.__container_weak_ref()
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
@@ -216,6 +226,18 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.computation_changed_or_mutated_event.fire(None)
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
+
+    def insert_model_item(self, container, name, before_index, item):
+        if self.__container_weak_ref:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item):
+        if self.__container_weak_ref:
+            self.container.remove_model_item(container, name, item)
+        else:
+            container.remove_item(name, item)
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()
@@ -518,7 +540,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             display.set_storage_cache(storage_cache)
 
     def __insert_display(self, name, before_index, display):
-        # listen
+        display.about_to_be_inserted(self)
         with self._changes():
             self.__change_changed = True
 
@@ -527,10 +549,12 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         display.close()
 
     def add_display(self, display):
-        self.append_item("displays", display)
+        """Add a display, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "displays", self.item_count("displays"), display)
 
     def remove_display(self, display):
-        self.remove_item("displays", display)
+        """Remove display, but do it through the container, so dependencies can be tracked."""
+        self.remove_model_item(self, "displays", display)
 
     @property
     def has_data(self):
@@ -794,6 +818,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         global writer_version
         self.uuid = item_uuid if item_uuid else self.uuid
         self.large_format = large_format  # hint for file format
+        self.__container_weak_ref = None
         self.__in_transaction_state = False
         self.__is_live = False
         self.__pending_write = True
@@ -884,6 +909,15 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
+        self.__container_weak_ref = None
+
+    @property
+    def container(self):
+        return self.__container_weak_ref()
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
@@ -891,6 +925,18 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
             data_source.about_to_be_removed()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
+
+    def insert_model_item(self, container, name, before_index, item):
+        if self.__container_weak_ref:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item):
+        if self.__container_weak_ref:
+            self.container.remove_model_item(container, name, item)
+        else:
+            container.remove_item(name, item)
 
     def clone(self) -> "DataItem":
         data_item = DataItem()
@@ -1258,6 +1304,7 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.data_item_data_changed_event.fire(self)
 
     def __insert_data_source(self, name, before_index, data_source):
+        data_source.about_to_be_inserted(self)
         data_source.timezone = self.timezone
         data_source.timezone_offset = self.timezone_offset
         data_source.set_dependent_data_item(self)
@@ -1300,10 +1347,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.notify_remove_item("data_sources", data_source, index)
 
     def append_data_source(self, data_source):
-        self.append_item("data_sources", data_source)
+        """Add a display, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "data_sources", self.item_count("data_sources"), data_source)
 
     def remove_data_source(self, data_source):
-        self.remove_item("data_sources", data_source)
+        """Remove display, but do it through the container, so dependencies can be tracked."""
+        self.remove_model_item(self, "data_sources", data_source)
 
     def add_connection(self, connection):
         self.append_item("connections", connection)

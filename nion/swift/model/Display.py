@@ -13,6 +13,7 @@ import operator
 import threading
 import typing
 import uuid
+import weakref
 
 import numpy
 
@@ -378,7 +379,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     # Displays are associated with exactly one data item.
 
     def __init__(self):
-        super(Display, self).__init__()
+        super().__init__()
+        self.__container_weak_ref = None
         self.__cache = Cache.ShadowCache()
         self.__color_map_data = None
         self.define_property("display_type", changed=self.__display_type_changed)
@@ -454,11 +456,20 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
+        self.__container_weak_ref = None
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
         if self.dimensional_calibration_style is None:
             self._get_persistent_property("dimensional_calibration_style").value = "calibrated" if self.display_calibrated_values else "relative-top-left"
+
+    @property
+    def container(self):
+        return self.__container_weak_ref()
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
@@ -467,6 +478,18 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.about_to_be_removed_event.fire()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
+
+    def insert_model_item(self, container, name, before_index, item):
+        if self.__container_weak_ref:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item):
+        if self.__container_weak_ref:
+            self.container.remove_model_item(container, name, item)
+        else:
+            container.remove_item(name, item)
 
     def clone(self) -> "Display":
         display = Display()
@@ -862,6 +885,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         return self.__calculated_display_values.values()
 
     def __insert_graphic(self, name, before_index, graphic):
+        graphic.about_to_be_inserted(self)
         graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, graphic))
         self.__graphic_changed_listeners.insert(before_index, graphic_changed_listener)
         self.__graphics_map[graphic.uuid] = graphic
@@ -884,20 +908,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.notify_remove_item("graphics", graphic, index)
 
     def insert_graphic(self, before_index, graphic):
-        """ Insert a graphic before the index """
-        self.insert_item("graphics", before_index, graphic)
+        """Insert a graphic before the index, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "graphics", before_index, graphic)
 
     def add_graphic(self, graphic):
-        """ Append a graphic """
-        self.append_item("graphics", graphic)
+        """Append a graphic, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "graphics", self.item_count("graphics"), graphic)
 
     def remove_graphic(self, graphic):
-        """ Remove a graphic """
-        self.remove_item("graphics", graphic)
-
-    def extend_graphics(self, graphics):
-        """ Extend the graphics array with the list of graphics """
-        self.extend_items("graphics", graphics)
+        """Remove a graphic, but do it through the container, so dependencies can be tracked."""
+        self.remove_model_item(self, "graphics", graphic)
 
     def get_graphic_by_uuid(self, graphic_uuid: uuid.UUID) -> Graphics.Graphic:
         return self.__graphics_map.get(graphic_uuid)

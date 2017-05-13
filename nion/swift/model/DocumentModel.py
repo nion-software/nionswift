@@ -1150,6 +1150,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __finish_read(self, data_items: typing.List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
             if data_item.uuid not in self.__data_item_uuids:  # an error, but don't crash
+                data_item.about_to_be_inserted(self)
                 self.__data_items.insert(index, data_item)
                 self.__data_item_uuids.add(data_item.uuid)
                 data_item.set_storage_cache(self.storage_cache)
@@ -1285,6 +1286,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert before_index <= len(self.__data_items) and before_index >= 0
         assert data_item.uuid not in self.__data_item_uuids
         # insert in internal list
+        data_item.about_to_be_inserted(self)
         self.__data_items.insert(before_index, data_item)
         self.__data_item_uuids.add(data_item.uuid)
         data_item.set_storage_cache(self.storage_cache)
@@ -1347,6 +1349,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_removed_event.fire(self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
         self.data_item_deleted_event.fire(data_item)
+
+    def insert_model_item(self, container, name, before_index, item):
+        container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item):
+        container.remove_item(name, item)
 
     def __remove_dependency(self, source_data_item, target_data_item):
         with self.__dependent_data_items_lock:

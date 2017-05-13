@@ -2,6 +2,7 @@
 import copy
 import gettext
 import math
+import weakref
 
 # third party libraries
 import numpy  # for arange
@@ -297,6 +298,7 @@ class NullModifiers(object):
 class Graphic(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, type):
         super().__init__()
+        self.__container_weak_ref = None
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("color", "#F80", changed=self._property_changed)
@@ -316,12 +318,34 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
+        self.__container_weak_ref = None
+
+    @property
+    def container(self):
+        return self.__container_weak_ref()
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
         self.about_to_be_removed_event.fire()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
+        self.__container_weak_ref = None
+
+    def insert_model_item(self, container, name, before_index, item):
+        if self.__container_weak_ref:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item):
+        if self.__container_weak_ref:
+            self.container.remove_model_item(container, name, item)
+        else:
+            container.remove_item(name, item)
 
     def clone(self) -> "Graphic":
         graphic = copy.deepcopy(self)
