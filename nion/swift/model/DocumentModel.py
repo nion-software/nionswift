@@ -1095,9 +1095,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__transactions = dict()
         self.__live_data_items_lock = threading.RLock()
         self.__live_data_items = dict()
-        self.__dependent_data_items_lock = threading.RLock()
-        self.__dependent_data_items = dict()
-        self.__source_data_items = dict()
+        self.__dependency_tree_lock = threading.RLock()
+        self.__dependency_tree_source_to_target_map = dict()
+        self.__dependency_tree_target_to_source_map = dict()
         self.__data_items = list()
         self.__data_item_uuids = set()
         self.__computation_changed_or_mutated_listeners = dict()
@@ -1316,6 +1316,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This method is NOT threadsafe.
         """
         # remove data item from any computations
+        self.__cascade_delete(data_item)
+
+    def __remove_data_item(self, data_item):
         assert data_item.uuid in self.__data_item_uuids
         with self.__computation_queue_lock:
             for computation_queue_item in self.__computation_pending_queue + self.__computation_active_items:
@@ -1354,31 +1357,75 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         container.insert_item(name, before_index, item)
 
     def remove_model_item(self, container, name, item):
-        container.remove_item(name, item)
+        self.__cascade_delete(item)
 
-    def __remove_dependency(self, source_data_item, target_data_item):
-        with self.__dependent_data_items_lock:
-            self.__dependent_data_items.setdefault(weakref.ref(source_data_item), list()).remove(target_data_item)
-            self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).remove(source_data_item)
-        # propagate transaction and live states to dependents
-        if source_data_item.in_transaction_state:
-            self.end_data_item_transaction(target_data_item)
-        if source_data_item.is_live:
-            self.end_data_item_live(target_data_item)
-        self.dependency_removed_event.fire(source_data_item, target_data_item)
+    def __build_cascade(self, item, items: list, dependencies: list) -> None:
+        # build a list of items to delete, with the leafs at the end of the list.
+        # print(f"build {item}")
+        if item not in items:
+            # first handle the case where a data item that is the only target of a graphic cascades to the graphic.
+            # this is the only case where a target causes a source to be deleted.
+            items.append(item)
+            if isinstance(item, DataItem.DataItem):
+                sources = self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())
+                for source in sources:
+                    if isinstance(source, Graphics.Graphic):
+                        source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
+                        if len(source_targets) == 1 and source_targets[0] == item:
+                            self.__build_cascade(source, items, dependencies)
+                for data_source in item.data_sources:
+                    for display in data_source.displays:
+                        for graphic in display.graphics:
+                            self.__build_cascade(graphic, items, dependencies)
+            targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
+            for target in targets:
+                assert isinstance(target, DataItem.DataItem)
+                dependencies.append((item, target))
+                self.__build_cascade(target, items, dependencies)
 
-    def __add_dependency(self, source_data_item, target_data_item):
-        assert isinstance(source_data_item, DataItem.DataItem)
-        assert isinstance(target_data_item, DataItem.DataItem)
-        with self.__dependent_data_items_lock:
-            self.__dependent_data_items.setdefault(weakref.ref(source_data_item), list()).append(target_data_item)
-            self.__source_data_items.setdefault(weakref.ref(target_data_item), list()).append(source_data_item)
-        # propagate transaction and live states to dependents
-        if source_data_item.in_transaction_state:
-            self.begin_data_item_transaction(target_data_item)
-        if source_data_item.is_live:
-            self.begin_data_item_live(target_data_item)
-        self.dependency_added_event.fire(source_data_item, target_data_item)
+    def __cascade_delete(self, item):
+        # print(f"cascade {item}")
+        items = list()
+        dependencies = list()
+        self.__build_cascade(item, items, dependencies)
+        # print(list(reversed(items)))
+        for source, target in reversed(dependencies):
+            self.__remove_dependency(source, target)
+        for item in reversed(items):
+            container = item.container
+            name = "data_items" if isinstance(item, DataItem.DataItem) else "graphics"
+            # print(container, name, item)
+            if container is self:
+                # call the version of __remove_data_item that doesn't cascade again
+                self.__remove_data_item(item)
+            else:
+                container.remove_item(name, item)
+
+    def __remove_dependency(self, source_item, target_item):
+        # print(f"remove dependency {source_item} {target_item}")
+        with self.__dependency_tree_lock:
+            self.__dependency_tree_source_to_target_map.setdefault(weakref.ref(source_item), list()).remove(target_item)
+            self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(target_item), list()).remove(source_item)
+        if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
+            # propagate transaction and live states to dependents
+            if source_item.in_transaction_state:
+                self.end_data_item_transaction(target_item)
+            if source_item.is_live:
+                self.end_data_item_live(target_item)
+        self.dependency_removed_event.fire(source_item, target_item)
+
+    def __add_dependency(self, source_item, target_item):
+        # print(f"add dependency {source_item} {target_item}")
+        with self.__dependency_tree_lock:
+            self.__dependency_tree_source_to_target_map.setdefault(weakref.ref(source_item), list()).append(target_item)
+            self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(target_item), list()).append(source_item)
+        if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
+            # propagate transaction and live states to dependents
+            if source_item.in_transaction_state:
+                self.begin_data_item_transaction(target_item)
+            if source_item.is_live:
+                self.begin_data_item_live(target_item)
+        self.dependency_added_event.fire(source_item, target_item)
 
     def __handle_data_item_data_changed(self, data_item):
         data_item.session_id = self.session_id
@@ -1392,28 +1439,27 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__computation_pending_queue.append(computation_queue_item)
         self.dispatch_task2(self.__recompute)
 
-    def __handle_computation_changed_or_mutated(self, data_item, computation):
+    def __handle_computation_changed_or_mutated(self, data_item: DataItem.DataItem, computation) -> None:
         """Establish the dependencies between data items based on the computation."""
 
-        new_source_data_items = set()
+        new_source_items = set()
         if computation:
             for variable in computation.variables:
                 specifier = variable.specifier
                 if specifier:
                     object = self.resolve_object_specifier(variable.specifier)
                     if hasattr(object, "value"):
-                        source_data_item = object.value
-                        if isinstance(source_data_item, DataItem.DataItem):
-                            new_source_data_items.add(source_data_item)
+                        source_item = object.value
+                        new_source_items.add(source_item)
 
-        with self.__dependent_data_items_lock:
-            old_source_data_items = set(self.__source_data_items.setdefault(weakref.ref(data_item), list()))
+        with self.__dependency_tree_lock:
+            old_source_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(data_item), list()))
             # add the items in new set that aren't in the old set
-            for source_data_item in (new_source_data_items - old_source_data_items):
-                self.__add_dependency(source_data_item, data_item)
+            for source_item in (new_source_items - old_source_items):
+                self.__add_dependency(source_item, data_item)
             # remove the items in the old set that aren't in the new set
-            for source_data_item in (old_source_data_items - new_source_data_items):
-                self.__remove_dependency(source_data_item, data_item)
+            for source_item in (old_source_items - new_source_items):
+                self.__remove_dependency(source_item, data_item)
 
         for buffered_data_source in data_item.data_sources:
             if buffered_data_source.computation:
@@ -1438,14 +1484,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     # transactions, live state, and dependencies
 
-    def get_source_data_items(self, data_item):
-        with self.__dependent_data_items_lock:
-            return copy.copy(self.__source_data_items.get(weakref.ref(data_item), list()))
+    def get_source_data_items(self, data_item: DataItem.DataItem) -> typing.List[DataItem.DataItem]:
+        with self.__dependency_tree_lock:
+            return [data_item for data_item in self.__dependency_tree_target_to_source_map.get(weakref.ref(data_item), list()) if isinstance(data_item, DataItem.DataItem)]
 
-    def get_dependent_data_items(self, data_item):
+    def get_dependent_data_items(self, data_item: DataItem.DataItem) -> typing.List[DataItem.DataItem]:
         """Return the list of data items containing data that directly depends on data in this item."""
-        with self.__dependent_data_items_lock:
-            return copy.copy(self.__dependent_data_items.get(weakref.ref(data_item), list()))
+        with self.__dependency_tree_lock:
+            return [data_item for data_item in self.__dependency_tree_source_to_target_map.get(weakref.ref(data_item), list()) if isinstance(data_item, DataItem.DataItem)]
 
     def data_item_transaction(self, data_item):
         """ Return a context manager to put the data item under a 'transaction'. """
