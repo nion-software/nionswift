@@ -1065,7 +1065,7 @@ class ComputationQueueItem:
 
 
 
-class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject):
+class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
 
     """The document model manages storage and dependencies between data items and other objects.
 
@@ -1101,7 +1101,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_items = list()
         self.__data_item_uuids = set()
         self.__computation_changed_or_mutated_listeners = dict()
-        self.__data_item_data_changed_listeners = dict()
         self.__data_item_references = dict()
         self.__recompute_lock = threading.RLock()
         self.__computation_queue_lock = threading.RLock()
@@ -1155,7 +1154,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_item_uuids.add(data_item.uuid)
                 data_item.set_storage_cache(self.storage_cache)
                 self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
-                self.__data_item_data_changed_listeners[data_item.uuid] = data_item.data_item_data_changed_event.listen(self.__handle_data_item_data_changed)
+                data_item.set_session_manager(self)
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
         # mark itself clean after reading all of them in.
         for data_item in data_items:
@@ -1259,6 +1258,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         session_metadata.pop(field_id, None)
         self.session_metadata = session_metadata
 
+    @property
+    def current_session_id(self):
+        return self.session_id
+
     def append_workspace(self, workspace):
         self.insert_workspace(len(self.workspaces), workspace)
 
@@ -1301,7 +1304,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item._finish_pending_write()  # initially write to disk
         self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
         data_item.fire_computation_changed_or_mutated_event()
-        self.__data_item_data_changed_listeners[data_item.uuid] = data_item.data_item_data_changed_event.listen(self.__handle_data_item_data_changed)
+        data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
@@ -1344,8 +1347,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.__storage_cache = None
         self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
         del self.__computation_changed_or_mutated_listeners[data_item.uuid]
-        self.__data_item_data_changed_listeners[data_item.uuid].close()
-        del self.__data_item_data_changed_listeners[data_item.uuid]
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
@@ -1426,9 +1427,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if source_item.is_live:
                 self.begin_data_item_live(target_item)
         self.dependency_added_event.fire(source_item, target_item)
-
-    def __handle_data_item_data_changed(self, data_item):
-        data_item.session_id = self.session_id
 
     def __computation_needs_update(self, data_item, buffered_data_source):
         with self.__computation_queue_lock:
@@ -2074,7 +2072,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item_reference = self.get_data_item_reference(self.make_data_item_reference_key(hardware_source.hardware_source_id, data_channel.channel_id))
             data_item_reference.start()
         self.__call_soon(data_channel_start)
-
 
     def __data_channel_stop(self, hardware_source, data_channel):
         def data_channel_stop():

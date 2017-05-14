@@ -1,8 +1,8 @@
 # standard libraries
+import abc
 import copy
 import datetime
 import gettext
-import logging
 import os
 import threading
 import time
@@ -24,7 +24,6 @@ from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import Display
-from nion.swift.model import PlugInManager
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.utils import Event
@@ -758,6 +757,14 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         return self.__data_and_metadata.size_and_data_format_as_string if self.__data_and_metadata else _("No Data")
 
 
+class SessionManager(abc.ABC):
+
+    @property
+    @abc.abstractmethod
+    def current_session_id(self) -> str:
+        pass
+
+
 # dates are _local_ time and must use this specific ISO 8601 format. 2013-11-17T08:43:21.389391
 # time zones are offsets (east of UTC) in the following format "+HHMM" or "-HHMM"
 # daylight savings times are time offset (east of UTC) in format "+MM" or "-MM"
@@ -843,12 +850,12 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__computation_changed_or_mutated_event_listeners = list()
         self.__data_item_changed_event_listeners = list()
         self.__data_changed_event_listeners = list()
+        self.__session_manager = None
         self.__metadata = dict()
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
         self.computation_changed_or_mutated_event = Event.Event()
-        self.data_item_data_changed_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_content_changed = False
@@ -1295,13 +1302,21 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def set_metadata(self, metadata):
         self.metadata = metadata
 
+    @property
+    def _session_manager(self) -> SessionManager:
+        return self.__session_manager
+
+    def set_session_manager(self, session_manager: SessionManager) -> None:
+        self.__session_manager = session_manager
+
     def __computation_changed_or_mutated(self, computation):
         self.computation_changed_or_mutated_event.fire(self, computation)
 
     def __handle_data_changed(self, data_source):
         self.timezone = Utility.get_local_timezone()
         self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
-        self.data_item_data_changed_event.fire(self)
+        if self.__session_manager:
+            self.session_id = self.__session_manager.current_session_id
 
     def __insert_data_source(self, name, before_index, data_source):
         data_source.about_to_be_inserted(self)
