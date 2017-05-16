@@ -1022,9 +1022,8 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
 
 class ComputationQueueItem:
-    def __init__(self, data_item, buffered_data_source):
+    def __init__(self, data_item):
         self.data_item = data_item
-        self.buffered_data_source = buffered_data_source
         self.valid = True
 
     def recompute(self) -> typing.Sequence[typing.Callable[[], None]]:
@@ -1033,8 +1032,8 @@ class ComputationQueueItem:
         # threadsafe
         pending_data_item_merges = list()
         data_item = self.data_item
-        buffered_data_source = self.buffered_data_source
-        computation = buffered_data_source.computation
+        buffered_data_source = data_item.maybe_data_source
+        computation = data_item.computation
         if computation:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
@@ -1085,6 +1084,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.dependency_added_event = Event.Event()
         self.dependency_removed_event = Event.Event()
 
+        self.computation_updated_event = Event.Event()
+
         self.__thread_pool = ThreadPool.ThreadPool()
         self.__computation_thread_pool = ThreadPool.ThreadPool()
         self.persistent_object_context = PersistentDataItemContext(persistent_storage_systems, ignore_older_files, log_migrations)
@@ -1100,7 +1101,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__dependency_tree_target_to_source_map = dict()
         self.__data_items = list()
         self.__data_item_uuids = set()
-        self.__computation_changed_or_mutated_listeners = dict()
+        self.__computation_changed_listeners = dict()
         self.__data_item_references = dict()
         self.__recompute_lock = threading.RLock()
         self.__computation_queue_lock = threading.RLock()
@@ -1153,14 +1154,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__data_items.insert(index, data_item)
                 self.__data_item_uuids.add(data_item.uuid)
                 data_item.set_storage_cache(self.storage_cache)
-                self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
                 data_item.set_session_manager(self)
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
         # mark itself clean after reading all of them in.
         for data_item in data_items:
             data_item.finish_reading()
         for data_item in data_items:
-            data_item.fire_computation_changed_or_mutated_event()
+            self.__computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
         for data_item in data_items:
             data_item.update_and_bind_computation(self)
             data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
@@ -1302,13 +1302,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # self.persistent_object_context.write_data_item(data_item)
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
-        self.__computation_changed_or_mutated_listeners[data_item.uuid] = data_item.computation_changed_or_mutated_event.listen(self.__handle_computation_changed_or_mutated)
-        data_item.fire_computation_changed_or_mutated_event()
+        self.__computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
-        # handle computation
         data_item.data_item_was_inserted(self)
 
     def remove_data_item(self, data_item):
@@ -1325,7 +1323,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         assert data_item.uuid in self.__data_item_uuids
         with self.__computation_queue_lock:
             for computation_queue_item in self.__computation_pending_queue + self.__computation_active_items:
-                if computation_queue_item.buffered_data_source in data_item.data_sources:
+                if computation_queue_item.data_item is data_item:
                     computation_queue_item.valid = False
         # remove data item from any selections
         self.data_item_will_be_removed_event.fire(data_item)
@@ -1345,8 +1343,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        self.__computation_changed_or_mutated_listeners[data_item.uuid].close()
-        del self.__computation_changed_or_mutated_listeners[data_item.uuid]
+        self.__handle_computation_changed_or_mutated(data_item, None)
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
@@ -1428,12 +1425,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.begin_data_item_live(target_item)
         self.dependency_added_event.fire(source_item, target_item)
 
-    def __computation_needs_update(self, data_item, buffered_data_source):
+    def __computation_needs_update(self, data_item):
         with self.__computation_queue_lock:
             for computation_queue_item in self.__computation_pending_queue:
-                if computation_queue_item.buffered_data_source == buffered_data_source:
+                if computation_queue_item.data_item == data_item:
                     return
-            computation_queue_item = ComputationQueueItem(data_item, buffered_data_source)
+            computation_queue_item = ComputationQueueItem(data_item)
             self.__computation_pending_queue.append(computation_queue_item)
         self.dispatch_task2(self.__recompute)
 
@@ -1459,9 +1456,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for source_item in (old_source_items - new_source_items):
                 self.__remove_dependency(source_item, data_item)
 
-        for buffered_data_source in data_item.data_sources:
-            if buffered_data_source.computation:
-                self.__computation_needs_update(data_item, buffered_data_source)
+        if data_item.computation:
+            self.__computation_needs_update(data_item)
 
     def rebind_computations(self):
         """Call this to rebind all computations.
@@ -2142,6 +2138,25 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_data_item(data_item_copy)
         return data_item_copy
 
+    def set_data_item_computation(self, data_item: DataItem.DataItem, computation: Symbolic.Computation) -> None:
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        buffered_data_source = display_specifier.buffered_data_source
+        if buffered_data_source:
+            old_computation = buffered_data_source.computation
+            buffered_data_source._set_computation(computation)
+            self.__computation_changed(data_item, old_computation, computation)
+
+    def __computation_changed(self, data_item, old_computation, new_computation):
+        def computation_mutated():
+            self.__handle_computation_changed_or_mutated(data_item, new_computation)
+            self.computation_updated_event.fire(data_item, new_computation)
+        if old_computation:
+            computation_changed_listener = self.__computation_changed_listeners.pop(data_item, None)
+            if computation_changed_listener: computation_changed_listener.close()
+        if new_computation:
+            self.__computation_changed_listeners[data_item] = new_computation.computation_mutated_event.listen(computation_mutated)
+        computation_mutated()
+
     def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
 
@@ -2375,7 +2390,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # everything is configured. permanent solution would be to improve the clone/merge to
         # only update data that had been changed. alternative implementation would only track
         # changes to the data item and then apply them again to the original during merge.
-        buffered_data_source.set_computation(computation)
+        self.set_data_item_computation(new_data_item, computation)
 
         return new_data_item
 

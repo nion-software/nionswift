@@ -36,7 +36,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
-            data_item2.maybe_data_source.set_computation(computation)
+            document_model.set_data_item_computation(data_item2, computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # execute queue
             text1 = panel._text_edit_for_testing.text
@@ -56,7 +56,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
-            data_item2.maybe_data_source.set_computation(computation)
+            document_model.set_data_item_computation(data_item2, computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # execute queue
             panel._text_edit_for_testing.text = ""
@@ -77,7 +77,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
-            data_item2.maybe_data_source.set_computation(computation)
+            document_model.set_data_item_computation(data_item2, computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # let the inspector see the computation
             document_controller.periodic()  # and update the computation
@@ -114,7 +114,7 @@ class TestComputationPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
-            data_item2.maybe_data_source.set_computation(computation)
+            document_model.set_data_item_computation(data_item2, computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
             document_controller.periodic()  # let the inspector see the computation
             document_controller.periodic()  # and update the computation
@@ -151,7 +151,7 @@ class TestComputationPanelClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = a.xdata + x")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
             computation.create_variable("x", value_type="integral", value=5)
-            data_item2.maybe_data_source.set_computation(computation)
+            document_model.set_data_item_computation(data_item2, computation)
             document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))
             document_controller.periodic()  # execute queue
             self.assertEqual(len(panel._sections_for_testing), 0)

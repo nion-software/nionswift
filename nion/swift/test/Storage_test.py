@@ -434,10 +434,10 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item3)
             computation1 = document_model.create_computation(Symbolic.xdata_expression("xd.ifft(a.xdata)"))
             computation1.create_object("a", document_model.get_object_specifier(data_item2))
-            data_item1.maybe_data_source.set_computation(computation1)
+            document_model.set_data_item_computation(data_item1, computation1)
             computation2 = document_model.create_computation(Symbolic.xdata_expression("xd.fft(a.xdata)"))
             computation2.create_object("a", document_model.get_object_specifier(data_item2))
-            data_item3.maybe_data_source.set_computation(computation2)
+            document_model.set_data_item_computation(data_item3, computation2)
         memory_persistent_storage_system.properties["86d982d1-6d81-46fa-b19e-574e904902de"]["created"] = "2015-01-22T17:16:12.421290"
         memory_persistent_storage_system.properties["71ab9215-c6ae-4c36-aaf5-92ce78db02b6"]["created"] = "2015-01-22T17:16:12.219730"
         memory_persistent_storage_system.properties["7d3b374e-e48b-460f-91de-7ff4e1a1a63c"]["created"] = "2015-01-22T17:16:12.308003"
@@ -2670,8 +2670,8 @@ class TestStorageClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
-            computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -2693,8 +2693,8 @@ class TestStorageClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
-            computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             assert numpy.array_equal(-document_model.data_items[0].maybe_data_source.data, document_model.data_items[1].maybe_data_source.data)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -2718,8 +2718,8 @@ class TestStorageClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.column(a.xdata)"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
-            computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
@@ -2738,8 +2738,8 @@ class TestStorageClass(unittest.TestCase):
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata[2:4, :, :] + a.xdata[5]"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             computed_data_item = DataItem.DataItem(data.copy())
-            computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             data_shape = computed_data_item.maybe_data_source.data_shape
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -2761,8 +2761,8 @@ class TestStorageClass(unittest.TestCase):
             computation.create_object("a", document_model.get_object_specifier(data_item))
             x = computation.create_variable("x")  # value is intentionally None
             computed_data_item = DataItem.DataItem(data.copy())
-            computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
             x.value_type = "integral"
             x.value = 6
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -2783,8 +2783,8 @@ class TestStorageClass(unittest.TestCase):
             computation.create_variable("x", value_type="integral", value=3)
             computation.create_variable("y", value_type="integral", value=4)
             computed_data_item = DataItem.DataItem(data.copy())
-            computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
         del memory_persistent_storage_system.properties[str(computed_data_item.uuid)]["data_sources"][0]["computation"]["variables"][0]
         memory_persistent_storage_system.properties[str(computed_data_item.uuid)]["data_sources"][0]["computation"]["variables"][0]["uuid"] = str(uuid.uuid4())
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])

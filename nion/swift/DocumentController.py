@@ -1155,8 +1155,8 @@ class DocumentController(Window.Window):
                     data_item.category = "temporary"
         buffered_data_source = DataItem.BufferedDataSource()
         data_item.append_data_source(buffered_data_source)
-        buffered_data_source.set_computation(computation)
         self.document_model.append_data_item(data_item)
+        self.document_model.set_data_item_computation(data_item, computation)
         self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
         return data_item
 

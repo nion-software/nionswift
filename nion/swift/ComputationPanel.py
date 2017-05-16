@@ -135,9 +135,8 @@ class ComputationModel:
             self.error_text_changed_event.fire(self.__error_text)
 
     def clear(self):
-        buffered_data_source = self.__display_specifier.buffered_data_source
-        if buffered_data_source:
-            buffered_data_source.set_computation(None)
+        document_model = self.document_controller.document_model
+        document_model.set_data_item_computation(self.__display_specifier.data_item, None)
 
     def __update_computation_display(self) -> None:
         def update_computation_display():
@@ -182,8 +181,11 @@ class ComputationModel:
             self.__display_specifier = copy.copy(display_specifier)
             computation = self.__computation
             if computation:
-                buffered_data_source = self.__display_specifier.buffered_data_source
-                self.__computation_changed_or_mutated_event_listener = buffered_data_source.computation_changed_or_mutated_event.listen(lambda c: self.__update_computation_display())
+                document_model = self.document_controller.document_model
+                def computation_updated(data_item, computation):
+                    if data_item == self.__display_specifier.data_item:
+                        self.__update_computation_display()
+                self.__computation_changed_or_mutated_event_listener = document_model.computation_updated_event.listen(computation_updated)
                 self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(self.__variable_inserted)
                 self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(self.__variable_removed)
             self.__update_computation_display()

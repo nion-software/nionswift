@@ -107,9 +107,9 @@ class TestDataItemClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
             computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
-            data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
 
@@ -122,9 +122,9 @@ class TestDataItemClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
             computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
-            data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
             self.assertEqual(document_model.get_dependent_data_items(data_item2)[0], data_item2a)
@@ -142,9 +142,9 @@ class TestDataItemClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
             computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
-            data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            document_model.set_data_item_computation(data_item2a, computation)
             # verify
             self.assertEqual(document_model.get_source_data_items(data_item2a)[0], data_item2)
             # remove source
@@ -161,9 +161,9 @@ class TestDataItemClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = resample_image(src.xdata, shape(12, 12)")
             computation.create_object("src", document_model.get_object_specifier(data_item2))
             data_item2a.append_data_source(DataItem.BufferedDataSource())
-            data_item2a.maybe_data_source.set_computation(computation)
             document_model.append_data_item(data_item2)  # add this first
             document_model.append_data_item(data_item2a)  # add this second
+            document_model.set_data_item_computation(data_item2a, computation)
             # copy the dependent item
             data_item2a_copy = copy.deepcopy(data_item2a)
             document_model.append_data_item(data_item2a_copy)
@@ -586,7 +586,7 @@ class TestDataItemClass(unittest.TestCase):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
             self.assertEqual(len(display_specifier.display.graphics), 1)
-            data_item_crop.maybe_data_source.set_computation(None)
+            document_model.set_data_item_computation(data_item, None)
             # the associated graphic should now be deleted.
             self.assertEqual(len(display_specifier.display.graphics), 0)
 
@@ -825,7 +825,7 @@ class TestDataItemClass(unittest.TestCase):
             copied_data_item = document_model.get_invert_new(data_item)
             document_model.recompute_all()
             self.assertFalse(copied_data_item.maybe_data_source.computation.needs_update)
-            copied_data_item.maybe_data_source.set_computation(None)
+            document_model.set_data_item_computation(copied_data_item, None)
             document_model.recompute_all()
             self.assertIsNotNone(copied_data_item.maybe_data_source.data)
 

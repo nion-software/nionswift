@@ -161,7 +161,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.define_property("source_data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("data_modified", recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
-        self.define_item("computation", computation_factory, item_changed=self.__computation_changed)  # will be deep copied when copying, needs explicit set method set_computation
+        self.define_item("computation", computation_factory)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.__timezone = None  # set by the data item, used when returning data_and_metadata
         self.__timezone_offset = None  # set by the data item, used when returning data_and_metadata
@@ -177,8 +177,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
-        self.__computation_mutated_event_listener = None  # incoming to know when the computation changes internally
-        self.computation_changed_or_mutated_event = Event.Event()  # outgoing message
         self.data_item_changed_event = Event.Event()
         self.data_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
@@ -200,9 +198,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__subscription = None
         for display in self.displays:
             display.close()
-        if self.__computation_mutated_event_listener:
-            self.__computation_mutated_event_listener.close()
-            self.__computation_mutated_event_listener = None
         self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed
@@ -221,8 +216,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         # called before close and before item is removed from its container
         for display in self.displays:
             display.about_to_be_removed()
-        if self.computation:
-            self.computation_changed_or_mutated_event.fire(None)
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -362,20 +355,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
 
-    def set_computation(self, computation):
+    def _set_computation(self, computation):
         self.set_item("computation", computation)
-
-    def __computation_changed(self, name, old_computation, new_computation):
-        if old_computation:
-            self.__computation_mutated_event_listener.close()
-            self.__computation_mutated_event_listener = None
-        if new_computation:
-            def computation_mutated():
-                self.computation_changed_or_mutated_event.fire(new_computation)
-                # self.__metadata_changed()
-            self.__computation_mutated_event_listener = new_computation.computation_mutated_event.listen(computation_mutated)
-        self.computation_changed_or_mutated_event.fire(self.computation)
-        # self.__metadata_changed()
 
     @property
     def timezone(self):
@@ -847,7 +828,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__data_items = list()
-        self.__computation_changed_or_mutated_event_listeners = list()
         self.__data_item_changed_event_listeners = list()
         self.__data_changed_event_listeners = list()
         self.__session_manager = None
@@ -855,7 +835,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__metadata_lock = threading.RLock()
         self.metadata_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
-        self.computation_changed_or_mutated_event = Event.Event()
         self.__data_item_change_count = 0
         self.__data_item_change_count_lock = threading.RLock()
         self.__data_item_content_changed = False
@@ -1081,10 +1060,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
 
-    def fire_computation_changed_or_mutated_event(self):
-        if self.maybe_data_source:
-            self.computation_changed_or_mutated_event.fire(self, self.maybe_data_source.computation)
-
     def update_and_bind_computation(self, computation_context):
         for buffered_data_source in self.data_sources:
             computation = buffered_data_source.computation
@@ -1309,9 +1284,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
     def set_session_manager(self, session_manager: SessionManager) -> None:
         self.__session_manager = session_manager
 
-    def __computation_changed_or_mutated(self, computation):
-        self.computation_changed_or_mutated_event.fire(self, computation)
-
     def __handle_data_changed(self, data_source):
         self.timezone = Utility.get_local_timezone()
         self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
@@ -1323,8 +1295,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         data_source.timezone = self.timezone
         data_source.timezone_offset = self.timezone_offset
         data_source.set_dependent_data_item(self)
-        self.__computation_changed_or_mutated_event_listeners.insert(before_index, data_source.computation_changed_or_mutated_event.listen(self.__computation_changed_or_mutated))
-        self.__computation_changed_or_mutated(data_source.computation)
         self.__data_changed_event_listeners.insert(before_index, data_source.data_changed_event.listen(self.__handle_data_changed))
         # being in transaction state means that data sources have their data loaded.
         # so load data here to keep the books straight when the transaction state is exited.
@@ -1349,8 +1319,6 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.__data_item_changed_event_listeners[index].close()
         del self.__data_item_changed_event_listeners[index]
         data_source.set_dependent_data_item(None)
-        self.__computation_changed_or_mutated_event_listeners[index].close()
-        del self.__computation_changed_or_mutated_event_listeners[index]
         self.__data_changed_event_listeners[index].close()
         del self.__data_changed_event_listeners[index]
         # being in transaction state means that data sources have their data loaded.
@@ -1384,7 +1352,11 @@ class DataItem(Observable.Observable, Persistence.PersistentObject):
         self.notify_data_item_content_changed()
 
     @property
-    def maybe_data_source(self) -> BufferedDataSource:
+    def computation(self) -> typing.Optional[Symbolic.Computation]:
+        return self.maybe_data_source.computation if self.maybe_data_source else None
+
+    @property
+    def maybe_data_source(self) -> typing.Optional[BufferedDataSource]:
         return self.data_sources[0] if len(self.data_sources) == 1 else None
 
     @property

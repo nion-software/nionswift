@@ -163,7 +163,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
             with data_item.maybe_data_source.data_ref() as data_ref:
                 data_ref.data = (100 * numpy.random.randn(4, 4)).astype(numpy.int)
-            inverted_data_item.maybe_data_source.set_computation(None)
+            document_model.set_data_item_computation(inverted_data_item, None)
             self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
@@ -178,8 +178,8 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.create_object("a", document_model.get_object_specifier(data_item))
             x = computation.create_variable("x", value_type="integral", value=5)
             computed_data_item = DataItem.DataItem(d)
-            computed_data_item.maybe_data_source.set_computation(computation)
             document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all(merge=False)
             x.value = 10
             document_model.recompute_all(merge=False)
