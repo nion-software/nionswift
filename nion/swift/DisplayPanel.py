@@ -1296,16 +1296,16 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     # sets the data item that this panel displays
     # not thread safe
-    def set_displayed_data_item(self, data_item):
+    def set_displayed_data_item(self, data_item: DataItem.DataItem) -> None:
         # ensure the display item stays in memory
         # listen for changes to display content and parameters, metadata, or the selection
         # changes to the underlying data will trigger changes in the display content
         if data_item:
-            data_item.increment_data_ref_counts()  # ensure data stays in memory while displayed
+            data_item.increment_display_ref_count()  # ensure data stays in memory while displayed
         # track data item in this class to report changes
         old_data_item = self._data_item
         if old_data_item:
-            old_data_item.decrement_data_ref_counts()  # release old data from memory
+            old_data_item.decrement_display_ref_count()  # release old data from memory
 
         if self.__data_item_metadata_changed_event_listener:
             self.__data_item_metadata_changed_event_listener.close()

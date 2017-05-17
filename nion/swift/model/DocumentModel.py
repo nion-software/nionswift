@@ -1915,7 +1915,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__pending_starts -= 1
 
         def __start(self):
-            self.__data_item.increment_data_ref_counts()
+            self.__data_item.increment_data_ref_count()
             self.__document_model.begin_data_item_transaction(self.__data_item)
             self.__document_model.begin_data_item_live(self.__data_item)
             self.__starts += 1
@@ -1927,7 +1927,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # of the transaction, the data would be unloaded from memory, losing it forever.
             self.__document_model.end_data_item_transaction(self.__data_item)
             self.__document_model.end_data_item_live(self.__data_item)
-            self.__data_item.decrement_data_ref_counts()
+            self.__data_item.decrement_data_ref_count()
             self.__starts -= 1
 
         # this method gets called directly from the document model

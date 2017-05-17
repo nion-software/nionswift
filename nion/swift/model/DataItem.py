@@ -1100,12 +1100,12 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def _r_value_changed(self):
         pass
 
-    def increment_data_ref_counts(self):
-        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
+    def increment_display_ref_count(self):
+        """Increment display reference count to indicate this library item is currently displayed."""
         pass
 
-    def decrement_data_ref_counts(self):
-        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
+    def decrement_display_ref_count(self):
+        """Decrement display reference count to indicate this library item is no longer displayed."""
         pass
 
     @property
@@ -1275,17 +1275,15 @@ class CompositeLibraryItem(LibraryItem):
         self.data_item_uuids = data_item_uuids
         self.notify_property_changed("data_item_uuids")
 
-    def increment_data_ref_counts(self):
-        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
-        super().increment_data_ref_counts()
+    def increment_display_ref_count(self):
+        super().increment_display_ref_count()
         for data_item in self.data_items:
-            data_item.increment_data_ref_counts()
+            data_item.increment_display_ref_count()
 
-    def decrement_data_ref_counts(self):
-        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
-        super().decrement_data_ref_counts()
+    def decrement_display_ref_count(self):
+        super().decrement_display_ref_count()
         for data_item in self.data_items:
-            data_item.decrement_data_ref_counts()
+            data_item.decrement_display_ref_count()
 
 
 class DataItem(LibraryItem):
@@ -1524,16 +1522,20 @@ class DataItem(LibraryItem):
         else:
             return _("Multiple Data Sources ({0})".format(data_source_count))
 
-    def increment_data_ref_counts(self):
-        """Increment data ref counts for each data source. Will have effect of loading data if necessary."""
-        super().increment_data_ref_counts()
+    def increment_display_ref_count(self):
+        super().increment_display_ref_count()
+        self.increment_data_ref_count()
+
+    def decrement_display_ref_count(self):
+        super().decrement_display_ref_count()
+        self.decrement_data_ref_count()
+
+    def increment_data_ref_count(self):
         for data_source in self.data_sources:
             assert isinstance(data_source, BufferedDataSource)
             data_source.increment_data_ref_count()
 
-    def decrement_data_ref_counts(self):
-        """Decrement data ref counts for each data source. Will have effect of unloading data if not used elsewhere."""
-        super().decrement_data_ref_counts()
+    def decrement_data_ref_count(self):
         for data_source in self.data_sources:
             assert isinstance(data_source, BufferedDataSource)
             data_source.decrement_data_ref_count()

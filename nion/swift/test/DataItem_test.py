@@ -1091,10 +1091,10 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(master_data_item)
             self.assertFalse(document_model.data_items[0].maybe_data_source.is_data_loaded)
             self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_loaded)
-            master_data_item.increment_data_ref_counts()
+            master_data_item.increment_display_ref_count()
             self.assertTrue(document_model.data_items[0].maybe_data_source.is_data_loaded)
             self.assertTrue(document_model.data_items[1].maybe_data_source.is_data_loaded)
-            master_data_item.decrement_data_ref_counts()
+            master_data_item.decrement_display_ref_count()
             self.assertFalse(document_model.data_items[0].maybe_data_source.is_data_loaded)
             self.assertFalse(document_model.data_items[1].maybe_data_source.is_data_loaded)
 
