@@ -155,6 +155,8 @@ class Workspace:
             dock_widget = document_controller.create_dock_widget(panel.widget, panel_id, title, positions, position)
             dock_widget.panel = panel
             dock_widget.on_size_changed = panel.size_changed
+            dock_widget.on_focus_changed = panel.focus_changed
+            dock_widget.does_retain_focus = False
             self.dock_widgets.append(dock_widget)
             return dock_widget
         except Exception as e:

@@ -347,6 +347,9 @@ class LineEditWidget:
     def on_editing_finished(self, value):
         self.__line_edit_widget.on_editing_finished = value
 
+    def request_refocus(self):
+        self.__line_edit_widget.request_refocus()
+
     def select_all(self):
         self.__line_edit_widget.select_all()
 
@@ -376,6 +379,9 @@ class TextEditWidget:
     @on_editing_finished.setter
     def on_editing_finished(self, value):
         self.__text_edit_widget.on_editing_finished = value
+
+    def request_refocus(self):
+        self.__text_edit_widget.request_refocus()
 
     def select_all(self):
         self.__text_edit_widget.select_all()

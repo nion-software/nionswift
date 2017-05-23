@@ -66,6 +66,10 @@ class Panel:
     def size_changed(self, width, height):
         pass
 
+    def focus_changed(self, focused):
+        if focused:
+            self.document_controller.request_refocus()
+
     def __str__(self):
         return self.display_name
 

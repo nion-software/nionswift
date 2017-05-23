@@ -517,7 +517,7 @@ class ComputationPanel(Panel.Panel):
         def computation_label_changed(text):
             label_edit_widget.text = text
             if label_edit_widget.focused:
-                label_edit_widget.select_all()
+                label_edit_widget.request_refocus()
 
         self.__computation_label_changed_event_listener = self.__computation_model.computation_label_changed_event.listen(computation_label_changed)
 

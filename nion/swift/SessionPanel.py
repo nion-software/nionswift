@@ -59,7 +59,7 @@ class SessionPanel(Panel.Panel):
 
         def line_edit_changed(line_edit_widget, field_id, text):
             self.__controller.set_field(field_id, text)
-            line_edit_widget.select_all()
+            line_edit_widget.request_refocus()
 
         field_line_edit_widget_map = dict()
 

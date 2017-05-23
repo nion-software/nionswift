@@ -521,6 +521,18 @@ class DocumentController(Window.Window):
     def workspace(self):
         return self.__workspace_controller
 
+    def refocus_widget(self, widget):
+        display_panel = self.selected_display_panel
+        if display_panel:
+            display_panel.request_focus()
+        else:
+            super().refocus_widget(widget)
+
+    def request_refocus(self):
+        display_panel = self.selected_display_panel
+        if display_panel:
+            display_panel.request_focus()
+
     @property
     def data_items_binding(self):
         return self.__data_items_binding

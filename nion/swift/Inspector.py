@@ -50,11 +50,17 @@ class InspectorPanel(Panel.Panel):
         self.__data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
+        def scroll_area_focus_changed(focused):
+            # ensure that clicking outside of controls but in the scroll area refocuses the display panel.
+            if focused:
+                scroll_area.request_refocus()
+
         # top level widget in this inspector is a scroll area.
         # content of the scroll area is the column, to which inspectors
         # can be added.
         scroll_area = self.ui.create_scroll_area_widget(properties)
         scroll_area.set_scrollbar_policies("off", "needed")
+        scroll_area.on_focus_changed = scroll_area_focus_changed
         self.column = self.ui.create_column_widget()
         scroll_area.content = self.column
         self.widget = scroll_area
@@ -349,7 +355,7 @@ class SessionInspectorSection(InspectorSection):
             session_metadata = data_item.session_metadata
             session_metadata[field_id] = str(text)
             data_item.session_metadata = session_metadata
-            line_edit_widget.select_all()
+            line_edit_widget.request_refocus()
 
         field_line_edit_widget_map = dict()
 
@@ -1796,7 +1802,7 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
             inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
-                inspector_sections[0].info_title_label.select_all()
+                inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif buffered_data_source and (len(display_data_shape) == 2 or display.display_type == "image"):
             inspector_sections.append(InfoInspectorSection(self.ui, data_item))
@@ -1814,14 +1820,14 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
             inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
-                inspector_sections[0].info_title_label.select_all()
+                inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
         elif data_item:
             inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
-                inspector_sections[0].info_title_label.select_all()
+                inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
 
         for inspector_section in inspector_sections:
