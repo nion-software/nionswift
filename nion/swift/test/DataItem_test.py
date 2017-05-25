@@ -152,6 +152,24 @@ class TestDataItemClass(unittest.TestCase):
             # verify
             self.assertEqual(len(document_model.get_source_data_items(data_item2a)), 0)
 
+    def test_modifying_computation_on_data_item_after_removed_does_not_reestablish_dependency(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            # setup by adding data item and a dependent data item
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            data_item.maybe_data_source.displays[0].add_graphic(crop_region)
+            data_item1 = document_model.get_crop_new(data_item, crop_region)
+            # verify
+            self.assertEqual(document_model.get_source_data_items(data_item1)[0], data_item)
+            self.assertEqual(document_model.get_dependent_data_items(data_item)[0], data_item1)
+            # remove dependent
+            document_model.remove_data_item(data_item1)
+            data_item1.computation.expression = data_item1.computation.expression + " "
+            # verify
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 0)
+
     def test_copy_data_item_properly_copies_computation(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

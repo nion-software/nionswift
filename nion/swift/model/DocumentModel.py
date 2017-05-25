@@ -1343,7 +1343,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        self.__handle_computation_changed_or_mutated(data_item, None)
+        buffered_data_source = data_item.maybe_data_source
+        if buffered_data_source:
+            self.__computation_changed(data_item, buffered_data_source.computation, None)
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
