@@ -220,7 +220,6 @@ class AcquisitionTask:
         self.stop_event = Event.Event()
         self.data_elements_changed_event = Event.Event()
         self.finished_callback_fn = None  # hack to determine when 'record' mode finishes.
-        self.__data_elements = None
 
     def __mark_as_finished(self):
         self.__finished = True
@@ -315,33 +314,7 @@ class AcquisitionTask:
         for data_element in partial_data_elements:
             data_element.setdefault("properties", dict()).setdefault("frame_index", self.__frame_index)
 
-        # merge the data if necessary
-        data_elements = self.__data_elements
-        if not data_elements:
-            data_elements = copy.copy(partial_data_elements)
-        else:
-            for partial_data_element, data_element in zip(partial_data_elements, data_elements):
-                existing_sub_area = data_element.get("sub_area", ((0, 0), data_element["data"].shape))
-                new_sub_area = partial_data_element.get("sub_area", ((0, 0), partial_data_element.get("data").shape))
-                existing_top = existing_sub_area[0][0]
-                existing_height = existing_sub_area[1][0]
-                existing_left = existing_sub_area[0][1]
-                existing_width = existing_sub_area[1][1]
-                existing_bottom = existing_top + existing_height
-                existing_right = existing_left + existing_width
-                new_top = new_sub_area[0][0]
-                new_bottom = new_top + new_sub_area[1][0]
-                new_width = new_sub_area[1][1]
-                assert new_top <= existing_bottom  # don't skip sub-areas
-                if new_top > 0:
-                    assert new_width == existing_width  # only support full width sub-areas
-                if new_top > 0:
-                    y_slice = slice(existing_top, new_top)
-                    x_slice = slice(existing_left, existing_right)
-                    sub_area_slice = y_slice, x_slice
-                    partial_data_element["data"][sub_area_slice] = data_element["data"][sub_area_slice]
-                    partial_data_element["sub_area"] = (existing_top, existing_left), (new_bottom - existing_top, existing_width)
-                data_elements = partial_data_elements
+        data_elements = copy.copy(partial_data_elements)
 
         # record the last acquisition time
         self.__last_acquire_time = time.time()
@@ -360,9 +333,6 @@ class AcquisitionTask:
 
         if complete:
             self.__frame_index += 1
-        else:
-            # need to save data elements for next time through loop
-            self.__data_elements = data_elements
 
         return complete
 
@@ -374,7 +344,6 @@ class AcquisitionTask:
     # called synchronously from execute thread.
     # must be thread safe
     def _start_acquisition(self) -> bool:
-        self.__data_elements = None
         self.start_event.fire()
         return True
 
@@ -384,7 +353,7 @@ class AcquisitionTask:
     # called synchronously from execute thread.
     # must be thread safe
     def _abort_acquisition(self) -> None:
-        self.__data_elements = None
+        pass
 
     # subclasses can implement this method which is called when acquisition abort is requested.
     # this is useful if a flag/event needs to be set to break out of the acquisition loop.
@@ -399,7 +368,7 @@ class AcquisitionTask:
     # called synchronously from execute thread.
     # must be thread safe
     def _suspend_acquisition(self) -> None:
-        self.__data_elements = None
+        pass
 
     # subclasses can implement this method which is called when acquisition is resumed from higher priority acquisition.
     # if a view starts during a record, it will start in a suspended state and resume will be called without a prior
@@ -407,7 +376,7 @@ class AcquisitionTask:
     # called synchronously from execute thread.
     # must be thread safe
     def _resume_acquisition(self) -> None:
-        self.__data_elements = None
+        pass
 
     # subclasses can implement this method which is called when acquisition is marked for stopping.
     # subclasses that feature a continuous mode will need implement this method so that continuous
@@ -422,7 +391,6 @@ class AcquisitionTask:
     # called synchronously from execute thread.
     # must be thread safe
     def _stop_acquisition(self) -> None:
-        self.__data_elements = None
         self.stop_event.fire()
 
     # subclasses are expected to implement this function efficiently since it will
@@ -541,7 +509,7 @@ class DataChannel:
             master_data = numpy.copy(master_data)
             master_data[top:bottom, left:right] = data[top:bottom, left:right]
         else:
-            master_data = data.copy()
+            master_data = numpy.copy(data)
 
         data_descriptor = data_and_metadata.data_descriptor
         intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
@@ -713,7 +681,7 @@ class HardwareSource:
             # data_channel.update will make a copy of the data_and_metadata
             data_channel.update(data_and_metadata, channel_state, sub_area, view_id)
             data_channels.append(data_channel)
-            xdatas.append(data_and_metadata)
+            xdatas.append(data_channel.data_and_metadata)
         # update channel buffers with processors
         for data_channel in self.__data_channels:
             src_channel_index = data_channel.src_channel_index
