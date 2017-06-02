@@ -389,6 +389,11 @@ class DataGridController:
         self.__selection = selection
         self.on_delete_data_items = None
         self.on_key_pressed = None
+        self.on_data_item_double_clicked = None
+        self.on_selection_changed = None
+        self.on_context_menu_event = None
+        self.on_focus_changed = None
+        self.on_drag_started = None
 
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
@@ -416,6 +421,9 @@ class DataGridController:
 
             def on_key_pressed(self, key):
                 return self.__data_grid_controller._key_pressed(key)
+
+            def on_mouse_double_clicked(self, mouse_index, x, y, modifiers):
+                return self.__data_grid_controller._double_clicked()
 
             def on_drag_started(self, index, x, y, modifiers):
                 self.__data_grid_controller.drag_started(index, x, y, modifiers)
@@ -453,10 +461,6 @@ class DataGridController:
             self.icon_view_canvas_item.make_selection_visible()
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
-        self.on_selection_changed = None
-        self.on_context_menu_event = None
-        self.on_focus_changed = None
-        self.on_drag_started = None
 
         # changed data items keep track of items whose content has changed
         # the content changed messages may come from a thread so have to be
@@ -481,6 +485,7 @@ class DataGridController:
         self.on_focus_changed = None
         self.on_delete_data_items = None
         self.on_key_pressed = None
+        self.on_data_item_double_clicked= None
         self.__closed = True
 
     def __update_display_items(self):
@@ -505,6 +510,13 @@ class DataGridController:
     def _key_pressed(self, key):
         if callable(self.on_key_pressed):
             return self.on_key_pressed(key)
+        return False
+
+    # this message comes from the canvas item when a key is pressed
+    def _double_clicked(self):
+        if callable(self.on_data_item_double_clicked):
+            if len(self.__selection.indexes) == 1:
+                return self.on_data_item_double_clicked(self.__display_items[list(self.__selection.indexes)[0]].data_item)
         return False
 
     @property

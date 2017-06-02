@@ -1022,10 +1022,15 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 return True
             return False
 
+        def double_clicked(data_item):
+            self.__data_browser_controller.set_data_browser_selection(data_items=[data_item])
+            self.__cycle_display()
+            return True
+
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
         self.__horizontal_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__horizontal_data_grid_controller.on_data_item_double_clicked = None  # replace current display?
+        self.__horizontal_data_grid_controller.on_data_item_double_clicked = double_clicked
         self.__horizontal_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.__horizontal_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
@@ -1034,7 +1039,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection)
         self.__grid_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__grid_data_grid_controller.on_data_item_double_clicked = None  # replace current display?
+        self.__grid_data_grid_controller.on_data_item_double_clicked = double_clicked
         self.__grid_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
         self.__grid_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
         self.__grid_data_grid_controller.on_drag_started = data_list_drag_started

@@ -657,8 +657,8 @@ class DocumentController(Window.Window):
         else:
             return self.create_context_menu()
 
-    def data_item_double_clicked(self, data_item: DataItem.DataItem) -> None:
-        self.new_window_with_data_item("data", data_item=data_item)
+    def data_item_double_clicked(self, data_item: DataItem.DataItem) -> bool:
+        return False # self.new_window_with_data_item("data", data_item=data_item)
 
     def delete_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         for data_item in copy.copy(data_items):
