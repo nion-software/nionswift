@@ -362,6 +362,17 @@ class TestDisplayClass(unittest.TestCase):
             preview = data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_rgba
             self.assertIsNotNone(preview)
 
+    def test_display_rgba_for_various_data_types_is_valid(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            dtypes = (numpy.uint16, numpy.int16, numpy.uint32, numpy.int32, numpy.uint64, numpy.int64, numpy.float32, numpy.float64, numpy.complex64, numpy.complex128)
+            for dtype in dtypes:
+                data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
+                for display_limits in ((0, 1), (0.5, 1.5)):
+                    data_item.maybe_data_source.displays[0].display_limits = display_limits
+                    display_rgba = data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_rgba
+                    self.assertTrue(display_rgba.dtype == numpy.uint32)
+
     def test_reset_display_limits_on_various_value_types_write_to_clean_json(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
