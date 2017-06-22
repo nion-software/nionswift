@@ -334,9 +334,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__is_dragging = False
         self.__mouse_in = False
 
-        # frame rate
+        # frame rate and latency
         self.__display_frame_rate_id = None
         self.__display_frame_rate_last_index = 0
+        self.__display_latency = False
 
     def close(self):
         with self.__closing_lock:
@@ -947,6 +948,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 else:
                     self.__display_frame_rate_id = None
                 return True
+            if key.key == 76 and key.modifiers.shift and key.modifiers.alt:
+                self.__display_latency = not self.__display_latency
+                return True
         return False
 
     def __get_mouse_mapping(self):
@@ -1054,7 +1058,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         data_rgba_u8_copy_view[..., 3] = data_rgba_u8_view[..., 3]
                     data_rgba = data_rgba_copy
             self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
-            # self.__timestamp_canvas_item.timestamp = self.__data_timestamp
+            self.__timestamp_canvas_item.timestamp = self.__data_timestamp if self.__display_latency else None
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")
