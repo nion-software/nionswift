@@ -567,13 +567,17 @@ class HardwareSource:
         self._test_acquire_hook = None
 
     def close(self):
-        # when overriding hardware source close, the acquisition loop may still be running
-        # so nothing can be changed here that will make the acquisition loop fail.
-        self.__break_for_closing = True
-        self.__acquire_thread_trigger.set()
-        # acquire_thread should always be non-null here, otherwise close was called twice.
-        self.__acquire_thread.join()
-        self.__acquire_thread = None
+        self.close_thread()
+
+    def close_thread(self):
+        if self.__acquire_thread:
+            # when overriding hardware source close, the acquisition loop may still be running
+            # so nothing can be changed here that will make the acquisition loop fail.
+            self.__break_for_closing = True
+            self.__acquire_thread_trigger.set()
+            # acquire_thread should always be non-null here, otherwise close was called twice.
+            self.__acquire_thread.join()
+            self.__acquire_thread = None
 
     def _call_soon(self, fn):
         self.call_soon_event.fire_any(fn)
