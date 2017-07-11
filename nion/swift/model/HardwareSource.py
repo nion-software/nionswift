@@ -53,6 +53,8 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
         # source is added or removed
         self.hardware_source_added_event = Event.Event()
         self.hardware_source_removed_event = Event.Event()
+        self.instrument_added_event = Event.Event()
+        self.instrument_removed_event = Event.Event()
         self.aliases_updated = list()
         # aliases are shared between hardware sources and instruments
         self.__aliases = dict()
@@ -78,6 +80,8 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
         self.instruments = []
         self.hardware_source_added_event = Event.Event()
         self.hardware_source_removed_event = Event.Event()
+        self.instrument_added_event = Event.Event()
+        self.instrument_removed_event = Event.Event()
         self.__aliases = {}
 
     def register_hardware_source(self, hardware_source):
@@ -91,12 +95,14 @@ class HardwareSourceManager(metaclass=Utility.Singleton):
     def register_instrument(self, instrument_id, instrument):
         instrument.instrument_id = instrument_id
         self.instruments.append(instrument)
+        self.instrument_added_event.fire(instrument)
 
     def unregister_instrument(self, instrument_id):
         for instrument in self.instruments:
             if instrument.instrument_id == instrument_id:
                 instrument.instrument_id = None
                 self.instruments.remove(instrument)
+                self.instrument_removed_event.fire(instrument)
                 break
 
     def abort_all_and_close(self):
