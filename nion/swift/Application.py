@@ -1,4 +1,6 @@
 # standard libraries
+import asyncio
+import concurrent.futures
 import copy
 import datetime
 import gettext
@@ -53,6 +55,8 @@ class Application:
         self.version_str = "0.10.6"
         self.workspace_dir = None
 
+        self.__event_loop = None
+
         if set_global:
             app = self  # hack to get the single instance set. hmm. better way?
 
@@ -85,9 +89,16 @@ class Application:
         workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
-    def initialize(self):
+    def initialize(self, *, load_plug_ins=True):
+        # configure the event loop object
+        logger = logging.getLogger()
+        old_level = logger.level
+        logger.setLevel(logging.INFO)
+        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
+        logger.setLevel(old_level)
         # load plug-ins
-        PlugInManager.load_plug_ins(self, get_root_dir())
+        if load_plug_ins:
+            PlugInManager.load_plug_ins(self, get_root_dir())
 
     def deinitialize(self):
         # shut down hardware source manager, unload plug-ins, and really exit ui
@@ -95,6 +106,21 @@ class Application:
         PlugInManager.unload_plug_ins()
         with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
             f.write(sys.prefix + '\n')
+        # give cancelled tasks a chance to finish
+        self.__event_loop.stop()
+        self.__event_loop.run_forever()
+        try:
+            # this assumes that all outstanding tasks finish in a reasonable time (i.e. no infinite loops).
+            self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
+        except concurrent.futures.CancelledError:
+            pass
+        # now close
+        # due to a bug in Python libraries, the default executor needs to be shutdown explicitly before the event loop
+        # see http://bugs.python.org/issue28464
+        if self.__event_loop._default_executor:
+            self.__event_loop._default_executor.shutdown()
+        self.__event_loop.close()
+        self.__event_loop = None
         self.ui.close()
 
     def exit(self):
@@ -106,6 +132,15 @@ class Application:
             document_controller.request_close()
         # document model is reference counted; when the no document controller holds a reference to the
         # document model, it will be closed.
+
+    def periodic(self) -> None:
+        if self.__event_loop:  # special for shutdown
+            self.__event_loop.stop()
+            self.__event_loop.run_forever()
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return self.__event_loop
 
     def migrate_library(self, workspace_dir, library_path, welcome_message=True):
         """ Migrate library to latest version. """

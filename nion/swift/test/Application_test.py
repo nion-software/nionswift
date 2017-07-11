@@ -33,6 +33,7 @@ class TestApplicationClass(unittest.TestCase):
         Cache.db_make_directory_if_needed(workspace2_dir)
         try:
             app = Application.Application(TestUI.UserInterface(), set_global=False)
+            app.initialize(load_plug_ins=False)
             app.start(True, fixed_workspace_dir=workspace1_dir)
             app.switch_library(workspace2_dir, skip_choose=True, fixed_workspace_dir=workspace2_dir)
             app.exit()
