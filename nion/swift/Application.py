@@ -178,7 +178,7 @@ class Application:
         library_path = os.path.join(workspace_dir, library_filename)
         cache_path = os.path.join(workspace_dir, cache_filename)
         if not skip_choose and not os.path.exists(library_path):
-            self.choose_library(lambda fn: fn())
+            self.choose_library()
             return True
         welcome_message = fixed_workspace_dir is None
         if os.path.exists(library_path):
@@ -310,7 +310,25 @@ class Application:
     def clear_libraries(self):
         self.ui.remove_persistent_key("workspace_history")
 
-    def choose_library(self, queue_task_fn):
+    def pose_open_library_dialog(self) -> typing.Optional[str]:
+        documents_dir = self.ui.get_document_location()
+        workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
+        if workspace_dir:
+            path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+            if not os.path.exists(path):
+                with open(path, "w") as fp:
+                    json.dump({}, fp)
+            return workspace_dir
+        return None
+
+    def open_library(self):
+        workspace_dir = self.pose_open_library_dialog()
+        if workspace_dir:
+            app.switch_library(workspace_dir)
+
+    def choose_library(self):
+
+        pose_open_library_dialog_fn = self.pose_open_library_dialog
 
         class ChooseLibraryDialog(Dialog.ActionDialog):
 
@@ -326,21 +344,18 @@ class Application:
                 def handle_choose():
                     current_item = current_item_ref[0]
                     if current_item:
-                        def switch_library():
-                            app.switch_library(current_item)
-                        queue_task_fn(switch_library)
+                        app.switch_library(current_item)
                         return True
                     return False
 
                 def handle_new():
-                    documents_dir = self.ui.get_document_location()
-                    workspace_dir, directory = self.ui.get_existing_directory_dialog(_("Choose Library Folder"), documents_dir)
-                    path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
-                    if not os.path.exists(path):
-                        with open(path, "w") as fp:
-                            json.dump({}, fp)
-                    items.insert(0, (path, datetime.datetime.now()))
-                    list_widget.items = items
+                    workspace_dir = pose_open_library_dialog_fn()
+                    if workspace_dir:
+                        items.insert(0, (workspace_dir, datetime.datetime.now()))
+                        list_widget.items = items
+                        list_widget.set_selected_index(0)
+                        app.switch_library(workspace_dir)
+                        return True
                     return False
 
                 self.add_button(_("New..."), handle_new)
@@ -383,8 +398,18 @@ class Application:
                     date_local = date_utc + datetime.timedelta(minutes=tz_minutes)
                     return str(os.path.basename(os.path.dirname(item[0]))) + " (" + date_local.strftime("%c") + ")"
 
+                def item_selected(index):
+                    item = items[index]
+                    current_item_ref[0] = os.path.dirname(item[0])
+                    path_label.text = os.path.dirname(item[0])
+                    handle_choose()
+                    self.request_close()
+
                 list_widget = Widgets.StringListWidget(ui, items, Selection.Style.single_or_none, stringify_item, properties={"min-height": 200, "min-width": 560})
                 list_widget.on_selection_changed = selection_changed
+                list_widget.on_item_selected = item_selected
+                list_widget.on_cancel = self.request_close
+                list_widget.set_selected_index(0)
 
                 items_row = ui.create_row_widget()
                 items_row.add_spacing(13)
@@ -411,6 +436,12 @@ class Application:
                 column.add_spacing(6)
                 column.add_stretch()
                 self.content.add(column)
+
+                self.__list_widget = list_widget
+
+            def show(self):
+                super().show()
+                self.__list_widget.focused = True
 
         choose_library_dialog = ChooseLibraryDialog(self.ui, self)
         choose_library_dialog.show()

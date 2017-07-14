@@ -224,14 +224,14 @@ class DocumentController(Window.Window):
                 self._library_menu.add_menu_item(name, functools.partial(self.app.switch_library, file_path))
             if len(recent_workspace_file_paths) > 0:
                 self._library_menu.add_separator()
-            self._library_menu.add_menu_item(_("Choose..."), functools.partial(self.app.choose_library, self.queue_task))
+            self._library_menu.add_menu_item(_("Choose..."), self.app.choose_library)
             self._library_menu.add_menu_item(_("Clear"), self.app.clear_libraries)
 
         self._new_window_action = self._file_menu.add_menu_item(_("New Window"), functools.partial(self.new_window_with_data_item, "library"), key_sequence="new")
-        #self._open_action = self._file_menu.add_menu_item(_("Open"), self.no_operation, key_sequence="open")
         self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
         self._file_menu.add_separator()
         self._switch_library_action = self._file_menu.add_sub_menu(_("Switch Library"), self._library_menu)
+        self._open_action = self._file_menu.add_menu_item(_("Open Library..."), self.app.open_library, key_sequence="open")
         self._file_menu.add_separator()
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
