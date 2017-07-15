@@ -326,6 +326,110 @@ class Application:
         if workspace_dir:
             app.switch_library(workspace_dir)
 
+    def new_library(self):
+
+        class NewLibraryDialog(Dialog.ActionDialog):
+
+            def __init__(self, ui, app):
+                super().__init__(ui, title=_("New Library"), app=app, persistent_id="new_library_dialog")
+
+                self.directory = self.ui.get_persistent_string("library_directory", self.ui.get_document_location())
+
+                library_base_name = _("Nion Swift Library") + " " + datetime.datetime.now().strftime("%Y%m%d")
+                library_base_index = 0
+                library_base_index_str = ""
+                while os.path.exists(os.path.join(self.directory, library_base_name + library_base_index_str)):
+                    library_base_index += 1
+                    library_base_index_str = " " + str(library_base_index)
+
+                self.library_name = library_base_name + library_base_index_str
+
+                def handle_new():
+                    workspace_dir = os.path.join(self.directory, self.library_name)
+                    Cache.db_make_directory_if_needed(workspace_dir)
+                    path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+                    if not os.path.exists(path):
+                        with open(path, "w") as fp:
+                            json.dump({}, fp)
+                    if os.path.exists(path):
+                        app.switch_library(workspace_dir)
+                        return True
+                    return False
+
+                column = self.ui.create_column_widget()
+
+                directory_header_row = self.ui.create_row_widget()
+                directory_header_row.add_spacing(13)
+                directory_header_row.add(self.ui.create_label_widget(_("Libraries Folder: "), properties={"font": "bold"}))
+                directory_header_row.add_stretch()
+                directory_header_row.add_spacing(13)
+
+                show_directory_row = self.ui.create_row_widget()
+                show_directory_row.add_spacing(26)
+                directory_label = self.ui.create_label_widget(self.directory)
+                show_directory_row.add(directory_label)
+                show_directory_row.add_stretch()
+                show_directory_row.add_spacing(13)
+
+                choose_directory_row = self.ui.create_row_widget()
+                choose_directory_row.add_spacing(26)
+                choose_directory_button = self.ui.create_push_button_widget(_("Choose..."))
+                choose_directory_row.add(choose_directory_button)
+                choose_directory_row.add_stretch()
+                choose_directory_row.add_spacing(13)
+
+                library_name_header_row = self.ui.create_row_widget()
+                library_name_header_row.add_spacing(13)
+                library_name_header_row.add(self.ui.create_label_widget(_("Library Name: "), properties={"font": "bold"}))
+                library_name_header_row.add_stretch()
+                library_name_header_row.add_spacing(13)
+
+                library_name_row = self.ui.create_row_widget()
+                library_name_row.add_spacing(26)
+                library_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
+                library_name_field.text = self.library_name
+                library_name_field.on_return_pressed = handle_new
+                library_name_field.on_escape_pressed = self.request_close
+                library_name_row.add(library_name_field)
+                library_name_row.add_stretch()
+                library_name_row.add_spacing(13)
+
+                column.add_spacing(12)
+                column.add(directory_header_row)
+                column.add_spacing(8)
+                column.add(show_directory_row)
+                column.add_spacing(8)
+                column.add(choose_directory_row)
+                column.add_spacing(16)
+                column.add(library_name_header_row)
+                column.add_spacing(8)
+                column.add(library_name_row)
+                column.add_stretch()
+                column.add_spacing(16)
+
+                def choose() -> None:
+                    existing_directory, directory = self.ui.get_existing_directory_dialog(_("Choose Library Directory"), self.directory)
+                    if existing_directory:
+                        self.directory = existing_directory
+                        directory_label.text = self.directory
+                        self.ui.set_persistent_string("library_directory", self.directory)
+
+                choose_directory_button.on_clicked = choose
+
+                self.add_button(_("Cancel"), lambda: True)
+                self.add_button(_("Create Library"), handle_new)
+
+                self.content.add(column)
+
+                self.__library_name_field = library_name_field
+
+            def show(self):
+                super().show()
+                self.__library_name_field.focused = True
+
+        new_library_dialog = NewLibraryDialog(self.ui, self)
+        new_library_dialog.show()
+
     def choose_library(self):
 
         pose_open_library_dialog_fn = self.pose_open_library_dialog
