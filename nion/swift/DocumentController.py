@@ -231,8 +231,9 @@ class DocumentController(Window.Window):
         self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
         self._file_menu.add_separator()
         self._switch_library_action = self._file_menu.add_sub_menu(_("Switch Library"), self._library_menu)
-        self._open_library_action = self._file_menu.add_menu_item(_("Open Library..."), self.app.open_library, key_sequence="open")
-        self._new_library_action = self._file_menu.add_menu_item(_("New Library..."), self.app.new_library, key_sequence="Ctrl+Shift+N")
+        if self.app:
+            self._open_library_action = self._file_menu.add_menu_item(_("Open Library..."), self.app.open_library, key_sequence="open")
+            self._new_library_action = self._file_menu.add_menu_item(_("New Library..."), self.app.new_library, key_sequence="Ctrl+Shift+N")
         self._file_menu.add_separator()
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
