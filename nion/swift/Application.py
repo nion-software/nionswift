@@ -330,16 +330,16 @@ class Application:
 
         pose_open_library_dialog_fn = self.pose_open_library_dialog
 
+        workspace_history = self.ui.get_persistent_object("workspace_history", list())
+        nslib_paths = [os.path.join(file_path, "Nion Swift Workspace.nslib") for file_path in workspace_history]
+        items = [(path, datetime.datetime.fromtimestamp(os.path.getmtime(path))) for path in nslib_paths if os.path.exists(path)]
+
         class ChooseLibraryDialog(Dialog.ActionDialog):
 
             def __init__(self, ui, app):
                 super().__init__(ui, _("Choose Library"))
 
                 current_item_ref = [None]
-
-                workspace_history = self.ui.get_persistent_object("workspace_history", list())
-                nslib_paths = [os.path.join(file_path, "Nion Swift Workspace.nslib") for file_path in workspace_history]
-                items = [(path, datetime.datetime.fromtimestamp(os.path.getmtime(path))) for path in nslib_paths if os.path.exists(path)]
 
                 def handle_choose():
                     current_item = current_item_ref[0]
@@ -409,7 +409,8 @@ class Application:
                 list_widget.on_selection_changed = selection_changed
                 list_widget.on_item_selected = item_selected
                 list_widget.on_cancel = self.request_close
-                list_widget.set_selected_index(0)
+                if len(items) > 0:
+                    list_widget.set_selected_index(0)
 
                 items_row = ui.create_row_widget()
                 items_row.add_spacing(13)
@@ -442,6 +443,23 @@ class Application:
             def show(self):
                 super().show()
                 self.__list_widget.focused = True
+
+        if len(items) == 0:
+            # for initial startup (or with no preferences) try to use a default location
+            # to avoid the user having to go through the horrendous choose dialog immediately.
+            try:
+                documents_dir = self.ui.get_document_location()
+                workspace_dir = os.path.join(documents_dir, "Nion Swift Library")
+                Cache.db_make_directory_if_needed(workspace_dir)
+                path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+                if not os.path.exists(path):
+                    with open(path, "w") as fp:
+                        json.dump({}, fp)
+                if os.path.exists(path):
+                    app.switch_library(workspace_dir)
+                    return
+            except Exception as e:
+                pass
 
         choose_library_dialog = ChooseLibraryDialog(self.ui, self)
         choose_library_dialog.show()
