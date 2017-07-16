@@ -248,10 +248,9 @@ class ConsoleDialog(Dialog.ActionDialog):
             "api = get_api('~1.0', '~1.0')"
             ]
 
-        data_item_vars = document_controller.data_item_vars
-        for weak_data_item in data_item_vars:
-            variable_name = data_item_vars[weak_data_item]
-            lines.append("{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(variable_name, weak_data_item().uuid))
+        variable_to_data_item_map = document_controller.document_model.variable_to_data_item_map()
+        for variable_name, data_item in variable_to_data_item_map.items():
+            lines.append("{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(variable_name, data_item.uuid))
 
         self.__console_widget.interpret_lines(lines)
 

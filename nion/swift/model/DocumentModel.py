@@ -1101,6 +1101,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__dependency_tree_target_to_source_map = dict()
         self.__data_items = list()
         self.__data_item_uuids = set()
+        self.__uuid_to_data_item = dict()
         self.__computation_changed_listeners = dict()
         self.__data_item_references = dict()
         self.__recompute_lock = threading.RLock()
@@ -1112,7 +1113,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
-        self.define_property("data_item_references", dict(), hidden=True)
+        self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
+        self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
         self.session_id = None
         self.start_new_session()
         self.__read()
@@ -1153,6 +1155,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 data_item.about_to_be_inserted(self)
                 self.__data_items.insert(index, data_item)
                 self.__data_item_uuids.add(data_item.uuid)
+                self.__uuid_to_data_item[data_item.uuid] = data_item
                 data_item.set_storage_cache(self.storage_cache)
                 data_item.set_session_manager(self)
         # all sorts of interconnections may occur between data items and other objects. give the data item a chance to
@@ -1164,7 +1167,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item in data_items:
             data_item.update_and_bind_computation(self)
             data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
-        # # initialize data item references
+        # initialize data item references
         data_item_references_dict = self._get_persistent_property_value("data_item_references")
         for key, data_item_uuid in data_item_references_dict.items():
             data_item = self.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
@@ -1173,6 +1176,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # all data items will already have a persistent_object_context
         for data_group in self.data_groups:
             data_group.connect_data_items(data_items, self.get_data_item_by_uuid)
+        # handle the reference variable assignments
+        data_item_variables = self._get_persistent_property_value("data_item_variables")
+        new_data_item_variables = dict()
+        for r_var, data_item_uuid_str in data_item_variables.items():
+            data_item_uuid = uuid.UUID(data_item_uuid_str)
+            if data_item_uuid in self.__data_item_uuids:
+                new_data_item_variables[r_var] = data_item_uuid_str
+                data_item = self.__uuid_to_data_item[data_item_uuid]
+                data_item.set_r_value(r_var)
+        self._set_persistent_property_value("data_item_variables", new_data_item_variables)
 
     def close(self):
         # stop computations
@@ -1292,6 +1305,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.about_to_be_inserted(self)
         self.__data_items.insert(before_index, data_item)
         self.__data_item_uuids.add(data_item.uuid)
+        self.__uuid_to_data_item[data_item.uuid] = data_item
         data_item.set_storage_cache(self.storage_cache)
         data_item.persistent_object_context = self.persistent_object_context
         data_item.persistent_object_context._ensure_persistent_storage(data_item)
@@ -1340,6 +1354,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # do actual removal
         del self.__data_items[index]
         self.__data_item_uuids.remove(data_item.uuid)
+        del self.__uuid_to_data_item[data_item.uuid]
+        if data_item.r_var:
+            data_item_variables = self._get_persistent_property_value("data_item_variables")
+            del data_item_variables[data_item.r_var]
+            self._set_persistent_property_value("data_item_variables", data_item_variables)
+            data_item.r_var = None
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
@@ -1358,6 +1378,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def remove_model_item(self, container, name, item):
         self.__cascade_delete(item)
+
+    def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
+        if not data_item.r_var:
+            data_item_variables = self._get_persistent_property_value("data_item_variables")
+            def find_var() -> str:
+                for r in range(1, 1000000):
+                    r_var = "r{:02d}".format(r)
+                    if not r_var in data_item_variables:
+                        return r_var
+                return str()
+            data_item_var = find_var()
+            data_item_variables[data_item_var] = str(data_item.uuid)
+            data_item.set_r_value(data_item_var)
+            self._set_persistent_property_value("data_item_variables", data_item_variables)
+        return data_item.r_var
+
+    def variable_to_data_item_map(self) -> typing.Mapping[str, DataItem.DataItem]:
+        m = dict()
+        data_item_variables = self._get_persistent_property_value("data_item_variables")
+        for variable, data_item_uuid_str in data_item_variables.items():
+            m[variable] = self.__uuid_to_data_item[uuid.UUID(data_item_uuid_str)]
+        return m
 
     def __build_cascade(self, item, items: list, dependencies: list) -> None:
         # build a list of items to delete, with the leafs at the end of the list.
@@ -1716,10 +1758,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     # access data items by uuid
     def get_data_item_by_uuid(self, uuid: uuid.UUID) -> DataItem.DataItem:
-        for data_item in self.get_flat_data_item_generator():
-            if data_item.uuid == uuid:
-                return data_item
-        return None
+        return self.__uuid_to_data_item.get(uuid)
 
     def get_or_create_data_group(self, group_name):
         data_group = DataGroup.get_data_group_in_container_by_title(self, group_name)

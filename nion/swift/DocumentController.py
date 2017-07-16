@@ -74,7 +74,6 @@ class DocumentController(Window.Window):
         else:
             self.title = _("Nion Swift")
         self.__workspace_controller = None
-        self.__data_item_vars = dict()  # dictionary mapping weak data items to script window variables
         self.replaced_display_panel_content = None  # used to facilitate display panel functionality to exchange displays
         self.__weak_selected_display_panel = None
         self.__tool_mode = "pointer"
@@ -1025,9 +1024,6 @@ class DocumentController(Window.Window):
         return data_item
 
     def add_data(self, data, title=None):
-        if title is None:
-            r = random.randint(100000,999999)
-            r_var = _("Data") + " %d" % r
         data_element = { "data": data, "title": title }
         return self.add_data_element(data_element)
 
@@ -1131,17 +1127,11 @@ class DocumentController(Window.Window):
         if display:
             display.display_limits = display.get_calculated_display_values(True).data_range
 
-    def build_variable_map(self):
-        map = dict()
-        for weak_data_item in self.data_item_vars:
-            data_item = weak_data_item()
-            if data_item:
-                map[self.data_item_vars[weak_data_item]] = self.document_model.get_object_specifier(data_item)
-        return map
-
     def processing_computation(self, expression, map=None):
         if map is None:
-            map = self.build_variable_map()
+            map = dict()
+            for variable_name, data_item in self.document_model.variable_to_data_item_map().items():
+                map[variable_name] = self.document_model.get_object_specifier(data_item)
         data_item = DataItem.DataItem()
         data_item.title = _("Computation on ") + data_item.title
         computation = self.document_model.create_computation(expression)
@@ -1225,22 +1215,9 @@ class DocumentController(Window.Window):
             self.display_filter = self.__last_display_filter
         self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
 
-    def assign_r_value_to_data_item(self, data_item):
-        def find_var():
-            while True:
-                r = random.randint(100,999)
-                r_var = "r%d" % r
-                if r_var not in globals():
-                    return r_var
-            return None
-        weak_data_item = weakref.ref(data_item)
-        data_item_var = self.__data_item_vars.setdefault(weak_data_item, find_var())
-        weak_data_item().set_r_value(data_item_var)  # this triggers the update of the title
-        return data_item_var
-
     def prepare_data_item_script(self):
         data_item = self.selected_display_specifier.data_item
-        data_item_var = self.assign_r_value_to_data_item(data_item)
+        data_item_var = self.document_model.assign_variable_to_data_item(data_item)
         logging.debug("{} = Data Item with UUID {}".format(data_item_var, data_item.uuid))
         for console in self.__consoles:
             console.assign_data_item_var(data_item_var, data_item)
@@ -1267,10 +1244,6 @@ class DocumentController(Window.Window):
         self.document_model.append_data_item(new_data_item)
         new_display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
         self.display_data_item(new_display_specifier)
-
-    @property
-    def data_item_vars(self):
-        return self.__data_item_vars
 
     # receive files into the document model. data_group and index can optionally
     # be specified. if data_group is specified, the item is added to an arbitrary

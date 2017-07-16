@@ -884,12 +884,22 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = True
 
     def insert_model_item(self, container, name, before_index, item):
+        """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
+        
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
         if self.__container_weak_ref:
             self.container.insert_model_item(container, name, before_index, item)
         else:
             container.insert_item(name, before_index, item)
 
     def remove_model_item(self, container, name, item):
+        """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
+        
+        Passing responsibility to this item's container allows the library to easily track dependencies.
+        However, if this item isn't yet in the library hierarchy, then do the operation directly.
+        """
         if self.__container_weak_ref:
             self.container.remove_model_item(container, name, item)
         else:
@@ -1091,7 +1101,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def _update_timezone(self):
         pass
 
-    def set_r_value(self, r_var):
+    def set_r_value(self, r_var: str) -> None:
         """Used to signal changes to the ref var, which are kept in document controller. ugh."""
         self.r_var = r_var
         self._r_value_changed()
