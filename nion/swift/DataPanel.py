@@ -779,6 +779,7 @@ class DataGroupModelController:
         self.__document_model_item_removed_listener = document_model.item_removed_event.listen(functools.partial(self.item_removed, document_model))
         self.__mapping = { self.__document_model: self.item_model_controller.root }
         self.on_receive_files = None
+        self.on_item_count_changed = None
         # add items that already exist
         self.__data_group_property_changed_listeners = dict()
         self.__data_group_item_inserted_listeners = dict()
@@ -810,6 +811,7 @@ class DataGroupModelController:
         self.item_model_controller.close()
         self.item_model_controller = None
         self.on_receive_files = None
+        self.on_item_count_changed = None
 
     def log(self, parent_id=-1, indent=""):
         parent_id = parent_id if parent_id >= 0 else self.item_model_controller.root.id
@@ -862,6 +864,8 @@ class DataGroupModelController:
             data_groups = object.data_groups
             for index, child_data_group in enumerate(data_groups):
                 self.item_inserted(object, "data_groups", child_data_group, index)
+            if callable(self.on_item_count_changed):
+                self.on_item_count_changed()
 
     # this message is received when a data item is removed from one of the
     # groups we're observing.
@@ -885,6 +889,8 @@ class DataGroupModelController:
             parent_item.remove_child(parent_item.children[index])
             self.__mapping.pop(object)
             self.item_model_controller.end_remove()
+            if callable(self.on_item_count_changed):
+                self.on_item_count_changed()
 
     def __update_item_count(self, data_group):
         assert isinstance(data_group, DataGroup.DataGroup)
@@ -1078,10 +1084,13 @@ class DataPanel(Panel.Panel):
                 finally:
                     self.__blocked1 = False
 
-        self.library_widget = ui.create_tree_widget(properties={"height": 24 + 18 * 2})
+        self.library_widget = ui.create_tree_widget()
         self.library_widget.item_model_controller = self.library_model_controller.item_model_controller
         self.library_widget.on_selection_changed = library_widget_selection_changed
         self.library_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
+
+        self.library_model_controller.on_item_count_changed = self.library_widget.size_to_content
+        self.library_widget.size_to_content()
 
         def data_group_widget_selection_changed(selected_indexes):
             # this message comes from the data group tree widget when the selection changes
@@ -1113,32 +1122,28 @@ class DataPanel(Panel.Panel):
         self.data_group_widget.on_item_key_pressed = data_group_widget_key_pressed
         self.data_group_widget.on_focus_changed = lambda focused: setattr(self, "focused", focused)
 
+        self.data_group_model_controller.on_item_count_changed = self.data_group_widget.size_to_content
+        self.data_group_widget.size_to_content()
+
         library_label_row = ui.create_row_widget()
-        library_label = ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"})
         library_label_row.add_spacing(8)
-        library_label_row.add(library_label)
+        library_label_row.add(ui.create_label_widget(_("Library"), properties={"stylesheet": "font-weight: bold"}))
         library_label_row.add_stretch()
 
         collections_label_row = ui.create_row_widget()
-        collections_label = ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"})
         collections_label_row.add_spacing(8)
-        collections_label_row.add(collections_label)
+        collections_label_row.add(ui.create_label_widget(_("Collections"), properties={"stylesheet": "font-weight: bold"}))
         collections_label_row.add_stretch()
 
         library_section_widget = ui.create_column_widget()
         library_section_widget.add_spacing(4)
         library_section_widget.add(library_label_row)
         library_section_widget.add(self.library_widget)
-
-        collections_section_widget = ui.create_column_widget()
-        collections_section_widget.add_spacing(4)
-        collections_section_widget.add(collections_label_row)
-        collections_section_widget.add(self.data_group_widget)
-
-        master_widget = ui.create_column_widget()
-        master_widget.add(library_section_widget)
-        master_widget.add(collections_section_widget)
-        master_widget.add_stretch()
+        library_section_widget.add_spacing(4)
+        library_section_widget.add(collections_label_row)
+        library_section_widget.add(self.data_group_widget)
+        library_section_widget.add_spacing(4)
+        library_section_widget.add_stretch()
 
         def show_context_menu(display_item, x, y, gx, gy):
             menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
@@ -1231,8 +1236,9 @@ class DataPanel(Panel.Panel):
 
         self.splitter = ui.create_splitter_widget("vertical", properties)
         self.splitter.orientation = "vertical"
-        self.splitter.add(master_widget)
+        self.splitter.add(library_section_widget)
         self.splitter.add(slave_widget)
+        self.splitter.set_sizes([1, 9999])  # minimum library section; maximum data item section
         self.splitter.restore_state("window/v1/data_panel_splitter")
 
         self.widget = self.splitter
