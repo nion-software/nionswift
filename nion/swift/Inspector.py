@@ -15,7 +15,6 @@ from nion.data import Calibration
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import Panel
 from nion.swift.model import DataItem
-from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import Widgets

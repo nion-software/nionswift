@@ -7,7 +7,6 @@ import logging
 import math
 import operator
 import os.path
-import random
 import threading
 import time
 import traceback
