@@ -15,6 +15,7 @@ import typing
 import uuid
 import weakref
 
+from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
 from nion.swift import DataPanel
 from nion.swift import Decorators
@@ -289,6 +290,9 @@ class DocumentController(Window.Window):
 
         self._processing_menu.add_menu_item(_("Snapshot"), self.processing_snapshot, key_sequence="Ctrl+S")
         self._processing_menu.add_menu_item(_("Duplicate"), self.processing_duplicate, key_sequence="Ctrl+D")
+        self._processing_menu.add_separator()
+
+        self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_edit_computation_dialog, key_sequence="Ctrl+E")
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
@@ -838,6 +842,14 @@ class DocumentController(Window.Window):
         console_dialog = ConsoleDialog.ConsoleDialog(self)
         console_dialog.show()
         self.__dialogs.append(weakref.ref(console_dialog))
+
+    def new_edit_computation_dialog(self, data_item=None):
+        if not data_item:
+            data_item = self.selected_display_specifier.data_item
+        if data_item:
+            interactive_dialog = ComputationPanel.EditComputationDialog(self, data_item)
+            interactive_dialog.show()
+            self.__dialogs.append(weakref.ref(interactive_dialog))
 
     def __deep_copy(self):
         self._dispatch_any_to_focus_widget("handle_deep_copy")

@@ -7,6 +7,7 @@ import numpy
 
 # local libraries
 from nion.swift import Application
+from nion.swift import ComputationPanel
 from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift.model import DataItem
@@ -29,7 +30,6 @@ class TestComputationPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            panel = document_controller.find_dock_widget("computation-panel").panel
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -37,7 +37,7 @@ class TestComputationPanelClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
+            panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
             text1 = panel._text_edit_for_testing.text
             data_item2.maybe_data_source.computation.expression = "target.xdata = -a.xdata + 1"
@@ -49,7 +49,6 @@ class TestComputationPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            panel = document_controller.find_dock_widget("computation-panel").panel
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -57,7 +56,7 @@ class TestComputationPanelClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
+            panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
             panel._text_edit_for_testing.text = ""
             panel._update_button.on_clicked()
@@ -70,7 +69,6 @@ class TestComputationPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            panel = document_controller.find_dock_widget("computation-panel").panel
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -78,7 +76,7 @@ class TestComputationPanelClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
+            panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
             document_controller.periodic()  # and update the computation
             expression = panel._text_edit_for_testing.text
@@ -107,7 +105,6 @@ class TestComputationPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            panel = document_controller.find_dock_widget("computation-panel").panel
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -115,7 +112,7 @@ class TestComputationPanelClass(unittest.TestCase):
             computation = document_model.create_computation("target.xdata = -a.xdata")
             computation.create_object("a", document_model.get_object_specifier(data_item1))
             document_model.set_data_item_computation(data_item2, computation)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
+            panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # let the inspector see the computation
             document_controller.periodic()  # and update the computation
             expression = panel._text_edit_for_testing.text
@@ -143,7 +140,6 @@ class TestComputationPanelClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
-            panel = document_controller.find_dock_widget("computation-panel").panel
             data_item1 = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item1)
             data_item2 = DataItem.DataItem(numpy.zeros((10, 10)))
@@ -152,15 +148,14 @@ class TestComputationPanelClass(unittest.TestCase):
             computation.create_object("a", document_model.get_object_specifier(data_item1))
             computation.create_variable("x", value_type="integral", value=5)
             document_model.set_data_item_computation(data_item2, computation)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))
+            panel1 = ComputationPanel.EditComputationDialog(document_controller, data_item1)
             document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel._sections_for_testing), 0)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item2))
+            self.assertEqual(len(panel1._sections_for_testing), 0)
+            panel2 = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel._sections_for_testing), 2)
-            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item1))
+            self.assertEqual(len(panel2._sections_for_testing), 2)
             document_controller.periodic()  # execute queue
-            self.assertEqual(len(panel._sections_for_testing), 0)
+            self.assertEqual(len(panel1._sections_for_testing), 0)
 
     def disabled_test_expression_updates_when_variable_is_assigned(self):
         raise Exception()

@@ -14,7 +14,6 @@ import typing
 # None
 
 # local libraries
-from nion.swift import ComputationPanel
 from nion.swift import DataPanel
 from nion.swift import DocumentController
 from nion.swift import FilterPanel
@@ -85,7 +84,6 @@ class Application:
         workspace_manager.register_panel(Task.TaskPanel, "task-panel", _("Task Panel"), ["left", "right"], "right", {"min-width": 320})
         workspace_manager.register_panel(Panel.OutputPanel, "output-panel", _("Output"), ["bottom"], "bottom")
         workspace_manager.register_panel(ToolbarPanel.ToolbarPanel, "toolbar-panel", _("Toolbar"), ["top"], "top", {"height": 30})
-        workspace_manager.register_panel(ComputationPanel.ComputationPanel, "computation-panel", _("Computation"), ["left", "right"], "left", {"min-width": 320, "height": 8})
         workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 

@@ -100,7 +100,7 @@ class InspectorPanel(Panel.Panel):
                 self.__display_graphic_selection_changed_event_listener = None
             self.__display_inspector = None
 
-        self.__display_inspector = DataItemInspector(self.ui, self.document_controller.document_model, self.__display_specifier)
+        self.__display_inspector = DataItemInspector(self.ui, self.document_controller, self.__display_specifier)
 
         buffered_data_source = self.__display_specifier.buffered_data_source
         display = self.__display_specifier.display
@@ -1701,8 +1701,10 @@ class ComputationInspectorSection(InspectorSection):
         Subclass InspectorSection to implement operations inspector.
     """
 
-    def __init__(self, ui, document_model: DocumentModel.DocumentModel, buffered_data_source: DataItem.BufferedDataSource):
+    def __init__(self, ui, document_controller, data_item: DataItem.DataItem):
         super().__init__(ui, "computation", _("Computation"))
+        document_model = document_controller.document_model
+        buffered_data_source = data_item.maybe_data_source
         computation = buffered_data_source.computation
         if computation:
             label_row = self.ui.create_row_widget()
@@ -1711,12 +1713,18 @@ class ComputationInspectorSection(InspectorSection):
             label_row.add(label_widget)
             label_row.add_stretch()
 
+            edit_button = self.ui.create_push_button_widget(_("Edit..."))
+            edit_row = self.ui.create_row_widget()
+            edit_row.add(edit_button)
+            edit_row.add_stretch()
+
             self._variables_column_widget = self.ui.create_column_widget()
 
             stretch_column = self.ui.create_column_widget()
             stretch_column.add_stretch()
 
             self.add_widget_to_content(label_row)
+            self.add_widget_to_content(edit_row)
             self.add_widget_to_content(self._variables_column_widget)
             self.add_widget_to_content(stretch_column)
 
@@ -1729,6 +1737,11 @@ class ComputationInspectorSection(InspectorSection):
 
             self.__computation_variable_inserted_event_listener = computation.variable_inserted_event.listen(variable_inserted)
             self.__computation_variable_removed_event_listener = computation.variable_removed_event.listen(variable_removed)
+
+            def edit_clicked():
+                document_controller.new_edit_computation_dialog(data_item)
+
+            edit_button.on_clicked = edit_clicked
 
             for index, variable in enumerate(computation.variables):
                 variable_inserted(index, variable)
@@ -1757,8 +1770,10 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
     within the display specifier mutate.
     """
 
-    def __init__(self, ui, document_model: DocumentModel.DocumentModel, display_specifier: DataItem.DisplaySpecifier):
+    def __init__(self, ui, document_controller, display_specifier: DataItem.DisplaySpecifier):
         super().__init__(ui.create_column_widget())
+
+        document_model = document_controller.document_model
 
         self.ui = ui
 
@@ -1798,7 +1813,7 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
                     inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
                     inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
-            inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
+            inspector_sections.append(ComputationInspectorSection(self.ui, document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
@@ -1816,7 +1831,7 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
                     inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
                 else:  # default, pick
                     inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
-            inspector_sections.append(ComputationInspectorSection(self.ui, document_model, buffered_data_source))
+            inspector_sections.append(ComputationInspectorSection(self.ui, document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()

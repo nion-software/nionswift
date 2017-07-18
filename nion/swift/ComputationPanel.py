@@ -13,8 +13,8 @@ import weakref
 # local libraries
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
-from nion.swift import Panel
 from nion.ui import CanvasItem
+from nion.ui import Dialog
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Event
@@ -34,12 +34,6 @@ class ComputationModel:
     def __init__(self, document_controller):
         self.__weak_document_controller = weakref.ref(document_controller)
         self.__display_specifier = DataItem.DisplaySpecifier()
-        # thread safe.
-        def data_item_changed(data_item):
-            def update_display_specifier():
-                self.__set_display_specifier(DataItem.DisplaySpecifier.from_data_item(data_item))
-            self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__computation_changed_or_mutated_event_listener = None
         self.__computation_variable_inserted_event_listener = None
@@ -56,9 +50,6 @@ class ComputationModel:
         self.variable_removed_event = Event.Event()
 
     def close(self):
-        self.document_controller.clear_task("update_display_specifier" + str(id(self)))
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
     @property
@@ -75,6 +66,9 @@ class ComputationModel:
         if buffered_data_source:
             return buffered_data_source.computation
         return None
+
+    def set_data_item(self, data_item):
+        self.__set_display_specifier(DataItem.DisplaySpecifier.from_data_item(data_item))
 
     def add_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None) -> Symbolic.ComputationVariable:
         computation = self.__computation
@@ -414,13 +408,22 @@ class ComputationPanelSection:
         self.__variable_type_changed_event_listener = None
 
 
-class ComputationPanel(Panel.Panel):
-    """Provide a panel to edit a computation."""
+class EditComputationDialog(Dialog.ActionDialog):
 
-    def __init__(self, document_controller, panel_id, properties):
-        super(ComputationPanel, self).__init__(document_controller, panel_id, _("Computation"))
+    def __init__(self, document_controller, data_item):
+        ui = document_controller.ui
+        super().__init__(ui, _("Edit Computation"), document_controller.app, persistent_id="EditComputationDialog" + str(data_item.uuid))
 
-        ui = self.ui
+        self.ui = ui
+        self.document_controller = document_controller
+        self.data_item = data_item
+
+        self._create_menus()
+
+        properties = dict()
+        properties["min-height"] = 180
+        properties["min-width"] = 540
+        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
 
         self.__computation_model = ComputationModel(document_controller)
 
@@ -553,9 +556,12 @@ class ComputationPanel(Panel.Panel):
         self._new_button = new_button
         self._update_button = update_button
 
-        self.widget = column
+        self.__computation_model.set_data_item(data_item)
+
+        self.content.add(column)
 
     def close(self):
+        self.document_controller.clear_task(str(id(self)))
         self.__computation_label_changed_event_listener.close()
         self.__computation_label_changed_event_listener = None
         self.__computation_text_changed_event_listener.close()
@@ -568,7 +574,7 @@ class ComputationPanel(Panel.Panel):
         self.__variable_removed_event_listener = None
         self.__computation_model.close()
         self.__computation_model = None
-        super(ComputationPanel, self).close()
+        super().close()
 
     def size_changed(self, width, height):
         self.__error_label.size = Geometry.IntSize(height=self.__error_label.size.height, width=self.__text_edit.size.width)
