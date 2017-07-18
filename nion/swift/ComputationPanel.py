@@ -5,12 +5,14 @@ import gettext
 import operator
 import random
 import string
+import uuid
 import weakref
 
 # third party libraries
 # None
 
 # local libraries
+from nion.swift import DataItemThumbnailWidget
 from nion.swift.model import DataItem
 from nion.swift.model import Symbolic
 from nion.ui import CanvasItem
@@ -48,6 +50,7 @@ class ComputationModel:
         self.error_text_changed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
+        self.variable_property_changed_event = Event.Event()
 
     def close(self):
         self.__set_display_specifier(DataItem.DisplaySpecifier())
@@ -149,7 +152,10 @@ class ComputationModel:
 
     def __variable_inserted(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_inserted_event.fire(index, variable)
-        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(lambda k: self.__update_computation_display())
+        def handle_property_changed(key: str) -> None:
+            self.__update_computation_display()
+            self.variable_property_changed_event.fire(variable)
+        self.__variable_property_changed_event_listeners[variable.uuid] = variable.property_changed_event.listen(handle_property_changed)
 
     def __variable_removed(self, index: int, variable: Symbolic.ComputationVariable) -> None:
         self.variable_removed_event.fire(index, variable)
@@ -191,6 +197,8 @@ class ComputationModel:
 class ComputationPanelSection:
 
     def __init__(self, ui, variable, on_remove, queue_task_fn):
+        self.variable = variable
+
         section_widget = ui.create_column_widget()
         section_title_row = ui.create_row_widget()
 
@@ -408,11 +416,60 @@ class ComputationPanelSection:
         self.__variable_type_changed_event_listener = None
 
 
+def make_image_chooser(ui, document_model, variable):
+    column = ui.create_column_widget(properties={"width": 80})
+    label_row = ui.create_row_widget()
+    label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
+    label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
+    label_row.add_stretch()
+    label_row.add(label_widget)
+    label_row.add_stretch()
+    base_variable_specifier = copy.copy(variable.specifier)
+    bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
+    data_item = bound_data_item.value if bound_data_item else None
+
+    def data_item_drop(data_item_uuid):
+        data_item = document_model.get_data_item_by_key(data_item_uuid)
+        variable_specifier = document_model.get_object_specifier(data_item)
+        variable.specifier = variable_specifier
+
+    def data_item_delete():
+        variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+        variable.specifier = variable_specifier
+
+    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item)
+    data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(ui,
+                                                                               data_item_thumbnail_source,
+                                                                               Geometry.IntSize(80, 80))
+
+    def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+        # use this convoluted base object for drag so that it doesn't disappear after the drag.
+        column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+
+    data_item_chooser_widget.on_drag = thumbnail_widget_drag
+    data_item_chooser_widget.on_data_item_drop = data_item_drop
+    data_item_chooser_widget.on_data_item_delete = data_item_delete
+
+    def property_changed(key):
+        if key == "specifier":
+            base_variable_specifier = copy.copy(variable.specifier)
+            bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
+            data_item = bound_data_item.value if bound_data_item else None
+            data_item_thumbnail_source.set_data_item(data_item)
+
+    property_changed_listener = variable.property_changed_event.listen(property_changed)
+    column.add_spacing(4)
+    column.add(data_item_chooser_widget)
+    column.add(label_row)
+    column.add_spacing(4)
+    return column, [property_changed_listener]
+
+
 class EditComputationDialog(Dialog.ActionDialog):
 
     def __init__(self, document_controller, data_item):
         ui = document_controller.ui
-        super().__init__(ui, _("Edit Computation"), document_controller.app, persistent_id="EditComputationDialog" + str(data_item.uuid))
+        super().__init__(ui, _("Edit Computation"), app=document_controller.app, parent_window=document_controller, persistent_id="EditComputationDialog" + str(data_item.uuid))
 
         self.ui = ui
         self.document_controller = document_controller
@@ -420,16 +477,11 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         self._create_menus()
 
-        properties = dict()
-        properties["min-height"] = 180
-        properties["min-width"] = 540
-        properties["stylesheet"] = "background: white; font-family: Monaco, Courier, monospace"
-
         self.__computation_model = ComputationModel(document_controller)
 
         self.__sections = list()
 
-        label_edit_widget = ui.create_line_edit_widget()
+        label_edit_widget = ui.create_line_edit_widget(properties={"stylesheet": "min-width: 120"})
         label_edit_widget.placeholder_text = _("Computation Label")
 
         label_row = ui.create_row_widget()
@@ -438,6 +490,7 @@ class EditComputationDialog(Dialog.ActionDialog):
         label_row.add_spacing(8)
         label_row.add(label_edit_widget)
         label_row.add_spacing(8)
+        label_row.add_stretch()
 
         buttons_row = ui.create_row_widget()
         add_variable_button = ui.create_push_button_widget(_("Add Variable"))
@@ -445,17 +498,18 @@ class EditComputationDialog(Dialog.ActionDialog):
         buttons_row.add(add_variable_button)
         buttons_row.add_spacing(8)
         buttons_row.add(add_object_button)
+        buttons_row.add_spacing(8)
         buttons_row.add_stretch()
 
         text_edit_row = ui.create_row_widget()
-        text_edit = ui.create_text_edit_widget()
+        text_edit = ui.create_text_edit_widget(properties={"stylesheet": "min-width: 480; min-height: 200"})
         text_edit.placeholder_text = _("No Computation")
         text_edit_row.add_spacing(8)
         text_edit_row.add(text_edit)
         text_edit_row.add_spacing(8)
 
-        error_row = ui.create_row_widget()
-        error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red"})
+        error_row = ui.create_row_widget(properties={"stylesheet": "min-width: 120"})  # the stylesheet allows it to shrink. guh.
+        error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red; min-width: 120"})
         error_label.word_wrap = True
         error_row.add_spacing(8)
         error_row.add(error_label)
@@ -473,20 +527,9 @@ class EditComputationDialog(Dialog.ActionDialog):
         button_row.add(update_button)
         button_row.add_spacing(8)
 
-        self.__variable_column = ui.create_column_widget()
+        self.__data_item_row = ui.create_row_widget()
 
-        column = self.ui.create_column_widget()
-        column.add_spacing(6)
-        column.add(label_row)
-        column.add(self.__variable_column)
-        column.add(buttons_row)
-        column.add_spacing(6)
-        column.add(text_edit_row)
-        column.add_spacing(6)
-        column.add(error_row)
-        column.add_spacing(6)
-        column.add(button_row)
-        column.add_spacing(6)
+        self.__variable_column = ui.create_column_widget()
 
         def add_object_pressed():
             document_model = document_controller.document_model
@@ -536,21 +579,53 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         self.__error_text_changed_event_listener = self.__computation_model.error_text_changed_event.listen(error_text_changed)
 
+        self.__listeners = list()
+
+        def rebuild_data_item_row():
+            self.__data_item_row.remove_all()
+            for listener in self.__listeners:
+                listener.close()
+            self.__listeners = list()
+            self.__data_item_row.add_spacing(8)
+            for section in self.__sections:
+                variable = section.variable
+                if variable.variable_type == "data_item":
+                    widget, listeners = make_image_chooser(ui, document_controller.document_model, variable)
+                    self.__listeners.extend(listeners)
+                    self.__data_item_row.add(widget)
+                    self.__data_item_row.add_spacing(8)
+            self.__data_item_row.add_stretch()
+            target_column = ui.create_column_widget(properties={"width": 80})
+            data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item)  # TODO: never closed
+            data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
+            target_column.add_spacing(4)
+            target_column.add(data_item_chooser_widget)
+            target_column.add(ui.create_label_widget(_("Target"), properties={"width": 80}))
+            target_column.add_spacing(4)
+            self.__data_item_row.add(target_column)
+            self.__data_item_row.add_spacing(8)
+
         def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
             def remove_variable():
                 self.__computation_model.remove_variable(variable)
             section = ComputationPanelSection(ui, variable, remove_variable, self.document_controller.queue_task)
             self.__variable_column.insert(section.widget, index)
             self.__sections.insert(index, section)
+            rebuild_data_item_row()
 
         def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
             self.__variable_column.remove(self.__variable_column.children[index])
             if self.__sections[index]:
                 self.__sections[index].close()
             del self.__sections[index]
+            rebuild_data_item_row()
+
+        def variable_property_changed(variable: Symbolic.ComputationVariable) -> None:
+            rebuild_data_item_row()
 
         self.__variable_inserted_event_listener = self.__computation_model.variable_inserted_event.listen(variable_inserted)
         self.__variable_removed_event_listener = self.__computation_model.variable_removed_event.listen(variable_removed)
+        self.__variable_property_changed_event_listener = self.__computation_model.variable_property_changed_event.listen(variable_property_changed)
 
         # for testing
         self._new_button = new_button
@@ -558,10 +633,25 @@ class EditComputationDialog(Dialog.ActionDialog):
 
         self.__computation_model.set_data_item(data_item)
 
-        self.content.add(column)
+        column = self.content
+        column.add_spacing(6)
+        column.add(label_row)
+        column.add(self.__data_item_row)
+        column.add(self.__variable_column)
+        column.add(buttons_row)
+        column.add_spacing(6)
+        column.add(text_edit_row)
+        column.add_spacing(6)
+        column.add(error_row)
+        column.add_spacing(6)
+        column.add(button_row)
+        column.add_spacing(6)
 
     def close(self):
         self.document_controller.clear_task(str(id(self)))
+        for listener in self.__listeners:
+            listener.close()
+        self.__listeners = list()
         self.__computation_label_changed_event_listener.close()
         self.__computation_label_changed_event_listener = None
         self.__computation_text_changed_event_listener.close()
