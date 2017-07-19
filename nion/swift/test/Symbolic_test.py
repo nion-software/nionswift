@@ -316,6 +316,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
             computation2.needs_update = True
+            computation2.bind(document_model)
             data = DocumentModel.evaluate_data(computation).data
             data2 = DocumentModel.evaluate_data(computation2).data
             assert numpy.array_equal(data, -src_data / numpy.average(src_data) * 5)
@@ -817,6 +818,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(data_node_dict)
             computation2.needs_update = True
+            computation2.bind(document_model)
             data = DocumentModel.evaluate_data(computation).data
             data2 = DocumentModel.evaluate_data(computation2).data
             assert numpy.array_equal(data, src_data)
@@ -922,6 +924,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
             computation2.needs_update = True
+            computation2.bind(document_model)
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data + 5))
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation2).data, src_data + 5))
 
@@ -979,6 +982,7 @@ class TestSymbolicClass(unittest.TestCase):
             read_computation = document_model.create_computation()
             read_computation.read_from_dict(d)
             read_computation.needs_update = True
+            read_computation.bind(document_model)
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             with data_item.maybe_data_source.data_ref() as dr:
                 dr.data = src_data2
@@ -1108,6 +1112,7 @@ class TestSymbolicClass(unittest.TestCase):
             computation2 = document_model.create_computation()
             computation2.read_from_dict(d)
             computation2.needs_update = True
+            computation2.bind(document_model)
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation).data, src_data + 5))
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(computation2).data, src_data + 5))
 

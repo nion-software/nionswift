@@ -132,7 +132,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         The value property returns the value of the variable. The changed_event is fired
         whenever the value changes.
         """
-        class BoundVariable(object):
+        class BoundVariable:
             def __init__(self, variable):
                 self.__variable = variable
                 self.changed_event = Event.Event()
@@ -325,7 +325,7 @@ def variable_factory(lookup_id):
     return build_map[type]() if type in build_map else None
 
 
-class ComputationContext(object):
+class ComputationContext:
     def __init__(self, computation, context):
         self.__computation = weakref.ref(computation)
         self.__context = context
@@ -470,22 +470,16 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
-            computation_variable_map = dict()
-            for variable in self.variables:
-                variable_specifier = variable.variable_specifier
-                if variable_specifier:
-                    computation_variable_map[variable.name] = variable_specifier
-            computation_context = self.__computation_context
-
             variables = dict()
-            for variable_name, object_specifier in computation_variable_map.items():
-                bound_object = computation_context.resolve_object_specifier(object_specifier)
-                resolved_object = bound_object.value if bound_object else None
-                # in the ideal world, we could clone the object/data and computations would not be
-                # able to modify the input objects; reality, though, dictates that performance is
-                # more important than this protection. so use the resolved object directly.
-                api_object = api._new_api_object(resolved_object) if resolved_object else None
-                variables[variable_name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
+            for variable in self.variables:
+                bound_object = self.__bound_items.get(variable.uuid)
+                if bound_object is not None:
+                    resolved_object = bound_object.value if bound_object else None
+                    # in the ideal world, we could clone the object/data and computations would not be
+                    # able to modify the input objects; reality, though, dictates that performance is
+                    # more important than this protection. so use the resolved object directly.
+                    api_object = api._new_api_object(resolved_object) if resolved_object else None
+                    variables[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
 
             expression = self.original_expression
             if expression:
