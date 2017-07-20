@@ -146,40 +146,6 @@ def calculate_display_range(display_limits, data_range, data_sample, xdata, comp
     return data_range
 
 
-class ReferenceCountContext:
-    def __init__(self):
-        self.__lock = threading.RLock()
-        self._count = 0
-        self.on_enter = None
-        self.on_exit = None
-
-    @property
-    def is_active(self):
-        return self._count != 0
-
-    def enter(self):
-        with self.__lock:
-            count = self._count
-            self._count += 1
-        if count == 0 and callable(self.on_enter):
-            self.on_enter()
-
-    def exit(self):
-        with self.__lock:
-            assert self._count > 0
-            self._count -= 1
-            count = self._count
-        if count == 0 and callable(self.on_exit):
-            self.on_exit()
-
-    def __enter__(self):
-        self.enter()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.exit()
-        return False
-
-
 DisplayValues = collections.namedtuple("DisplayValues", ("display_data_and_metadata", "data_range", "data_sample", "display_range", "display_rgba", "display_rgba_timestamp"))
 
 class CalculatedDisplayValues:
@@ -376,7 +342,10 @@ class CalculatedDisplayValues:
 
 
 class Display(Observable.Observable, Persistence.PersistentObject):
-    # Displays are associated with exactly one data item.
+    """Display information for a DataItem.
+
+    Also handles conversion of raw data to formats suitable for display such as raster RGBA.
+    """
 
     def __init__(self):
         super().__init__()
@@ -520,6 +489,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.display_limits = percentiles[0] - range * 0.1, percentiles[1] + range * 0.1
 
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
+        """Change the view to encompass the channels and data represented by the given intervals."""
         left = None
         right = None
         for interval in intervals:
@@ -543,6 +513,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.y_max = data_max * 1.2
 
     def view_to_selected_graphics(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
+        """Change the view to encompass the selected graphic intervals."""
         all_graphics = self.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.graphic_selection.contains(graphic_index)]
         intervals = list()
@@ -551,7 +522,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 intervals.append(graphic.interval)
         self.view_to_intervals(data_and_metadata, intervals)
 
-    def __get_display_dimensional_shape(self) -> typing.Tuple[int, ...]:
+    @property
+    def preview_2d_shape(self) -> typing.Optional[typing.Tuple[int, ...]]:
         if not self.__data_and_metadata:
             return None
         data_and_metadata = self.__data_and_metadata
@@ -571,10 +543,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 return dimensional_shape[next_dimension + collection_dimension_count:next_dimension + collection_dimension_count + datum_dimension_count]
         else:
             return dimensional_shape[next_dimension:]
-
-    @property
-    def preview_2d_shape(self):
-        return self.__get_display_dimensional_shape()
 
     @property
     def selected_graphics(self):
@@ -632,7 +600,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return min(max(value, mn), mx)
         return value if self._is_reading else 1
 
-    def validate(self):
+    def validate_slice_indexes(self) -> None:
         sequence_index = self.__validate_sequence_index(self.sequence_index)
         if sequence_index != self.sequence_index:
             self.sequence_index = sequence_index
@@ -754,10 +722,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__property_changed("color_map_data", self.__color_map_data)
 
     @property
-    def color_map_data(self) -> numpy.ndarray:
-        """
-        Should return an numpy array with shape (256, 3) of data type uint8
-        """
+    def color_map_data(self) -> typing.Optional[numpy.ndarray]:
+        """Return the color map data as a uint8 ndarray with shape (256, 3)."""
         if self.preview_2d_shape is None:  # is there display data?
             return None
         else:
@@ -783,7 +749,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__data_and_metadata = data_and_metadata
         new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
         if old_data_shape != new_data_shape:
-            self.validate()
+            self.validate_slice_indexes()
         self.__calculated_display_values._set_data_and_metadata(data_and_metadata)
         self.__send_next_calculated_display_values()
         self.notify_property_changed("displayed_dimensional_calibrations")
