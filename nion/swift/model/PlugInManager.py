@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import os
+import pkgutil
 import re
 import sys
 import traceback
@@ -33,7 +34,7 @@ def register_api_broker_fn(new_api_broker_fn):
 
 extensions = []
 
-def load_plug_in(plugin_dir: str):
+def load_plug_in(module_path: str, module_name: str):
     try:
         class APIBroker(object):
             def get_api(self, *args, **kwargs):
@@ -41,7 +42,7 @@ def load_plug_in(plugin_dir: str):
                 return api_broker_fn(*args, **kwargs)
 
         # First load the module.
-        module = importlib.import_module(plugin_dir)
+        module = importlib.import_module(module_name)
         # Now scan through the module and look for extensions and tests.
         tests = []
         for member in inspect.getmembers(module):
@@ -66,96 +67,147 @@ def load_plug_in(plugin_dir: str):
                 extension_id = getattr(cls, "extension_id", None)
                 if extension_id:
                     extensions.append(cls(APIBroker()))
-        plugin_loaded_str = "Plug-in '" + plugin_dir + "' loaded."
+        plugin_loaded_str = "Plug-in '" + module_name + "' loaded (" + module_path + ")."
         list_of_tests_str = " Tests: " + ",".join(tests) if len(tests) > 0 else ""
         logging.info(plugin_loaded_str + list_of_tests_str)
         return module
     except RequirementsException as e:
-        logging.info("Plug-in '" + plugin_dir + "' NOT loaded. %s", e.reason)
+        logging.info("Plug-in '" + module_name + "' NOT loaded. %s (" + module_path + ")", e.reason)
     except Exception as e:
-        logging.info("Plug-in '" + plugin_dir + "' NOT loaded.")
+        logging.info("Plug-in '" + module_name + "' NOT loaded (" + module_path + ").")
         logging.info(traceback.format_exc())
         logging.info("--------")
     return None
 
+
+class ModuleAdapter:
+    def __init__(self, package_name, module_info):
+        self.module_name = package_name + "." + module_info.name
+        self.module_path = package_name
+        self.manifest_path = "N/A"
+        self.manifest = dict()
+        path = getattr(module_info.module_finder, 'path', None)
+        if path:
+            self.manifest_path = os.path.join(path, module_info.name, "manifest.json")
+            if os.path.exists(self.manifest_path):
+                try:
+                    with open(self.manifest_path) as f:
+                        self.manifest.update(json.load(f))
+                except Exception as e:
+                    logging.info("Cannot read manifest file from %s", self.manifest_path)
+                    logging.info(e)
+        get_data = getattr(module_info.module_finder, 'get_data', None)
+        if get_data:
+            try:
+                json_data = get_data(os.path.join(package_name, module_info.name, "manifest.json"))
+                self.manifest.update(json.loads(json_data))
+            except Exception as e:
+                logging.info("Cannot read manifest file from %s", module_info.module_finder.archive)
+                logging.info(e)
+        self.manifest.setdefault("name", self.module_name)
+        self.manifest.setdefault("identifier", self.module_name)
+        self.manifest.setdefault("version", "0.0.0")
+
+    def load(self):
+        return load_plug_in(self.module_path, self.module_name)
+
+
+class PlugInAdapter:
+    def __init__(self, directory, relative_path):
+        plugin_dir = os.path.join(directory, relative_path)
+        self.manifest_path = os.path.join(plugin_dir, "manifest.json")
+        self.module_name = relative_path
+        self.module_path = directory
+        self.manifest = None
+        if os.path.exists(self.manifest_path):
+            try:
+                with open(self.manifest_path) as f:
+                    self.manifest = json.load(f)
+            except Exception as e:
+                logging.info("Cannot read manifest file from %s", self.manifest_path)
+                logging.info(e)
+
+    def load(self):
+        return load_plug_in(self.module_path, self.module_name)
+
+
 def load_plug_ins(app, root_dir):
+    """Load plug-ins."""
     global extensions
 
     ui = app.ui
 
-    # calculate the relative path of the plug-in folder. this will be different depending on platform.
-    # we'll let command line arguments overwrite the plugin folder location
+    # a list of directories in which sub-directories PlugIns will be searched.
     subdirectories = []
 
+    # the default location is where the directory main packages are located.
     subdirectories.append(root_dir)
 
+    # also search the default data location; create directory there if it doesn't exist to make it easier for user.
+    # default data location will be application specific.
     data_location = ui.get_data_location()
     if data_location is not None:
         subdirectories.append(data_location)
         # create directories here if they don't exist
-        packages_dir = os.path.abspath(os.path.join(data_location, "Packages"))
         plugins_dir = os.path.abspath(os.path.join(data_location, "PlugIns"))
-        if not os.path.exists(packages_dir):
-            logging.info("Creating packages directory %s", packages_dir)
-            os.makedirs(packages_dir)
         if not os.path.exists(plugins_dir):
             logging.info("Creating plug-ins directory %s", plugins_dir)
             os.makedirs(plugins_dir)
 
+    # search the Nion/Swift subdirectory of the default document location too,
+    # but don't create directories here - avoid polluting user visible directories.
     document_location = ui.get_document_location()
     if document_location is not None:
         subdirectories.append(os.path.join(document_location, "Nion", "Swift"))
         # do not create them in documents if they don't exist. this location is optional.
 
+    # build a list of directories that will be loaded as plug-ins.
     PlugInDir = collections.namedtuple("PlugInDir", ["directory", "relative_path"])
     plugin_dirs = list()
 
-    plugin_paths = list()
+    # track directories that have already been searched.
+    seen_plugin_dirs = list()
 
+    # for each subdirectory, look in PlugIns for sub-directories that represent the plug-ins.
     for subdirectory in subdirectories:
-
-        packages_dir = os.path.abspath(os.path.join(subdirectory, "Packages"))
         plugins_dir = os.path.abspath(os.path.join(subdirectory, "PlugIns"))
 
-        if os.path.exists(packages_dir):
-            logging.info("Using packages from %s", packages_dir)
-            sys.path.append(packages_dir)
-
-        if os.path.exists(plugins_dir) and not plugins_dir in plugin_paths:
+        if os.path.exists(plugins_dir) and not plugins_dir in seen_plugin_dirs:
             logging.info("Loading plug-ins from %s", plugins_dir)
+
+            # add the PlugIns directory to the system import path.
             sys.path.append(plugins_dir)
 
+            # now build a list of sub-directories representing plug-ins within plugins_dir.
             sorted_relative_paths = sorted([d for d in os.listdir(plugins_dir) if os.path.isdir(os.path.join(plugins_dir, d))])
             plugin_dirs.extend([PlugInDir(plugins_dir, sorted_relative_path) for sorted_relative_path in sorted_relative_paths])
 
-            plugin_paths.append(plugins_dir)
+            # mark plugins_dir as 'seen' to avoid search it twice.
+            seen_plugin_dirs.append(plugins_dir)
         else:
             logging.info("NOT Loading plug-ins from %s (missing)", plugins_dir)
 
-    invalid_manifests = list()
     version_map = dict()
     module_exists_map = dict()
+
+    plugin_adapters = list()
+
+    import nionswift_plugin
+    for module_info in pkgutil.iter_modules(nionswift_plugin.__path__):
+        plugin_adapters.append(ModuleAdapter(nionswift_plugin.__name__, module_info))
+
+    for directory, relative_path in plugin_dirs:
+        plugin_adapters.append(PlugInAdapter(directory, relative_path))
 
     progress = True
     while progress:
         progress = False
-        plugin_dirs_copy = copy.deepcopy(plugin_dirs)
-        plugin_dirs = list()
-        for directory, relative_path in plugin_dirs_copy:
-            plugin_dir = os.path.join(directory, relative_path)
-            manifest_path = os.path.join(plugin_dir, "manifest.json")
-            if manifest_path in invalid_manifests:
-                continue
-            manifest = None
-            if os.path.exists(manifest_path):
-                try:
-                    with open(manifest_path) as f:
-                        manifest = json.load(f)
-                except Exception as e:
-                    logging.info("Cannot read manifest file from %s", manifest_path)
-                    logging.info(e)
+        plugin_adapters_copy = copy.deepcopy(plugin_adapters)
+        plugin_adapters = list()
+        for plugin_adapter in plugin_adapters_copy:
+            manifest_path = plugin_adapter.manifest_path
+            manifest = plugin_adapter.manifest
             if manifest:
-                # print("CHECKING ", manifest)
                 manifest_valid = True
                 if not "name" in manifest:
                     logging.info("Invalid manifest (missing 'name'): %s", manifest_path)
@@ -181,7 +233,7 @@ def load_plug_ins(app, root_dir):
                         module_exists = importlib.util.find_spec(module) is not None
                         module_exists_map[module] = module_exists
                     if not module_exists:
-                        logging.info("Plug-in '" + relative_path + "' NOT loaded.")
+                        logging.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
                         logging.info("Cannot satisfy requirement (%s): %s", module, manifest_path)
                         manifest_valid = False
                         break
@@ -195,14 +247,14 @@ def load_plug_ins(app, root_dir):
                     identifier, operator, version_specifier = requirement_components[0], requirement_components[1], requirement_components[2]
                     if identifier in version_map:
                         if Utility.compare_versions("~" + version_specifier, version_map[identifier]) != 0:
-                            logging.info("Plug-in '" + relative_path + "' NOT loaded.")
+                            logging.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (" + plugin_adapter.module_path + ").")
                             logging.info("Cannot satisfy requirement (%s): %s", requirement, manifest_path)
                             manifest_valid = False
                             break
                     else:
-                        # requirements not loaded yet; add back to plugin_dirs, but don't mark progress since nothing was loaded.
-                        logging.info("Plug-in '" + relative_path + "' delayed (%s).", requirement)
-                        plugin_dirs.append(PlugInDir(directory, relative_path))
+                        # requirements not loaded yet; add back to plugin_adapters, but don't mark progress since nothing was loaded.
+                        logging.info("Plug-in '" + plugin_adapter.module_name + "' delayed (%s) (" + plugin_adapter.module_path + ").", requirement)
+                        plugin_adapters.append(plugin_adapter)
                         manifest_valid = False
                         break
                 if not manifest_valid:
@@ -214,12 +266,12 @@ def load_plug_ins(app, root_dir):
             #   otherwise defer until next round
             #   stop if no plug-ins loaded in the round
             #   count on the user to have correct dependencies
-            module = load_plug_in(relative_path)
+            module = plugin_adapter.load()
             if module:
                 __modules.append(module)
             progress = True
-    for directory, relative_path in plugin_dirs:
-        logging.info("Plug-in '" + relative_path + "' NOT loaded (requirements).")
+    for plugin_adapter in plugin_adapters:
+        logging.info("Plug-in '" + plugin_adapter.module_name + "' NOT loaded (requirements) (" + plugin_adapter.module_path + ").")
 
     notify_modules("run")
 
