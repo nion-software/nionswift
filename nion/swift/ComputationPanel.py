@@ -596,8 +596,14 @@ class EditComputationDialog(Dialog.ActionDialog):
                     self.__data_item_row.add_spacing(8)
             self.__data_item_row.add_stretch()
             target_column = ui.create_column_widget(properties={"width": 80})
+
+            def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
+                # use this convoluted base object for drag so that it doesn't disappear after the drag.
+                target_column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+
             data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item)  # TODO: never closed
             data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
+            data_item_chooser_widget.on_drag = thumbnail_widget_drag
             target_column.add_spacing(4)
             target_column.add(data_item_chooser_widget)
             target_column.add(ui.create_label_widget(_("Target"), properties={"width": 80}))
