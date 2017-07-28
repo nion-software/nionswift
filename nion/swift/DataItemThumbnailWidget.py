@@ -116,6 +116,7 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__focused = False
         self.wants_drag_events = True
         self.wants_mouse_events = True
+        self.__drag_start = None
         self.on_data_item_drop = None
         self.on_data_item_delete = None
         self.on_drag_pressed = None
@@ -140,6 +141,7 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         # canvas size
         canvas_width = self.canvas_size[1]
         canvas_height = self.canvas_size[0]
+        focused_style = "#3876D6"  # TODO: platform dependent
         if self.active:
             with drawing_context.saver():
                 drawing_context.begin_path()
@@ -152,15 +154,14 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 drawing_context.rect(0, 0, canvas_width, canvas_height)
                 drawing_context.fill_style = "rgba(255, 0, 0, 0.10)"
                 drawing_context.fill()
-                if self.focused:
-                    focused_style = "#3876D6"  # TODO: platform dependent
-                    stroke_style = focused_style
-                    drawing_context.begin_path()
-                    drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
-                    drawing_context.line_join = "miter"
-                    drawing_context.stroke_style = stroke_style
-                    drawing_context.line_width = 4.0
-                    drawing_context.stroke()
+        if self.focused:
+            stroke_style = focused_style
+            drawing_context.begin_path()
+            drawing_context.rect(2, 2, canvas_width - 4, canvas_height - 4)
+            drawing_context.line_join = "miter"
+            drawing_context.stroke_style = stroke_style
+            drawing_context.line_width = 4.0
+            drawing_context.stroke()
 
     def drag_enter(self, mime_data):
         self.__dropping = True
@@ -190,10 +191,20 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return super().key_pressed(key)
 
     def mouse_pressed(self, x, y, modifiers):
-        on_drag_pressed = self.on_drag_pressed
-        if on_drag_pressed:
-            on_drag_pressed(x, y, modifiers)
+        self.__drag_start = Geometry.IntPoint(x=x, y=y)
         return True
+
+    def mouse_released(self, x, y, modifiers):
+        self.__drag_start = None
+        return True
+
+    def mouse_position_changed(self, x, y, modifiers):
+        p = Geometry.IntPoint(x=x, y=y)
+        if self.__drag_start is not None and Geometry.distance(p, self.__drag_start) > 2:
+            self.__drag_start = None
+            on_drag_pressed = self.on_drag_pressed
+            if on_drag_pressed:
+                on_drag_pressed(x, y, modifiers)
 
 
 class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
