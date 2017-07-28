@@ -416,7 +416,9 @@ class ComputationPanelSection:
         self.__variable_type_changed_event_listener = None
 
 
-def make_image_chooser(ui, document_model, variable):
+def make_image_chooser(ui, document_model, variable, drag_fn):
+    # drag_fn is necessary because it is unsafe to start a drag on the column containing the thumbnail
+    # since dragging onto itself may delete the column during the drag.
     column = ui.create_column_widget(properties={"width": 80})
     label_row = ui.create_row_widget()
     label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
@@ -444,7 +446,7 @@ def make_image_chooser(ui, document_model, variable):
 
     def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
         # use this convoluted base object for drag so that it doesn't disappear after the drag.
-        column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+        drag_fn(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     data_item_chooser_widget.on_drag = thumbnail_widget_drag
     data_item_chooser_widget.on_data_item_drop = data_item_drop
@@ -590,7 +592,7 @@ class EditComputationDialog(Dialog.ActionDialog):
             for section in self.__sections:
                 variable = section.variable
                 if variable.variable_type == "data_item":
-                    widget, listeners = make_image_chooser(ui, document_controller.document_model, variable)
+                    widget, listeners = make_image_chooser(ui, document_controller.document_model, variable, self.content.drag)
                     self.__listeners.extend(listeners)
                     self.__data_item_row.add(widget)
                     self.__data_item_row.add_spacing(8)
@@ -599,7 +601,7 @@ class EditComputationDialog(Dialog.ActionDialog):
 
             def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
                 # use this convoluted base object for drag so that it doesn't disappear after the drag.
-                target_column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+                self.content.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
             data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item)  # TODO: never closed
             data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
