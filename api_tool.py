@@ -149,6 +149,9 @@ class TypeProducer:
     def print_init(self) -> None:
         pass
 
+    def print_custom(self, class_name: str) -> None:
+        pass
+
     def print_methods_begin(self) -> None:
         pass
 
@@ -230,6 +233,9 @@ class SummaryProducer:
     def print_init(self) -> None:
         pass
 
+    def print_custom(self, class_name: str) -> None:
+        pass
+
     def print_methods_begin(self) -> None:
         print("**Methods**")
 
@@ -305,6 +311,12 @@ class ProxyProducer:
         print("    def __init__(self, proxy, specifier):")
         print("        self._proxy = proxy")
         print("        self.specifier = specifier")
+
+    def print_custom(self, class_name: str) -> None:
+        if class_name == "DataItem":
+            print("")
+            print("    def _repr_svg_(self):")
+            print("        return call_method(self, 'data_item_to_svg')")
 
     def print_methods_begin(self) -> None:
         pass
@@ -390,6 +402,7 @@ for class_name in class_names:
     producer.print_class(class_name)
     producer.print_class_doc(doc)
     producer.print_init()
+    producer.print_custom(class_name)
     class_functions_dict = class_dict.get("functions", dict())
     if len(class_functions_dict.keys()) > 0:
         producer.print_methods_begin()
