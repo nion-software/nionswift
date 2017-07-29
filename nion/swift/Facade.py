@@ -1383,7 +1383,7 @@ class DataItem(metaclass=SharedInstance):
         try:
             display_canvas_item.update_layout(viewbox.origin, viewbox.size, immediate=True)
             display_type = display.actual_display_type
-            display_values = display.get_calculated_display_values()
+            display_values = display.get_calculated_display_values(immediate=True)
             if display_type == "image":
                 DisplayPanelModule.DisplayCanvasItem.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
             elif display_type == "line_plot":
