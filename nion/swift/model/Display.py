@@ -146,9 +146,20 @@ def calculate_display_range(display_limits, data_range, data_sample, xdata, comp
     return data_range
 
 
-DisplayValues = collections.namedtuple("DisplayValues", ("display_data_and_metadata", "data_range", "data_sample", "display_range", "display_rgba", "display_rgba_timestamp"))
+class DisplayValues:
+    """Display data used to render the display."""
 
-class CalculatedDisplayValues:
+    def __init__(self, display_data_and_metadata, data_range, data_sample, display_range, display_rgba, display_rgba_timestamp):
+        self.display_data_and_metadata = display_data_and_metadata
+        self.data_range = data_range
+        self.data_sample = data_sample
+        self.display_range = display_range
+        self.display_rgba = display_rgba
+        self.display_rgba_timestamp = display_rgba_timestamp
+
+
+class DisplayValuesController:
+    """Manage dependencies between data and display, handle change messages, and calculate display values."""
 
     def __init__(self):
         # parent
@@ -181,10 +192,10 @@ class CalculatedDisplayValues:
         # copying or clearing the dirty flags.
         self.__lock = threading.RLock()
 
-    def _set_parent(self, parent: "CalculatedDisplayValues") -> None:
+    def _set_parent(self, parent: "DisplayValuesController") -> None:
         self.__parent = parent
 
-    def copy_and_calculate(self) -> "CalculatedDisplayValues":
+    def copy_and_calculate(self) -> "DisplayValuesController":
         with self.__lock:
             calculated_display_values = copy.copy(self)
             self.__display_data_dirty = False
@@ -372,7 +383,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
         self.will_close_event = Event.Event()  # for shutting down thumbnails; hopefully temporary.
 
-        self.__calculated_display_values = CalculatedDisplayValues()
+        self.__calculated_display_values = DisplayValuesController()
         self.__calculated_display_values_available_event = Event.Event()
         self.__calculated_display_values_lock = threading.RLock()  # lock for display values pending flag
         self.__calculated_display_values_thread = None
