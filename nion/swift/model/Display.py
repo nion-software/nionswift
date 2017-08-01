@@ -3,7 +3,6 @@
 """
 
 # standard libraries
-import collections
 import copy
 import functools
 import gettext
@@ -640,58 +639,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             elif data_and_metadata.datum_dimension_count == 2:
                 display_type = "image"
         return display_type
-
-    def get_line_plot_display_parameters(self, display_values):
-        data_and_metadata = self.data_and_metadata_for_display_panel
-        if data_and_metadata:
-
-            class LinePlotDisplayParameters:
-                def __init__(self, display, calculated_display_values):
-                    displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-                    metadata = data_and_metadata.metadata
-                    dimensional_shape = data_and_metadata.dimensional_shape
-                    displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
-                    displayed_intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
-                    display_data_and_metadata = calculated_display_values.display_data_and_metadata
-                    display_data = display_data_and_metadata.data if display_data_and_metadata else None
-                    self.display_data = display_data
-                    self.dimensional_shape = dimensional_shape
-                    self.displayed_intensity_calibration = displayed_intensity_calibration
-                    self.displayed_dimensional_calibration = displayed_dimensional_calibration
-                    self.metadata = metadata
-                    self.y_range = display.y_min, display.y_max
-                    self.y_style = display.y_style
-                    self.channel_range = display.left_channel, display.right_channel
-                    self.legend_labels = display.legend_labels
-
-            return LinePlotDisplayParameters(self, display_values)
-        return None
-
-    def get_image_display_parameters(self, display_values):
-        data_and_metadata = self.data_and_metadata_for_display_panel
-        if data_and_metadata:
-
-            class ImageDisplayParameters:
-                def __init__(self, display, calculated_display_values):
-                    displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-                    if len(displayed_dimensional_calibrations) == 0:
-                        dimensional_calibration = Calibration.Calibration()
-                    elif len(displayed_dimensional_calibrations) == 1:
-                        dimensional_calibration = displayed_dimensional_calibrations[0]
-                    else:
-                        display_data_and_metadata = calculated_display_values.display_data_and_metadata
-                        if display_data_and_metadata:
-                            dimensional_calibration = display_data_and_metadata.dimensional_calibrations[-1]
-                        else:
-                            dimensional_calibration = Calibration.Calibration()
-                    self.display_rgba = calculated_display_values.display_rgba
-                    self.display_rgba_shape = display.preview_2d_shape
-                    self.display_rgba_timestamp = calculated_display_values.display_rgba_timestamp
-                    self.dimensional_calibration = dimensional_calibration
-                    self.metadata = data_and_metadata.metadata
-
-            return ImageDisplayParameters(self, display_values)
-        return None
 
     @property
     def slice_interval(self):

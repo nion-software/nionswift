@@ -67,7 +67,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     not trigger another repaint from within the existing repaint.
     """
 
-    def __init__(self, get_font_metrics_fn, delegate):
+    def __init__(self, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
         super(LinePlotCanvasItem, self).__init__()
 
         self.__get_font_metrics_fn = get_font_metrics_fn
@@ -177,61 +177,94 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             self.__closed = True
         super().close()
 
-    def update_line_plot_display_state(self, data, data_shape, displayed_intensity_calibration: Calibration.Calibration, displayed_dimensional_calibration: Calibration.Calibration, metadata: dict, display_properties) -> None:
-        # this method may trigger a layout of its parent scroll area. however, the parent scroll
-        # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
-        # that this object is not closeable while this method is running; and this method should not
-        # run if the object is already closed.
-        with self.__closing_lock:
-            if self.__closed:
-                return
-            assert not self.__closed
-            # Update the display state.
-            changed = False
-            changed = changed or data is not self.__data
-            changed = changed or displayed_intensity_calibration != self.__intensity_calibration
-            changed = changed or displayed_dimensional_calibration != self.__dimensional_calibration
-            changed = changed or self.__y_min != display_properties["y_min"]
-            changed = changed or self.__y_max != display_properties["y_max"]
-            changed = changed or self.__y_style != display_properties["y_style"]
-            changed = changed or self.__left_channel != display_properties["left_channel"]
-            changed = changed or self.__right_channel != display_properties["right_channel"]
-            changed = changed or self.__legend_labels != display_properties["legend_labels"]
-            if changed:
-                self.__data = data
-                self.__data_shape = data_shape
-                self.__dimensional_calibration = displayed_dimensional_calibration
-                self.__intensity_calibration = displayed_intensity_calibration
-                self.__y_min = display_properties["y_min"]
-                self.__y_max = display_properties["y_max"]
-                self.__y_style = display_properties["y_style"]
-                self.__left_channel = display_properties["left_channel"]
-                self.__right_channel = display_properties["right_channel"]
-                self.__legend_labels = display_properties["legend_labels"]
-                if self.__display_frame_rate_id:
-                    frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
-                    if frame_index != self.__display_frame_rate_last_index:
-                        Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                        self.__display_frame_rate_last_index = frame_index
-                    if id(self.__data) != id(self.__last_data):
-                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                        self.__last_data = self.__data
-                # update the cursor info
-                self.__update_cursor_info()
-                # mark all items as needing updates; the actual data updates will be done on the
-                # render thread during prepare_render.
-                self.update()
-                self.line_graph_canvas_item.update()
-                self.__line_graph_background_canvas_item.update()
-                self.__line_graph_regions_canvas_item.update()
-                self.__line_graph_frame_canvas_item.update()
-                self.__line_graph_legend_canvas_item.update()
-                self.__line_graph_vertical_axis_label_canvas_item.update()
-                self.__line_graph_vertical_axis_scale_canvas_item.update()
-                self.__line_graph_vertical_axis_ticks_canvas_item.update()
-                self.__line_graph_horizontal_axis_label_canvas_item.update()
-                self.__line_graph_horizontal_axis_scale_canvas_item.update()
-                self.__line_graph_horizontal_axis_ticks_canvas_item.update()
+    @property
+    def default_aspect_ratio(self):
+        return (1 + 5 ** 0.5) / 2  # golden ratio
+
+    def display_rgba_changed(self, display, display_values):
+        # when the display rgba data changes, no need to do anything
+        pass
+
+    def display_data_and_metadata_changed(self, display, display_values):
+        # when the data changes, update the display.
+        self.update_display_values(display, display_values)
+
+    def update_display_values(self, display, display_values):
+        data_and_metadata = display.data_and_metadata_for_display_panel
+        if data_and_metadata:
+            display_properties = {
+                "y_min": display.y_min,
+                "y_max": display.y_max,
+                "y_style": display.y_style,
+                "left_channel": display.left_channel,
+                "right_channel": display.right_channel,
+                "legend_labels": display.legend_labels
+            }
+            display_data_and_metadata = display_values.display_data_and_metadata
+            display_data = display_data_and_metadata.data if display_data_and_metadata else None
+            dimensional_shape = data_and_metadata.dimensional_shape
+            displayed_intensity_calibration = copy.deepcopy(data_and_metadata.intensity_calibration)
+            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+            displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
+
+            data = display_data
+            data_shape = dimensional_shape
+            metadata = data_and_metadata.metadata
+
+            # this method may trigger a layout of its parent scroll area. however, the parent scroll
+            # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
+            # that this object is not closeable while this method is running; and this method should not
+            # run if the object is already closed.
+            with self.__closing_lock:
+                if self.__closed:
+                    return
+                assert not self.__closed
+                # Update the display state.
+                changed = False
+                changed = changed or data is not self.__data
+                changed = changed or displayed_intensity_calibration != self.__intensity_calibration
+                changed = changed or displayed_dimensional_calibration != self.__dimensional_calibration
+                changed = changed or self.__y_min != display_properties["y_min"]
+                changed = changed or self.__y_max != display_properties["y_max"]
+                changed = changed or self.__y_style != display_properties["y_style"]
+                changed = changed or self.__left_channel != display_properties["left_channel"]
+                changed = changed or self.__right_channel != display_properties["right_channel"]
+                changed = changed or self.__legend_labels != display_properties["legend_labels"]
+                if changed:
+                    self.__data = data
+                    self.__data_shape = data_shape
+                    self.__dimensional_calibration = displayed_dimensional_calibration
+                    self.__intensity_calibration = displayed_intensity_calibration
+                    self.__y_min = display_properties["y_min"]
+                    self.__y_max = display_properties["y_max"]
+                    self.__y_style = display_properties["y_style"]
+                    self.__left_channel = display_properties["left_channel"]
+                    self.__right_channel = display_properties["right_channel"]
+                    self.__legend_labels = display_properties["legend_labels"]
+                    if self.__display_frame_rate_id:
+                        frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+                        if frame_index != self.__display_frame_rate_last_index:
+                            Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                            self.__display_frame_rate_last_index = frame_index
+                        if id(self.__data) != id(self.__last_data):
+                            Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                            self.__last_data = self.__data
+                    # update the cursor info
+                    self.__update_cursor_info()
+                    # mark all items as needing updates; the actual data updates will be done on the
+                    # render thread during prepare_render.
+                    self.update()
+                    self.line_graph_canvas_item.update()
+                    self.__line_graph_background_canvas_item.update()
+                    self.__line_graph_regions_canvas_item.update()
+                    self.__line_graph_frame_canvas_item.update()
+                    self.__line_graph_legend_canvas_item.update()
+                    self.__line_graph_vertical_axis_label_canvas_item.update()
+                    self.__line_graph_vertical_axis_scale_canvas_item.update()
+                    self.__line_graph_vertical_axis_ticks_canvas_item.update()
+                    self.__line_graph_horizontal_axis_label_canvas_item.update()
+                    self.__line_graph_horizontal_axis_scale_canvas_item.update()
+                    self.__line_graph_horizontal_axis_ticks_canvas_item.update()
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
@@ -277,6 +310,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if self.__line_graph_regions_canvas_item.regions is None or self.__line_graph_regions_canvas_item.regions != regions:
             self.__line_graph_regions_canvas_item.regions = regions
             self.__line_graph_regions_canvas_item.update()
+
+    def handle_auto_display(self, display) -> bool:
+        # enter key has been pressed
+        data_and_metadata = display.data_and_metadata_for_display_panel
+        display.view_to_selected_graphics(data_and_metadata)
+        return True
 
     def prepare_display(self):
         # thread safe. no UI.

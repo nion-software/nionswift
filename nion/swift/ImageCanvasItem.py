@@ -350,71 +350,106 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         super().close()
 
     @property
+    def default_aspect_ratio(self):
+        return 1.0
+
+    @property
     def _info_overlay_canvas_item_for_test(self):
         return self.__info_overlay_canvas_item
 
-    # when the display changes, set the data using this property.
-    # doing this will queue an item in the paint thread to repaint.
-    # this method is called on a thread.
-    def update_image_display_state(self, data_rgba, data_shape, data_timestamp, dimension_calibration, metadata):
-        # this method may trigger a layout of its parent scroll area. however, the parent scroll
-        # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
-        # that this object is not closeable while this method is running; and this method should not
-        # run if the object is already closed.
-        with self.__closing_lock:
-            if self.__closed:
-                return
-            assert not self.__closed
-            # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-            self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
-            # if the data changes, update the display.
-            if data_rgba is not self.__data_rgba or self.__graphics_changed:
-                self.__graphics_changed = False
-                self.__data_rgba = data_rgba
-                self.__data_shape = data_shape
-                self.__data_timestamp = data_timestamp
-                if self.__display_frame_rate_id:
-                    frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
-                    if frame_index != self.__display_frame_rate_last_index:
-                        Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                        self.__display_frame_rate_last_index = frame_index
-                    if id(self.__data_rgba) != id(self.__last_data_rgb):
-                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                        self.__last_data_rgb = self.__data_rgba
-                # update the cursor info
-                self.__update_cursor_info()
+    def display_rgba_changed(self, display, display_values):
+        # when the display rgba data changes, update the display.
+        self.update_display_values(display, display_values)
 
-                def update_layout():
-                    # layout. this makes sure that the info overlay gets updated too.
-                    with self.update_context():
-                        self.__update_image_canvas_size()
-                        # trigger updates
-                        self.__bitmap_canvas_item.update()
+    def display_data_and_metadata_changed(self, display, display_values):
+        # when the data changes, no need to do anything. waits for the display rgba to change instead.
+        pass
+
+    def update_display_values(self, display, display_values):
+        # threadsafe
+        data_and_metadata = display.data_and_metadata_for_display_panel
+        if data_and_metadata:
+            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+            if len(displayed_dimensional_calibrations) == 0:
+                dimensional_calibration = Calibration.Calibration()
+            elif len(displayed_dimensional_calibrations) == 1:
+                dimensional_calibration = displayed_dimensional_calibrations[0]
+            else:
+                display_data_and_metadata = display_values.display_data_and_metadata
+                if display_data_and_metadata:
+                    dimensional_calibration = display_data_and_metadata.dimensional_calibrations[-1]
+                else:
+                    dimensional_calibration = Calibration.Calibration()
+
+            data_rgba = display_values.display_rgba
+            data_shape = display.preview_2d_shape
+            data_timestamp = display_values.display_rgba_timestamp
+            dimension_calibration = dimensional_calibration
+            metadata = data_and_metadata.metadata
+
+            # this method may trigger a layout of its parent scroll area. however, the parent scroll
+            # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
+            # that this object is not closeable while this method is running; and this method should not
+            # run if the object is already closed.
+            with self.__closing_lock:
+                if self.__closed:
+                    return
+                assert not self.__closed
+                # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
+                self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
+                # if the data changes, update the display.
+                if data_rgba is not self.__data_rgba or self.__graphics_changed:
+                    self.__graphics_changed = False
+                    self.__data_rgba = data_rgba
+                    self.__data_shape = data_shape
+                    self.__data_timestamp = data_timestamp
+                    if self.__display_frame_rate_id:
+                        frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+                        if frame_index != self.__display_frame_rate_last_index:
+                            Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                            self.__display_frame_rate_last_index = frame_index
+                        if id(self.__data_rgba) != id(self.__last_data_rgb):
+                            Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                            self.__last_data_rgb = self.__data_rgba
+                    # update the cursor info
+                    self.__update_cursor_info()
+
+                    def update_layout():
+                        # layout. this makes sure that the info overlay gets updated too.
+                        with self.update_context():
+                            self.__update_image_canvas_size()
+                            # trigger updates
+                            self.__bitmap_canvas_item.update()
+                            with self.__update_layout_handle_lock:
+                                self.__update_layout_handle = None
+
+                    if self.__event_loop:
                         with self.__update_layout_handle_lock:
-                            self.__update_layout_handle = None
-
-                if self.__event_loop:
-                    with self.__update_layout_handle_lock:
-                        update_layout_handle = self.__update_layout_handle
-                        if update_layout_handle:
-                            update_layout_handle.cancel()
-                        scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
-                        if scroll_area_canvas_size is not None:
-                            # only update layout if the size/origin will change. it is slow.
-                            image_canvas_origin, image_canvas_size = self.__calculate_origin_and_size(scroll_area_canvas_size)
-                            if image_canvas_origin != self.__composite_canvas_item.canvas_origin or image_canvas_size != self.__composite_canvas_item.canvas_size:
-                                self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
-                            else:
-                                # trigger updates
-                                self.__bitmap_canvas_item.update()
-                                with self.__update_layout_handle_lock:
-                                    self.__update_layout_handle = None
+                            update_layout_handle = self.__update_layout_handle
+                            if update_layout_handle:
+                                update_layout_handle.cancel()
+                            scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
+                            if scroll_area_canvas_size is not None:
+                                # only update layout if the size/origin will change. it is slow.
+                                image_canvas_origin, image_canvas_size = self.__calculate_origin_and_size(scroll_area_canvas_size)
+                                if image_canvas_origin != self.__composite_canvas_item.canvas_origin or image_canvas_size != self.__composite_canvas_item.canvas_size:
+                                    self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
+                                else:
+                                    # trigger updates
+                                    self.__bitmap_canvas_item.update()
+                                    with self.__update_layout_handle_lock:
+                                        self.__update_layout_handle = None
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
         self.__graphics_canvas_item.update_graphics(displayed_shape, self.__graphics, self.__graphic_selection)
         self.__graphics_changed = True
+
+    def handle_auto_display(self, display) -> bool:
+        # enter key has been pressed
+        display.auto_display_limits()
+        return True
 
     def __update_image_canvas_zoom(self, new_image_zoom):
         if self.__data_shape is not None:

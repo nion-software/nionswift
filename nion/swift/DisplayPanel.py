@@ -506,6 +506,17 @@ class BaseDisplayPanelContent:
         return False
 
 
+def create_display_canvas_item(display_type: str, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
+    if display_type == "line_plot":
+        return LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+    elif display_type == "image":
+        return ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+
+
+def is_valid_display_type(display_type: str) -> bool:
+    return display_type in ("image", "line_plot")
+
+
 class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, data_item, delegate, display_type, get_font_metrics_fn, event_loop):
@@ -517,15 +528,7 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
             self.__display_type = display_type
             self.__display_changed_event_listener = None
             self.__display_graphic_selection_changed_event_listener = None
-
-            if self.__display_type == "line_plot":
-                self.__display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, self)
-            elif self.__display_type == "image":
-                self.__display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, self, event_loop)
-                self.__display_canvas_item.set_fit_mode()
-            else:
-                raise Exception("Display type not found " + str(self.__display_type))
-
+            self.__display_canvas_item = create_display_canvas_item(self.__display_type, get_font_metrics_fn, self, event_loop)
             self.add_canvas_item(self.__display_canvas_item)
 
             display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -540,13 +543,11 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
                 def display_rgba_changed(display_values):
                     with self.__closing_lock:
-                        if self.__display_type == "image":
-                            DisplayCanvasItem.update_image_display(self.__display_canvas_item, display.get_image_display_parameters(display_values))
+                        self.__display_canvas_item.display_rgba_changed(display, display_values)
 
                 def display_data_and_metadata_changed(display_values):
                     with self.__closing_lock:
-                        if self.__display_type == "line_plot":
-                            DisplayCanvasItem.update_line_plot_display(self.__display_canvas_item, display.get_line_plot_display_parameters(display_values))
+                        self.__display_canvas_item.display_data_and_metadata_changed(display, display_values)
 
                 def display_changed():
                     # called when anything in the data item changes, including things like graphics or the data itself.
@@ -594,33 +595,6 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def display_canvas_item(self):
         return self.__display_canvas_item
 
-    @classmethod
-    def update_image_display(cls, display_canvas_item, image_display_parameters):
-        if image_display_parameters:
-            display_canvas_item.update_image_display_state(image_display_parameters.display_rgba,
-                                                           image_display_parameters.display_rgba_shape,
-                                                           image_display_parameters.display_rgba_timestamp,
-                                                           image_display_parameters.dimensional_calibration,
-                                                           image_display_parameters.metadata)
-
-    @classmethod
-    def update_line_plot_display(cls, display_canvas_item, line_plot_display_parameters):
-        if line_plot_display_parameters:
-            display_properties = {
-                "y_min": line_plot_display_parameters.y_range[0],
-                "y_max": line_plot_display_parameters.y_range[1],
-                "y_style": line_plot_display_parameters.y_style,
-                "left_channel": line_plot_display_parameters.channel_range[0],
-                "right_channel": line_plot_display_parameters.channel_range[1],
-                "legend_labels": line_plot_display_parameters.legend_labels
-            }
-            display_canvas_item.update_line_plot_display_state(line_plot_display_parameters.display_data,
-                                                               line_plot_display_parameters.dimensional_shape,
-                                                               line_plot_display_parameters.displayed_intensity_calibration,
-                                                               line_plot_display_parameters.displayed_dimensional_calibration,
-                                                               line_plot_display_parameters.metadata,
-                                                               display_properties)
-
     def add_index_to_selection(self, index):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         display_specifier.display.graphic_selection.add(index)
@@ -651,13 +625,6 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
             graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
             for graphic in graphics:
                 graphic.nudge(mapping, delta)
-
-    def __view_to_selected_graphics(self):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display and self.__display_type == "line_plot":
-            data_and_metadata = display_specifier.buffered_data_source.data_and_metadata
-            display.view_to_selected_graphics(data_and_metadata)
 
     def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -700,12 +667,9 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__delegate.remove_selected_graphic()
 
     def enter_key_pressed(self):
-        if self.__display_type == "image":
-            display = DataItem.DisplaySpecifier.from_data_item(self.__data_item).display
-            display.auto_display_limits()
-            return True
-        elif self.__display_type == "line_plot":
-            self.__view_to_selected_graphics()
+        display = DataItem.DisplaySpecifier.from_data_item(self.__data_item).display
+        if display:
+            return self.__display_canvas_item.handle_auto_display(display)
         return False
 
     def cursor_changed(self, pos):
@@ -1232,7 +1196,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__data_item_display_canvas_item.remove_canvas_item(self.__data_item_display_canvas_item.canvas_items[0])
         self.__display_canvas_item = None
         display_panel_content = self
-        if display_type and display_type in ("image", "line_plot"):
+        if display_type and is_valid_display_type(display_type):
             class Delegate:
                 @property
                 def tool_mode(self):
@@ -1770,25 +1734,15 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     display_type = display.actual_display_type
     display_values = display.get_calculated_display_values()
     drawing_context = DrawingContext.DrawingContext()
-
-    if display_type == "line_plot":
-        frame_width, frame_height = width, int(width / 1.618)
-        display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(ui.get_font_metrics, None)
+    display_canvas_item = create_display_canvas_item(display_type, ui.get_font_metrics, None, None, draw_background=False)
+    if display_canvas_item:
         with contextlib.closing(display_canvas_item):
-            DisplayCanvasItem.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
+            display_canvas_item.update_display_values(display, display_values)
             display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
 
             with drawing_context.saver():
+                frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)
                 drawing_context.translate(0, (frame_width - frame_height) * 0.5)
                 display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=frame_height, width=frame_width))
-
-    elif display_type == "image":
-        display_canvas_item = ImageCanvasItem.ImageCanvasItem(ui.get_font_metrics, None, None, draw_background=False)
-        with contextlib.closing(display_canvas_item):
-            display_canvas_item.set_fit_mode()
-            DisplayCanvasItem.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
-            display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
-
-            display_canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(height=height, width=width))
 
     return drawing_context

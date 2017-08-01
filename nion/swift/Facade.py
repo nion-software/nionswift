@@ -36,6 +36,7 @@
 
 # standard libraries
 import copy
+import collections
 import datetime
 import gettext
 import pickle
@@ -63,6 +64,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
+from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 __all__ = ["get_api"]
@@ -1350,12 +1352,6 @@ class DataItem(metaclass=SharedInstance):
 
     def data_item_to_svg(self):
 
-        from nion.swift import LinePlotCanvasItem
-        from nion.swift import ImageCanvasItem
-        from nion.ui import DrawingContext
-
-        import collections
-
         display_specifier = DataItemModule.DisplaySpecifier.from_data_item(self.__data_item)
 
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
@@ -1365,32 +1361,23 @@ class DataItem(metaclass=SharedInstance):
 
         aspect_ratio = None
 
-        buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
 
-        if buffered_data_source.is_data_1d:
-            display_canvas_item = LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics, None)
-            aspect_ratio = 4.0 / 3.0 if not aspect_ratio else aspect_ratio
-        else:
-            display_canvas_item = ImageCanvasItem.ImageCanvasItem(get_font_metrics, None, None)
-            aspect_ratio = float(buffered_data_source.dimensional_shape[-1]) / buffered_data_source.dimensional_shape[-2]
+        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display.actual_display_type, None, None, draw_background=False)
+        aspect_ratio = display_canvas_item.default_aspect_ratio if not aspect_ratio else aspect_ratio
 
-        viewbox = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))
-        viewbox = Geometry.IntRect(Geometry.IntPoint(), Geometry.fit_to_aspect_ratio(viewbox, aspect_ratio).size)
+        view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))
+        view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.fit_to_aspect_ratio(view_box, aspect_ratio).size)
         box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320, height=240))
         size = Geometry.fit_to_aspect_ratio(box, aspect_ratio).size
 
         try:
-            display_canvas_item.update_layout(viewbox.origin, viewbox.size, immediate=True)
-            display_type = display.actual_display_type
+            display_canvas_item.update_layout(view_box.origin, view_box.size, immediate=True)
             display_values = display.get_calculated_display_values(immediate=True)
-            if display_type == "image":
-                DisplayPanelModule.DisplayCanvasItem.update_image_display(display_canvas_item, display.get_image_display_parameters(display_values))
-            elif display_type == "line_plot":
-                DisplayPanelModule.DisplayCanvasItem.update_line_plot_display(display_canvas_item, display.get_line_plot_display_parameters(display_values))
+            display_canvas_item.update_display_values(display, display_values)
             dc = DrawingContext.DrawingContext()
             display_canvas_item.repaint_immediate(dc, size)
-            return dc.to_svg(size, viewbox)
+            return dc.to_svg(size, view_box)
         except Exception as e:
             import traceback
             traceback.print_exc()
