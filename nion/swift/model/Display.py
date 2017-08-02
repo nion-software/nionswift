@@ -378,6 +378,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
+        self.define_property("display_script", changed=self.__property_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
 
         self.will_close_event = Event.Event()  # for shutting down thumbnails; hopefully temporary.
@@ -631,13 +632,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         display_type = self.display_type
         data_and_metadata = self.__data_and_metadata
         valid_data = functools.reduce(operator.mul, self.preview_2d_shape) > 0 if self.preview_2d_shape is not None else False
-        if valid_data and data_and_metadata and not display_type in ("line_plot", "image"):
+        if valid_data and data_and_metadata and not display_type in ("line_plot", "image", "display_script"):
             if data_and_metadata.collection_dimension_count == 2 and data_and_metadata.datum_dimension_count == 1:
                 display_type = "image"
             elif data_and_metadata.datum_dimension_count == 1:
                 display_type = "line_plot"
             elif data_and_metadata.datum_dimension_count == 2:
                 display_type = "image"
+            # override
+            if self.display_script:
+                display_type = "display_script"
         return display_type
 
     @property

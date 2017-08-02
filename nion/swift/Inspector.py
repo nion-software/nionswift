@@ -624,8 +624,8 @@ class CalibrationsInspectorSection(InspectorSection):
 
 def make_display_type_chooser(ui, display):
     display_type_row = ui.create_row_widget()
-    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"))
-    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2}
+    display_type_items = ((_("Default"), None), (_("Line Plot"), "line_plot"), (_("Image"), "image"), (_("Display Script"), "display_script"))
+    display_type_reverse_map = {None: 0, "line_plot": 1, "image": 2, "display_script": 3}
     display_type_chooser = ui.create_combo_box_widget(items=display_type_items, item_getter=operator.itemgetter(0))
     display_type_chooser.on_current_item_changed = lambda item: setattr(display, "display_type", item[1])
     display_type_chooser.current_item = display_type_items[display_type_reverse_map.get(display.display_type, 0)]

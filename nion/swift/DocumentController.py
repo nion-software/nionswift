@@ -18,6 +18,7 @@ from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
 from nion.swift import DataPanel
 from nion.swift import Decorators
+from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
@@ -292,6 +293,7 @@ class DocumentController(Window.Window):
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_edit_computation_dialog, key_sequence="Ctrl+E")
+        self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_display_editor_dialog, key_sequence="Ctrl+Shift+D")
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
@@ -847,6 +849,14 @@ class DocumentController(Window.Window):
             data_item = self.selected_display_specifier.data_item
         if data_item:
             interactive_dialog = ComputationPanel.EditComputationDialog(self, data_item)
+            interactive_dialog.show()
+            self.__dialogs.append(weakref.ref(interactive_dialog))
+
+    def new_display_editor_dialog(self, data_item=None):
+        if not data_item:
+            data_item = self.selected_display_specifier.data_item
+        if data_item:
+            interactive_dialog = DisplayEditorPanel.DisplayEditorDialog(self, data_item)
             interactive_dialog.show()
             self.__dialogs.append(weakref.ref(interactive_dialog))
 

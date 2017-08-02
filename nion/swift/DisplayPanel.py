@@ -12,6 +12,7 @@ import weakref
 
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import DataPanel
+from nion.swift import DisplayScriptCanvasItem
 from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import Panel
@@ -511,10 +512,12 @@ def create_display_canvas_item(display_type: str, get_font_metrics_fn, delegate,
         return LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
     elif display_type == "image":
         return ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+    elif display_type == "display_script":
+        return DisplayScriptCanvasItem.DisplayScriptCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
 
 
 def is_valid_display_type(display_type: str) -> bool:
-    return display_type in ("image", "line_plot")
+    return display_type in ("image", "line_plot", "display_script")
 
 
 class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
