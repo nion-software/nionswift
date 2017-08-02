@@ -1438,6 +1438,10 @@ class Display(metaclass=SharedInstance):
         self.__display = display
 
     @property
+    def _display(self):
+        return self.__display
+
+    @property
     def specifier(self):
         return ObjectSpecifier("display", self.__display.uuid)
 
