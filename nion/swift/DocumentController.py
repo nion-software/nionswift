@@ -293,7 +293,7 @@ class DocumentController(Window.Window):
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_edit_computation_dialog, key_sequence="Ctrl+E")
-        self._processing_menu.add_menu_item(_("Edit Data Item Scripts"), self.new_display_editor_dialog, key_sequence="Ctrl+Shift+D")
+        self._processing_menu.add_menu_item(_("Edit Display Script"), self.new_display_editor_dialog, key_sequence="Ctrl+Shift+D")
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("FFT"), functools.partial(self.__processing_new, self.document_model.get_fft_new), key_sequence="Ctrl+F")
