@@ -104,6 +104,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
                     g["drawing_context"] = drawing_context
                     g["display_data_and_metadata"] = data_and_metadata
                     g["bounds"] = rect
+                    g["get_font_metrics_fn"] = self.__get_font_metrics_fn
                     l = dict()
                     try:
                         # print(code)
