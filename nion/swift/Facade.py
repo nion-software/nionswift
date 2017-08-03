@@ -2373,6 +2373,10 @@ class DocumentWindow(metaclass=SharedInstance):
         return self.__document_controller
 
     @property
+    def _document_window(self):
+        return self.__document_controller
+
+    @property
     def library(self) -> Library:
         """Return the library object.
 
