@@ -1414,11 +1414,13 @@ class DataItem(LibraryItem):
             source_dicts = processing_description["sources"]
             for i, source_dict in enumerate(source_dicts):
                 src_names.append(source_dict["name"])
-                data_expression = source_dict["name"] + (".display_xdata" if source_dict.get("use_display_data", True) else ".xdata")
-                if source_dict.get("croppable", False):
-                    crop_region_variable_name = "crop_region" + "" if len(source_dicts) == 1 else str(i)
-                    if computation._has_variable(crop_region_variable_name):
-                        data_expression = "xd.crop(" + data_expression + ", " + crop_region_variable_name + ".bounds)"
+                use_display_data = source_dict.get("use_display_data", True)
+                xdata_property = "display_xdata" if use_display_data else "xdata"
+                if source_dict.get("croppable"):
+                    xdata_property = "cropped_" + xdata_property
+                elif source_dict.get("use_filtered_data", False):
+                    xdata_property = "filtered_" + xdata_property
+                data_expression = source_dict["name"] + "." + xdata_property
                 src_texts.append(data_expression)
             script = processing_description.get("script")
             if not script:

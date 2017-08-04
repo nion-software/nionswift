@@ -1189,9 +1189,7 @@ class DocumentController(Window.Window):
 
     def processing_fourier_filter_new(self):
         display_specifier = self.selected_display_specifier
-        mask_graphics = self.__get_mask_graphics(display_specifier)
-        mask_graphic = mask_graphics[0] if len(mask_graphics) > 0 else None
-        data_item = self.document_model.get_fourier_filter_new(display_specifier.data_item, None, mask_graphic)
+        data_item = self.document_model.get_fourier_filter_new(display_specifier.data_item, None)
         if data_item:
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.display_data_item(new_display_specifier)

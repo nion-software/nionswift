@@ -329,9 +329,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[1].specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[0].secondary_specifier).value.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[1].specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[0].secondary_specifier).value.bounds)
         document_controller.close()
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):

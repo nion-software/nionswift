@@ -640,7 +640,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     do_flip_v_var = {'label': _("Flip Vertical"), 'op_name': 'flip_horizontal', 'name': 'do_flip_v', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
                     do_flip_h_var = {'label': _("Flip Horizontal"), 'op_name': 'flip_vertical', 'name': 'do_flip_h', 'type': 'variable', 'value': False, 'value_default': False, 'value_type': 'boolean'}
                     info["transpose-flip-operation"] = ExpressionInfo(_("Transpose/Flip"), "xd.transpose_flip({src}, do_transpose, do_flip_v, do_flip_h)", "transpose-flip", [_("Source")], ["src"], [do_transpose_var, do_flip_v_var, do_flip_h_var], True)
-                    info["crop-operation"] = ExpressionInfo(_("Crop"), "xd.crop({src}, crop_region.bounds)", "crop", [_("Source")], ["src"], list(), True)
+                    info["crop-operation"] = ExpressionInfo(_("Crop"), "{src}", "crop", [_("Source")], ["src"], list(), False)
                     center_var = {'label': _("Center"), 'op_name': 'slice_center', 'name': 'center', 'type': 'variable', 'value': 0, 'value_default': 0, 'value_min': 0, 'value_type': 'integral'}
                     width_var = {'label': _("Width"), 'op_name': 'slice_width', 'name': 'width', 'type': 'variable', 'value': 1, 'value_default': 1, 'value_min': 1, 'value_type': 'integral'}
                     info["slice-operation"] = ExpressionInfo(_("Slice"), "xd.slice_sum({src}, center, width)", "slice", [_("Source")], ["src"], [center_var, width_var], False)
@@ -2223,7 +2223,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         src_names = list()
         src_texts = list()
         src_labels = list()
-        crop_names = list()
         regions = list()
         region_map = dict()
         for i, (src_dict, input) in enumerate(zip(src_dicts, inputs)):
@@ -2252,14 +2251,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             src_name = src_dict["name"]
             src_label = src_dict["label"]
             use_display_data = src_dict.get("use_display_data", True)
-            src_text = "{}.{}".format(src_name, "display_xdata" if use_display_data else "xdata")
-            crop_region = input[1] if src_dict.get("croppable", False) else None
-            crop_name = "crop_region{}".format(suffix) if crop_region else None
-            src_text = src_text if not crop_region else "xd.crop({}, {}.bounds)".format(src_text, crop_name)
+            xdata_property = "display_xdata" if use_display_data else "xdata"
+            if src_dict.get("croppable"):
+                xdata_property = "cropped_" + xdata_property
+            elif src_dict.get("use_filtered_data", False):
+                xdata_property = "filtered_" + xdata_property
+            src_text = "{}.{}".format(src_name, xdata_property)
             src_names.append(src_name)
             src_texts.append(src_text)
             src_labels.append(src_label)
-            crop_names.append(crop_name)
 
             # each source can have a list of regions to be matched to arguments or created on the source
             region_dict_list = src_dict.get("regions", list())
@@ -2370,14 +2370,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation.label = processing_description["title"]
         computation.processing_id = processing_id
         # process the data item inputs
-        for src_name, src_label, input in zip(src_names, src_labels, inputs):
+        for src_dict, src_name, src_label, input in zip(src_dicts, src_names, src_labels, inputs):
             display_specifier = DataItem.DisplaySpecifier.from_data_item(input[0])
-            computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=src_label)
-        # next process the crop regions
-        for crop_name, input in zip(crop_names, inputs):
-            if crop_name:
-                assert input[1] is not None
-                computation.create_object(crop_name, self.get_object_specifier(input[1]), label=_("Crop Region"))
+            secondary_specifier = None
+            if src_dict.get("croppable", False):
+                secondary_specifier = self.get_object_specifier(input[1])
+            computation.create_object(src_name, self.get_object_specifier(display_specifier.data_item), label=src_label, secondary_specifier=secondary_specifier)
         # process the regions
         for region_name, region, region_label in regions:
             computation.create_object(region_name, self.get_object_specifier(region), label=region_label)
@@ -2396,7 +2394,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_data_item(new_data_item)
 
         display_specifier = DataItem.DisplaySpecifier.from_data_item(new_data_item)
-        buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
 
         # next come the output regions that get created on the target itself
@@ -2498,9 +2495,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
             requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
             requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
-            crop_in_region = {"name": "crop_region", "type": "rectangle", "params": {"label": _("Crop Region")}}
-            vs["crop"] = {"title": _("Crop"), "expression": "xd.crop({src}, crop_region.bounds)",
-                "sources": [{"name": "src", "label": _("Source"), "regions": [crop_in_region], "requirements": [requirement_2d]}]}
+            vs["crop"] = {"title": _("Crop"), "expression": "{src}",
+                "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["sum"] = {"title": _("Sum"), "expression": "xd.sum({src}, src.xdata.datum_dimension_indexes[0])",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True, "use_display_data": False, "requirements": [requirement_2d_to_4d]}]}
             slice_center_param = {"name": "center", "label": _("Center"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
@@ -2524,9 +2520,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             line_profile_connection = {"type": "interval_list", "src": "data_source", "dst": "line_region"}
             vs["line-profile"] = {"title": _("Line Profile"), "expression": "xd.line_profile({src}, line_region.vector, line_region.line_width)",
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
-            filter_in_region = {"name": "region", "type": "spot"}
-            vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft(xd.fourier_mask({src}, region.mask_xdata_with_shape({src}.data_shape[0:2]))))",
-                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "regions": [filter_in_region], "requirements": [requirement_2d]}]}
+            vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}))",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "use_filtered_data": True, "requirements": [requirement_2d]}]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
@@ -2573,7 +2568,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("convert-to-scalar", [(data_item, crop_region)])
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        return self.__make_computation("crop", [(data_item, crop_region)], {"src": [crop_region]})
+        if data_item and data_item.maybe_data_source and not crop_region:
+            display = data_item.maybe_data_source.displays[0]
+            if data_item.maybe_data_source.is_data_2d:
+                rect_region = Graphics.RectangleGraphic()
+                rect_region.center = 0.5, 0.5
+                rect_region.size = 0.5, 0.5
+                display.add_graphic(rect_region)
+                crop_region = rect_region
+            elif data_item.maybe_data_source.is_data_1d:
+                interval_region = Graphics.IntervalGraphic()
+                interval_region.interval = 0.25, 0.75
+                display.add_graphic(interval_region)
+                crop_region = interval_region
+        return self.__make_computation("crop", [(data_item, crop_region)])
 
     def get_projection_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sum", [(data_item, crop_region)])
@@ -2590,8 +2598,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_line_profile_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, line_region: Graphics.LineTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("line-profile", [(data_item, crop_region)], {"src": [line_region]})
 
-    def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None, filter_region: Graphics.Graphic=None) -> DataItem.DataItem:
-        return self.__make_computation("filter", [(data_item, crop_region)], {"src": [filter_region]})
+    def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        if data_item and data_item.maybe_data_source:
+            display = data_item.maybe_data_source.displays[0]
+            has_mask = False
+            for graphic in display.graphics:
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                    has_mask = True
+                    break
+            if not has_mask:
+                graphic = Graphics.RingGraphic()
+                graphic.radius_1 = 0.15
+                graphic.radius_2 = 0.25
+                display.add_graphic(graphic)
+        return self.__make_computation("filter", [(data_item, crop_region)])
 
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
 

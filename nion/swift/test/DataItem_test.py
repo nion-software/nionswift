@@ -216,8 +216,8 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item_copy)
             self.assertNotEqual(data_item_copy.maybe_data_source.computation, data_item.maybe_data_source.computation)
             document_model.recompute_all()
-            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.maybe_data_source.computation.variables[1].variable_specifier).value,
-                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[1].variable_specifier).value)
+            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.maybe_data_source.computation.variables[0].secondary_specifier).value,
+                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].secondary_specifier).value)
 
     def test_copy_data_item_with_transaction(self):
         document_model = DocumentModel.DocumentModel()
