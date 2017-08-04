@@ -1599,8 +1599,8 @@ def make_image_chooser(ui, document_model, variable):
     row.add(label_column)
     row.add_spacing(8)
     base_variable_specifier = copy.copy(variable.specifier)
-    bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-    data_item = bound_data_item.value if bound_data_item else None
+    bound_data_source = document_model.resolve_object_specifier(base_variable_specifier)
+    data_item = bound_data_source.value.data_item if bound_data_source else None
 
     def data_item_drop(data_item_uuid):
         data_item = document_model.get_data_item_by_key(data_item_uuid)
@@ -1628,7 +1628,7 @@ def make_image_chooser(ui, document_model, variable):
         if key == "specifier":
             base_variable_specifier = copy.copy(variable.specifier)
             bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-            data_item = bound_data_item.value if bound_data_item else None
+            data_item = bound_data_item.value.data_item if bound_data_item else None
             data_item_thumbnail_source.set_data_item(data_item)
 
     property_changed_listener = variable.property_changed_event.listen(property_changed)

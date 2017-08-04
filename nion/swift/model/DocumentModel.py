@@ -1486,10 +1486,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for variable in computation.variables:
                 specifier = variable.specifier
                 if specifier:
-                    object = self.resolve_object_specifier(variable.specifier)
+                    object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier)
                     if hasattr(object, "value"):
                         source_item = object.value
-                        new_source_items.add(source_item)
+                        if isinstance(source_item, DataItem.DataSource):
+                            new_source_items.add(source_item.data_item)
+                            if source_item.graphic:
+                                new_source_items.add(source_item.graphic)
+                        else:
+                            new_source_items.add(source_item)
 
         with self.__dependency_tree_lock:
             old_source_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(data_item), list()))
@@ -1855,56 +1860,57 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
         return Symbolic.ComputationVariable.get_extension_object_specifier(object)
 
-    def resolve_object_specifier(self, specifier: dict):
+    def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
+        for data_item in self.data_items:
+            for data_source in data_item.data_sources:
+                for display in data_source.displays:
+                    for graphic in display.graphics:
+                        if graphic.uuid == object_uuid:
+                            return graphic
+        return None
+
+    def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None):
         document_model = self
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
             if specifier_type == "data_item":
                 specifier_uuid_str = specifier.get("uuid")
+                secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
                 data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
-                class BoundDataItem:
-                    def __init__(self, data_item):
-                        self.__data_item = data_item
-                        self.__buffered_data_source = data_item.maybe_data_source
+                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
+                class BoundDataSource:
+                    def __init__(self, data_item, graphic):
                         self.changed_event = Event.Event()
-                        def data_item_changed():
-                            self.changed_event.fire()
-                        self.__data_item_changed_event_listener = self.__buffered_data_source.data_item_changed_event.listen(data_item_changed)
-                        self.__display_values_event_listener = self.__buffered_data_source.displays[0].display_data_will_change_event.listen(data_item_changed)
+                        self.__data_source = DataItem.DataSource(data_item, graphic, self.changed_event)
                     @property
                     def value(self):
-                        return self.__data_item
+                        return self.__data_source
                     def close(self):
-                        self.__data_item_changed_event_listener.close()
-                        self.__data_item_changed_event_listener = None
-                        self.__display_values_event_listener.close()
-                        self.__display_values_event_listener = None
+                        self.__data_source.close()
+                        self.__data_source = None
                 if data_item:
-                    return BoundDataItem(data_item)
+                    return BoundDataSource(data_item, graphic)
             elif specifier_type == "region":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                for data_item in self.data_items:
-                    for data_source in data_item.data_sources:
-                        for display in data_source.displays:
-                            for graphic in display.graphics:
-                                if graphic.uuid == object_uuid:
-                                    class BoundGraphic:
-                                        def __init__(self, display, object):
-                                            self.__object = object
-                                            self.changed_event = Event.Event()
-                                            def property_changed(property_name_being_changed):
-                                                self.changed_event.fire()
-                                            self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
-                                        def close(self):
-                                            self.__property_changed_listener.close()
-                                            self.__property_changed_listener = None
-                                        @property
-                                        def value(self):
-                                            return self.__object
-                                    if graphic:
-                                        return BoundGraphic(display, graphic)
+                graphic = self.get_graphic_by_uuid(object_uuid)
+                if graphic:
+                    class BoundGraphic:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            def property_changed(property_name_being_changed):
+                                self.changed_event.fire()
+                            self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
+                        def close(self):
+                            self.__property_changed_listener.close()
+                            self.__property_changed_listener = None
+                        @property
+                        def value(self):
+                            return self.__object
+                    return BoundGraphic(graphic)
         return Symbolic.ComputationVariable.resolve_extension_object_specifier(specifier)
 
     class DataItemReference:

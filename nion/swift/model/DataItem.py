@@ -11,19 +11,18 @@ import uuid
 import warnings
 import weakref
 
-# typing
-from typing import Tuple
-
 # third party libraries
 import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import Display
+from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.utils import Event
@@ -1626,3 +1625,133 @@ def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> Da
     data_item.append_data_source(buffered_data_source)
     buffered_data_source.set_data_and_metadata(data_and_metadata)
     return data_item
+
+
+class DataSource:
+    # NOTE: this is a different data source than the BufferedDataSource which will eventually be deprecated
+
+    DATA_SOURCE_MIME_TYPE = "text/vnd.nion.display_source_type"
+
+    def __init__(self, data_item, graphic, changed_event):
+        self.__data_item = data_item
+        self.__graphic = graphic
+        self.__changed_event = changed_event  # not public since it is passed in
+        buffered_data_source = data_item.maybe_data_source
+        display = buffered_data_source.displays[0]
+        self.__data_item_changed_event_listener = buffered_data_source.data_item_changed_event.listen(self.__changed_event.fire)
+        self.__display_values_event_listener = display.display_data_will_change_event.listen(self.__changed_event.fire)
+        self.__property_changed_listener = None
+        def property_changed(key):
+            self.__changed_event.fire()
+        if graphic:
+            self.__property_changed_listener = graphic.property_changed_event.listen(property_changed)
+        def filter_property_changed(key):
+            self.__changed_event.fire()
+        self.__graphic_property_changed_listeners = list()
+        def graphic_inserted(key, value, before_index):
+            if key == "graphics":
+                property_changed_listener = None
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                    property_changed_listener = value.property_changed_event.listen(filter_property_changed)
+                    self.__changed_event.fire()
+                self.__graphic_property_changed_listeners.insert(before_index, property_changed_listener)
+        def graphic_removed(key, value, index):
+            if key == "graphics":
+                property_changed_listener = self.__graphic_property_changed_listeners.pop(index)
+                if property_changed_listener:
+                    property_changed_listener.close()
+                    self.__changed_event.fire()
+        self.__graphic_inserted_event_listener = display.item_inserted_event.listen(graphic_inserted)
+        self.__graphic_removed_event_listener = display.item_removed_event.listen(graphic_removed)
+        for graphic in display.graphics:
+            property_changed_listener = None
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                property_changed_listener = graphic.property_changed_event.listen(filter_property_changed)
+            self.__graphic_property_changed_listeners.append(property_changed_listener)
+
+    def close(self):
+        for graphic_property_changed_listener in self.__graphic_property_changed_listeners:
+            if graphic_property_changed_listener:
+                graphic_property_changed_listener.close()
+        self.__graphic_property_changed_listeners = list()
+        self.__graphic_inserted_event_listener.close()
+        self.__graphic_inserted_event_listener = None
+        self.__graphic_removed_event_listener.close()
+        self.__graphic_removed_event_listener = None
+        if self.__property_changed_listener:
+            self.__property_changed_listener.close()
+            self.__property_changed_listener = None
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
+        self.__display_values_event_listener.close()
+        self.__display_values_event_listener = None
+
+    @property
+    def data_item(self):
+        return self.__data_item
+
+    @property
+    def graphic(self):
+        return self.__graphic
+
+    @property
+    def data(self) -> numpy.ndarray:
+        with self.__data_item.maybe_data_source.data_ref() as data_ref:
+            return data_ref.data
+
+    @property
+    def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        return self.__data_item.maybe_data_source.data_and_metadata
+
+    @property
+    def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_data_and_metadata
+
+    @property
+    def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.__data_item
+        if data_item:
+            displayed_xdata = self.display_xdata
+            graphic = self.__graphic
+            if graphic:
+                if hasattr(graphic, "bounds") and displayed_xdata.is_data_2d:
+                    return Core.function_crop(displayed_xdata, graphic.bounds)
+                if hasattr(graphic, "interval") and displayed_xdata.is_data_1d:
+                    return Core.function_crop_interval(displayed_xdata, graphic.interval)
+            return displayed_xdata
+        return None
+
+    @property
+    def cropped_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        data_item = self.__data_item
+        if data_item:
+            xdata = self.xdata
+            graphic = self.__graphic
+            if graphic:
+                if hasattr(graphic, "bounds"):
+                    return Core.function_crop(xdata, graphic.bounds)
+                if hasattr(graphic, "interval"):
+                    return Core.function_crop_interval(xdata, graphic.interval)
+            return xdata
+        return None
+
+    @property
+    def filtered_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        xdata = self.xdata
+        if xdata.is_data_2d and xdata.is_data_complex_type:
+            shape = xdata.data_shape
+            mask = numpy.zeros(shape)
+            for graphic in self.__data_item.maybe_data_source.displays[0].graphics:
+                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
+            return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+        return xdata
+
+    @property
+    def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
+        shape = self.display_xdata.data_shape
+        mask = numpy.zeros(shape)
+        for graphic in self.__data_item.maybe_data_source.displays[0].graphics:
+            if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                mask = numpy.logical_or(mask, graphic.get_mask(shape))
+        return DataAndMetadata.DataAndMetadata.from_data(mask)

@@ -678,6 +678,9 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
     def cursor_changed(self, pos):
         self.__delegate.cursor_changed(self.__data_item, pos)
 
+    def drag_graphics(self, graphics):
+        self.__delegate.drag_graphics(graphics)
+
     def update_display_properties(self, display_properties):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         for key, value in iter(display_properties.items()):
@@ -1199,6 +1202,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__data_item_display_canvas_item.remove_canvas_item(self.__data_item_display_canvas_item.canvas_items[0])
         self.__display_canvas_item = None
         display_panel_content = self
+        ui = self.ui
+        on_begin_drag = self.on_begin_drag
+        data_item = self.__data_item
         if display_type and is_valid_display_type(display_type):
             class Delegate:
                 @property
@@ -1258,6 +1264,20 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                     line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
                     new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
                     document_controller.display_data_item(new_display_specifier)
+
+                def drag_graphics(self, graphics):
+                    mime_data = ui.create_mime_data()
+                    mime_data.set_data_as_string("text/plain", "HEE HAW")
+                    if data_item is not None:
+                        mime_data = ui.create_mime_data()
+                        mime_data_content = dict()
+                        mime_data_content["data_item_uuid"] = str(data_item.uuid)
+                        if graphics and len(graphics) == 1:
+                            mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
+                        mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
+                        thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.maybe_data_source.displays[0])
+                        if callable(on_begin_drag):
+                            on_begin_drag(mime_data, thumbnail_data)
 
             self.__display_canvas_item = DisplayCanvasItem(self._data_item, Delegate(), display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
             self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item)

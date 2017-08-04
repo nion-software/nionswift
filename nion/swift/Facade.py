@@ -1384,6 +1384,48 @@ class DataItem(metaclass=SharedInstance):
             traceback.print_stack()
 
 
+class DataSource(metaclass=SharedInstance):
+
+    def __init__(self, data_source):
+        self.__data_source = data_source
+
+    @property
+    def _data_source(self):
+        return self.__data_source
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("data_source", uuid_module.uuid4())
+
+    @property
+    def cropped_display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.cropped_display_xdata
+
+    @property
+    def cropped_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.cropped_xdata
+
+    @property
+    def data(self) -> numpy.ndarray:
+        return self.__data_source.data
+
+    @property
+    def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.display_xdata
+
+    @property
+    def filter_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.filter_xdata
+
+    @property
+    def filtered_xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.filtered_xdata
+
+    @property
+    def xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.__data_source.xdata
+
+
 class DisplayPanel(metaclass=SharedInstance):
 
     release = ["data_item", "set_data_item"]
@@ -2987,6 +3029,8 @@ class API_1:
             return DataItem(object)
         if isinstance(object, Graphics.Graphic):
             return Graphic(object)
+        if isinstance(object, DataItemModule.DataSource):
+            return DataSource(object)
         return None
 
     # provisional

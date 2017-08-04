@@ -117,14 +117,17 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.wants_drag_events = True
         self.wants_mouse_events = True
         self.__drag_start = None
+        self.on_drop_mime_data = None
         self.on_data_item_drop = None
         self.on_data_item_delete = None
         self.on_drag_pressed = None
         self.active = False
 
     def close(self):
+        self.on_drop_mime_data = None
         self.on_data_item_drop = None
         self.on_data_item_delete = None
+        self.on_drag_pressed = None
         super().close()
 
     @property
@@ -174,6 +177,10 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
     def drop(self, mime_data, x, y):
+        if callable(self.on_drop_mime_data):
+            result = self.on_drop_mime_data(mime_data, x, y)
+            if result:
+                return result
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             on_data_item_drop = self.on_data_item_drop
@@ -219,6 +226,7 @@ class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         bitmap_overlay_canvas_item.add_canvas_item(bitmap_canvas_item)
         self.__thumbnail_source = data_item_thumbnail_source
         self.on_drag = None
+        self.on_drop_mime_data = None
         self.on_data_item_drop = None
         self.on_data_item_delete = None
 
@@ -233,6 +241,10 @@ class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
                     rgba_image_data = self.__thumbnail_source.thumbnail_data
                     on_drag(mime_data, Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height))), x, y)
 
+        def drop_mime_data(mime_data, x, y):
+            if callable(self.on_drop_mime_data):
+                return self.on_drop_mime_data(mime_data, x, y)
+            return None
 
         def data_item_drop(data_item_uuid):
             on_data_item_drop = self.on_data_item_drop
@@ -245,6 +257,7 @@ class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
                 on_data_item_delete()
 
         bitmap_overlay_canvas_item.on_drag_pressed = drag_pressed
+        bitmap_overlay_canvas_item.on_drop_mime_data = drop_mime_data
         bitmap_overlay_canvas_item.on_data_item_drop = data_item_drop
         bitmap_overlay_canvas_item.on_data_item_delete = data_item_delete
 
@@ -262,6 +275,7 @@ class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         self.__thumbnail_source.close()
         self.__thumbnail_source = None
         self.on_drag = None
+        self.on_drop_mime_data = None
         self.on_data_item_drop = None
         self.on_data_item_delete = None
         super().close()
@@ -275,9 +289,15 @@ class DataItemThumbnailWidget(Widgets.CompositeWidgetBase):
         bitmap_canvas_widget = ui.create_canvas_widget(properties={"height": size.height, "width": size.width})
         bitmap_canvas_widget.canvas_item.add_canvas_item(data_item_thumbnail_canvas_item)
         self.content_widget.add(bitmap_canvas_widget)
+        self.on_drop_mime_data = None
         self.on_drag = None
         self.on_data_item_drop = None
         self.on_data_item_delete = None
+
+        def drop_mime_data(mime_data, x, y):
+            if callable(self.on_drop_mime_data):
+                return self.on_drop_mime_data(mime_data, x, y)
+            return None
 
         def drag(mime_data, thumbnail, x, y):
             on_drag = self.on_drag
@@ -294,12 +314,14 @@ class DataItemThumbnailWidget(Widgets.CompositeWidgetBase):
             if callable(on_data_item_delete):
                 on_data_item_delete()
 
+        data_item_thumbnail_canvas_item.on_drop_mime_data = drop_mime_data
         data_item_thumbnail_canvas_item.on_drag = drag
         data_item_thumbnail_canvas_item.on_data_item_drop = data_item_drop
         data_item_thumbnail_canvas_item.on_data_item_delete = data_item_delete
 
     def close(self):
         super().close()
+        self.on_drop_mime_data = None
         self.on_drag = None
         self.on_data_item_drop = None
         self.on_data_item_delete = None

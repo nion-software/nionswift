@@ -885,6 +885,11 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         if self.__graphic_drag_items:
+            force_drag = modifiers.only_option
+            if force_drag and self.__graphic_drag_part == "all":
+                if Geometry.distance(self.__last_mouse, self.__graphic_drag_start_pos) <= 2:
+                    self.delegate.drag_graphics(self.__graphic_drag_items)
+                    return True
             widget_mapping = self.__get_mouse_mapping()
             self.delegate.update_graphics(widget_mapping, self.__graphic_drag_items, self.__graphic_drag_part,
                                           self.__graphic_part_data, self.__graphic_drag_start_pos,

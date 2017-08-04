@@ -2,6 +2,7 @@
 import copy
 import functools
 import gettext
+import json
 import operator
 import random
 import string
@@ -328,19 +329,21 @@ class ComputationPanelSection:
 
             return column
 
-        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn):
+        def make_specifier_row(ui, variable: Symbolic.ComputationVariable, on_change_type_fn, on_remove_fn, *, include_secondary=False):
             column = ui.create_column_widget()
 
             name_type_row = make_name_type_row(ui, variable, on_change_type_fn, on_remove_fn)
 
-            uuid_text_edit = ui.create_line_edit_widget()
-
-            uuid_row = ui.create_row_widget()
-            uuid_row.add_spacing(8)
-            uuid_row.add(ui.create_label_widget(_("UUID")))
-            uuid_row.add_spacing(8)
-            uuid_row.add(uuid_text_edit)
-            uuid_row.add_spacing(8)
+            def make_uuid_row(label, binding_identifier):
+                uuid_text_edit = ui.create_line_edit_widget()
+                uuid_row = ui.create_row_widget()
+                uuid_row.add_spacing(8)
+                uuid_row.add(ui.create_label_widget(label))
+                uuid_row.add_spacing(8)
+                uuid_row.add(uuid_text_edit)
+                uuid_row.add_spacing(8)
+                uuid_text_edit.bind_text(Binding.PropertyBinding(variable, binding_identifier))
+                return uuid_row
 
             label_text_edit = ui.create_line_edit_widget()
             label_text_edit.bind_text(Binding.PropertyBinding(variable, "label"))
@@ -353,10 +356,10 @@ class ComputationPanelSection:
             display_row.add_stretch()
 
             column.add(name_type_row)
-            column.add(uuid_row)
+            column.add(make_uuid_row(_("Data Item UUID"), "specifier_uuid_str"))
+            if include_secondary:
+                column.add(make_uuid_row(_("Region UUID"), "secondary_specifier_uuid_str"))
             column.add(display_row)
-
-            uuid_text_edit.bind_text(Binding.PropertyBinding(variable, "specifier_uuid_str"))
 
             return column
 
@@ -392,7 +395,7 @@ class ComputationPanelSection:
             elif variable_type == "real":
                 stack.add(make_number_row(ui, variable, Converter.FloatToStringConverter(), change_type, on_remove))
             elif variable_type == "data_item":
-                stack.add(make_specifier_row(ui, variable, change_type, on_remove))
+                stack.add(make_specifier_row(ui, variable, change_type, on_remove, include_secondary=True))
             elif variable_type == "region":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             elif variable_type in Symbolic.ComputationVariable.get_extension_types():
@@ -427,16 +430,38 @@ def make_image_chooser(ui, document_model, variable, drag_fn):
     label_row.add(label_widget)
     label_row.add_stretch()
     base_variable_specifier = copy.copy(variable.specifier)
-    bound_data_item = document_model.resolve_object_specifier(base_variable_specifier)
-    data_item = bound_data_item.value if bound_data_item else None
+
+    bound_data_source = document_model.resolve_object_specifier(base_variable_specifier)
+    data_item = bound_data_source.value.data_item if bound_data_source else None
 
     def data_item_drop(data_item_uuid):
         data_item = document_model.get_data_item_by_key(data_item_uuid)
         variable_specifier = document_model.get_object_specifier(data_item)
+        variable.variable_type = "data_item"
+        variable.secondary_specifier = None
         variable.specifier = variable_specifier
 
+    def drop_mime_data(mime_data, x, y):
+        data_source_mime_str = mime_data.data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE)
+        if data_source_mime_str:
+            data_source_mime_data = json.loads(data_source_mime_str)
+            data_item_uuid = uuid.UUID(data_source_mime_data["data_item_uuid"])
+            data_item = document_model.get_data_item_by_key(data_item_uuid)
+            variable_specifier = document_model.get_object_specifier(data_item)
+            secondary_specifier = None
+            if "graphic_uuid" in data_source_mime_data:
+                graphic_uuid = uuid.UUID(data_source_mime_data["graphic_uuid"])
+                graphic = document_model.get_graphic_by_uuid(graphic_uuid)
+                if graphic:
+                    secondary_specifier = document_model.get_object_specifier(graphic)
+            variable.variable_type = "data_item"
+            variable.secondary_specifier = secondary_specifier
+            variable.specifier = variable_specifier
+            return "copy"
+        return None
+
     def data_item_delete():
-        variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+        variable_specifier = {"type": variable.variable_type, "version": 1, "uuid": str(uuid.uuid4())}
         variable.specifier = variable_specifier
 
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item)
@@ -451,6 +476,7 @@ def make_image_chooser(ui, document_model, variable, drag_fn):
     data_item_chooser_widget.on_drag = thumbnail_widget_drag
     data_item_chooser_widget.on_data_item_drop = data_item_drop
     data_item_chooser_widget.on_data_item_delete = data_item_delete
+    data_item_chooser_widget.on_drop_mime_data = drop_mime_data
 
     def property_changed(key):
         if key == "specifier":
@@ -591,7 +617,7 @@ class EditComputationDialog(Dialog.ActionDialog):
             self.__data_item_row.add_spacing(8)
             for section in self.__sections:
                 variable = section.variable
-                if variable.variable_type == "data_item":
+                if variable.variable_type in ("data_item"):
                     widget, listeners = make_image_chooser(ui, document_controller.document_model, variable, self.content.drag)
                     self.__listeners.extend(listeners)
                     self.__data_item_row.add(widget)

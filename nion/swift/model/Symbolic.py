@@ -55,7 +55,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     Specifier value types have a specifier which can be resolved to a specific object.
     """
-    def __init__(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None):  # defaults are None for factory
+    def __init__(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None):  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
@@ -66,6 +66,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.define_property("value_min", value_min, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("value_max", value_max, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
         self.define_property("specifier", specifier, changed=self.__property_changed)
+        self.define_property("secondary_specifier", secondary_specifier, changed=self.__property_changed)
         self.define_property("control_type", control_type, changed=self.__property_changed)
         self.changed_event = Event.Event()
         self.variable_type_changed_event = Event.Event()
@@ -73,7 +74,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
 
     def __repr__(self):
-        return "{} ({} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier)
+        return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
 
     def read_from_dict(self, properties: dict) -> None:
         # ensure that value_type is read first
@@ -155,6 +156,9 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         if name in ("specifier"):
             self.notify_property_changed("specifier_uuid_str")
             self.needs_rebind_event.fire()
+        if name in ("secondary_specifier"):
+            self.notify_property_changed("secondary_specifier_uuid_str")
+            self.needs_rebind_event.fire()
         self.changed_event.fire()
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
@@ -173,13 +177,14 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             return specifier_property or specifier_type
         return None
 
-    data_types = ("data_item", "data", "display_data")
+    data_item_types = ("data_item", "data", "display_data")  # used for backward compatibility
 
     @variable_type.setter
     def variable_type(self, value_type: str) -> None:
         if value_type != self.variable_type:
             if value_type in ("boolean", "integral", "real", "complex", "string"):
                 self.specifier = None
+                self.secondary_specifier = None
                 self.value_type = value_type
                 self.control_type = self.control_type_default(value_type)
                 if value_type == "boolean":
@@ -194,14 +199,14 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                     self.value_default = None
                 self.value_min = None
                 self.value_max = None
-            elif value_type in ComputationVariable.data_types:
+            elif value_type in ComputationVariable.data_item_types:
                 self.value_type = None
                 self.control_type = None
                 self.value_default = None
                 self.value_min = None
                 self.value_max = None
                 specifier = self.specifier or {"version": 1}
-                if not specifier.get("type") in ComputationVariable.data_types:
+                if not specifier.get("type") in ComputationVariable.data_item_types:
                     specifier.pop("uuid", None)
                 specifier["type"] = "data_item"
                 if value_type in ("data", "display_data"):
@@ -209,6 +214,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 else:
                     specifier.pop("property", None)
                 self.specifier = specifier
+                self.secondary_specifier = self.secondary_specifier or {"version": 1}
             elif value_type in ("region"):
                 self.value_type = None
                 self.control_type = None
@@ -220,6 +226,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 specifier.pop("uuid", None)
                 specifier.pop("property", None)
                 self.specifier = specifier
+                self.secondary_specifier = None
             elif value_type in ComputationVariable.get_extension_types():
                 self.value_type = None
                 self.control_type = None
@@ -231,6 +238,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 specifier.pop("uuid", None)
                 specifier.pop("property", None)
                 self.specifier = specifier
+                self.secondary_specifier = None
             self.variable_type_changed_event.fire()
 
     @property
@@ -248,6 +256,22 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
             else:
                 specifier.pop("uuid", None)
             self.specifier = specifier
+
+    @property
+    def secondary_specifier_uuid_str(self):
+        return self.secondary_specifier.get("uuid") if self.secondary_specifier else None
+
+    @secondary_specifier_uuid_str.setter
+    def secondary_specifier_uuid_str(self, value):
+        converter = Converter.UuidToStringConverter()
+        value = converter.convert(converter.convert_back(value))
+        if self.secondary_specifier_uuid_str != value and self.secondary_specifier:
+            secondary_specifier = self.secondary_specifier
+            if value:
+                secondary_specifier["uuid"] = value
+            else:
+                secondary_specifier.pop("uuid", None)
+            self.secondary_specifier = secondary_specifier
 
     @property
     def display_label(self):
@@ -330,7 +354,7 @@ class ComputationContext:
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def resolve_object_specifier(self, object_specifier):
+    def resolve_object_specifier(self, object_specifier, secondary_specifier):
         """Resolve the object specifier.
 
         First lookup the object specifier in the enclosing computation. If it's not found,
@@ -339,7 +363,7 @@ class ComputationContext:
         """
         variable = self.__computation().resolve_variable(object_specifier)
         if not variable:
-            return self.__context.resolve_object_specifier(object_specifier)
+            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier)
         elif variable.specifier is None:
             return variable.bound_variable
         return None
@@ -422,12 +446,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
-    def create_object(self, name: str, object_specifier: dict, label: str=None) -> ComputationVariable:
-        variable = ComputationVariable(name, specifier=object_specifier, label=label)
+    def create_object(self, name: str, object_specifier: dict, label: str=None, secondary_specifier: dict=None) -> ComputationVariable:
+        variable = ComputationVariable(name, specifier=object_specifier, label=label, secondary_specifier=secondary_specifier)
         self.add_variable(variable)
         return variable
 
-    def resolve_variable(self, object_specifier: dict) -> ComputationVariable:
+    def resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
         uuid_str = object_specifier.get("uuid")
         uuid_ = Converter.UuidToStringConverter().convert_back(uuid_str) if uuid_str else None
         if uuid_:
@@ -489,7 +513,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             self.last_evaluate_data_time = time.perf_counter()
         return error_text
 
-    def __execute_code(self, api, expression, target, variables) -> str:
+    def __execute_code(self, api, expression, target, variables) -> typing.Optional[str]:
         code_lines = []
         g = variables
         g["api"] = api
@@ -520,7 +544,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if not variable_specifier:
             return
 
-        bound_item = self.__computation_context.resolve_object_specifier(variable_specifier)
+        bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier)
 
         self.__bound_items[variable.uuid] = bound_item
 
