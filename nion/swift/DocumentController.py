@@ -1395,4 +1395,7 @@ class DocumentController(Window.Window):
 
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), dependent_data_item.title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
+            menu.add_separator()
+            menu.add_menu_item(_("Edit Data Item Scripts"), lambda: self.new_edit_computation_dialog(data_item=data_item))
+            menu.add_menu_item(_("Edit Display Script"), lambda: self.new_display_editor_dialog(data_item=data_item))
         return menu
