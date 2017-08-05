@@ -47,8 +47,6 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.delegate = delegate
 
-        font_size = 12
-
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
@@ -66,6 +64,8 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         # frame rate
         self.__display_frame_rate_id = None
         self.__display_frame_rate_last_index = 0
+
+        self.__cached_display = None
 
     def close(self):
         # call super
@@ -88,37 +88,41 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     def update_display_values(self, display, display_values):
         data_and_metadata = display.data_and_metadata_for_display_panel
         if data_and_metadata:
+            self.__cached_display = display
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
             # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
             # that this object is not closeable while this method is running; and this method should not
             # run if the object is already closed.
-            with self.__closing_lock:
-                if self.__closed:
-                    return
-                assert not self.__closed
-                # Update the display state.
-                rect = self.canvas_bounds
-                if rect is not None:
-                    g = dict()
-                    drawing_context = DrawingContext.DrawingContext()
-                    g["drawing_context"] = drawing_context
-                    g["display_data_and_metadata"] = data_and_metadata
-                    g["bounds"] = rect
-                    g["get_font_metrics_fn"] = self.__get_font_metrics_fn
-                    l = dict()
-                    try:
-                        # print(code)
-                        compiled = compile(display.display_script, "expr", "exec")
-                        exec(compiled, g, l)
-                    except Exception as e:
-                        # import sys, traceback
-                        # traceback.print_exc()
-                        # traceback.format_exception(*sys.exc_info())
-                        print(str(e) or "Unable to evaluate display script.")  # a stack trace would be too much information right now
+            self.__update_script(display)
 
-                    # "drawing_context.begin_path()\ndrawing_context.move_to(bounds.left, bounds.top)\ndrawing_context.bezier_curve_to(bounds.left, bounds.top + bounds.height // 2, bounds.right - bounds.width * (display_data_and_metadata.data[0] / 256), bounds.bottom, bounds.right, bounds.bottom)\ndrawing_context.stroke_style = 'green'\ndrawing_context.stroke()\n"
+    def __update_script(self, display, drawing_context=DrawingContext.DrawingContext()):
+        data_and_metadata = display.data_and_metadata_for_display_panel
+        with self.__closing_lock:
+            if self.__closed:
+                return
+            assert not self.__closed
+            # Update the display state.
+            rect = self.canvas_bounds
+            if rect is not None:
+                g = dict()
+                g["drawing_context"] = drawing_context
+                g["display_data_and_metadata"] = data_and_metadata
+                g["bounds"] = rect
+                g["get_font_metrics_fn"] = self.__get_font_metrics_fn
+                locals_to_send = dict()
+                try:
+                    # print(code)
+                    compiled = compile(display.display_script, "expr", "exec")
+                    exec(compiled, g, locals_to_send)
+                except Exception as e:
+                    # import sys, traceback
+                    # traceback.print_exc()
+                    # traceback.format_exception(*sys.exc_info())
+                    print(str(e) or "Unable to evaluate display script.")  # a stack trace would be too much information right now
 
-                    self.__custom_canvas_item.drawing_context = drawing_context
+                # "drawing_context.begin_path()\ndrawing_context.move_to(bounds.left, bounds.top)\ndrawing_context.bezier_curve_to(bounds.left, bounds.top + bounds.height // 2, bounds.right - bounds.width * (display_data_and_metadata.data[0] / 256), bounds.bottom, bounds.right, bounds.bottom)\ndrawing_context.stroke_style = 'green'\ndrawing_context.stroke()\n"
+
+                self.__custom_canvas_item.drawing_context = drawing_context
 
     def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
         pass
@@ -144,6 +148,8 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)
 
+        if self.__cached_display:
+            self.__update_script(self.__cached_display, drawing_context)
         if self.__display_frame_rate_id:
             Utility.fps_tick("display_"+self.__display_frame_rate_id)
 
