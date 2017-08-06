@@ -11,30 +11,6 @@ from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 
-class CustomCanvasItem(CanvasItem.AbstractCanvasItem):
-
-    def __init__(self):
-        super().__init__()
-        self.__drawing_context_lock = threading.RLock()
-        self.__drawing_context = DrawingContext.DrawingContext()
-
-    def _repaint(self, drawing_context):
-        super()._repaint(drawing_context)
-
-        with self.__drawing_context_lock:
-            drawing_context.add(self.__drawing_context)
-
-    @property
-    def drawing_context(self):
-        return self.__drawing_context
-
-    @drawing_context.setter
-    def drawing_context(self, value):
-        with self.__drawing_context_lock:
-            self.__drawing_context = value
-        self.update()
-
-
 class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     """Display a custom display using a script.
 
@@ -47,7 +23,11 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.delegate = delegate
 
-        font_size = 12
+        self.__drawing_context_lock = threading.RLock()
+        self.__drawing_context = DrawingContext.DrawingContext()
+
+        self.__display_data = None
+        self.__display_script = None
 
         self.__closing_lock = threading.RLock()
         self.__closed = False
@@ -55,13 +35,10 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         self.__data = None
         self.__last_data = None
 
-        self.__custom_canvas_item = CustomCanvasItem()
-
         # canvas items get added back to front
         # create the child canvas items
         # the background
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
-        self.add_canvas_item(self.__custom_canvas_item)
 
         # frame rate
         self.__display_frame_rate_id = None
@@ -86,7 +63,28 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
         self.update_display_values(display, display_values)
 
     def update_display_values(self, display, display_values):
-        data_and_metadata = display.data_and_metadata_for_display_panel
+        self.__display_data = display.data_and_metadata_for_display_panel
+        self.__display_script = display.display_script
+        self.update()
+
+    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
+        pass
+
+    def handle_auto_display(self, display) -> bool:
+        # enter key has been pressed
+        return False
+
+    def _inserted(self, container):
+        # make sure we get 'prepare_render' calls
+        self.layer_container.register_prepare_canvas_item(self)
+
+    def _removed(self, container):
+        # turn off 'prepare_render' calls
+        self.layer_container.unregister_prepare_canvas_item(self)
+
+    def prepare_render(self):
+        data_and_metadata = self.__display_data
+        display_script = self.__display_script
         if data_and_metadata:
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
             # area may already be closed. this is a stop-gap guess at a solution - the basic idea being
@@ -108,7 +106,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
                     l = dict()
                     try:
                         # print(code)
-                        compiled = compile(display.display_script, "expr", "exec")
+                        compiled = compile(display_script, "expr", "exec")
                         exec(compiled, g, l)
                     except Exception as e:
                         # import sys, traceback
@@ -116,33 +114,14 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
                         # traceback.format_exception(*sys.exc_info())
                         print(str(e) or "Unable to evaluate display script.")  # a stack trace would be too much information right now
 
-                    # "drawing_context.begin_path()\ndrawing_context.move_to(bounds.left, bounds.top)\ndrawing_context.bezier_curve_to(bounds.left, bounds.top + bounds.height // 2, bounds.right - bounds.width * (display_data_and_metadata.data[0] / 256), bounds.bottom, bounds.right, bounds.bottom)\ndrawing_context.stroke_style = 'green'\ndrawing_context.stroke()\n"
-
-                    self.__custom_canvas_item.drawing_context = drawing_context
-
-    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
-        pass
-
-    def handle_auto_display(self, display) -> bool:
-        # enter key has been pressed
-        return False
-
-    def prepare_display(self):
-        pass
-
-    def _inserted(self, container):
-        # make sure we get 'prepare_render' calls
-        self.layer_container.register_prepare_canvas_item(self)
-
-    def _removed(self, container):
-        # turn off 'prepare_render' calls
-        self.layer_container.unregister_prepare_canvas_item(self)
-
-    def prepare_render(self):
-        self.prepare_display()
+                    with self.__drawing_context_lock:
+                        self.__drawing_context = drawing_context
 
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)
+
+        with self.__drawing_context_lock:
+            drawing_context.add(self.__drawing_context)
 
         if self.__display_frame_rate_id:
             Utility.fps_tick("display_"+self.__display_frame_rate_id)
