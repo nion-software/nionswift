@@ -788,6 +788,188 @@ class TestProcessingClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(numpy.sum(d, 2), slice_data_item.maybe_data_source.data_and_metadata.data))
 
+    def test_cross_correlate_works_in_1d(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.processing_cross_correlate_new()
+
+    def test_cross_correlate_works_in_2d(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.processing_cross_correlate_new()
+
+    def test_get_two_data_sources_handles_no_selection(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            self.assertIsNone(document_controller._get_two_data_sources())
+            data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            self.assertIsNone(document_controller._get_two_data_sources())
+
+    def test_get_two_data_sources_handles_one_selected_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            self.assertIsNone(document_controller._get_two_data_sources())
+            data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            self.assertIsNone(document_controller._get_two_data_sources())
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            data_sources = document_controller._get_two_data_sources()
+            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][1], None)
+            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][1], None)
+
+    def test_get_two_data_sources_handles_two_selected_data_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            self.assertIsNone(document_controller._get_two_data_sources())
+            data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
+            data_item1 = DataItem.DataItem(data)
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item2)
+            self.assertIsNone(document_controller._get_two_data_sources())
+            document_controller.select_data_items_in_data_panel([data_item1, data_item2])
+            data_sources = document_controller._get_two_data_sources()
+            self.assertEqual(data_sources[0][0], data_item1)
+            self.assertEqual(data_sources[0][1], None)
+            self.assertEqual(data_sources[1][0], data_item2)
+            self.assertEqual(data_sources[1][1], None)
+
+    def test_get_two_data_sources_handles_three_selected_data_items(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_items = list()
+            for i in range(3):
+                data_item = DataItem.DataItem(numpy.random.randn(8))
+                document_model.append_data_item(data_item)
+            document_controller.select_data_items_in_data_panel(document_model.data_items)
+            self.assertIsNone(document_controller._get_two_data_sources())
+
+    def test_get_two_data_sources_handles_one_selected_data_item_and_one_crop_graphic(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            self.assertIsNone(document_controller._get_two_data_sources())
+            data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            display = data_item.maybe_data_source.displays[0]
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.center = (0.5, 0.5)
+            crop_region.size = (0.5, 1.0)
+            display.add_graphic(crop_region)
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            display.graphic_selection.set(0)
+            data_sources = document_controller._get_two_data_sources()
+            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][1], crop_region)
+            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][1], crop_region)
+
+    def test_get_two_data_sources_handles_one_selected_data_item_and_two_crop_graphics(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            self.assertIsNone(document_controller._get_two_data_sources())
+            data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            display = data_item.maybe_data_source.displays[0]
+            crop_region1 = Graphics.RectangleGraphic()
+            crop_region1.center = (0.5, 0.5)
+            crop_region1.size = (0.5, 1.0)
+            display.add_graphic(crop_region1)
+            crop_region2 = Graphics.RectangleGraphic()
+            crop_region2.center = (0.6, 0.5)
+            crop_region2.size = (0.5, 1.0)
+            display.add_graphic(crop_region2)
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            display.graphic_selection.set(0)
+            display.graphic_selection.add(1)
+            data_sources = document_controller._get_two_data_sources()
+            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][1], crop_region1)
+            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][1], crop_region2)
+
+    def test_get_two_data_sources_handles_one_selected_data_item_and_three_crop_graphics(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            self.assertIsNone(document_controller._get_two_data_sources())
+            data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            display = data_item.maybe_data_source.displays[0]
+            for i in range(3):
+                display.add_graphic(Graphics.RectangleGraphic())
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            display.graphic_selection.add_range(range(3))
+            data_sources = document_controller._get_two_data_sources()
+            self.assertEqual(data_sources[0][0], data_item)
+            self.assertEqual(data_sources[0][1], None)
+            self.assertEqual(data_sources[1][0], data_item)
+            self.assertEqual(data_sources[1][1], None)
+
+    def test_crop_handles_1d_case_with_existing_interval(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = ((numpy.abs(numpy.random.randn(8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            crop_region = Graphics.IntervalGraphic()
+            crop_region.interval = (0.5, 1.0)
+            display = data_item.maybe_data_source.displays[0]
+            display.add_graphic(crop_region)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            display.graphic_selection.set(0)
+            cropped_data_item = document_controller.processing_crop().data_item
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(cropped_data_item.maybe_data_source.data, data_item.maybe_data_source.data[4:8]))
+
+    def test_crop_handles_2d_case_with_existing_rectangle(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data = ((numpy.abs(numpy.random.randn(8, 8)) + 1) * 10).astype(numpy.uint32)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.center = (0.5, 0.5)
+            crop_region.size = (0.5, 1.0)
+            display = data_item.maybe_data_source.displays[0]
+            display.add_graphic(crop_region)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            display.graphic_selection.set(0)
+            cropped_data_item = document_controller.processing_crop().data_item
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(cropped_data_item.maybe_data_source.data, data_item.maybe_data_source.data[2:6, 0:8]))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

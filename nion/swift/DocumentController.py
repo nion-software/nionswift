@@ -1064,13 +1064,14 @@ class DocumentController(Window.Window):
     def __get_crop_graphic(self, display_specifier):
         crop_graphic = None
         buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
-            display = display_specifier.display
-            current_index = display.graphic_selection.current_index
-            if current_index is not None:
-                graphic = display.graphics[current_index]
-                if isinstance(graphic, Graphics.RectangleTypeGraphic):
-                    crop_graphic = graphic
+        display = display_specifier.display
+        current_index = display.graphic_selection.current_index if display else None
+        graphic = display.graphics[current_index] if current_index is not None else None
+        if buffered_data_source and graphic:
+            if buffered_data_source.is_datum_1d and isinstance(graphic, Graphics.IntervalGraphic):
+                crop_graphic = graphic
+            elif buffered_data_source.is_datum_2d and isinstance(graphic, Graphics.RectangleTypeGraphic):
+                crop_graphic = graphic
         return crop_graphic
 
     def __get_mask_graphics(self, display_specifier):
@@ -1173,14 +1174,57 @@ class DocumentController(Window.Window):
         self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
         return data_item
 
-    def processing_cross_correlate_new(self):
+    def _get_two_data_sources(self):
+        """Get two sensible data sources, which may be the same."""
         selected_data_items = self.__data_browser_controller.selected_data_items
+        if len(selected_data_items) < 2:
+            selected_data_items = list()
+            data_item = self.selected_display_specifier.data_item
+            if data_item:
+                selected_data_items.append(data_item)
+        if len(selected_data_items) == 1:
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
+            data_item = display_specifier.data_item
+            display = display_specifier.display
+            if display and len(display.graphic_selection.indexes) == 2:
+                buffered_data_source = display_specifier.buffered_data_source
+                index1 = display.graphic_selection.anchor_index
+                index2 = list(display.graphic_selection.indexes.difference({index1}))[0]
+                graphic1 = display.graphics[index1]
+                graphic2 = display.graphics[index2]
+                if buffered_data_source:
+                    if buffered_data_source.is_datum_1d and isinstance(graphic1, Graphics.IntervalGraphic) and isinstance(graphic2, Graphics.IntervalGraphic):
+                        crop_graphic1 = graphic1
+                        crop_graphic2 = graphic2
+                    elif buffered_data_source.is_datum_2d and isinstance(graphic1, Graphics.RectangleTypeGraphic) and isinstance(graphic2, Graphics.RectangleTypeGraphic):
+                        crop_graphic1 = graphic1
+                        crop_graphic2 = graphic2
+                    else:
+                        crop_graphic1 = self.__get_crop_graphic(display_specifier)
+                        crop_graphic2 = crop_graphic1
+                else:
+                    crop_graphic1 = self.__get_crop_graphic(display_specifier)
+                    crop_graphic2 = crop_graphic1
+            else:
+                crop_graphic1 = self.__get_crop_graphic(display_specifier)
+                crop_graphic2 = crop_graphic1
+            return (data_item, crop_graphic1), (data_item, crop_graphic2)
         if len(selected_data_items) == 2:
             display_specifier1 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[0])
-            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[1])
+            data_item1 = display_specifier1.data_item
             crop_graphic1 = self.__get_crop_graphic(display_specifier1)
+            display_specifier2 = DataItem.DisplaySpecifier.from_data_item(selected_data_items[1])
+            data_item2 = display_specifier2.data_item
             crop_graphic2 = self.__get_crop_graphic(display_specifier2)
-            data_item = self.document_model.get_cross_correlate_new(display_specifier1.data_item, display_specifier2.data_item, crop_graphic1, crop_graphic2)
+            return (data_item1, crop_graphic1), (data_item2, crop_graphic2)
+        return None
+
+
+    def processing_cross_correlate_new(self):
+        data_sources = self._get_two_data_sources()
+        if data_sources:
+            (data_item1, crop_graphic1), (data_item2, crop_graphic2) = data_sources
+            data_item = self.document_model.get_cross_correlate_new(data_item1, data_item2, crop_graphic1, crop_graphic2)
             if data_item:
                 new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 self.display_data_item(new_display_specifier)
