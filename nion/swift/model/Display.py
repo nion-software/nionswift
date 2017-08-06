@@ -32,27 +32,35 @@ _ = gettext.gettext
 
 
 class GraphicSelection:
-    def __init__(self, indexes=None):
-        super(GraphicSelection, self).__init__()
+    def __init__(self, indexes=None, anchor_index=None):
+        super().__init__()
+        self.__changed_event = Event.Event()
         self.__indexes = copy.copy(indexes) if indexes else set()
-        self.changed_event = Event.Event()
+        self.__anchor_index = anchor_index
 
     def __copy__(self):
-        return type(self)(self.__indexes)
+        return type(self)(self.__indexes, self.__anchor_index)
 
     def __eq__(self, other):
-        return other is not None and self.indexes == other.indexes
+        return other is not None and self.indexes == other.indexes and self.anchor_index == other.anchor_index
 
     def __ne__(self, other):
-        return other is None or self.indexes != other.indexes
+        return other is None or self.indexes != other.indexes or self.anchor_index != other.anchor_index
 
-    # manage selection
+    @property
+    def changed_event(self):
+        return self.__changed_event
+
     @property
     def current_index(self):
         if len(self.__indexes) == 1:
             for index in self.__indexes:
                 return index
         return None
+
+    @property
+    def anchor_index(self):
+        return self.__anchor_index
 
     @property
     def has_selection(self):
@@ -68,22 +76,32 @@ class GraphicSelection:
     def clear(self):
         old_index = self.__indexes.copy()
         self.__indexes = set()
+        self.__anchor_index = None
         if old_index != self.__indexes:
-            self.changed_event.fire()
+            self.__changed_event.fire()
+
+    def __update_anchor_index(self):
+        for index in self.__indexes:
+            if self.__anchor_index is None or index < self.__anchor_index:
+                self.__anchor_index = index
 
     def add(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.add(index)
+        if len(old_index) == 0:
+            self.__anchor_index = index
         if old_index != self.__indexes:
-            self.changed_event.fire()
+            self.__changed_event.fire()
 
     def remove(self, index):
         assert isinstance(index, numbers.Integral)
         old_index = self.__indexes.copy()
         self.__indexes.remove(index)
+        if not self.__anchor_index in self.__indexes:
+            self.__update_anchor_index()
         if old_index != self.__indexes:
-            self.changed_event.fire()
+            self.__changed_event.fire()
 
     def add_range(self, range):
         for index in range:
@@ -94,18 +112,16 @@ class GraphicSelection:
         old_index = self.__indexes.copy()
         self.__indexes = set()
         self.__indexes.add(index)
+        self.__anchor_index = index
         if old_index != self.__indexes:
-            self.changed_event.fire()
+            self.__changed_event.fire()
 
     def toggle(self, index):
         assert isinstance(index, numbers.Integral)
-        old_index = self.__indexes.copy()
         if index in self.__indexes:
-            self.__indexes.remove(index)
+            self.remove(index)
         else:
-            self.__indexes.add(index)
-        if old_index != self.__indexes:
-            self.changed_event.fire()
+            self.add(index)
 
     def insert_index(self, new_index):
         new_indexes = set()
@@ -114,6 +130,9 @@ class GraphicSelection:
                 new_indexes.add(index)
             else:
                 new_indexes.add(index + 1)
+        if self.__anchor_index is not None:
+            if new_index <= self.__anchor_index:
+                self.__anchor_index += 1
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
             self.changed_event.fire()
@@ -126,6 +145,11 @@ class GraphicSelection:
                     new_indexes.add(index - 1)
                 else:
                     new_indexes.add(index)
+        if self.__anchor_index is not None:
+            if remove_index == self.__anchor_index:
+                self.__update_anchor_index()
+            elif remove_index < self.__anchor_index:
+                self.__anchor_index -= 1
         if self.__indexes != new_indexes:
             self.__indexes = new_indexes
             self.changed_event.fire()
