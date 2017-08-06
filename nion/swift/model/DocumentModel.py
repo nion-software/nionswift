@@ -2488,8 +2488,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             bins_param = {"name": "bins", "label": _("Bins"), "type": "integral", "value": 256, "value_default": 256, "value_min": 2}
             vs["histogram"] = {"title": _("Histogram"), "expression": "xd.histogram({src}, bins)",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}], "parameters": [bins_param]}
-            vs["invert"] = {"title": _("Invert"), "expression": "xd.invert({src})",
-                "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
+            vs["add"] = {"title": _("Add"), "expression": "{src1} + {src2}",
+                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+            vs["subtract"] = {"title": _("Add"), "expression": "{src1} - {src2}",
+                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+            vs["multiply"] = {"title": _("Add"), "expression": "{src1} * {src2}",
+                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+            vs["divide"] = {"title": _("Add"), "expression": "{src1} / {src2}",
+                "sources": [{"name": "src1", "label": _("Source 1"), "croppable": True}, {"name": "src2", "label": _("Source 2"), "croppable": True}]}
+            vs["invert"] = {"title": _("Negate"), "expression": "xd.invert({src})", "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             vs["convert-to-scalar"] = {"title": _("Scalar"), "expression": "{src}",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
@@ -2560,6 +2567,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_histogram_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("histogram", [(data_item, crop_region)])
+
+    def get_add_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("add", [(data_item1, crop_region1), (data_item2, crop_region2)])
+
+    def get_subtract_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("subtract", [(data_item1, crop_region1), (data_item2, crop_region2)])
+
+    def get_multiply_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("multiply", [(data_item1, crop_region1), (data_item2, crop_region2)])
+
+    def get_divide_new(self, data_item1: DataItem.DataItem, data_item2: DataItem.DataItem, crop_region1: Graphics.RectangleTypeGraphic=None, crop_region2: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("divide", [(data_item1, crop_region1), (data_item2, crop_region2)])
 
     def get_invert_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("invert", [(data_item, crop_region)])

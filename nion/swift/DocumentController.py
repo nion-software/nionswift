@@ -317,7 +317,12 @@ class DocumentController(Window.Window):
         self._processing_menu.add_menu_item(_("Pick"), functools.partial(self.__processing_new, self.document_model.get_pick_new))
         self._processing_menu.add_menu_item(_("Pick Region"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
         self._processing_menu.add_menu_item(_("Projection"), self.processing_projection)
-        self._processing_menu.add_menu_item(_("Invert"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
+        self._processing_menu.add_separator()
+        self._processing_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
+        self._processing_menu.add_menu_item(_("Subtract"), functools.partial(self.__processing_new2, self.document_model.get_subtract_new))
+        self._processing_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
+        self._processing_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
+        self._processing_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Line Profile"), functools.partial(self.__processing_new, self.document_model.get_line_profile_new))
@@ -1219,17 +1224,19 @@ class DocumentController(Window.Window):
             return (data_item1, crop_graphic1), (data_item2, crop_graphic2)
         return None
 
-
-    def processing_cross_correlate_new(self):
+    def __processing_new2(self, fn):
         data_sources = self._get_two_data_sources()
         if data_sources:
             (data_item1, crop_graphic1), (data_item2, crop_graphic2) = data_sources
-            data_item = self.document_model.get_cross_correlate_new(data_item1, data_item2, crop_graphic1, crop_graphic2)
+            data_item = fn(data_item1, data_item2, crop_graphic1, crop_graphic2)
             if data_item:
                 new_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 self.display_data_item(new_display_specifier)
                 return data_item
         return None
+
+    def processing_cross_correlate_new(self):
+        return self.__processing_new2(self.document_model.get_cross_correlate_new)
 
     def processing_fourier_filter_new(self):
         display_specifier = self.selected_display_specifier
