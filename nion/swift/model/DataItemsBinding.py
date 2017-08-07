@@ -16,7 +16,7 @@ import typing
 # local libraries
 from nion.swift.model import DataItem
 from nion.utils import Binding
-from nion.ui import Selection
+from nion.utils import Selection
 
 
 class Filter:

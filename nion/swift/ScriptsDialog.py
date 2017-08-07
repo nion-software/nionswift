@@ -20,9 +20,9 @@ from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.swift import FacadeQueued
 from nion.ui import Dialog
-from nion.ui import Selection
 from nion.ui import Widgets
 from nion.utils import Converter
+from nion.utils import Selection
 
 _ = gettext.gettext
 

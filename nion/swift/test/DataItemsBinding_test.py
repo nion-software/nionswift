@@ -15,7 +15,7 @@ from nion.swift.model import DataItem
 from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.swift import Facade
-from nion.ui import Selection
+from nion.utils import Selection
 
 
 Facade.initialize()
