@@ -133,8 +133,7 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
 
             rect = self.canvas_bounds
 
-            drawing_context.save()
-            try:
+            with drawing_context.saver():
                 font = "normal 11px serif"
                 text_pos = Geometry.IntPoint(y=rect[0][0], x=rect[0][1] + rect[1][1] - 100)
                 drawing_context.begin_path()
@@ -152,8 +151,6 @@ class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
                 drawing_context.fill_text("display:" + fps, text_pos.x + 8, text_pos.y + 10)
                 drawing_context.fill_text("frame:" + fps2, text_pos.x + 8, text_pos.y + 30)
                 drawing_context.fill_text("update:" + fps3, text_pos.x + 8, text_pos.y + 50)
-            finally:
-                drawing_context.restore()
 
     def mouse_entered(self):
         if super().mouse_entered():
