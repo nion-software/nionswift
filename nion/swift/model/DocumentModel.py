@@ -1184,7 +1184,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if data_item_uuid in self.__data_item_uuids:
                 new_data_item_variables[r_var] = data_item_uuid_str
                 data_item = self.__uuid_to_data_item[data_item_uuid]
-                data_item.set_r_value(r_var)
+                data_item.set_r_value(r_var, notify_changed=False)
         self._set_persistent_property_value("data_item_variables", new_data_item_variables)
 
     def close(self):

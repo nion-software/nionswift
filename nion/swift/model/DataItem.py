@@ -1108,11 +1108,12 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def _update_timezone(self):
         pass
 
-    def set_r_value(self, r_var: str) -> None:
+    def set_r_value(self, r_var: str, *, notify_changed=True) -> None:
         """Used to signal changes to the ref var, which are kept in document controller. ugh."""
         self.r_var = r_var
-        self._r_value_changed()
-        self.__metadata_changed()
+        if notify_changed:  # set to False to set the r-value at startup; avoid marking it as a change
+            self._r_value_changed()
+            self.__metadata_changed()
 
     def _r_value_changed(self):
         pass

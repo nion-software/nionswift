@@ -1246,6 +1246,34 @@ class TestStorageClass(unittest.TestCase):
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
             self.assertFalse(read_display_specifier2.buffered_data_source.computation.needs_update)
 
+    def test_data_item_with_persistent_r_value_does_not_need_recompute_when_reloaded(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        try:
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage)
+            with contextlib.closing(document_model):
+                data_item = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
+                document_model.append_data_item(data_item)
+                inverted_data_item = document_model.get_invert_new(data_item)
+                document_model.recompute_all()
+                document_model.assign_variable_to_data_item(data_item)
+                file_path = data_item._test_get_file_path()
+            file_path_base, file_path_ext = os.path.splitext(file_path)
+            shutil.copyfile(file_path, file_path_base + "_" + file_path_ext)
+            # read it back
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, log_migrations=False)
+            with contextlib.closing(document_model):
+                read_data_item2 = document_model.data_items[1]
+                read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
+                self.assertFalse(read_display_specifier2.buffered_data_source.computation.needs_update)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_computations_with_id_update_to_latest_version_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
