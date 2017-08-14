@@ -1363,7 +1363,7 @@ class DataItem(metaclass=SharedInstance):
 
         display = display_specifier.display
 
-        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display.actual_display_type, None, None, draw_background=False)
+        display_canvas_item = DisplayPanelModule.create_display_canvas_item(display.actual_display_type, None, None, None, draw_background=False)
         aspect_ratio = display_canvas_item.default_aspect_ratio if not aspect_ratio else aspect_ratio
 
         view_box = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize(width=320 * 1.25, height=240 * 1.25))
@@ -2712,6 +2712,7 @@ class API_1:
 
     def __init__(self, ui_version, app):
         super().__init__()
+        assert app is not None
         self.__ui_version = ui_version
         self.__app = app
 
@@ -3056,7 +3057,123 @@ def get_api(version: str, ui_version: str) -> API_1:
     return _get_api_with_app(version, ui_version, ApplicationModule.app)
 
 
+import base64
+import functools
+import io
+import pickle
+import threading
+
+from nion.data import Calibration
+from nion.data import DataAndMetadata
+
+from xmlrpc.server import SimpleXMLRPCServer
+
+all_classes = API_1, Application, DataGroup, DataItem, Display, DisplayPanel, DocumentWindow, HardwareSource, Instrument, Library, Graphic
+class_names = {API_1: "API"}
+all_structs = Calibration.Calibration, DataAndMetadata.DataAndMetadata
+struct_names = {DataAndMetadata.DataAndMetadata: "ExtendedData"}
+
+
+class Pickler(pickle.Pickler):
+
+    @classmethod
+    def pickle(cls, x):
+        f = io.BytesIO()
+        cls(f).dump(x)
+        return base64.b64encode(f.getvalue()).decode('utf-8')
+
+    def persistent_id(self, obj):
+        for class_ in all_classes:
+            if isinstance(obj, class_):
+                obj_specifier = obj.specifier
+                return class_names.get(class_, class_.__name__), getattr(obj_specifier, "rpc_dict", None)
+        for struct in all_structs:
+            if isinstance(obj, struct):
+                return struct_names.get(struct, struct.__name__), obj.rpc_dict
+        return None
+
+
+class Unpickler(pickle.Unpickler):
+    def __init__(self, file, api):
+        super().__init__(file)
+        self.__api = api
+    def persistent_load(self, pid):
+        type_tag, d = pid
+        for class_ in all_classes:
+            if type_tag == class_names.get(class_, class_.__name__):
+                return self.__api.resolve_object_specifier(d)
+        for struct in all_structs:
+            if type_tag == struct_names.get(struct, struct.__name__):
+                return struct.from_rpc_dict(d)
+
+        # Always raises an error if you cannot return the correct object.
+        # Otherwise, the unpickler will think None is the object referenced
+        # by the persistent ID.
+        raise pickle.UnpicklingError("unsupported persistent object")
+
+
+def queued(method):
+    def queued(*args, **kw):
+        result_ref = []
+        exception_ref = []
+        finished_event = threading.Event()
+        def run():
+            try:
+                result_ref.append(method(*args, **kw))
+            except Exception as e:
+                exception_ref.append(e)
+            finally:
+                finished_event.set()
+        args[0].queue_task(run)
+        finished_event.wait()
+        if len(exception_ref) > 0:
+            raise exception_ref[0]
+        return result_ref[0]
+    return queued
+
+
+def call_threadsafe_method(api, pickled_object, method_name, pickled_args, pickled_kwargs):
+    object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
+    args = Unpickler(io.BytesIO(base64.b64decode(pickled_args.encode('utf-8'))), api).load()
+    kwargs = Unpickler(io.BytesIO(base64.b64decode(pickled_kwargs.encode('utf-8'))), api).load()
+    result = getattr(object, method_name)(*args, **kwargs)
+    return Pickler.pickle(result)
+
+
+@queued
+def call_method(api, pickled_object, method_name, pickled_args, pickled_kwargs):
+    return call_threadsafe_method(api, pickled_object, method_name, pickled_args, pickled_kwargs)
+
+
+@queued
+def get_property(api, pickled_object, name):
+    object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
+    return Pickler.pickle(getattr(object, name))
+
+
+@queued
+def set_property(api, pickled_object, name, pickled_value):
+    object = Unpickler(io.BytesIO(base64.b64decode(pickled_object.encode('utf-8'))), api).load()
+    value = Unpickler(io.BytesIO(base64.b64decode(pickled_value.encode('utf-8'))), api).load()
+    setattr(object, name, value)
+
+
+def runOnThread(api):
+    server = SimpleXMLRPCServer(("localhost", 8199), allow_none=True, logRequests=False)
+    server.register_function(functools.partial(call_method, api), "call_method")
+    server.register_function(functools.partial(call_threadsafe_method, api), "call_threadsafe_method")
+    server.register_function(functools.partial(get_property, api), "get_property")
+    server.register_function(functools.partial(set_property, api), "set_property")
+    server.serve_forever()
+
+
 # this will be called when Facade is imported. this allows the plug-in manager access to the api_broker.
 # for this to work, Facade must be imported early in the startup process.
 def initialize():
     PlugInManager.register_api_broker_fn(get_api)
+
+def start_server():
+    api = get_api(version="1", ui_version="1")
+    thread = threading.Thread(target=runOnThread, args=(api, ))
+    thread.daemon = True
+    thread.start()

@@ -9,4 +9,5 @@ def main(args, bootstrap_args):
     Facade.initialize()
     app = Application.Application(ApplicationUI.make_ui(bootstrap_args), resources_path=os.path.dirname(__file__))
     app.initialize(use_root_dir=False)
+    Facade.start_server()
     return app

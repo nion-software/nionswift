@@ -1,7 +1,7 @@
 # python api_tool.py --classes api_public --level release > ../typeshed/nion/typeshed/API_1_0.py
 # python api_tool.py --classes api_public --level release prerelease > ../typeshed/nion/typeshed/API_1_0_prerelease.py
 # python api_tool.py --classes hardware_source_public --level release > ../typeshed/nion/typeshed/HardwareSource_1_0.py
-# python api_tool.py --classes nionlib_public --level release --proxy > ../PlugIns/Connection/NionLib/nionlib/Classes.py
+# python api_tool.py --classes nionlib_public --level release --proxy > ./nionlib/Classes.py
 
 import argparse
 import importlib
