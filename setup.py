@@ -4,10 +4,10 @@ import setuptools
 import os
 
 setuptools.setup(
-    name="nion.swift",
+    name="nionswift",
     version="0.0.1",
-    packages=setuptools.find_packages(exclude=['contrib', 'docs', 'tests*']),
-    install_requires=['scipy', 'numpy'],
+    packages=["nion.swift", "nion.swift.model", "nionui_app.nionswift", "nionswift_plugin"],
+    install_requires=['scipy', 'numpy', 'h5py', 'pytz', 'tzlocal', 'nionutils', 'niondata', 'nionui'],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha"
     ],
