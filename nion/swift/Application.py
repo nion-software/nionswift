@@ -87,7 +87,7 @@ class Application:
         workspace_manager.register_panel(MetadataPanel.MetadataPanel, "metadata-panel", _("Metadata"), ["left", "right"], "right", {"width": 320, "height": 8})
         workspace_manager.register_filter_panel(FilterPanel.FilterPanel)
 
-    def initialize(self, *, load_plug_ins=True):
+    def initialize(self, *, load_plug_ins=True, use_root_dir=True):
         # configure the event loop object
         logger = logging.getLogger()
         old_level = logger.level
@@ -96,7 +96,7 @@ class Application:
         logger.setLevel(old_level)
         # load plug-ins
         if load_plug_ins:
-            PlugInManager.load_plug_ins(self, get_root_dir())
+            PlugInManager.load_plug_ins(self, get_root_dir() if use_root_dir else None)
 
     def deinitialize(self):
         # shut down hardware source manager, unload plug-ins, and really exit ui

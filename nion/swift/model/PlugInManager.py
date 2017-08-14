@@ -141,7 +141,8 @@ def load_plug_ins(app, root_dir):
     subdirectories = []
 
     # the default location is where the directory main packages are located.
-    subdirectories.append(root_dir)
+    if root_dir:
+        subdirectories.append(root_dir)
 
     # also search the default data location; create directory there if it doesn't exist to make it easier for user.
     # default data location will be application specific.
