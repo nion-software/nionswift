@@ -2712,7 +2712,6 @@ class API_1:
 
     def __init__(self, ui_version, app):
         super().__init__()
-        assert app is not None
         self.__ui_version = ui_version
         self.__app = app
 
