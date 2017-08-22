@@ -520,7 +520,7 @@ def is_valid_display_type(display_type: str) -> bool:
     return display_type in ("image", "line_plot", "display_script")
 
 
-class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
+class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __init__(self, data_item, delegate, display_type, get_font_metrics_fn, event_loop):
         super().__init__()
@@ -679,7 +679,7 @@ class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__delegate.cursor_changed(self.__data_item, pos)
 
     def drag_graphics(self, graphics):
-        self.__delegate.drag_graphics(graphics)
+        self.__delegate.drag_graphics(self.__data_item, graphics)
 
     def update_display_properties(self, display_properties):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
@@ -932,6 +932,83 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
         drawing_context.stroke_style = "#444"
         drawing_context.stroke()
         drawing_context.restore()
+
+
+class DataItemDisplayCanvasItemDelegate:
+    def __init__(self, ui, display_panel_content, on_begin_drag):
+        self.__ui = ui
+        self.__display_panel_content = display_panel_content
+        self.on_begin_drag = on_begin_drag
+
+    @property
+    def tool_mode(self):
+        return self.__display_panel_content.document_controller.tool_mode
+
+    @tool_mode.setter
+    def tool_mode(self, value):
+        self.__display_panel_content.document_controller.tool_mode = value
+
+    def show_context_menu(self, data_item, gx, gy):
+        document_controller = self.__display_panel_content.document_controller
+        document_model = document_controller.document_model
+        menu = document_controller.create_context_menu_for_data_item(data_item, container=document_model)
+        return self.__display_panel_content.show_context_menu(menu, gx, gy)
+
+    def begin_data_item_transaction(self, data_item):
+        self.__display_panel_content.document_controller.document_model.begin_data_item_transaction(data_item)
+
+    def end_data_item_transaction(self, data_item):
+        self.__display_panel_content.document_controller.document_model.end_data_item_transaction(data_item)
+
+    def image_clicked(self, image_position, modifiers):
+        return self.__display_panel_content.image_clicked(image_position, modifiers)
+
+    def image_mouse_pressed(self, image_position, modifiers):
+        return self.__display_panel_content.image_mouse_pressed(image_position, modifiers)
+
+    def image_mouse_released(self, image_position, modifiers):
+        return self.__display_panel_content.image_mouse_released(image_position, modifiers)
+
+    def image_mouse_position_changed(self, image_position, modifiers):
+        return self.__display_panel_content.image_mouse_position_changed(image_position, modifiers)
+
+    def remove_selected_graphic(self):
+        if self.__display_panel_content.document_controller.remove_selected_graphics():
+            return True
+        return False
+
+    def cursor_changed(self, data_item, pos):
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        display = display_specifier.display
+        position_text, value_text = str(), str()
+        try:
+            position_text, value_text = display.get_value_and_position_text(pos)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        if position_text and value_text:
+            self.__display_panel_content.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
+        else:
+            self.__display_panel_content.document_controller.cursor_changed(None)
+
+    def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
+        document_controller = self.__display_panel_content.document_controller
+        document_model = document_controller.document_model
+        line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
+        new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
+        document_controller.display_data_item(new_display_specifier)
+
+    def drag_graphics(self, data_item, graphics):
+        if data_item is not None:
+            mime_data = self.__ui.create_mime_data()
+            mime_data_content = dict()
+            mime_data_content["data_item_uuid"] = str(data_item.uuid)
+            if graphics and len(graphics) == 1:
+                mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
+            mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
+            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.maybe_data_source.displays[0])
+            if callable(self.on_begin_drag):
+                self.on_begin_drag(mime_data, thumbnail_data)
 
 
 class DataDisplayPanelContent(BaseDisplayPanelContent):
@@ -1201,85 +1278,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if len(self.__data_item_display_canvas_item.canvas_items) > 1:
             self.__data_item_display_canvas_item.remove_canvas_item(self.__data_item_display_canvas_item.canvas_items[0])
         self.__display_canvas_item = None
-        display_panel_content = self
-        ui = self.ui
-        on_begin_drag = self.on_begin_drag
-        data_item = self.__data_item
         if display_type and is_valid_display_type(display_type):
-            class Delegate:
-                @property
-                def tool_mode(self):
-                    return display_panel_content.document_controller.tool_mode
-
-                @tool_mode.setter
-                def tool_mode(self, value):
-                    display_panel_content.document_controller.tool_mode = value
-
-                def show_context_menu(self, data_item, gx, gy):
-                    document_controller = display_panel_content.document_controller
-                    document_model = document_controller.document_model
-                    menu = document_controller.create_context_menu_for_data_item(data_item, container=document_model)
-                    return display_panel_content.show_context_menu(menu, gx, gy)
-
-                def begin_data_item_transaction(self, data_item):
-                    display_panel_content.document_controller.document_model.begin_data_item_transaction(data_item)
-
-                def end_data_item_transaction(self, data_item):
-                    display_panel_content.document_controller.document_model.end_data_item_transaction(data_item)
-
-                def image_clicked(self, image_position, modifiers):
-                    return display_panel_content.image_clicked(image_position, modifiers)
-
-                def image_mouse_pressed(self, image_position, modifiers):
-                    return display_panel_content.image_mouse_pressed(image_position, modifiers)
-
-                def image_mouse_released(self, image_position, modifiers):
-                    return display_panel_content.image_mouse_released(image_position, modifiers)
-
-                def image_mouse_position_changed(self, image_position, modifiers):
-                    return display_panel_content.image_mouse_position_changed(image_position, modifiers)
-
-                def remove_selected_graphic(self):
-                    if display_panel_content.document_controller.remove_selected_graphics():
-                        return True
-                    return False
-
-                def cursor_changed(self, data_item, pos):
-                    display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                    display = display_specifier.display
-                    position_text, value_text = str(), str()
-                    try:
-                        position_text, value_text = display.get_value_and_position_text(pos)
-                    except Exception as e:
-                        import traceback
-                        traceback.print_exc()
-                    if position_text and value_text:
-                        display_panel_content.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
-                    else:
-                        display_panel_content.document_controller.cursor_changed(None)
-
-                def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
-                    document_controller = display_panel_content.document_controller
-                    document_model = document_controller.document_model
-                    line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
-                    new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
-                    document_controller.display_data_item(new_display_specifier)
-
-                def drag_graphics(self, graphics):
-                    mime_data = ui.create_mime_data()
-                    mime_data.set_data_as_string("text/plain", "HEE HAW")
-                    if data_item is not None:
-                        mime_data = ui.create_mime_data()
-                        mime_data_content = dict()
-                        mime_data_content["data_item_uuid"] = str(data_item.uuid)
-                        if graphics and len(graphics) == 1:
-                            mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
-                        mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
-                        thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.maybe_data_source.displays[0])
-                        if callable(on_begin_drag):
-                            on_begin_drag(mime_data, thumbnail_data)
-
-            self.__display_canvas_item = DisplayCanvasItem(self._data_item, Delegate(), display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
+            delegate = DataItemDisplayCanvasItemDelegate(self.ui, self, self.on_begin_drag)
+            self.__display_canvas_item = DataItemDisplayCanvasItem(self._data_item, delegate, display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
             self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
         elif self.__data_item is not None:
             self.__data_item_display_canvas_item.insert_canvas_item(0, MissingDataCanvasItem(self, self._data_item))
