@@ -364,11 +364,11 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     def _inserted(self, container):
         # make sure we get 'prepare_render' calls
-        self.layer_container.register_prepare_canvas_item(self)
+        self.register_prepare_canvas_item(self)
 
     def _removed(self, container):
         # turn off 'prepare_render' calls
-        self.layer_container.unregister_prepare_canvas_item(self)
+        self.unregister_prepare_canvas_item(self)
 
     def prepare_render(self):
         self.prepare_display()
@@ -428,22 +428,36 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     filled = False
                 self.line_graph_canvas_item.line_graph_data_list = line_graph_data_list
 
+        # update the data info for each item; also call update so that they're forced to be drawn.
+
         for line_graph_data in self.line_graph_canvas_item.line_graph_data_list:
             line_graph_data.data_info = data_info
+        self.line_graph_canvas_item.update()
 
         self.__line_graph_background_canvas_item.data_info = data_info
+        self.__line_graph_background_canvas_item.update()
         self.__line_graph_regions_canvas_item.data_info = data_info
+        self.__line_graph_regions_canvas_item.update()
         self.__line_graph_frame_canvas_item.data_info = data_info
+        self.__line_graph_frame_canvas_item.update()
         self.__line_graph_legend_canvas_item.data_info = data_info
+        self.__line_graph_legend_canvas_item.update()
         self.__line_graph_vertical_axis_label_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_label_canvas_item.size_to_content()
+        self.__line_graph_vertical_axis_label_canvas_item.update()
         self.__line_graph_vertical_axis_scale_canvas_item.data_info = data_info
         self.__line_graph_vertical_axis_scale_canvas_item.size_to_content(self.__get_font_metrics_fn)
+        self.__line_graph_vertical_axis_scale_canvas_item.update()
         self.__line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
+        self.__line_graph_vertical_axis_ticks_canvas_item.update()
         self.__line_graph_horizontal_axis_label_canvas_item.data_info = data_info
         self.__line_graph_horizontal_axis_label_canvas_item.size_to_content()
+        self.__line_graph_horizontal_axis_label_canvas_item.update()
         self.__line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
+        self.__line_graph_horizontal_axis_scale_canvas_item.update()
         self.__line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
+        self.__line_graph_horizontal_axis_ticks_canvas_item.update()
+
         self.__data_info = data_info
 
     def mouse_entered(self):

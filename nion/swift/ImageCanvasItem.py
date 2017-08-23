@@ -1031,11 +1031,11 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
 
     def _inserted(self, container):
         # make sure we get 'prepare_render' calls
-        self.layer_container.register_prepare_canvas_item(self)
+        self.register_prepare_canvas_item(self)
 
     def _removed(self, container):
         # turn off 'prepare_render' calls
-        self.layer_container.unregister_prepare_canvas_item(self)
+        self.unregister_prepare_canvas_item(self)
 
     def prepare_render(self):
         self.prepare_display()
