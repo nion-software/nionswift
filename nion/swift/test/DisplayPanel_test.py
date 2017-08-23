@@ -1059,7 +1059,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         with self.data_item.maybe_data_source.data_ref() as dr:
             dr.master_data = numpy.zeros((0, ))
         # display panel should not have any display_canvas_item now since data is not valid
-        self.assertIsNone(self.display_panel.display_canvas_item)
+        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
         with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_specifier.display)) as thumbnail_source:
             thumbnail_source.recompute_data()
@@ -1071,7 +1071,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         with self.data_item.maybe_data_source.data_ref() as dr:
             dr.master_data = numpy.zeros((0, 0))
         # display panel should not have any display_canvas_item now since data is not valid
-        self.assertIsNone(self.display_panel.display_canvas_item)
+        self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
         with contextlib.closing(Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.app.ui, self.display_specifier.display)) as thumbnail_source:
             thumbnail_source.recompute_data()

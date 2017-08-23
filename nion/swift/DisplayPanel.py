@@ -514,6 +514,8 @@ def create_display_canvas_item(display_type: str, get_font_metrics_fn, delegate,
         return ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
     elif display_type == "display_script":
         return DisplayScriptCanvasItem.DisplayScriptCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+    else:
+        return MissingDataCanvasItem(delegate)
 
 
 def is_valid_display_type(display_type: str) -> bool:
@@ -522,20 +524,42 @@ def is_valid_display_type(display_type: str) -> bool:
 
 class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, data_item, delegate, display_type, get_font_metrics_fn, event_loop):
+    def __init__(self, data_item, delegate, get_font_metrics_fn, event_loop):
         super().__init__()
-        try:
-            self.__closing_lock = threading.RLock()
-            self.__data_item = data_item
-            self.__delegate = delegate
-            self.__display_type = display_type
-            self.__display_changed_event_listener = None
-            self.__display_graphic_selection_changed_event_listener = None
-            self.__display_canvas_item = create_display_canvas_item(self.__display_type, get_font_metrics_fn, self, event_loop)
-            self.add_canvas_item(self.__display_canvas_item)
 
+        self.__closing_lock = threading.RLock()
+        self.__data_item = data_item
+        self.__delegate = delegate
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__event_loop = event_loop
+        self.__display_changed_event_listener = None
+        self.__display_graphic_selection_changed_event_listener = None
+        self.__next_calculated_display_values_listener = None
+        self.__display_type_changed_event_listener = None
+        self.__display_type_monitor = None
+
+        assert self.__data_item
+
+        self.__data_item.increment_display_ref_count()  # ensure data stays in memory while displayed
+
+        # safe to call 'close' now -- so put the rest in an exception handler
+        try:
             display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
             display = display_specifier.display
+            display_type = display.actual_display_type if display else None
+            self.__display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics_fn, self, self.__event_loop)
+            self.add_canvas_item(self.__display_canvas_item)
+
+            def display_type_changed(display_type):
+                # called when the display type of the data item changes.
+                old_display_canvas_item = self.__display_canvas_item
+                new_display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics_fn, self, self.__event_loop)
+                self.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
+                self.__display_canvas_item = new_display_canvas_item
+
+            self.__display_type_monitor = DataItemDisplayTypeMonitor(self.__data_item)
+            self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
+
             if display:
                 def display_graphic_selection_changed(graphic_selection):
                     # this message comes from the display when the graphic selection changes
@@ -588,6 +612,13 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__next_calculated_display_values_listener:
                 self.__next_calculated_display_values_listener.close()
                 self.__next_calculated_display_values_listener = None
+            if self.__display_type_changed_event_listener:
+                self.__display_type_changed_event_listener.close()
+                self.__display_type_changed_event_listener = None
+            if self.__display_type_monitor:
+                self.__display_type_monitor.close()
+                self.__display_type_monitor = None
+            self.__data_item.decrement_display_ref_count()  # ensure data stays in memory while displayed
         super().close()
 
     @property
@@ -801,12 +832,13 @@ class DataItemDisplayTypeMonitor:
     Provides the display_type r/o property.
     """
 
-    def __init__(self):
+    def __init__(self, data_item):
         self.__data_item = None
         self.display_type_changed_event = Event.Event()
         self.__display_changed_event_listener = None
         self.__display_type = None
         self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
+        self.set_data_item(data_item)
 
     def close(self):
         if self.__display_changed_event_listener:
@@ -901,18 +933,34 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
 
 
-class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
+class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
     """ Canvas item to draw background_color. """
-    def __init__(self, display_panel_content, data_item):
+    def __init__(self, delegate):
         super().__init__()
-        self.__display_panel_content = display_panel_content
-        self.__data_item = data_item
+        self.__delegate = delegate
 
     def context_menu_event(self, x, y, gx, gy):
-        document_controller = self.__display_panel_content.document_controller
-        document_model = document_controller.document_model
-        menu = document_controller.create_context_menu_for_data_item(self.__data_item, container=document_model)
-        return self.__display_panel_content.show_context_menu(menu, gx, gy)
+        self.__delegate.show_context_menu(gx, gy)
+
+    @property
+    def default_aspect_ratio(self):
+        return 1.0
+
+    def display_rgba_changed(self, display, display_values):
+        pass
+
+    def display_data_and_metadata_changed(self, display, display_values):
+        pass
+
+    def update_display_values(self, display, display_values):
+        pass
+
+    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
+        pass
+
+    def handle_auto_display(self, display) -> bool:
+        # enter key has been pressed
+        return False
 
     def _repaint(self, drawing_context):
         # canvas size
@@ -1019,8 +1067,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         ui = document_controller.ui
 
         self.__data_item = None
-        self.__display_type_monitor = DataItemDisplayTypeMonitor()
-        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(self.__display_type_changed)
         self.__data_item_metadata_changed_event_listener = None
 
         # if the data item displayed in this panel gets deleted, remove it from this panel.
@@ -1046,9 +1092,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model)
         self.__shortcuts_canvas_item.on_drag = document_controller.drag
 
-        self.__data_item_display_canvas_item = CanvasItem.CanvasItemComposition()
+        # the data item panel consists of the data item display canvas item and the shortcuts item
+        self.__data_item_panel_canvas_item = CanvasItem.CanvasItemComposition()
 
-        self.__data_item_display_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
+        self.__data_item_panel_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
 
         self.__data_browser_controller = document_controller.create_data_browser_controller_for_display_panel()
 
@@ -1124,9 +1171,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__grid_browser_canvas_item = self.__grid_data_grid_controller.canvas_item
         self.__grid_browser_canvas_item.visible = False
 
+        # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
+        # data item and grid as the only items just by selecting hiding/showing individual canvas items.
         self.__combo_canvas_item = CanvasItem.CanvasItemComposition()
         self.__combo_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        self.__combo_canvas_item.add_canvas_item(self.__data_item_display_canvas_item)
+        self.__combo_canvas_item.add_canvas_item(self.__data_item_panel_canvas_item)
         self.__combo_canvas_item.add_canvas_item(self.__horizontal_browser_canvas_item)
         self.__combo_canvas_item.add_canvas_item(self.__grid_browser_canvas_item)
 
@@ -1145,11 +1194,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_canvas_item = None
         self.set_displayed_data_item(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
-        assert not self.__display_canvas_item
-        self.__display_type_changed_event_listener.close()
-        self.__display_type_changed_event_listener = None
-        self.__display_type_monitor.close()
-        self.__display_type_monitor = None
         del self.__binding.inserters[id(self)]
         del self.__binding.removers[id(self)]
         self.__horizontal_data_grid_controller.close()
@@ -1273,20 +1317,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__display_panel_controller:
             self.set_displayed_data_item(self._data_item)
 
-    def __display_type_changed(self, display_type):
-        # called when the display type of the data item changes.
-        if len(self.__data_item_display_canvas_item.canvas_items) > 1:
-            self.__data_item_display_canvas_item.remove_canvas_item(self.__data_item_display_canvas_item.canvas_items[0])
-        self.__display_canvas_item = None
-        if display_type and is_valid_display_type(display_type):
-            delegate = DataItemDisplayCanvasItemDelegate(self.ui, self, self.on_begin_drag)
-            self.__display_canvas_item = DataItemDisplayCanvasItem(self._data_item, delegate, display_type, self.ui.get_font_metrics, self.document_controller.event_loop)
-            self.__data_item_display_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
-        elif self.__data_item is not None:
-            self.__data_item_display_canvas_item.insert_canvas_item(0, MissingDataCanvasItem(self, self._data_item))
-        if self.__data_item_display_canvas_item:
-            self.__data_item_display_canvas_item.update()
-
     # sets the data item that this panel displays
     # not thread safe
     def set_displayed_data_item(self, data_item: DataItem.DataItem) -> None:
@@ -1306,12 +1336,12 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__data_item = data_item
 
-        # workaround an architectural quirk (smell) so that the display_type_changed_event gets generated
-        # for the new data even if the display type doesn't change. see test_dragging_header_to_swap_works.
-        # the original bug showed up when dragging right-to-left in bottom of 2x2 workspace with two raster
-        # images.
-        self.__display_type_monitor.set_data_item(None)
-        self.__display_type_monitor.set_data_item(data_item)
+        if len(self.__data_item_panel_canvas_item.canvas_items) > 1:
+            self.__data_item_panel_canvas_item.remove_canvas_item(self.__data_item_panel_canvas_item.canvas_items[0])
+        if self._data_item:
+            delegate = DataItemDisplayCanvasItemDelegate(self.ui, self, self.on_begin_drag)
+            self.__display_canvas_item = DataItemDisplayCanvasItem(self._data_item, delegate, self.ui.get_font_metrics, self.document_controller.event_loop)
+            self.__data_item_panel_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
 
         self.__shortcuts_canvas_item.set_data_item(data_item)
 
@@ -1324,10 +1354,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         metadata_changed()
 
-        if self.__data_item_display_canvas_item:  # may be closed
+        if self.__data_item_panel_canvas_item:  # may be closed
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            self.__data_item_display_canvas_item.wants_mouse_events = self.__display_canvas_item is None
-            self.__data_item_display_canvas_item.selected = display_specifier.display is not None and self._is_selected()
+            self.__data_item_panel_canvas_item.wants_mouse_events = self.__display_canvas_item is None
+            self.__data_item_panel_canvas_item.selected = display_specifier.display is not None and self._is_selected()
 
     def _select(self):
         self.content_canvas_item.request_focus()
@@ -1362,7 +1392,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def __cycle_display(self):
         # the second part of the if statement below handles the case where the data item has been changed by
         # the user so the cycle should go back to the main display.
-        if self.__data_item_display_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__data_item_changed):
+        if self.__data_item_panel_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__data_item_changed):
             if self.__horizontal_browser_canvas_item.visible:
                 self.__switch_to_grid_browser()
                 self.__update_selection_to_data_item()
@@ -1384,17 +1414,17 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__grid_data_grid_controller.make_selection_visible()
 
     def __switch_to_no_browser(self):
-        self.__data_item_display_canvas_item.visible = True
+        self.__data_item_panel_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = False
 
     def __switch_to_horizontal_browser(self):
-        self.__data_item_display_canvas_item.visible = True
+        self.__data_item_panel_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = True
         self.__grid_browser_canvas_item.visible = False
 
     def __switch_to_grid_browser(self):
-        self.__data_item_display_canvas_item.visible = False
+        self.__data_item_panel_canvas_item.visible = False
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = True
 
