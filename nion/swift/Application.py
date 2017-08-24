@@ -270,6 +270,7 @@ class Application:
                                                      persistent_storage_systems=[file_persistent_storage_system],
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files)
         document_model.auto_migrate([os.path.join(workspace_dir, "Nion Swift Data")])
+        document_model.auto_migrate([os.path.join(workspace_dir, "Nion Swift Data 10")])
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
         # parse the hardware aliases file

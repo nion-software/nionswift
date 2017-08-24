@@ -518,6 +518,47 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         self.__migrate_to_v8(reader_info_list)
         self.__migrate_to_v9(reader_info_list)
         self.__migrate_to_v10(reader_info_list)
+        self.__migrate_to_v11(reader_info_list)
+
+    def __migrate_to_v11(self, reader_info_list):
+        for reader_info in reader_info_list:
+            storage_handler = reader_info.storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 10:
+                    reader_info.changed_ref[0] = True
+                    # pprint.pprint(properties)
+                    # version 9 -> 10 merges regions into graphics.
+                    data_source_dicts = properties.get("data_sources", list())
+                    for data_source_dict in data_source_dicts:
+                        variables_dict = data_source_dict.get("computation", dict()).get("variables")
+                        processing_id = data_source_dict.get("computation", dict()).get("processing_id")
+                        if variables_dict and processing_id:
+                            # import pprint
+                            # print(pprint.pformat(variables_dict))
+                            variable_lookup = dict()
+                            for variable_dict in variables_dict:
+                                variable_lookup[variable_dict['name']] = variable_dict
+                            if "src" in variable_lookup and "crop_region" in variable_lookup:
+                                variable_lookup["src"]["secondary_specifier"] = copy.deepcopy(variable_lookup["crop_region"]["specifier"])
+                                variables_dict.remove(variable_lookup["crop_region"])
+                            if "src1" in variable_lookup and "crop_region0" in variable_lookup:
+                                variable_lookup["src1"]["secondary_specifier"] = copy.deepcopy(variable_lookup["crop_region0"]["specifier"])
+                                variables_dict.remove(variable_lookup["crop_region0"])
+                            if "src2" in variable_lookup and "crop_region1" in variable_lookup:
+                                variable_lookup["src2"]["secondary_specifier"] = copy.deepcopy(variable_lookup["crop_region1"]["specifier"])
+                                variables_dict.remove(variable_lookup["crop_region1"])
+                            # print(pprint.pformat(variables_dict))
+                            # print("-----------------------")
+                    properties["version"] = 11
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (computed data items combined crop)", storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
 
     def __migrate_to_v10(self, reader_info_list):
         translate_region_type = {"point-region": "point-graphic", "line-region": "line-profile-graphic", "rectangle-region": "rect-graphic", "ellipse-region": "ellipse-graphic",

@@ -806,7 +806,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     Metadata.
     """
 
-    writer_version = 10
+    writer_version = 11
 
     def __init__(self, item_uuid=None):
         super().__init__()
