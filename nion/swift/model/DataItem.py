@@ -82,14 +82,14 @@ METADATA = 2
 DISPLAYS = 3
 
 
-class DtypeToStringConverter(object):
+class DtypeToStringConverter:
     def convert(self, value):
         return str(value) if value is not None else None
     def convert_back(self, value):
         return numpy.dtype(value) if value is not None else None
 
 
-class DatetimeToStringConverter(object):
+class DatetimeToStringConverter:
     def convert(self, value):
         return value.isoformat() if value is not None else None
     def convert_back(self, value):
@@ -111,7 +111,7 @@ def data_source_factory(lookup_id):
         return None
 
 
-class UuidsToStringsConverter(object):
+class UuidsToStringsConverter:
     def convert(self, value):
         return [str(uuid_) for uuid_ in value]
     def convert_back(self, value):
@@ -134,9 +134,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     """
 
     def __init__(self, data=None):
-        super(BufferedDataSource, self).__init__()
+        super().__init__()
         self.__weak_dependent_data_item = None
-        self.__container_weak_ref = None
         self.define_type("buffered-data-source")
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
@@ -164,7 +163,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__metadata = dict()
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
-        self.__subscription = None
         self.data_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
         if data is not None:
@@ -174,39 +172,15 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
 
     def close(self):
-        if self.__subscription:
-            self.__subscription.close()
-        self.__subscription = None
         self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed
         self._closed = True
-        self.__container_weak_ref = None
-
-    @property
-    def container(self):
-        return self.__container_weak_ref()
-
-    def about_to_be_inserted(self, container):
-        assert self.__container_weak_ref is None
-        self.__container_weak_ref = weakref.ref(container)
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
-
-    def insert_model_item(self, container, name, before_index, item):
-        if self.__container_weak_ref:
-            self.container.insert_model_item(container, name, before_index, item)
-        else:
-            container.insert_item(name, before_index, item)
-
-    def remove_model_item(self, container, name, item):
-        if self.__container_weak_ref:
-            self.container.remove_model_item(container, name, item)
-        else:
-            container.remove_item(name, item)
 
     def __deepcopy__(self, memo):
         deepcopy = self.__class__()
@@ -280,15 +254,11 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         if self.__data_and_metadata:
             self.__data_and_metadata.unloadable = self.persistent_object_context is not None
 
-    def set_dependent_data_item(self, data_item):
+    def _set_data_item(self, data_item):
         self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
 
-    def __get_dependent_data_item(self):
+    def _get_data_item(self):
         return self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
-
-    @property
-    def _data_item(self):
-        return self.__get_dependent_data_item()
 
     def __data_description_changed(self, name, value):
         self.__property_changed(name, value)
@@ -330,7 +300,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def data_metadata(self):
-        return self.__data_and_metadata.data_metadata
+        return self.__data_and_metadata.data_metadata if self.__data_and_metadata else None
 
     @property
     def data_and_metadata(self):
@@ -381,21 +351,14 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
                 if self.persistent_object_context:
-                    self.persistent_object_context.rewrite_data_item_data(self._data_item)  # ouch, up reference to data item
+                    self.persistent_object_context.rewrite_data_item_data(self._get_data_item())  # ouch, up reference to data item
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
 
-    def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
-        self.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data, data_modified))
-
-    @property
-    def data_shape_and_dtype(self) -> typing.Tuple[typing.Iterable[int], numpy.dtype]:
-        return self.__data_and_metadata.data_shape_and_dtype if self.__data_and_metadata else None
-
     @property
     def dimensional_shape(self):
-        return self.__data_and_metadata.dimensional_shape if self.__data_and_metadata else None
+        return self.__data_and_metadata.dimensional_shape if self.__data_and_metadata else list()
 
     @property
     def is_collection(self):
@@ -449,18 +412,10 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__metadata = copy.deepcopy(metadata)
         self._set_persistent_property_value("metadata", self.__metadata)
 
-    def set_metadata(self, metadata):
-        self.metadata = metadata
-
-    def update_metadata(self, additional_metadata):
-        metadata = self.metadata
-        metadata.update(additional_metadata)
-        self.metadata = metadata
-
     def _get_data(self):
         return self.__data_and_metadata.data if self.__data_and_metadata else None
 
-    def _set_data(self, data, data_modified=None):
+    def _update_data(self, data, data_modified=None):
         dimensional_shape = Image.dimensional_shape_from_data(data)
         data_and_metadata = self.data_and_metadata
         intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
@@ -473,12 +428,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         metadata = data_and_metadata.metadata if data_and_metadata else None
         timestamp = None  # always update when the data is modified
         self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp), data_modified)
-
-    def __get_data(self):
-        return self._get_data()
-
-    def __set_data(self, data, data_modified=None):
-        self._set_data(data, data_modified)
 
     def increment_data_ref_count(self):
         with self.__data_ref_count_mutex:
@@ -505,56 +454,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     @property
     def has_data(self) -> bool:
         return self.__data_and_metadata is not None
-
-    # grab a data reference as a context manager. the object
-    # returned defines data and data properties. reading data
-    # should use the data property. writing data (if allowed) should
-    # assign to the data property.
-    def data_ref(self):
-        get_data = BufferedDataSource.__get_data
-        set_data = BufferedDataSource.__set_data
-        class DataAccessor(object):
-            def __init__(self, data_item):
-                self.__data_item = data_item
-            def __enter__(self):
-                self.__data_item.increment_data_ref_count()
-                return self
-            def __exit__(self, type, value, traceback):
-                self.__data_item.decrement_data_ref_count()
-            @property
-            def data(self):
-                return get_data(self.__data_item)
-            @data.setter
-            def data(self, value):
-                set_data(self.__data_item, value)
-            def data_updated(self):
-                set_data(self.__data_item, get_data(self.__data_item))
-            @property
-            def master_data(self):
-                return get_data(self.__data_item)
-            @master_data.setter
-            def master_data(self, value):
-                set_data(self.__data_item, value)
-            def master_data_updated(self):
-                set_data(self.__data_item, get_data(self.__data_item))
-        return DataAccessor(self)
-
-    @property
-    def data(self):
-        """Return the cached data for this data item.
-
-        This method will never block and can be called from the main thread.
-
-        Multiple calls to access data should be bracketed in a data_ref context to
-        avoid loading and unloading from disk."""
-        try:
-            with self.data_ref() as data_ref:
-                return data_ref.data
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            traceback.print_stack()
-            raise
 
     @property
     def data_shape(self):
@@ -937,7 +836,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
         library_item = self
-        class LibraryItemChangeContextManager(object):
+        class LibraryItemChangeContextManager:
             def __enter__(self):
                 library_item._begin_library_item_changes()
                 return self
@@ -1382,10 +1281,9 @@ class DataItem(LibraryItem):
         self.d_metadata_changed_event.fire()
 
     def __insert_data_source(self, name, before_index, data_source):
-        data_source.about_to_be_inserted(self)
         data_source.timezone = self.timezone
         data_source.timezone_offset = self.timezone_offset
-        data_source.set_dependent_data_item(self)
+        data_source._set_data_item(self)
         self.__data_changed_event_listeners.insert(before_index, data_source.data_changed_event.listen(self.__handle_data_changed))
         # being in transaction state means that data sources have their data loaded.
         # so load data here to keep the books straight when the transaction state is exited.
@@ -1405,7 +1303,7 @@ class DataItem(LibraryItem):
     def __disconnect_data_source(self, index, data_source):
         self.__d_metadata_changed_event_listeners[index].close()
         del self.__d_metadata_changed_event_listeners[index]
-        data_source.set_dependent_data_item(None)
+        data_source._set_data_item(None)
         self.__data_changed_event_listeners[index].close()
         del self.__data_changed_event_listeners[index]
         # being in transaction state means that data sources have their data loaded.
@@ -1503,16 +1401,14 @@ class DataItem(LibraryItem):
 
     @property
     def data(self) -> numpy.ndarray:
-        return self.maybe_data_source.data if self.maybe_data_source else None
+        return self.__get_data()
 
     @property
     def xdata(self) -> DataAndMetadata.DataAndMetadata:
         return self.maybe_data_source.data_and_metadata if self.maybe_data_source else None
 
     def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
-        with self.data_source_changes():
-            if self.maybe_data_source:
-                self.maybe_data_source.set_data(data, data_modified)
+        self.set_xdata(DataAndMetadata.new_data_and_metadata(data, data_modified))
 
     def set_xdata(self, xdata: DataAndMetadata.DataAndMetadata, data_modified: datetime.datetime=None) -> None:
         with self.data_source_changes():
@@ -1526,7 +1422,7 @@ class DataItem(LibraryItem):
     def data_ref(self):
         get_data = self.__get_data
         set_data = self.__set_data
-        class DataAccessor(object):
+        class DataAccessor:
             def __init__(self, data_item):
                 self.__data_item = data_item
             def __enter__(self):
@@ -1553,11 +1449,11 @@ class DataItem(LibraryItem):
         return DataAccessor(self)
 
     def __get_data(self):
-        return self.maybe_data_source._get_data()
+        return self.maybe_data_source._get_data() if self.maybe_data_source else None
 
     def __set_data(self, data, data_modified=None):
         with self.data_source_changes():
-            self.maybe_data_source._set_data(data, data_modified)
+            self.maybe_data_source._update_data(data, data_modified)
 
     def data_source_changes(self):
         # return a context manager to batch up a set of changes so that listeners
