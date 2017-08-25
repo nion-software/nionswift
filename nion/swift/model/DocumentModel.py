@@ -557,6 +557,11 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                         if computation:
                             properties["computation"] = computation
                         data_source_dict.pop("computation", None)
+                    for data_source_dict in data_source_dicts:
+                        displays = data_source_dict.get("displays")
+                        if displays and len(displays) > 0:
+                            properties["displays"] = displays[0:1]
+                        data_source_dict.pop("displays", None)
                     properties["version"] = 11
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (computed data items combined crop)", storage_handler.reference, properties["version"])
@@ -1095,7 +1100,7 @@ class ComputationQueueItem:
                 if self.valid:  # TODO: race condition for 'valid'
                     def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
                         data_item_data_clone_modified = data_item_clone.data_modified or datetime.datetime.min
-                        with data_item.data_item_changes(), data_item.xdata_changes():
+                        with data_item.data_item_changes(), data_item.data_source_changes():
                             if data_item_data_clone_modified > data_item_data_modified:
                                 data_item.set_xdata(api_data_item.data_and_metadata)
                             data_item_clone_recorder.apply(data_item)

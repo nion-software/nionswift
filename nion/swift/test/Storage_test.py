@@ -306,7 +306,7 @@ class TestStorageClass(unittest.TestCase):
             display_specifier.display.slice_width = 1
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).data_range, (0, 0))
         # make the slice_center be out of bounds
-        memory_persistent_storage_system.properties[str(data_item.uuid)]["data_sources"][0]["displays"][0]["slice_center"] = 20
+        memory_persistent_storage_system.properties[str(data_item.uuid)]["displays"][0]["slice_center"] = 20
         # read it back
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
@@ -1277,7 +1277,7 @@ class TestStorageClass(unittest.TestCase):
         # modify original expression to be something else
         original_expressions = dict()
         for data_item_uuid in memory_persistent_storage_system.properties.keys():
-            computation_dict = memory_persistent_storage_system.properties[data_item_uuid]["data_sources"][0].get("computation", dict())
+            computation_dict = memory_persistent_storage_system.properties[data_item_uuid].get("computation", dict())
             original_expression = computation_dict.get("original_expression")
             if original_expression:
                 computation_dict["original_expression"] = "incorrect"
@@ -1381,8 +1381,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0])
-            self.assertTrue("uuid" in data_item.properties["data_sources"][0]["displays"][0]["graphics"][0])
+            self.assertTrue("uuid" in data_item.properties["displays"][0])
+            self.assertTrue("uuid" in data_item.properties["displays"][0]["graphics"][0])
 
     def test_data_items_v3_migration(self):
         # construct v3 data item

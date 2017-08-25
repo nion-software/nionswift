@@ -195,7 +195,7 @@ def update_data_item_from_data_element(data_item, data_element, data_file_path=N
 def update_data_item_from_data_element_1(data_item, data_element, data_file_path=None):
     display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
     assert display_specifier.data_item and display_specifier.display
-    with data_item.data_item_changes(), display_specifier.data_item.xdata_changes():
+    with data_item.data_item_changes(), display_specifier.data_item.data_source_changes():
         # file path
         # master data
         if data_file_path is not None:

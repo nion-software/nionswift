@@ -133,7 +133,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     top left of each layer.
     """
 
-    def __init__(self, data=None, create_display=True):
+    def __init__(self, data=None):
         super(BufferedDataSource, self).__init__()
         self.__weak_dependent_data_item = None
         self.__container_weak_ref = None
@@ -155,7 +155,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("data_modified", recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
-        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.__timezone = None  # set by the data item, used when returning data_and_metadata
         self.__timezone_offset = None  # set by the data item, used when returning data_and_metadata
         self.__data_and_metadata = None
@@ -163,25 +162,14 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__intensity_calibration = None
         self.__dimensional_calibrations = list()
         self.__metadata = dict()
-        self.__change_thread = None
-        self.__change_count = 0
-        self.__change_count_lock = threading.RLock()
-        self.__change_changed = False
         self.__data_ref_count = 0
         self.__data_ref_count_mutex = threading.RLock()
         self.__subscription = None
-        self.data_item_changed_event = Event.Event()
         self.data_changed_event = Event.Event()
         self.metadata_changed_event = Event.Event()
         if data is not None:
-            with self._changes():
-                dimensional_calibrations = list()
-                for index in range(len(Image.dimensional_shape_from_data(data))):
-                    dimensional_calibrations.append(Calibration.Calibration())
-                self.__set_data_metadata_direct(DataAndMetadata.DataAndMetadata.from_data(data, dimensional_calibrations=dimensional_calibrations))
-                self.__change_changed = True
-        if create_display:
-            self.add_display(Display.Display())  # always have one display, for now
+            data_and_metadata = DataAndMetadata.DataAndMetadata.from_data(data)
+            self.__set_data_metadata_direct(data_and_metadata)
         self._about_to_be_removed = False
         self._closed = False
 
@@ -189,8 +177,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         if self.__subscription:
             self.__subscription.close()
         self.__subscription = None
-        for display in self.displays:
-            display.close()
         self.__data_and_metadata = None
         assert self._about_to_be_removed
         assert not self._closed
@@ -207,8 +193,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
-        for display in self.displays:
-            display.about_to_be_removed()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -231,23 +215,13 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         return deepcopy
 
     def deepcopy_from(self, buffered_data_source, memo):
-        with self._changes():
-            super(BufferedDataSource, self).deepcopy_from(buffered_data_source, memo)
-            # data and metadata
-            data_and_metadata = buffered_data_source.data_and_metadata
-            data_and_metadata = copy.deepcopy(data_and_metadata) if data_and_metadata else None
-            self.set_data_and_metadata(data_and_metadata)
-            # displays
-            for display in self.displays:
-                self.remove_display(display)
-            for display in buffered_data_source.displays:
-                self.add_display(copy.deepcopy(display))
+        super().deepcopy_from(buffered_data_source, memo)
+        # data and metadata
+        self.set_data_and_metadata(copy.deepcopy(buffered_data_source.data_and_metadata))
 
     def clone(self) -> "BufferedDataSource":
-        data_source = BufferedDataSource(create_display=False)
+        data_source = BufferedDataSource()
         data_source.uuid = self.uuid
-        for display in self.displays:
-            data_source.add_display(display.clone())
         return data_source
 
     def snapshot(self):
@@ -258,60 +232,48 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         """
         buffered_data_source_copy = BufferedDataSource()
         buffered_data_source_copy.set_data_and_metadata(copy.deepcopy(self.data_and_metadata))
-        for display in self.displays:
-            buffered_data_source_copy.add_display(copy.deepcopy(display))
         return buffered_data_source_copy
 
     def read_from_dict(self, properties):
-        with self._changes():
-            for display in self.displays:
-                self.remove_display(display)
-            super(BufferedDataSource, self).read_from_dict(properties)
-            data_shape = self._get_persistent_property_value("data_shape", None)
-            data_dtype = DtypeToStringConverter().convert_back(self._get_persistent_property_value("data_dtype", None))
-            if data_shape is not None and data_dtype is not None:
-                data_shape_and_dtype = data_shape, data_dtype
+        super().read_from_dict(properties)
+        data_shape = self._get_persistent_property_value("data_shape", None)
+        data_dtype = DtypeToStringConverter().convert_back(self._get_persistent_property_value("data_dtype", None))
+        if data_shape is not None and data_dtype is not None:
+            data_shape_and_dtype = data_shape, data_dtype
+            dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
+            intensity_calibration = self._get_persistent_property_value("intensity_calibration")
+            dimensional_calibration_list = self._get_persistent_property_value("dimensional_calibrations")
+            dimensional_calibrations = dimensional_calibration_list.list if dimensional_calibration_list else None
+            if dimensional_calibrations is not None:
                 dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
-                intensity_calibration = self._get_persistent_property_value("intensity_calibration")
-                dimensional_calibration_list = self._get_persistent_property_value("dimensional_calibrations")
-                dimensional_calibrations = dimensional_calibration_list.list if dimensional_calibration_list else None
-                if dimensional_calibrations is not None:
-                    dimensional_shape = Image.dimensional_shape_from_shape_and_dtype(data_shape, data_dtype)
-                    while len(dimensional_shape) > len(dimensional_calibrations):
-                        dimensional_calibrations.append(Calibration.Calibration())
-                    while len(dimensional_shape) < len(dimensional_calibrations):
-                        dimensional_calibrations.pop(-1)
-                metadata = self._get_persistent_property_value("metadata")
-                timestamp = self._get_persistent_property_value("created")
-                if timestamp is None:  # invalid timestamp -- set property to now but don't trigger change
-                    timestamp = datetime.datetime.now()
-                    self._get_persistent_property("created").value = timestamp
-                is_sequence = self._get_persistent_property_value("is_sequence", False)
-                collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
-                datum_dimension_count = self._get_persistent_property_value("datum_dimension_count")
-                if collection_dimension_count is None:
-                    collection_dimension_count = 2 if len(dimensional_shape) == 3 and not is_sequence else 0
-                    # update collection_dimension_count, but in a way that sets the internal value but
-                    # doesn't trigger a write to disk or a change modification.
-                    self._get_persistent_property("collection_dimension_count").set_value(collection_dimension_count)
-                if datum_dimension_count is None:
-                    datum_dimension_count = len(dimensional_shape) - collection_dimension_count - (1 if is_sequence else 0)
-                    # update collection_dimension_count, but in a way that sets the internal value but
-                    # doesn't trigger a write to disk or a change modification.
-                    self._get_persistent_property("datum_dimension_count").set_value(datum_dimension_count)
-                data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
-                self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp,
-                                                                           data_descriptor=data_descriptor, timezone=self.timezone, timezone_offset=self.timezone_offset)
-                with self.__data_ref_count_mutex:
-                    self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
-                self.__data_and_metadata.unloadable = self.persistent_object_context is not None
-            for display in self.displays:
-                display.validate_slice_indexes()  # do this here to avoid having changes happen outside of _changes
-
-    def finish_reading(self):
-        for display in self.displays:
-            display.update_data(self.data_and_metadata)
-        super(BufferedDataSource, self).finish_reading()
+                while len(dimensional_shape) > len(dimensional_calibrations):
+                    dimensional_calibrations.append(Calibration.Calibration())
+                while len(dimensional_shape) < len(dimensional_calibrations):
+                    dimensional_calibrations.pop(-1)
+            metadata = self._get_persistent_property_value("metadata")
+            timestamp = self._get_persistent_property_value("created")
+            if timestamp is None:  # invalid timestamp -- set property to now but don't trigger change
+                timestamp = datetime.datetime.now()
+                self._get_persistent_property("created").value = timestamp
+            is_sequence = self._get_persistent_property_value("is_sequence", False)
+            collection_dimension_count = self._get_persistent_property_value("collection_dimension_count")
+            datum_dimension_count = self._get_persistent_property_value("datum_dimension_count")
+            if collection_dimension_count is None:
+                collection_dimension_count = 2 if len(dimensional_shape) == 3 and not is_sequence else 0
+                # update collection_dimension_count, but in a way that sets the internal value but
+                # doesn't trigger a write to disk or a change modification.
+                self._get_persistent_property("collection_dimension_count").set_value(collection_dimension_count)
+            if datum_dimension_count is None:
+                datum_dimension_count = len(dimensional_shape) - collection_dimension_count - (1 if is_sequence else 0)
+                # update collection_dimension_count, but in a way that sets the internal value but
+                # doesn't trigger a write to disk or a change modification.
+                self._get_persistent_property("datum_dimension_count").set_value(datum_dimension_count)
+            data_descriptor = DataAndMetadata.DataDescriptor(is_sequence, collection_dimension_count, datum_dimension_count)
+            self.__data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp,
+                                                                       data_descriptor=data_descriptor, timezone=self.timezone, timezone_offset=self.timezone_offset)
+            with self.__data_ref_count_mutex:
+                self.__data_and_metadata._add_data_ref_count(self.__data_ref_count)
+            self.__data_and_metadata.unloadable = self.persistent_object_context is not None
 
     def persistent_object_context_changed(self):
         super().persistent_object_context_changed()
@@ -341,8 +303,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__metadata_changed()
 
     def __metadata_changed(self):
-        with self._changes():
-            self.__change_changed = True
         self.metadata_changed_event.fire()
 
     def __property_changed(self, name, value):
@@ -405,28 +365,26 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
         Note: this does not make a copy of the data.
         """
-        with self._changes():
-            self.increment_data_ref_count()
-            try:
-                if data_and_metadata:
-                    data = data_and_metadata.data
-                    data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
-                    intensity_calibration = data_and_metadata.intensity_calibration
-                    dimensional_calibrations = data_and_metadata.dimensional_calibrations
-                    metadata = data_and_metadata.metadata
-                    timestamp = data_and_metadata.timestamp
-                    data_descriptor = data_and_metadata.data_descriptor
-                    new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data, data_descriptor)
-                else:
-                    new_data_and_metadata = None
-                self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
-                if self.__data_and_metadata is not None:
-                    if self.persistent_object_context:
-                        self.persistent_object_context.rewrite_data_item_data(self._data_item)  # ouch, up reference to data item
-                        self.__data_and_metadata.unloadable = True
-                self.__change_changed = True
-            finally:
-                self.decrement_data_ref_count()
+        self.increment_data_ref_count()
+        try:
+            if data_and_metadata:
+                data = data_and_metadata.data
+                data_shape_and_dtype = data_and_metadata.data_shape_and_dtype
+                intensity_calibration = data_and_metadata.intensity_calibration
+                dimensional_calibrations = data_and_metadata.dimensional_calibrations
+                metadata = data_and_metadata.metadata
+                timestamp = data_and_metadata.timestamp
+                data_descriptor = data_and_metadata.data_descriptor
+                new_data_and_metadata = DataAndMetadata.DataAndMetadata(self.__load_data, data_shape_and_dtype, intensity_calibration, dimensional_calibrations, metadata, timestamp, data, data_descriptor)
+            else:
+                new_data_and_metadata = None
+            self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
+            if self.__data_and_metadata is not None:
+                if self.persistent_object_context:
+                    self.persistent_object_context.rewrite_data_item_data(self._data_item)  # ouch, up reference to data item
+                    self.__data_and_metadata.unloadable = True
+        finally:
+            self.decrement_data_ref_count()
 
     def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
         self.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(data, data_modified))
@@ -450,12 +408,10 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     @intensity_calibration.setter
     def intensity_calibration(self, intensity_calibration):
         """ Set the intensity calibration. """
-        with self._changes():
-            if self.__data_and_metadata:  # handle case of missing data and metadata but doing recording
-                self.__data_and_metadata._set_intensity_calibration(intensity_calibration)
-            self.__intensity_calibration = copy.deepcopy(intensity_calibration)  # backup in case of no data and metadata
-            self._set_persistent_property_value("intensity_calibration", intensity_calibration)
-            self.__change_changed = True
+        if self.__data_and_metadata:  # handle case of missing data and metadata but doing recording
+            self.__data_and_metadata._set_intensity_calibration(intensity_calibration)
+        self.__intensity_calibration = copy.deepcopy(intensity_calibration)  # backup in case of no data and metadata
+        self._set_persistent_property_value("intensity_calibration", intensity_calibration)
 
     def set_intensity_calibration(self, intensity_calibration):
         self.intensity_calibration = intensity_calibration
@@ -467,12 +423,10 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     @dimensional_calibrations.setter
     def dimensional_calibrations(self, dimensional_calibrations):
         """ Set the dimensional calibrations. """
-        with self._changes():
-            if self.__data_and_metadata:  # handle case of missing data and metadata but doing recording
-                self.__data_and_metadata._set_dimensional_calibrations(dimensional_calibrations)
-            self.__dimensional_calibrations = copy.deepcopy(dimensional_calibrations)  # backup in case of no data and metadata
-            self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
-            self.__change_changed = True
+        if self.__data_and_metadata:  # handle case of missing data and metadata but doing recording
+            self.__data_and_metadata._set_dimensional_calibrations(dimensional_calibrations)
+        self.__dimensional_calibrations = copy.deepcopy(dimensional_calibrations)  # backup in case of no data and metadata
+        self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
 
     def set_dimensional_calibrations(self, dimensional_calibrations):
         self.dimensional_calibrations = dimensional_calibrations
@@ -491,11 +445,9 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     @metadata.setter
     def metadata(self, metadata):
         assert metadata is not None
-        with self._changes():
-            self.__data_and_metadata._set_metadata(metadata)
-            self.__metadata = copy.deepcopy(metadata)
-            self._set_persistent_property_value("metadata", self.__metadata)
-            self.__change_changed = True
+        self.__data_and_metadata._set_metadata(metadata)
+        self.__metadata = copy.deepcopy(metadata)
+        self._set_persistent_property_value("metadata", self.__metadata)
 
     def set_metadata(self, metadata):
         self.metadata = metadata
@@ -504,27 +456,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         metadata = self.metadata
         metadata.update(additional_metadata)
         self.metadata = metadata
-
-    def set_storage_cache(self, storage_cache):
-        for display in self.displays:
-            display.set_storage_cache(storage_cache)
-
-    def __insert_display(self, name, before_index, display):
-        display.about_to_be_inserted(self)
-        with self._changes():
-            self.__change_changed = True
-
-    def __remove_display(self, name, index, display):
-        display.about_to_be_removed()
-        display.close()
-
-    def add_display(self, display):
-        """Add a display, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "displays", self.item_count("displays"), display)
-
-    def remove_display(self, display):
-        """Remove display, but do it through the container, so dependencies can be tracked."""
-        self.remove_model_item(self, "displays", display)
 
     def _get_data(self):
         return self.__data_and_metadata.data if self.__data_and_metadata else None
@@ -624,52 +555,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             traceback.print_exc()
             traceback.print_stack()
             raise
-
-    def _changes(self):
-        # return a context manager to batch up a set of changes so that listeners
-        # are only notified after the last change is complete.
-        buffered_data_source = self
-        class ChangeContextManager(object):
-            def __enter__(self):
-                buffered_data_source._begin_changes()
-                return self
-            def __exit__(self, type, value, traceback):
-                buffered_data_source._end_changes()
-        return ChangeContextManager()
-
-    def _begin_changes(self):
-        with self.__change_count_lock:
-            if self.__change_count == 0:
-                self.__change_thread = threading.current_thread()
-            else:
-                if self.__change_thread != threading.current_thread():
-                    warnings.warn('begin changes from different threads', RuntimeWarning, stacklevel=2)
-            self.__change_count += 1
-
-    def _end_changes(self):
-        changed = False
-        with self.__change_count_lock:
-            if self.__change_count == 1:
-                self.__change_thread = None
-            else:
-                if self.__change_thread != threading.current_thread():
-                    warnings.warn('end changes from different threads', RuntimeWarning, stacklevel=2)
-            self.__change_count -= 1
-            change_count = self.__change_count
-            if change_count == 0:
-                changed = self.__change_changed
-                self.__change_changed = False
-        # if the change count is now zero, it means that we're ready
-        # to pass on the next value.
-        if change_count == 0 and changed:
-            data_and_metadata = self.data_and_metadata
-            self.data_item_changed_event.fire()
-            for display in self.displays:
-                display.update_data(data_and_metadata)
-
-    def r_value_changed(self):
-        with self._changes():
-            self.__change_changed = True
 
     @property
     def data_shape(self):
@@ -1102,11 +987,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         """Used to signal changes to the ref var, which are kept in document controller. ugh."""
         self.r_var = r_var
         if notify_changed:  # set to False to set the r-value at startup; avoid marking it as a change
-            self._r_value_changed()
             self.__metadata_changed()
-
-    def _r_value_changed(self):
-        pass
 
     def increment_display_ref_count(self):
         """Increment display reference count to indicate this library item is currently displayed."""
@@ -1304,16 +1185,22 @@ class DataItem(LibraryItem):
         super().__init__(item_uuid)
         self.large_format = large_format
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
+        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_item("computation", computation_factory)
         self.data_item_changed_event = Event.Event()
         self.d_metadata_changed_event = Event.Event()
         self.__write_delay_data_changed = False
         self.__d_metadata_changed_event_listeners = list()
-        self.__data_item_changed_event_listeners = list()
         self.__data_changed_event_listeners = list()
+        self.__change_thread = None
+        self.__change_count = 0
+        self.__change_count_lock = threading.RLock()
+        self.__change_changed = False
         if data is not None:
             data_source = BufferedDataSource(data)
             self.append_data_source(data_source)
+        self.add_display(Display.Display())  # always have one display, for now
+        self.__update_displays()
 
     def __deepcopy__(self, memo):
         data_item_copy = super().__deepcopy__(memo)
@@ -1324,25 +1211,27 @@ class DataItem(LibraryItem):
             data_item_copy.remove_data_source(data_source)
         for data_source in self.data_sources:
             data_item_copy.append_data_source(copy.deepcopy(data_source))
+        # displays
+        for display in copy.copy(data_item_copy.displays):
+            data_item_copy.remove_display(display)
+        for display in self.displays:
+            data_item_copy.add_display(copy.deepcopy(display))
+        # computation
         data_item_copy.set_computation(copy.deepcopy(self.computation))
+        data_item_copy.__update_displays()
         return data_item_copy
 
     def close(self):
+        for display in self.displays:
+            display.close()
         for data_source in self.data_sources:
             self.__disconnect_data_source(0, data_source)
             data_source.close()
-        for listener in self.__d_metadata_changed_event_listeners:
-            listener.close()
-        self.__d_metadata_changed_event_listeners = list()
-        for listener in self.__data_item_changed_event_listeners:
-            listener.close()
-        self.__data_item_changed_event_listeners = list()
-        for listener in self.__data_changed_event_listeners:
-            listener.close()
-        self.__data_changed_event_listeners = list()
         super().close()
 
     def about_to_be_removed(self):
+        for display in self.displays:
+            display.about_to_be_removed()
         for data_source in self.data_sources:
             data_source.about_to_be_removed()
         super().about_to_be_removed()
@@ -1351,6 +1240,11 @@ class DataItem(LibraryItem):
         data_item = super().clone()
         for data_source in self.data_sources:
             data_item.append_data_source(data_source.clone())
+        for display in copy.copy(data_item.displays):
+            data_item.remove_display(display)
+        for display in self.displays:
+            data_item.add_display(display.clone())
+        data_item.__update_displays()
         return data_item
 
     def snapshot(self):
@@ -1362,12 +1256,17 @@ class DataItem(LibraryItem):
             data_item.remove_data_source(data_source)
         for data_source in self.data_sources:
             data_item.append_data_source(data_source.snapshot())
+        for display in copy.copy(data_item.displays):
+            data_item.remove_display(display)
+        for display in self.displays:
+            data_item.add_display(copy.deepcopy(display))
+        data_item.__update_displays()
         return data_item
 
     def set_storage_cache(self, storage_cache):
         super().set_storage_cache(storage_cache)
-        for data_source in self.data_sources:
-            data_source.set_storage_cache(self._suspendable_storage_cache)
+        for display in self.displays:
+            display.set_storage_cache(self._suspendable_storage_cache)
 
     def _enter_transaction_state(self):
         super()._enter_transaction_state()
@@ -1385,7 +1284,16 @@ class DataItem(LibraryItem):
     def _read_from_dict_inner(self, properties):
         for data_source in copy.copy(self.data_sources):
             self.remove_data_source(data_source)
+        for display in copy.copy(self.displays):
+            self.remove_display(display)
         super()._read_from_dict_inner(properties)
+
+    def finish_reading(self):
+        data_and_metadata = self.xdata
+        for display in self.displays:
+            display.validate_slice_indexes()
+            display.update_data(data_and_metadata)
+        super().finish_reading()
 
     def _finish_write(self):
         super()._finish_write()
@@ -1400,10 +1308,6 @@ class DataItem(LibraryItem):
         super()._finish_pending_write_inner()
         if self.__write_delay_data_changed:
             self.persistent_object_context.rewrite_data_item_data(self)
-
-    def _r_value_changed(self):
-        for data_source in self.data_sources:
-            data_source.r_value_changed()
 
     def update_and_bind_computation(self, computation_context):
         super().update_and_bind_computation(computation_context)
@@ -1467,10 +1371,15 @@ class DataItem(LibraryItem):
             self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
     def __handle_data_changed(self, data_source):
+        self.__change_changed = True
         self.timezone = Utility.get_local_timezone()
         self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
         if self._session_manager:
             self.session_id = self._session_manager.current_session_id
+
+    def __handle_d_metadata_changed(self):
+        self.__change_changed = True
+        self.d_metadata_changed_event.fire()
 
     def __insert_data_source(self, name, before_index, data_source):
         data_source.about_to_be_inserted(self)
@@ -1482,15 +1391,7 @@ class DataItem(LibraryItem):
         # so load data here to keep the books straight when the transaction state is exited.
         if self.in_transaction_state:
             data_source.increment_data_ref_count()
-        def metadata_changed():
-            self.d_metadata_changed_event.fire()
-        self.__d_metadata_changed_event_listeners.insert(before_index, data_source.metadata_changed_event.listen(metadata_changed))
-        def data_item_changed():
-            if not self._is_reading:
-                self.__write_delay_data_changed = True
-                self._notify_library_item_content_changed()
-                self.data_item_changed_event.fire()
-        self.__data_item_changed_event_listeners.insert(before_index, data_source.data_item_changed_event.listen(data_item_changed))
+        self.__d_metadata_changed_event_listeners.insert(before_index, data_source.metadata_changed_event.listen(self.__handle_d_metadata_changed))
         self._notify_library_item_content_changed()
         # the document model watches for new data sources via observing.
         # send this message to make data_sources observable.
@@ -1504,8 +1405,6 @@ class DataItem(LibraryItem):
     def __disconnect_data_source(self, index, data_source):
         self.__d_metadata_changed_event_listeners[index].close()
         del self.__d_metadata_changed_event_listeners[index]
-        self.__data_item_changed_event_listeners[index].close()
-        del self.__data_item_changed_event_listeners[index]
         data_source.set_dependent_data_item(None)
         self.__data_changed_event_listeners[index].close()
         del self.__data_changed_event_listeners[index]
@@ -1524,6 +1423,21 @@ class DataItem(LibraryItem):
     def remove_data_source(self, data_source):
         """Remove display, but do it through the container, so dependencies can be tracked."""
         self.remove_model_item(self, "data_sources", data_source)
+
+    def __insert_display(self, name, before_index, display):
+        display.about_to_be_inserted(self)
+
+    def __remove_display(self, name, index, display):
+        display.about_to_be_removed()
+        display.close()
+
+    def add_display(self, display):
+        """Add a display, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "displays", self.item_count("displays"), display)
+
+    def remove_display(self, display):
+        """Remove display, but do it through the container, so dependencies can be tracked."""
+        self.remove_model_item(self, "displays", display)
 
     @property
     def computation(self) -> typing.Optional[Symbolic.Computation]:
@@ -1571,10 +1485,11 @@ class DataItem(LibraryItem):
         return DisplaySpecifier()
 
     def _update_timezone(self):
-        for data_source in self.data_sources:
-            data_source.timezone = self.timezone
-            data_source.timezone_offset = self.timezone_offset
-        super()._update_timezone()
+        with self.data_source_changes():
+            for data_source in self.data_sources:
+                data_source.timezone = self.timezone
+                data_source.timezone_offset = self.timezone_offset
+            super()._update_timezone()
 
     def rebind_computations(self, context) -> None:
         computation = self.computation
@@ -1595,12 +1510,14 @@ class DataItem(LibraryItem):
         return self.maybe_data_source.data_and_metadata if self.maybe_data_source else None
 
     def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
-        if self.maybe_data_source:
-            self.maybe_data_source.set_data(data, data_modified)
+        with self.data_source_changes():
+            if self.maybe_data_source:
+                self.maybe_data_source.set_data(data, data_modified)
 
     def set_xdata(self, xdata: DataAndMetadata.DataAndMetadata, data_modified: datetime.datetime=None) -> None:
-        if self.maybe_data_source:
-            self.maybe_data_source.set_data_and_metadata(xdata, data_modified)
+        with self.data_source_changes():
+            if self.maybe_data_source:
+                self.maybe_data_source.set_data_and_metadata(xdata, data_modified)
 
     # grab a data reference as a context manager. the object
     # returned defines data and data properties. reading data
@@ -1639,19 +1556,58 @@ class DataItem(LibraryItem):
         return self.maybe_data_source._get_data()
 
     def __set_data(self, data, data_modified=None):
-        self.maybe_data_source._set_data(data, data_modified)
+        with self.data_source_changes():
+            self.maybe_data_source._set_data(data, data_modified)
 
-    def xdata_changes(self):
+    def data_source_changes(self):
         # return a context manager to batch up a set of changes so that listeners
         # are only notified after the last change is complete.
-        buffered_data_source = self.maybe_data_source
-        class ChangeContextManager(object):
+        begin_changes = self.__begin_changes
+        end_changes = self.__end_changes
+        class ChangeContextManager:
             def __enter__(self):
-                buffered_data_source._begin_changes()
+                begin_changes()
                 return self
             def __exit__(self, type, value, traceback):
-                buffered_data_source._end_changes()
+                end_changes()
         return ChangeContextManager()
+
+    def __begin_changes(self):
+        with self.__change_count_lock:
+            if self.__change_count == 0:
+                self.__change_thread = threading.current_thread()
+            else:
+                if self.__change_thread != threading.current_thread():
+                    warnings.warn('begin changes from different threads', RuntimeWarning, stacklevel=2)
+            self.__change_count += 1
+
+    def __end_changes(self):
+        changed = False
+        with self.__change_count_lock:
+            if self.__change_count == 1:
+                self.__change_thread = None
+            else:
+                if self.__change_thread != threading.current_thread():
+                    warnings.warn('end changes from different threads', RuntimeWarning, stacklevel=2)
+            self.__change_count -= 1
+            change_count = self.__change_count
+            if change_count == 0:
+                changed = self.__change_changed
+                self.__change_changed = False
+        # if the change count is now zero, it means that we're ready
+        # to pass on the next value.
+        if change_count == 0 and changed:
+            self.__update_displays()
+            if not self._is_reading:
+                self.__write_delay_data_changed = True
+                self._notify_library_item_content_changed()
+                self.data_item_changed_event.fire()
+
+    def __update_displays(self):
+        data_and_metadata = self.xdata
+        for display in self.displays:
+            display.validate_slice_indexes()
+            display.update_data(data_and_metadata)
 
     @property
     def data_modified(self) -> datetime.datetime:
@@ -1659,8 +1615,9 @@ class DataItem(LibraryItem):
 
     @data_modified.setter
     def data_modified(self, value: datetime.datetime) -> None:
-        if self.maybe_data_source:
-            self.maybe_data_source.data_modified = value
+        with self.data_source_changes():
+            if self.maybe_data_source:
+                self.maybe_data_source.data_modified = value
 
     @property
     def intensity_calibration(self) -> Calibration.Calibration:
@@ -1668,8 +1625,9 @@ class DataItem(LibraryItem):
 
     @intensity_calibration.setter
     def intensity_calibration(self, intensity_calibration: Calibration.Calibration) -> None:
-        if self.maybe_data_source:
-            self.maybe_data_source.set_intensity_calibration(intensity_calibration)
+        with self.data_source_changes():
+            if self.maybe_data_source:
+                self.maybe_data_source.set_intensity_calibration(intensity_calibration)
 
     def set_intensity_calibration(self, intensity_calibration):
         self.intensity_calibration = intensity_calibration
@@ -1680,8 +1638,9 @@ class DataItem(LibraryItem):
 
     @dimensional_calibrations.setter
     def dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
-        if self.maybe_data_source:
-            self.maybe_data_source.set_dimensional_calibrations(dimensional_calibrations)
+        with self.data_source_changes():
+            if self.maybe_data_source:
+                self.maybe_data_source.set_dimensional_calibrations(dimensional_calibrations)
 
     def set_dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
         self.dimensional_calibrations = dimensional_calibrations
@@ -1699,12 +1658,9 @@ class DataItem(LibraryItem):
 
     @d_metadata.setter
     def d_metadata(self, value: dict) -> None:
-        if self.maybe_data_source:
-            self.maybe_data_source.metadata = value
-
-    @property
-    def displays(self) -> typing.List[Display.Display]:
-        return self.maybe_data_source.displays if self.maybe_data_source else list()
+        with self.data_source_changes():
+            if self.maybe_data_source:
+                self.maybe_data_source.metadata = value
 
     @property
     def has_data(self) -> bool:
