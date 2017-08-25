@@ -74,14 +74,14 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
-            interval_region = data_item.maybe_data_source.displays[0].graphics[0]
+            interval_region = data_item.displays[0].graphics[0]
             self.assertEqual(interval_region.type, "interval-graphic")
             self.assertTrue(interval_region.end > interval_region.start)
 
@@ -94,15 +94,15 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region = Graphics.IntervalGraphic()
             region.start = 0.9
             region.end = 0.95
-            data_item.maybe_data_source.displays[0].add_graphic(region)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].add_graphic(region)
+            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_drag((240, 160), (240, 480))
-            interval_region = data_item.maybe_data_source.displays[0].graphics[1]
+            interval_region = data_item.displays[0].graphics[1]
             self.assertEqual(interval_region.type, "interval-graphic")
             self.assertTrue(interval_region.end > interval_region.start)
 
@@ -115,8 +115,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region = Graphics.IntervalGraphic()
             region.start = 0.1
             region.end = 0.9
-            data_item.maybe_data_source.displays[0].add_graphic(region)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].add_graphic(region)
+            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
@@ -125,7 +125,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_controller.tool_mode = "pointer"
             display_panel.display_canvas_item.simulate_click((240, 320))
             display_panel.display_canvas_item.key_pressed(self.app.ui.create_key_by_id("left"))
-            interval_region = data_item.maybe_data_source.displays[0].graphics[0]
+            interval_region = data_item.displays[0].graphics[0]
             self.assertTrue(interval_region.start < 0.1)
             self.assertTrue(interval_region.end < 0.9)
             self.assertAlmostEqual(interval_region.end - interval_region.start, 0.8)

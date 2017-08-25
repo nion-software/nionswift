@@ -73,7 +73,7 @@ class ImportExportHandler(object):
             self.write_file(data_item, extension, f)
 
     def write_file(self, data_item, extension, file):
-        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
+        data = data_item.data
         if data is not None:
             self.write_data(data, extension, file)
 
@@ -118,8 +118,8 @@ class ImportExportManager(metaclass=Utility.Singleton):
 
     def get_writers_for_data_item(self, data_item):
         writers = []
-        if len(data_item.data_sources) > 0:
-            data_metadata = data_item.data_sources[0].data_metadata
+        data_metadata = data_item.data_metadata
+        if data_metadata:
             for io_handler in self.__io_handlers:
                 for extension in io_handler.extensions:
                     if io_handler.can_write(data_metadata, extension.lower()):
@@ -153,8 +153,8 @@ class ImportExportManager(metaclass=Utility.Singleton):
         if extension:
             extension = extension[1:]  # remove the leading "."
             extension = extension.lower()
-            buffered_data_source = data_item.maybe_data_source
-            if extension in writer.extensions and buffered_data_source and writer.can_write(buffered_data_source.data_metadata, extension):
+            data_metadata = data_item.data_metadata
+            if extension in writer.extensions and data_metadata and writer.can_write(data_metadata, extension):
                 writer.write(ui, data_item, path, extension)
 
     def write_data_items(self, ui, data_item, path):
@@ -163,8 +163,8 @@ class ImportExportManager(metaclass=Utility.Singleton):
             extension = extension[1:]  # remove the leading "."
             extension = extension.lower()
             for io_handler in self.__io_handlers:
-                buffered_data_source = data_item.maybe_data_source
-                if extension in io_handler.extensions and buffered_data_source and io_handler.can_write(buffered_data_source.data_metadata, extension):
+                data_metadata = data_item.data_metadata
+                if extension in io_handler.extensions and data_metadata and io_handler.can_write(data_metadata, extension):
                     io_handler.write(ui, data_item, path, extension)
 
 
@@ -184,8 +184,7 @@ def create_data_item_from_data_element(data_element, data_file_path=None):
 # data element is a dict which can be processed into a data item
 # the existing data item may have a new size and dtype after returning.
 def update_data_item_from_data_element(data_item, data_element, data_file_path=None):
-    if len(data_item.data_sources) == 0:
-        data_item.append_data_source(DataItem.BufferedDataSource())
+    data_item.ensure_data_source()
     version = data_element["version"] if "version" in data_element else 1
     if version == 1:
         update_data_item_from_data_element_1(data_item, data_element, data_file_path)
@@ -194,10 +193,9 @@ def update_data_item_from_data_element(data_item, data_element, data_file_path=N
 
 
 def update_data_item_from_data_element_1(data_item, data_element, data_file_path=None):
-    # assumes that data item has a single buffered_data_source
     display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-    assert display_specifier.buffered_data_source and display_specifier.display
-    with data_item.data_item_changes(), display_specifier.buffered_data_source._changes():
+    assert display_specifier.data_item and display_specifier.display
+    with data_item.data_item_changes(), display_specifier.data_item.xdata_changes():
         # file path
         # master data
         if data_file_path is not None:
@@ -210,9 +208,9 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         collection_dimension_count = data_and_metadata.collection_dimension_count
         datum_dimension_count = data_and_metadata.datum_dimension_count
         data_shape_data_dtype = data_and_metadata.data_shape_and_dtype
-        is_same_shape = display_specifier.buffered_data_source.data_shape_and_dtype == data_shape_data_dtype and display_specifier.buffered_data_source.is_sequence == is_sequence and display_specifier.buffered_data_source.collection_dimension_count == collection_dimension_count and display_specifier.buffered_data_source.datum_dimension_count == datum_dimension_count
+        is_same_shape = display_specifier.data_item.data_shape == data_shape_data_dtype[0] and display_specifier.data_item.data_dtype == data_shape_data_dtype[1] and display_specifier.data_item.is_sequence == is_sequence and display_specifier.data_item.collection_dimension_count == collection_dimension_count and display_specifier.data_item.datum_dimension_count == datum_dimension_count
         if is_same_shape:
-            with display_specifier.buffered_data_source.data_ref() as data_ref:
+            with display_specifier.data_item.data_ref() as data_ref:
                 sub_area = data_element.get("sub_area")
                 if sub_area is not None:
                     top = sub_area[0][0]
@@ -225,14 +223,12 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                 data_ref.data_updated()  # trigger change notifications
             if dimensional_calibrations is not None:
                 for dimension, dimensional_calibration in enumerate(dimensional_calibrations):
-                    display_specifier.buffered_data_source.set_dimensional_calibration(dimension, dimensional_calibration)
+                    display_specifier.data_item.set_dimensional_calibration(dimension, dimensional_calibration)
             if intensity_calibration:
-                display_specifier.buffered_data_source.set_intensity_calibration(intensity_calibration)
-            buffered_data_source = data_item.maybe_data_source
-            if buffered_data_source:
-                buffered_data_source.metadata = data_and_metadata.metadata
+                display_specifier.data_item.set_intensity_calibration(intensity_calibration)
+            data_item.d_metadata = data_and_metadata.metadata
         else:
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            display_specifier.data_item.set_xdata(data_and_metadata)
         # title
         if "title" in data_element:
             data_item.title = data_element["title"]
@@ -246,9 +242,6 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         # datetime_original, datetime_original_tz, datetime_original_dst, datetime_original_tzname is the time at which this image was created.
         utc_datetime = data_and_metadata.timestamp
         data_item.created = utc_datetime
-        buffered_data_source = data_item.maybe_data_source
-        if buffered_data_source:
-            buffered_data_source.created = utc_datetime
         if "time_zone" in data_and_metadata.metadata.get("description", dict()):
             metadata = data_item.metadata
             timezone_dict = copy.deepcopy(data_and_metadata.metadata["description"]["time_zone"])
@@ -272,7 +265,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         if "arrows" in data_element:
             for arrow_coordinates in data_element["arrows"]:
                 start, end = arrow_coordinates
-                dimensional_shape = display_specifier.buffered_data_source.dimensional_shape
+                dimensional_shape = display_specifier.data_item.dimensional_shape
                 line_graphic = Graphics.LineGraphic()
                 line_graphic.start = (float(start[0]) / dimensional_shape[0], float(start[1]) / dimensional_shape[1])
                 line_graphic.end = (float(end[0]) / dimensional_shape[0], float(end[1]) / dimensional_shape[1])
@@ -365,27 +358,26 @@ def create_data_element_from_data_item(data_item, include_data=True):
     data_element = dict()
     data_element["version"] = 1
     data_element["reader_version"] = 1
-    buffered_data_source = data_item.maybe_data_source
-    if buffered_data_source:
+    if data_item.has_data:
         if include_data:
-            data_element["data"] = buffered_data_source.data
-        dimensional_calibrations = buffered_data_source.dimensional_calibrations
+            data_element["data"] = data_item.data
+        dimensional_calibrations = data_item.dimensional_calibrations
         if dimensional_calibrations is not None:
             calibrations_element = list()
             for calibration in dimensional_calibrations:
                 calibration_element = { "offset": calibration.offset, "scale": calibration.scale, "units": calibration.units }
                 calibrations_element.append(calibration_element)
             data_element["spatial_calibrations"] = calibrations_element
-        intensity_calibration = buffered_data_source.intensity_calibration
+        intensity_calibration = data_item.intensity_calibration
         if intensity_calibration is not None:
             intensity_calibration_element = { "offset": intensity_calibration.offset, "scale": intensity_calibration.scale, "units": intensity_calibration.units }
             data_element["intensity_calibration"] = intensity_calibration_element
-        if buffered_data_source.is_sequence:
-            data_element["is_sequence"] = buffered_data_source.is_sequence
-        data_element["collection_dimension_count"] = buffered_data_source.collection_dimension_count
-        data_element["datum_dimension_count"] = buffered_data_source.datum_dimension_count
-        data_element["metadata"] = copy.deepcopy(buffered_data_source.metadata)
-        data_element["properties"] = copy.deepcopy(buffered_data_source.metadata.get("hardware_source", dict()))
+        if data_item.is_sequence:
+            data_element["is_sequence"] = data_item.is_sequence
+        data_element["collection_dimension_count"] = data_item.collection_dimension_count
+        data_element["datum_dimension_count"] = data_item.datum_dimension_count
+        data_element["metadata"] = copy.deepcopy(data_item.d_metadata)
+        data_element["properties"] = copy.deepcopy(data_item.d_metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
         tz_value = data_item.timezone_offset
@@ -496,7 +488,7 @@ class CSVImportExportHandler(ImportExportHandler):
         return True
 
     def write(self, ui, data_item, path, extension):
-        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
+        data = data_item.data
         if data is not None:
             numpy.savetxt(path, data, delimiter=', ')
 
@@ -524,7 +516,7 @@ class NDataImportExportHandler(ImportExportHandler):
 
     def write(self, ui, data_item, path, extension):
         data_element = create_data_element_from_data_item(data_item, include_data=False)
-        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
+        data = data_item.data
         if data is not None:
             root, ext = os.path.splitext(path)
             metadata_path = root + "_metadata.json"
@@ -577,7 +569,7 @@ class NumPyImportExportHandler(ImportExportHandler):
         data_path = pathlib.Path(path_str)
         metadata_path = data_path.with_suffix(".json")
         data_element = create_data_element_from_data_item(data_item, include_data=False)
-        data = data_item.maybe_data_source.data if data_item.maybe_data_source else None
+        data = data_item.data
         if data is not None:
             try:
                 with open(str(metadata_path), "w") as fp:

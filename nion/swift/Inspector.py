@@ -101,10 +101,10 @@ class InspectorPanel(Panel.Panel):
 
         self.__display_inspector = DataItemInspector(self.ui, self.document_controller, self.__display_specifier)
 
-        buffered_data_source = self.__display_specifier.buffered_data_source
+        data_item = self.__display_specifier.data_item
         display = self.__display_specifier.display
 
-        new_data_shape = buffered_data_source.data_shape if buffered_data_source else ()
+        new_data_shape = data_item.data_shape if data_item else ()
         new_display_data_shape = display.preview_2d_shape if display else ()
         new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
         new_display_type = display.display_type if display else None
@@ -126,7 +126,7 @@ class InspectorPanel(Panel.Panel):
             def display_changed():
                 # not really a recursive call; only delayed
                 # this may come in on a thread (superscan probe position connection closing). delay even more.
-                new_data_shape = buffered_data_source.data_shape if buffered_data_source else ()
+                new_data_shape = data_item.data_shape if data_item else ()
                 new_display_data_shape = display.preview_2d_shape if display else ()
                 new_display_data_shape = new_display_data_shape if new_display_data_shape is not None else ()
                 new_display_type = display.display_type if display else None
@@ -489,9 +489,9 @@ class CalibrationsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement calibrations inspector.
     """
 
-    def __init__(self, ui, data_item, buffered_data_source, display):
+    def __init__(self, ui, data_item, display):
         super().__init__(ui, "calibrations", _("Calibrations"))
-        self.__buffered_data_source = buffered_data_source
+        self.__data_item = data_item
         self.__calibration_observables = list()
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -504,11 +504,11 @@ class CalibrationsInspectorSection(InspectorSection):
                 self.content_widget.add_task("update_calibration_list" + str(id(self)), self.__build_calibration_list)
             else:
                 self.__build_calibration_list()
-        self.__data_item_changed_event_listener = self.__buffered_data_source.data_item_changed_event.listen(handle_data_item_changed)
+        self.__data_item_changed_event_listener = self.__data_item.data_item_changed_event.listen(handle_data_item_changed)
         self.__build_calibration_list()
         # create the intensity row
-        intensity_calibration = self.__buffered_data_source.intensity_calibration or Calibration.Calibration()
-        intensity_calibration_observable = CalibrationToObservable(intensity_calibration, self.__buffered_data_source.set_intensity_calibration)
+        intensity_calibration = self.__data_item.intensity_calibration or Calibration.Calibration()
+        intensity_calibration_observable = CalibrationToObservable(intensity_calibration, self.__data_item.set_intensity_calibration)
         if intensity_calibration_observable is not None:
             intensity_row = self.ui.create_row_widget()
             row_label = self.ui.create_label_widget(_("Intensity"), properties={"width": 60})
@@ -547,14 +547,14 @@ class CalibrationsInspectorSection(InspectorSection):
 
     # not thread safe
     def __build_calibration_list(self):
-        dimensional_calibrations = self.__buffered_data_source.dimensional_calibrations or list()
+        dimensional_calibrations = self.__data_item.dimensional_calibrations or list()
         while len(dimensional_calibrations) < self.__list_widget.list_item_count:
             self.__list_widget.remove_item(len(self.__calibration_observables) - 1)
             self.__calibration_observables[-1].close()
             self.__calibration_observables.pop(-1)
         while len(dimensional_calibrations) > self.__list_widget.list_item_count:
             index = self.__list_widget.list_item_count
-            calibration_observable = CalibrationToObservable(dimensional_calibrations[index], functools.partial(self.__buffered_data_source.set_dimensional_calibration, index))
+            calibration_observable = CalibrationToObservable(dimensional_calibrations[index], functools.partial(self.__data_item.set_dimensional_calibration, index))
             self.__calibration_observables.append(calibration_observable)
             self.__list_widget.insert_item(calibration_observable, index)
         assert len(dimensional_calibrations) == self.__list_widget.list_item_count
@@ -811,14 +811,14 @@ class SequenceInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, ui, data_item, buffered_data_source, display):
+    def __init__(self, ui, data_item, display):
         super().__init__(ui, "sequence", _("Sequence"))
 
         sequence_index_row_widget = self.ui.create_row_widget()
         sequence_index_label_widget = self.ui.create_label_widget(_("Index"))
         sequence_index_line_edit_widget = self.ui.create_line_edit_widget()
         sequence_index_slider_widget = self.ui.create_slider_widget()
-        sequence_index_slider_widget.maximum = buffered_data_source.dimensional_shape[0] - 1  # sequence_index
+        sequence_index_slider_widget.maximum = data_item.dimensional_shape[0] - 1  # sequence_index
         sequence_index_slider_widget.bind_value(Binding.PropertyBinding(display, "sequence_index"))
         sequence_index_line_edit_widget.bind_text(Binding.PropertyBinding(display, "sequence_index", converter=Converter.IntegerToStringConverter()))
         sequence_index_row_widget.add(sequence_index_label_widget)
@@ -842,17 +842,17 @@ class CollectionIndexInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, ui, buffered_data_source, display):
+    def __init__(self, ui, data_item, display):
         super().__init__(ui, "collection-index", _("Index"))
 
         column_widget = self.ui.create_column_widget()
-        collection_index_base = 1 if buffered_data_source.is_sequence else 0
-        for index in range(buffered_data_source.collection_dimension_count):
+        collection_index_base = 1 if data_item.is_sequence else 0
+        for index in range(data_item.collection_dimension_count):
             index_row_widget = self.ui.create_row_widget()
             index_label_widget = self.ui.create_label_widget("{}: {}".format(_("Index"), index))
             index_line_edit_widget = self.ui.create_line_edit_widget()
             index_slider_widget = self.ui.create_slider_widget()
-            index_slider_widget.maximum = buffered_data_source.dimensional_shape[collection_index_base + index] - 1
+            index_slider_widget.maximum = data_item.dimensional_shape[collection_index_base + index] - 1
             index_slider_widget.bind_value(Binding.TuplePropertyBinding(display, "collection_index", index))
             index_line_edit_widget.bind_text(Binding.TuplePropertyBinding(display, "collection_index", index, converter=Converter.IntegerToStringConverter()))
             index_row_widget.add(index_label_widget)
@@ -876,14 +876,14 @@ class SliceInspectorSection(InspectorSection):
         Subclass InspectorSection to implement slice inspector.
     """
 
-    def __init__(self, ui, data_item, buffered_data_source, display):
+    def __init__(self, ui, data_item, display):
         super().__init__(ui, "slice", _("Slice"))
 
         slice_center_row_widget = self.ui.create_row_widget()
         slice_center_label_widget = self.ui.create_label_widget(_("Slice"))
         slice_center_line_edit_widget = self.ui.create_line_edit_widget()
         slice_center_slider_widget = self.ui.create_slider_widget()
-        slice_center_slider_widget.maximum = buffered_data_source.dimensional_shape[-1] - 1  # signal_index
+        slice_center_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
         slice_center_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_center"))
         slice_center_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_center", converter=Converter.IntegerToStringConverter()))
         slice_center_row_widget.add(slice_center_label_widget)
@@ -897,7 +897,7 @@ class SliceInspectorSection(InspectorSection):
         slice_width_label_widget = self.ui.create_label_widget(_("Width"))
         slice_width_line_edit_widget = self.ui.create_line_edit_widget()
         slice_width_slider_widget = self.ui.create_slider_widget()
-        slice_width_slider_widget.maximum = buffered_data_source.dimensional_shape[-1] - 1  # signal_index
+        slice_width_slider_widget.maximum = data_item.dimensional_shape[-1] - 1  # signal_index
         slice_width_slider_widget.bind_value(Binding.PropertyBinding(display, "slice_width"))
         slice_width_line_edit_widget.bind_text(Binding.PropertyBinding(display, "slice_width", converter=Converter.IntegerToStringConverter()))
         slice_width_row_widget.add(slice_width_label_widget)
@@ -932,8 +932,8 @@ class CalibratedValueFloatToStringConverter:
     """
         Converter object to convert from calibrated value to string and back.
     """
-    def __init__(self, buffered_data_source, display, index):
-        self.__buffered_data_source = buffered_data_source
+    def __init__(self, data_item, display, index):
+        self.__data_item = data_item
         self.__display = display
         self.__index = index
     def __get_calibration(self):
@@ -947,7 +947,7 @@ class CalibratedValueFloatToStringConverter:
             return Calibration.Calibration()
     def __get_data_size(self):
         index = self.__index
-        dimensional_shape = self.__buffered_data_source.dimensional_shape
+        dimensional_shape = self.__data_item.dimensional_shape
         dimension_count = len(dimensional_shape) if dimensional_shape is not None else 0
         if index < 0:
             index = dimension_count + index
@@ -980,8 +980,8 @@ class CalibratedSizeFloatToStringConverter:
     """
         Converter object to convert from calibrated size to string and back.
         """
-    def __init__(self, buffered_data_source, display, index, factor=1.0):
-        self.__buffered_data_source = buffered_data_source
+    def __init__(self, data_item, display, index, factor=1.0):
+        self.__data_item = data_item
         self.__display = display
         self.__index = index
         self.__factor = factor
@@ -996,11 +996,11 @@ class CalibratedSizeFloatToStringConverter:
             return Calibration.Calibration()
     def __get_data_size(self):
         index = self.__index
-        dimension_count = len(self.__buffered_data_source.dimensional_shape)
+        dimension_count = len(self.__data_item.dimensional_shape)
         if index < 0:
             index = dimension_count + index
         if index >= 0 and index < dimension_count:
-            return self.__buffered_data_source.dimensional_shape[index]
+            return self.__data_item.dimensional_shape[index]
         else:
             return 1.0
     def convert_calibrated_value_to_str(self, calibrated_value):
@@ -1021,13 +1021,13 @@ class CalibratedSizeFloatToStringConverter:
 
 
 class CalibratedBinding(Binding.Binding):
-    def __init__(self, buffered_data_source, display, value_binding, converter):
+    def __init__(self, data_item, display, value_binding, converter):
         super().__init__(None, converter)
         self.__value_binding = value_binding
         def update_target(value):
             self.update_target_direct(self.get_target_value())
         self.__value_binding.target_setter = update_target
-        self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(lambda: update_target(None))
+        self.__metadata_changed_event_listener = data_item.d_metadata_changed_event.listen(lambda: update_target(None))
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
                 update_target(display.displayed_dimensional_calibrations)
@@ -1052,37 +1052,37 @@ class CalibratedBinding(Binding.Binding):
 
 
 class CalibratedValueBinding(CalibratedBinding):
-    def __init__(self, buffered_data_source, index, display, value_binding):
-        converter = CalibratedValueFloatToStringConverter(buffered_data_source, display, index)
-        super().__init__(buffered_data_source, display, value_binding, converter)
+    def __init__(self, data_item, index, display, value_binding):
+        converter = CalibratedValueFloatToStringConverter(data_item, display, index)
+        super().__init__(data_item, display, value_binding, converter)
 
 
 class CalibratedSizeBinding(CalibratedBinding):
-    def __init__(self, buffered_data_source, index, display, value_binding):
-        converter = CalibratedSizeFloatToStringConverter(buffered_data_source, display, index)
-        super().__init__(buffered_data_source, display, value_binding, converter)
+    def __init__(self, data_item, index, display, value_binding):
+        converter = CalibratedSizeFloatToStringConverter(data_item, display, index)
+        super().__init__(data_item, display, value_binding, converter)
 
 
 class CalibratedWidthBinding(CalibratedBinding):
-    def __init__(self, buffered_data_source, display, value_binding):
-        factor = 1.0 / buffered_data_source.dimensional_shape[0]
-        converter = CalibratedSizeFloatToStringConverter(buffered_data_source, display, 0, factor)  # width is stored in pixels. argh.
-        super().__init__(buffered_data_source, display, value_binding, converter)
+    def __init__(self, data_item, display, value_binding):
+        factor = 1.0 / data_item.dimensional_shape[0]
+        converter = CalibratedSizeFloatToStringConverter(data_item, display, 0, factor)  # width is stored in pixels. argh.
+        super().__init__(data_item, display, value_binding, converter)
 
 
 class CalibratedLengthBinding(Binding.Binding):
-    def __init__(self, buffered_data_source, display, start_binding, end_binding):
+    def __init__(self, data_item, display, start_binding, end_binding):
         super().__init__(None, None)
-        self.__x_converter = CalibratedValueFloatToStringConverter(buffered_data_source, display, 1)
-        self.__y_converter = CalibratedValueFloatToStringConverter(buffered_data_source, display, 0)
-        self.__size_converter = CalibratedSizeFloatToStringConverter(buffered_data_source, display, 0)
+        self.__x_converter = CalibratedValueFloatToStringConverter(data_item, display, 1)
+        self.__y_converter = CalibratedValueFloatToStringConverter(data_item, display, 0)
+        self.__size_converter = CalibratedSizeFloatToStringConverter(data_item, display, 0)
         self.__start_binding = start_binding
         self.__end_binding = end_binding
         def update_target(value):
             self.update_target_direct(self.get_target_value())
         self.__start_binding.target_setter = update_target
         self.__end_binding.target_setter = update_target
-        self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(lambda: update_target(None))
+        self.__metadata_changed_event_listener = data_item.d_metadata_changed_event.listen(lambda: update_target(None))
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
                 update_target(display.displayed_dimensional_calibrations)
@@ -1141,12 +1141,12 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add(graphic_position_row)
     graphic_widget.add_spacing(4)
 
-    image_size = display_specifier.buffered_data_source.dimensional_shape
+    image_size = display_specifier.data_item.dimensional_shape
     if (len(image_size) > 1):
         # calculate values from rectangle type graphic
         # signal_index
-        position_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 1))
-        position_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 0))
+        position_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 1))
+        position_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 0))
         graphic_position_x_line_edit.bind_text(position_x_binding)
         graphic_position_y_line_edit.bind_text(position_y_binding)
     else:
@@ -1212,15 +1212,15 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add(graphic_param_row)
     graphic_widget.add_spacing(4)
 
-    image_size = display_specifier.buffered_data_source.dimensional_shape
+    image_size = display_specifier.data_item.dimensional_shape
     if len(image_size) > 1:
         # configure the bindings
         # signal_index
-        start_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 1))
-        start_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 0))
-        end_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 1))
-        end_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 0))
-        length_binding = CalibratedLengthBinding(display_specifier.buffered_data_source, display_specifier.display, Binding.PropertyBinding(graphic, "start"), Binding.PropertyBinding(graphic, "end"))
+        start_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 1))
+        start_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 0))
+        end_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 1))
+        end_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 0))
+        length_binding = CalibratedLengthBinding(display_specifier.data_item, display_specifier.display, Binding.PropertyBinding(graphic, "start"), Binding.PropertyBinding(graphic, "end"))
         angle_binding = Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter())
         graphic_start_x_line_edit.bind_text(start_x_binding)
         graphic_start_y_line_edit.bind_text(start_y_binding)
@@ -1240,7 +1240,7 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, graphic):
 def make_line_profile_inspector(ui, graphic_widget, display_specifier, graphic):
     make_line_type_inspector(ui, graphic_widget, display_specifier, graphic)
     # configure the bindings
-    width_binding = CalibratedWidthBinding(display_specifier.buffered_data_source, display_specifier.display, Binding.PropertyBinding(graphic, "width"))
+    width_binding = CalibratedWidthBinding(display_specifier.data_item, display_specifier.display, Binding.PropertyBinding(graphic, "width"))
     # create the ui
     graphic_width_row = ui.create_row_widget()
     graphic_width_row.add_spacing(20)
@@ -1296,13 +1296,13 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, graphic
     graphic_widget.add_spacing(4)
 
     # calculate values from rectangle type graphic
-    image_size = display_specifier.buffered_data_source.dimensional_shape
+    image_size = display_specifier.data_item.dimensional_shape
     if len(image_size) > 1:
         # signal_index
-        center_x_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 1))
-        center_y_binding = CalibratedValueBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 0))
-        size_width_binding = CalibratedSizeBinding(display_specifier.buffered_data_source, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 1))
-        size_height_binding = CalibratedSizeBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 0))
+        center_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 1))
+        center_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 0))
+        size_width_binding = CalibratedSizeBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 1))
+        size_height_binding = CalibratedSizeBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 0))
         graphic_center_x_line_edit.bind_text(center_x_binding)
         graphic_center_y_line_edit.bind_text(center_y_binding)
         graphic_size_width_line_edit.bind_text(size_width_binding)
@@ -1380,14 +1380,14 @@ def make_ring_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add(graphic_radius_2_row)
     graphic_widget.add(ring_mode_row)
 
-    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_1")))
-    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(display_specifier.buffered_data_source, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_2")))
+    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(display_specifier.data_item, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_1")))
+    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(display_specifier.data_item, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_2")))
 
 
 def make_interval_type_inspector(ui, graphic_widget, display_specifier, graphic):
     # configure the bindings
-    start_binding = CalibratedValueBinding(display_specifier.buffered_data_source, -1, display_specifier.display, Binding.PropertyBinding(graphic, "start"))
-    end_binding = CalibratedValueBinding(display_specifier.buffered_data_source, -1, display_specifier.display, Binding.PropertyBinding(graphic, "end"))
+    start_binding = CalibratedValueBinding(display_specifier.data_item, -1, display_specifier.display, Binding.PropertyBinding(graphic, "start"))
+    end_binding = CalibratedValueBinding(display_specifier.data_item, -1, display_specifier.display, Binding.PropertyBinding(graphic, "end"))
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1418,11 +1418,11 @@ class GraphicsInspectorSection(InspectorSection):
         Subclass InspectorSection to implement graphics inspector.
         """
 
-    def __init__(self, ui, data_item, buffered_data_source, display, selected_only=False):
+    def __init__(self, ui, data_item, display, selected_only=False):
         super().__init__(ui, "graphics", _("Graphics"))
-        self.__image_size = buffered_data_source.dimensional_shape
+        self.__image_size = data_item.dimensional_shape
         self.__graphics = display.graphics
-        self.__display_specifier = DataItem.DisplaySpecifier(data_item, buffered_data_source, display)
+        self.__display_specifier = DataItem.DisplaySpecifier(data_item, display)
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -1703,8 +1703,7 @@ class ComputationInspectorSection(InspectorSection):
     def __init__(self, ui, document_controller, data_item: DataItem.DataItem):
         super().__init__(ui, "computation", _("Computation"))
         document_model = document_controller.document_model
-        buffered_data_source = data_item.maybe_data_source
-        computation = buffered_data_source.computation
+        computation = data_item.computation
         if computation:
             label_row = self.ui.create_row_widget()
             label_widget = self.ui.create_label_widget()
@@ -1776,7 +1775,7 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
 
         self.ui = ui
 
-        data_item, buffered_data_source, display = display_specifier.data_item, display_specifier.buffered_data_source, display_specifier.display
+        data_item, display = display_specifier.data_item, display_specifier.display
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)
@@ -1792,44 +1791,44 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
 
         self.__focus_default = None
         inspector_sections = list()
-        display_data_shape = display.preview_2d_shape if buffered_data_source else ()
+        display_data_shape = display.preview_2d_shape if display else ()
         display_data_shape = display_data_shape if display_data_shape is not None else ()
-        if buffered_data_source and display.graphic_selection.has_selection:
-            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display, selected_only=True))
+        if display and display.graphic_selection.has_selection:
+            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, display, selected_only=True))
             def focus_default():
                 pass
             self.__focus_default = focus_default
-        elif buffered_data_source and (len(display_data_shape) == 1 or display.display_type == "line_plot"):
+        elif display and (len(display_data_shape) == 1 or display.display_type == "line_plot"):
             inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             inspector_sections.append(SessionInspectorSection(self.ui, data_item))
-            inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, display))
             inspector_sections.append(LinePlotDisplayInspectorSection(self.ui, display))
-            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            if buffered_data_source.is_sequence:
-                inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
-            if buffered_data_source.is_collection:
-                if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
-                    inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, display))
+            if data_item.is_sequence:
+                inspector_sections.append(SequenceInspectorSection(self.ui, data_item, display))
+            if data_item.is_collection:
+                if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+                    inspector_sections.append(SliceInspectorSection(self.ui, data_item, display))
                 else:  # default, pick
-                    inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
+                    inspector_sections.append(CollectionIndexInspectorSection(self.ui, data_item, display))
             inspector_sections.append(ComputationInspectorSection(self.ui, document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
-        elif buffered_data_source and (len(display_data_shape) == 2 or display.display_type == "image"):
+        elif display and (len(display_data_shape) == 2 or display.display_type == "image"):
             inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             inspector_sections.append(SessionInspectorSection(self.ui, data_item))
-            inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, display))
             inspector_sections.append(ImageDisplayInspectorSection(self.ui, display))
-            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, buffered_data_source, display))
-            if buffered_data_source.is_sequence:
-                inspector_sections.append(SequenceInspectorSection(self.ui, data_item, buffered_data_source, display))
-            if buffered_data_source.is_collection:
-                if buffered_data_source.collection_dimension_count == 2 and buffered_data_source.datum_dimension_count == 1:
-                    inspector_sections.append(SliceInspectorSection(self.ui, data_item, buffered_data_source, display))
+            inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, display))
+            if data_item.is_sequence:
+                inspector_sections.append(SequenceInspectorSection(self.ui, data_item, display))
+            if data_item.is_collection:
+                if data_item.collection_dimension_count == 2 and data_item.datum_dimension_count == 1:
+                    inspector_sections.append(SliceInspectorSection(self.ui, data_item, display))
                 else:  # default, pick
-                    inspector_sections.append(CollectionIndexInspectorSection(self.ui, buffered_data_source, display))
+                    inspector_sections.append(CollectionIndexInspectorSection(self.ui, data_item, display))
             inspector_sections.append(ComputationInspectorSection(self.ui, document_controller, data_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True

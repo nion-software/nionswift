@@ -118,9 +118,7 @@ class DisplayItem:
     @property
     def format_str(self):
         data_item = self.__data_item
-        display_specifier = data_item.primary_display_specifier
-        buffered_data_source = display_specifier.buffered_data_source
-        return buffered_data_source.size_and_data_format_as_string if buffered_data_source else str()
+        return data_item.size_and_data_format_as_string if data_item else str()
 
     @property
     def datetime_str(self):
@@ -131,13 +129,10 @@ class DisplayItem:
     def status_str(self):
         data_item = self.__data_item
         if data_item.is_live:
-            display_specifier = data_item.primary_display_specifier
-            buffered_data_source = display_specifier.buffered_data_source
-            if buffered_data_source:
-                live_metadata = buffered_data_source.metadata.get("hardware_source", dict())
-                frame_index_str = str(live_metadata.get("frame_index", str()))
-                partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), buffered_data_source.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
-                return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
+            live_metadata = data_item.d_metadata.get("hardware_source", dict())
+            frame_index_str = str(live_metadata.get("frame_index", str()))
+            partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
+            return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)
         return str()
 
     def drag_started(self, ui, x, y, modifiers):

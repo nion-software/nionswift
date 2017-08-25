@@ -41,7 +41,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
-            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
+            self.assertEqual(data_item.displays[0].graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
 
     def test_mapping_widget_to_image_on_3d_spectrum_image_uses_collection_dimensions(self):
         document_model = DocumentModel.DocumentModel()
@@ -58,7 +58,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
-            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
+            self.assertEqual(data_item.displays[0].graphics[0].vector, ((0.2, 0.25), (0.65, 0.85)))
 
     def test_dimension_used_for_scale_marker_on_2d_data_stack_is_correct(self):
         document_model = DocumentModel.DocumentModel()
@@ -68,7 +68,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             calibrations = [Calibration.Calibration(units="s"), Calibration.Calibration(units="y"), Calibration.Calibration(units="x")]
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((50, 10, 10)), dimensional_calibrations=calibrations, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
@@ -84,7 +84,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             calibrations = [Calibration.Calibration(units="y"), Calibration.Calibration(units="x"), Calibration.Calibration(units="e")]
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((10, 10, 50)), dimensional_calibrations=calibrations, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 1))
             data_item = DataItem.new_data_item(data_and_metadata)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
@@ -132,8 +132,8 @@ class TestImageCanvasItemClass(unittest.TestCase):
             line_region.start = (0.0, 1.0)
             line_region.end = (0.75, 0.25)
             # draws line, then rect
-            data_item.maybe_data_source.displays[0].add_graphic(line_region)
-            data_item.maybe_data_source.displays[0].add_graphic(rect_region)
+            data_item.displays[0].add_graphic(line_region)
+            data_item.displays[0].add_graphic(rect_region)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((50, 950))
             self.assertEqual(display_specifier.display.graphic_selection.indexes, set((0, )))
@@ -158,8 +158,8 @@ class TestImageCanvasItemClass(unittest.TestCase):
             line_region.start = (0.5, 0.5)
             line_region.end = (0.5, 1.0)
             # draws line, then rect
-            data_item.maybe_data_source.displays[0].add_graphic(line_region)
-            data_item.maybe_data_source.displays[0].add_graphic(rect_region)
+            data_item.displays[0].add_graphic(line_region)
+            data_item.displays[0].add_graphic(rect_region)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((500, 600))
@@ -181,8 +181,8 @@ class TestImageCanvasItemClass(unittest.TestCase):
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
             rect_region2 = Graphics.RectangleGraphic()
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
-            data_item.maybe_data_source.displays[0].add_graphic(rect_region1)
-            data_item.maybe_data_source.displays[0].add_graphic(rect_region2)
+            data_item.displays[0].add_graphic(rect_region1)
+            data_item.displays[0].add_graphic(rect_region2)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # clicking on line should select it
             display_panel.display_canvas_item.simulate_click((700, 700))
@@ -207,8 +207,8 @@ class TestImageCanvasItemClass(unittest.TestCase):
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
             rect_region2 = Graphics.RectangleGraphic()
             rect_region2.bounds = (0.4, 0.4), (0.4, 0.4)
-            data_item.maybe_data_source.displays[0].add_graphic(rect_region1)
-            data_item.maybe_data_source.displays[0].add_graphic(rect_region2)
+            data_item.displays[0].add_graphic(rect_region1)
+            data_item.displays[0].add_graphic(rect_region2)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_panel.display_canvas_item.simulate_click((500, 500))
             self.assertEqual(display_specifier.display.graphic_selection.indexes, set((1, )))

@@ -66,9 +66,8 @@ class ComputationModel:
 
     @property
     def __computation(self):
-        buffered_data_source = self.__display_specifier.buffered_data_source
-        if buffered_data_source:
-            return buffered_data_source.computation
+        if self.__display_specifier.data_item:
+            return self.__display_specifier.data_item.computation
         return None
 
     def set_data_item(self, data_item):
@@ -91,13 +90,13 @@ class ComputationModel:
 
     @computation_label.setter
     def computation_label(self, label):
-        buffered_data_source = self.__display_specifier.buffered_data_source
-        if buffered_data_source:
-            computation = buffered_data_source.computation
+        data_item = self.__display_specifier.data_item
+        if data_item:
+            computation = data_item.computation
             if not computation:
                 computation = self.document_controller.document_model.create_computation()
             computation.label = label
-            buffered_data_source.computation = computation
+            data_item.set_computation(computation)
 
     @property
     def computation_text(self):
@@ -105,13 +104,13 @@ class ComputationModel:
 
     @computation_text.setter
     def computation_text(self, computation_text):
-        buffered_data_source = self.__display_specifier.buffered_data_source
-        if buffered_data_source:
-            computation = buffered_data_source.computation
+        data_item = self.__display_specifier.data_item
+        if data_item:
+            computation = data_item.computation
             if not computation:
                 computation = self.document_controller.document_model.create_computation()
             computation.expression = computation_text
-            buffered_data_source.computation = computation
+            data_item.set_computation(computation)
 
     @property
     def error_text(self):

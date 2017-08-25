@@ -240,7 +240,7 @@ class DataItemStorage:
                 self.__storage_handler.write_data(data, file_datetime)
 
     def load_data(self):
-        assert self.data_item.maybe_data_source and self.data_item.maybe_data_source.has_data
+        assert self.data_item.has_data
         return self.__storage_handler.read_data()
 
     def set_property(self, object, name, value):
@@ -769,7 +769,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 version = properties.get("version", 0)
                 if version == 7:
                     reader_info.changed_ref[0] = True
-                    # version 7 -> 8 changes metadata to be stored in buffered_data_source
+                    # version 7 -> 8 changes metadata to be stored in buffered data source
                     data_source_dicts = properties.get("data_sources", list())
                     description_metadata = properties.setdefault("metadata", dict()).setdefault("description", dict())
                     data_source_dict = dict()
@@ -815,7 +815,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 traceback.print_stack()
 
     def __migrate_to_v7(self, reader_info_list):
-        v7lookup = dict()  # map data_item.uuid to buffered_data_source.uuid
+        v7lookup = dict()  # map data_item.uuid to buffered data source.uuid
         for reader_info in reader_info_list:
             storage_handler = reader_info.storage_handler
             properties = reader_info.properties
@@ -1046,7 +1046,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
     def rewrite_data_item_data(self, data_item: DataItem.DataItem) -> None:
         persistent_storage = self._ensure_persistent_storage(data_item)
-        persistent_storage.update_data(data_item.maybe_data_source.data)
+        persistent_storage.update_data(data_item.data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)
@@ -1073,13 +1073,12 @@ class ComputationQueueItem:
         # threadsafe
         pending_data_item_merges = list()
         data_item = self.data_item
-        buffered_data_source = data_item.maybe_data_source
         computation = data_item.computation
         if computation:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 data_item_clone = data_item.clone()
-                data_item_data_modified = data_item.maybe_data_source.data_modified or datetime.datetime.min
+                data_item_data_modified = data_item.data_modified or datetime.datetime.min
                 data_item_clone_recorder = Recorder.Recorder(data_item_clone)
                 api_data_item = api._new_api_object(data_item_clone)
                 error_text = computation.error_text
@@ -1089,10 +1088,10 @@ class ComputationQueueItem:
                     time.sleep(max(throttle_time, 0.0))
                 if self.valid:  # TODO: race condition for 'valid'
                     def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
-                        data_item_data_clone_modified = data_item_clone.maybe_data_source.data_modified or datetime.datetime.min
-                        with data_item.data_item_changes(), buffered_data_source._changes():
+                        data_item_data_clone_modified = data_item_clone.data_modified or datetime.datetime.min
+                        with data_item.data_item_changes(), data_item.xdata_changes():
                             if data_item_data_clone_modified > data_item_data_modified:
-                                buffered_data_source.set_data_and_metadata(api_data_item.data_and_metadata)
+                                data_item.set_xdata(api_data_item.data_and_metadata)
                             data_item_clone_recorder.apply(data_item)
                             if computation.error_text != error_text:
                                 computation.error_text = error_text
@@ -1404,9 +1403,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        buffered_data_source = data_item.maybe_data_source
-        if buffered_data_source:
-            self.__computation_changed(data_item, buffered_data_source.computation, None)
+        computation = data_item.computation
+        if computation:
+            self.__computation_changed(data_item, computation, None)
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
@@ -1456,10 +1455,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
                         if len(source_targets) == 1 and source_targets[0] == item:
                             self.__build_cascade(source, items, dependencies)
-                for data_source in item.data_sources:
-                    for display in data_source.displays:
-                        for graphic in display.graphics:
-                            self.__build_cascade(graphic, items, dependencies)
+                for display in item.displays:
+                    for graphic in display.graphics:
+                        self.__build_cascade(graphic, items, dependencies)
             targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
             for target in targets:
                 assert isinstance(target, DataItem.DataItem)
@@ -1557,10 +1555,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computations can find the new objects during startup.
         """
         for data_item in self.data_items:
-            for data_source in data_item.data_sources:
-                if data_source.computation:
-                    data_source.computation.unbind()
-                    data_source.computation.bind(self)
+            data_item.rebind_computations(self)
 
     @property
     def data_items(self):
@@ -1849,7 +1844,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 # first check to see if the item in the pending queue matches an item in the active list
                 match = None
                 for active_computation_item in self.__computation_active_items:
-                    if _computation_queue_item.buffered_data_source == active_computation_item.buffered_data_source:
+                    if _computation_queue_item.data_item == active_computation_item.data_item:
                         match = _computation_queue_item
                         break
                 # if it doesn't match, move it to active, and break out of this loop
@@ -1885,8 +1880,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             pending_data_item_merge()
 
     async def recompute_immediate(self, event_loop: asyncio.AbstractEventLoop, data_item: DataItem.DataItem) -> None:
-        buffered_data_source = data_item.maybe_data_source
-        computation = buffered_data_source.computation if buffered_data_source else None
+        computation = data_item.computation
         if computation:
             def sync_recompute():
                 with self.__recompute_lock:
@@ -1903,11 +1897,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
         for data_item in self.data_items:
-            for data_source in data_item.data_sources:
-                for display in data_source.displays:
-                    for graphic in display.graphics:
-                        if graphic.uuid == object_uuid:
-                            return graphic
+            for display in data_item.displays:
+                for graphic in display.graphics:
+                    if graphic.uuid == object_uuid:
+                        return graphic
         return None
 
     def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None):
@@ -2123,10 +2116,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # if we still don't have a data item, create it.
             if data_item is None:
                 data_item = DataItem.DataItem()
+                data_item.ensure_data_source()
                 data_item.title = "%s (%s)" % (hardware_source.display_name, data_channel.name) if data_channel.name else hardware_source.display_name
                 data_item.category = "temporary"
-                buffered_data_source = DataItem.BufferedDataSource()
-                data_item.append_data_source(buffered_data_source)
                 data_item_reference.data_item = data_item
 
                 def append_data_item():
@@ -2228,10 +2220,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def set_data_item_computation(self, data_item: DataItem.DataItem, computation: Symbolic.Computation) -> None:
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source:
-            old_computation = buffered_data_source.computation
-            buffered_data_source._set_computation(computation)
+        if data_item:
+            old_computation = data_item.computation
+            data_item._set_computation(computation)
             self.__computation_changed(data_item, old_computation, computation)
 
     def __computation_changed(self, data_item, old_computation, new_computation):
@@ -2269,10 +2260,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for i, (src_dict, input) in enumerate(zip(src_dicts, inputs)):
 
             display_specifier = DataItem.DisplaySpecifier.from_data_item(input[0])
-            buffered_data_source = display_specifier.buffered_data_source
+            data_item = display_specifier.data_item
             display = display_specifier.display
 
-            if not buffered_data_source:
+            if not data_item:
                 return None
 
             # each source can have a list of requirements, check through them
@@ -2282,7 +2273,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if requirement_type == "dimensionality":
                     min_dimension = requirement.get("min")
                     max_dimension = requirement.get("max")
-                    dimensionality = len(buffered_data_source.dimensional_shape) if buffered_data_source else 0
+                    dimensionality = len(data_item.dimensional_shape)
                     if min_dimension is not None and dimensionality < min_dimension:
                         return None
                     if max_dimension is not None and dimensionality > max_dimension:
@@ -2319,7 +2310,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         point_region = Graphics.PointGraphic()
                         for k, v in region_params.items():
                             setattr(point_region, k, v)
-                        display.add_graphic(point_region)
+                        if display:
+                            display.add_graphic(point_region)
                     regions.append((region_name, point_region, region_label))
                     region_map[region_name] = point_region
                 elif region_type == "line":
@@ -2332,7 +2324,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         line_region.end = 0.75, 0.75
                         for k, v in region_params.items():
                             setattr(line_region, k, v)
-                        display.add_graphic(line_region)
+                        if display:
+                            display.add_graphic(line_region)
                     regions.append((region_name, line_region, region_params.get("label")))
                     region_map[region_name] = line_region
                 elif region_type == "rectangle":
@@ -2345,7 +2338,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         rect_region.size = 0.5, 0.5
                         for k, v in region_params.items():
                             setattr(rect_region, k, v)
-                        display.add_graphic(rect_region)
+                        if display:
+                            display.add_graphic(rect_region)
                     regions.append((region_name, rect_region, region_params.get("label")))
                     region_map[region_name] = rect_region
                 elif region_type == "ellipse":
@@ -2358,7 +2352,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         ellipse_region.size = 0.5, 0.5
                         for k, v in region_params.items():
                             setattr(ellipse_region, k, v)
-                        display.add_graphic(ellipse_region)
+                        if display:
+                            display.add_graphic(ellipse_region)
                     regions.append((region_name, ellipse_region, region_params.get("label")))
                     region_map[region_name] = ellipse_region
                 elif region_type == "spot":
@@ -2371,7 +2366,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         spot_region.size = 0.1, 0.1
                         for k, v in region_params.items():
                             setattr(spot_region, k, v)
-                        display.add_graphic(spot_region)
+                        if display:
+                            display.add_graphic(spot_region)
                     regions.append((region_name, spot_region, region_params.get("label")))
                     region_map[region_name] = spot_region
                 elif region_type == "interval":
@@ -2382,7 +2378,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         interval_region = Graphics.IntervalGraphic()
                         for k, v in region_params.items():
                             setattr(interval_region, k, v)
-                        display.add_graphic(interval_region)
+                        if display:
+                            display.add_graphic(interval_region)
                     regions.append((region_name, interval_region, region_params.get("label")))
                     region_map[region_name] = interval_region
                 elif region_type == "channel":
@@ -2393,7 +2390,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         channel_region = Graphics.ChannelGraphic()
                         for k, v in region_params.items():
                             setattr(channel_region, k, v)
-                        display.add_graphic(channel_region)
+                        if display:
+                            display.add_graphic(channel_region)
                     regions.append((region_name, channel_region, region_params.get("label")))
                     region_map[region_name] = channel_region
 
@@ -2459,8 +2457,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             connection_dst_prop = connection_dict.get("dst_prop")
             if connection_type == "property":
                 if connection_src == "display":
-                    # TODO: how to refer to the buffered_data_sources? hardcode to data_item0 for now.
-                    new_data_item.add_connection(Connection.PropertyConnection(data_item0.data_sources[0].displays[0], connection_src_prop, new_regions[connection_dst], connection_dst_prop))
+                    # TODO: how to refer to the data_items? hardcode to data_item0 for now.
+                    new_data_item.add_connection(Connection.PropertyConnection(data_item0.displays[0], connection_src_prop, new_regions[connection_dst], connection_dst_prop))
             elif connection_type == "interval_list":
                 new_data_item.add_connection(Connection.IntervalListConnection(display, region_map[connection_dst]))
 
@@ -2628,15 +2626,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("convert-to-scalar", [(data_item, crop_region)])
 
     def get_crop_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        if data_item and data_item.maybe_data_source and not crop_region:
-            display = data_item.maybe_data_source.displays[0]
-            if data_item.maybe_data_source.is_data_2d:
+        if data_item and len(data_item.displays) > 0 and not crop_region:
+            display = data_item.displays[0]
+            if data_item.is_data_2d:
                 rect_region = Graphics.RectangleGraphic()
                 rect_region.center = 0.5, 0.5
                 rect_region.size = 0.5, 0.5
                 display.add_graphic(rect_region)
                 crop_region = rect_region
-            elif data_item.maybe_data_source.is_data_1d:
+            elif data_item.is_data_1d:
                 interval_region = Graphics.IntervalGraphic()
                 interval_region.interval = 0.25, 0.75
                 display.add_graphic(interval_region)
@@ -2659,8 +2657,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return self.__make_computation("line-profile", [(data_item, crop_region)], {"src": [line_region]})
 
     def get_fourier_filter_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
-        if data_item and data_item.maybe_data_source:
-            display = data_item.maybe_data_source.displays[0]
+        if data_item and len(data_item.displays) > 0:
+            display = data_item.displays[0]
             has_mask = False
             for graphic in display.graphics:
                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):

@@ -68,8 +68,8 @@ class TestDisplayClass(unittest.TestCase):
 
     def test_display_range_with_partial_display_limits_is_complete(self):
         data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.float64))
-        display = data_item.maybe_data_source.displays[0]
-        data_item.maybe_data_source.set_data(numpy.array(range(1,5)))
+        display = data_item.displays[0]
+        data_item.set_data(numpy.array(range(1,5)))
         display.display_limits = None
         self.assertEqual(display.get_calculated_display_values(True).display_range, (1.0, 4.0))
         display.display_limits = (2.0, None)
@@ -96,8 +96,8 @@ class TestDisplayClass(unittest.TestCase):
         dim1_calibration = Calibration.Calibration(units="B")
         dim2_calibration = Calibration.Calibration(units="C")
         data_item = DataItem.DataItem(numpy.zeros((16, 16, 64), numpy.float64))
-        data_item.maybe_data_source.set_intensity_calibration(intensity_calibration)
-        data_item.maybe_data_source.set_dimensional_calibrations([dim0_calibration, dim1_calibration, dim2_calibration])
+        data_item.set_intensity_calibration(intensity_calibration)
+        data_item.set_dimensional_calibrations([dim0_calibration, dim1_calibration, dim2_calibration])
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display_data_and_metadata = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata
         self.assertEqual(display_data_and_metadata.dimensional_shape, (16, 16))
@@ -112,8 +112,7 @@ class TestDisplayClass(unittest.TestCase):
         display = display_specifier.display
         self.assertEqual(display.get_calculated_display_values(True).display_range, (0, 15))
         self.assertEqual(display.get_calculated_display_values(True).data_range, (0, 15))
-        with display_specifier.buffered_data_source.data_ref() as dr:
-            dr.data = irow // 2 + 4
+        display_specifier.data_item.set_data(irow // 2 + 4)
         self.assertEqual(display.get_calculated_display_values(True).display_range, (4, 11))
         self.assertEqual(display.get_calculated_display_values(True).data_range, (4, 11))
 
@@ -147,11 +146,10 @@ class TestDisplayClass(unittest.TestCase):
         o = Observer()
         listener = display.add_calculated_display_values_listener(o.next_calculated_display_values)
         # wait for initial display values to update.
-        data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        data_item.displays[0].update_calculated_display_values()
         with contextlib.closing(listener):
-            with display_specifier.buffered_data_source.data_ref() as dr:
-                dr.data = irow // 2 + 4
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            display_specifier.data_item.set_data(irow // 2 + 4)
+            data_item.displays[0].update_calculated_display_values()
             self.assertEqual(o.data_range, (4, 11))
             self.assertEqual(o.display_range, (4, 11))
 
@@ -202,13 +200,13 @@ class TestDisplayClass(unittest.TestCase):
             map = {"a": document_model.get_object_specifier(data_item)}
             data_item2 = document_controller.processing_computation("target.xdata = a.xdata[:,:,0:8]", map)
             document_model.recompute_all()
-            assert numpy.array_equal(data_item2.maybe_data_source.data, d[:, :, 0:8])
+            assert numpy.array_equal(data_item2.data, d[:, :, 0:8])
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item2)
             display_specifier.display.slice_center = 6
             display_specifier.display.slice_width = 4
             self.assertEqual(display_specifier.display.slice_center, 6)
             self.assertEqual(display_specifier.display.slice_width, 4)
-            display_specifier.buffered_data_source.computation.expression = "target.xdata = a.xdata[:, :, 0:4]"
+            display_specifier.data_item.computation.expression = "target.xdata = a.xdata[:, :, 0:4]"
             document_model.recompute_all()
             self.assertEqual(display_specifier.display.slice_center, 3)
             self.assertEqual(display_specifier.display.slice_width, 2)
@@ -302,7 +300,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.set_data_and_metadata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_specifier.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
             display_specifier.display.display_type = "image"
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
@@ -315,7 +313,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.set_data_and_metadata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_specifier.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
             display_specifier.display.display_type = "line_plot"
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
@@ -355,11 +353,11 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-            data_item.maybe_data_source.displays[0].display_limits = 0.5, 1.5
-            self.assertIsNotNone(data_item.maybe_data_source.displays[0].display_limits)  # check assumptions
-            data_item.maybe_data_source.displays[0].reset_display_limits()
-            self.assertIsNone(data_item.maybe_data_source.displays[0].display_limits)
-            preview = data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_rgba
+            data_item.displays[0].display_limits = 0.5, 1.5
+            self.assertIsNotNone(data_item.displays[0].display_limits)  # check assumptions
+            data_item.displays[0].reset_display_limits()
+            self.assertIsNone(data_item.displays[0].display_limits)
+            preview = data_item.displays[0].get_calculated_display_values(True).display_rgba
             self.assertIsNotNone(preview)
 
     def test_display_rgba_for_various_data_types_is_valid(self):
@@ -369,8 +367,8 @@ class TestDisplayClass(unittest.TestCase):
             for dtype in dtypes:
                 data_item = DataItem.DataItem(numpy.ones((16, 16), dtype))
                 for display_limits in ((0, 1), (0.5, 1.5)):
-                    data_item.maybe_data_source.displays[0].display_limits = display_limits
-                    display_rgba = data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_rgba
+                    data_item.displays[0].display_limits = display_limits
+                    display_rgba = data_item.displays[0].get_calculated_display_values(True).display_rgba
                     self.assertTrue(display_rgba.dtype == numpy.uint32)
 
     def test_reset_display_limits_on_various_value_types_write_to_clean_json(self):
@@ -391,7 +389,7 @@ class TestDisplayClass(unittest.TestCase):
             re, im = numpy.meshgrid(numpy.linspace(-0.8, 2.1, 16), numpy.linspace(-1.4, 1.4, 16))
             data[:, :] = re + 1j * im
             data_item = DataItem.DataItem(data)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.reset_display_limits()
@@ -421,8 +419,8 @@ class TestDisplayClass(unittest.TestCase):
             data[0, 0] = 0
             data[99, 99] = 3
             data_item = DataItem.DataItem(data)
-            data_item.maybe_data_source.displays[0].auto_display_limits()
-            low, high = data_item.maybe_data_source.displays[0].display_limits
+            data_item.displays[0].auto_display_limits()
+            low, high = data_item.displays[0].display_limits
             self.assertAlmostEqual(low, 0.9)
             self.assertAlmostEqual(high, 2.1)
 
@@ -430,11 +428,11 @@ class TestDisplayClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.float))
-            self.assertEqual(data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_range, (1, 1))
-            with data_item.maybe_data_source.data_ref() as dr:
+            self.assertEqual(data_item.displays[0].get_calculated_display_values(True).display_range, (1, 1))
+            with data_item.data_ref() as dr:
                 dr.master_data[0,0] = 16
                 dr.data_updated()
-            self.assertEqual(data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_range, (1, 16))
+            self.assertEqual(data_item.displays[0].get_calculated_display_values(True).display_range, (1, 16))
 
     def test_display_range_is_correct_on_complex_data_display_as_absolute(self):
         document_model = DocumentModel.DocumentModel()
@@ -442,8 +440,8 @@ class TestDisplayClass(unittest.TestCase):
             complex_data = numpy.zeros((2, 2), numpy.complex64)
             complex_data[0, 0] = complex(4, 3)
             data_item = DataItem.DataItem(complex_data)
-            data_item.maybe_data_source.displays[0].complex_display_type = "absolute"
-            self.assertEqual(data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_range, (0, 5))
+            data_item.displays[0].complex_display_type = "absolute"
+            self.assertEqual(data_item.displays[0].get_calculated_display_values(True).display_range, (0, 5))
 
     def test_display_range_is_correct_on_complex_data_display_as_log_absolute(self):
         document_model = DocumentModel.DocumentModel()
@@ -451,8 +449,8 @@ class TestDisplayClass(unittest.TestCase):
             complex_data = numpy.array(range(10)).astype(numpy.complex)
             data_item = DataItem.DataItem(complex_data)
             min_ = numpy.log(numpy.abs(0).astype(numpy.float64) + numpy.nextafter(0,1))
-            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_range[0], min_)
-            self.assertAlmostEqual(data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_range[1], math.log(9))
+            self.assertAlmostEqual(data_item.displays[0].get_calculated_display_values(True).display_range[0], min_)
+            self.assertAlmostEqual(data_item.displays[0].get_calculated_display_values(True).display_range[1], math.log(9))
 
     def test_display_data_is_2d_for_2d_sequence(self):
         document_model = DocumentModel.DocumentModel()
@@ -462,7 +460,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            display_specifier.data_item.set_xdata(data_and_metadata)
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data_shape, (16, 16))
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (16, 16))
@@ -475,7 +473,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            display_specifier.data_item.set_xdata(data_and_metadata)
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data_shape, (8, 8))
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (8, 8))
@@ -488,7 +486,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            display_specifier.data_item.set_xdata(data_and_metadata)
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data_shape, (8, 8))
             self.assertEqual(display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data_dtype, numpy.float64)
             self.assertEqual(display_specifier.display.preview_2d_shape, (8, 8))
@@ -519,7 +517,7 @@ class TestDisplayClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(display_data, d[3, ...]))
             d2 = numpy.random.randn(2, 3, 3)
             data_and_metadata2 = DataAndMetadata.new_data_and_metadata(d2, data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata2)
+            display_specifier.data_item.set_xdata(data_and_metadata2)
             display_data2 = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
             self.assertTrue(numpy.array_equal(display_data2, d2[1, ...]))
 
@@ -537,7 +535,7 @@ class TestDisplayClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(display_data, d[3, 3, ...]))
             d2 = numpy.random.randn(2, 2, 3, 3)
             data_and_metadata2 = DataAndMetadata.new_data_and_metadata(d2, data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2))
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata2)
+            display_specifier.data_item.set_xdata(data_and_metadata2)
             display_data2 = display_specifier.display.get_calculated_display_values(True).display_data_and_metadata.data
             self.assertTrue(numpy.array_equal(display_data2, d2[1, 1, ...]))
 

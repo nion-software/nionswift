@@ -529,7 +529,6 @@ class HistogramPanel(Panel.Panel):
             return functools.partial(calculate_histogram_widget_data, display_data_and_metadata_model_func, display_range)
 
         display_stream = TargetDisplayStream(document_controller)
-        self.__buffered_data_source_stream = TargetBufferedDataSourceStream(document_controller).add_ref()
         region_stream = TargetRegionStream(display_stream)
         def compare_data(a, b):
             return numpy.array_equal(a.data if a else None, b.data if b else None)
@@ -610,8 +609,6 @@ class HistogramPanel(Panel.Panel):
         self.widget = column
 
     def close(self):
-        self.__buffered_data_source_stream.remove_ref()
-        self.__buffered_data_source_stream = None
         self.__histogram_widget_data_model.close()
         self.__histogram_widget_data_model = None
         self.__color_map_data_model.close()
@@ -649,38 +646,6 @@ class TargetDataItemStream(Stream.AbstractStream):
         if data_item != self.__value:
             self.value_stream.fire(data_item)
             self.__value = data_item
-
-
-class TargetBufferedDataSourceStream(Stream.AbstractStream):
-
-    def __init__(self, document_controller):
-        super().__init__()
-        # outgoing messages
-        self.value_stream = Event.Event()
-        # cached values
-        self.__value = None
-        # listen for selected data item changes
-        self.__selected_data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
-        # manually send the first data item changed message to set things up.
-        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
-
-    def close(self):
-        # disconnect data item binding
-        self.__selected_data_item_changed(None)
-        self.__selected_data_item_changed_event_listener.close()
-        self.__selected_data_item_changed_event_listener = None
-        super().close()
-
-    @property
-    def value(self):
-        return self.__value
-
-    def __selected_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source != self.__value:
-            self.value_stream.fire(buffered_data_source)
-            self.__value = buffered_data_source
 
 
 class TargetDisplayStream(Stream.AbstractStream):

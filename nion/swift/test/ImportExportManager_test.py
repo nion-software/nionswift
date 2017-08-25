@@ -56,18 +56,18 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["data"] = numpy.zeros((16, 16), dtype=numpy.double)
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        self.assertEqual(display_specifier.buffered_data_source.dimensional_shape, (16, 16))
-        self.assertEqual(display_specifier.buffered_data_source.data_dtype, numpy.double)
+        self.assertEqual(display_specifier.data_item.dimensional_shape, (16, 16))
+        self.assertEqual(display_specifier.data_item.data_dtype, numpy.double)
         data_element["data"] = numpy.zeros((8, 8), dtype=numpy.double)
         data_element["sub_area"] = ((0,0), (4, 8))
         ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-        self.assertEqual(display_specifier.buffered_data_source.dimensional_shape, (8, 8))
-        self.assertEqual(display_specifier.buffered_data_source.data_dtype, numpy.double)
+        self.assertEqual(display_specifier.data_item.dimensional_shape, (8, 8))
+        self.assertEqual(display_specifier.data_item.data_dtype, numpy.double)
         data_element["data"] = numpy.zeros((8, 8), dtype=numpy.float)
         data_element["sub_area"] = ((0,0), (4, 8))
         ImportExportManager.update_data_item_from_data_element(data_item, data_element)
-        self.assertEqual(display_specifier.buffered_data_source.dimensional_shape, (8, 8))
-        self.assertEqual(display_specifier.buffered_data_source.data_dtype, numpy.float)
+        self.assertEqual(display_specifier.data_item.dimensional_shape, (8, 8))
+        self.assertEqual(display_specifier.data_item.data_dtype, numpy.float)
 
     def test_ndata_write_to_then_read_from_temp_file(self):
         current_working_directory = os.getcwd()
@@ -122,12 +122,12 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["collection_dimension_count"] = 0
         data_element["datum_dimension_count"] = 2
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        self.assertEqual(data_item.maybe_data_source.is_sequence, True)
-        self.assertEqual(data_item.maybe_data_source.collection_dimension_count, 0)
-        self.assertEqual(data_item.maybe_data_source.datum_dimension_count, 2)
-        self.assertEqual(data_item.maybe_data_source.data_and_metadata.is_sequence, True)
-        self.assertEqual(data_item.maybe_data_source.data_and_metadata.collection_dimension_count, 0)
-        self.assertEqual(data_item.maybe_data_source.data_and_metadata.datum_dimension_count, 2)
+        self.assertEqual(data_item.is_sequence, True)
+        self.assertEqual(data_item.collection_dimension_count, 0)
+        self.assertEqual(data_item.datum_dimension_count, 2)
+        self.assertEqual(data_item.xdata.is_sequence, True)
+        self.assertEqual(data_item.xdata.collection_dimension_count, 0)
+        self.assertEqual(data_item.xdata.datum_dimension_count, 2)
 
     def test_creating_data_element_with_sequence_and_implicit_datum_size_data_makes_correct_data_item(self):
         data_element = dict()
@@ -135,12 +135,12 @@ class TestImportExportManagerClass(unittest.TestCase):
         data_element["data"] = numpy.zeros((4, 16, 16), dtype=numpy.double)
         data_element["is_sequence"] = True
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        self.assertEqual(data_item.maybe_data_source.is_sequence, True)
-        self.assertEqual(data_item.maybe_data_source.collection_dimension_count, 0)
-        self.assertEqual(data_item.maybe_data_source.datum_dimension_count, 2)
-        self.assertEqual(data_item.maybe_data_source.data_and_metadata.is_sequence, True)
-        self.assertEqual(data_item.maybe_data_source.data_and_metadata.collection_dimension_count, 0)
-        self.assertEqual(data_item.maybe_data_source.data_and_metadata.datum_dimension_count, 2)
+        self.assertEqual(data_item.is_sequence, True)
+        self.assertEqual(data_item.collection_dimension_count, 0)
+        self.assertEqual(data_item.datum_dimension_count, 2)
+        self.assertEqual(data_item.xdata.is_sequence, True)
+        self.assertEqual(data_item.xdata.collection_dimension_count, 0)
+        self.assertEqual(data_item.xdata.datum_dimension_count, 2)
 
     def test_data_element_to_extended_data_conversion(self):
         data = numpy.ones((8, 6), numpy.int)

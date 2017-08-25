@@ -728,7 +728,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.notify_property_changed("displayed_intensity_calibration")
             self._get_persistent_property("display_calibrated_values").value = (value in ("calibrated", "calibrated-center"))
 
-    # message sent from buffered_data_source when data changes.
+    # message sent when data changes.
     # thread safe
     def update_data(self, data_and_metadata):
         old_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None

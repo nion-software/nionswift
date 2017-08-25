@@ -167,7 +167,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.__data_and_metadata = None
         self.__data_and_metadata_lock = threading.RLock()
         self.__intensity_calibration = None
-        self.__dimensional_calibrations = None
+        self.__dimensional_calibrations = list()
         self.__metadata = dict()
         self.__change_thread = None
         self.__change_count = 0
@@ -535,14 +535,10 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         """Remove display, but do it through the container, so dependencies can be tracked."""
         self.remove_model_item(self, "displays", display)
 
-    @property
-    def has_data(self):
-        return self.data_shape is not None and self.data_dtype is not None
-
-    def __get_data(self):
+    def _get_data(self):
         return self.__data_and_metadata.data if self.__data_and_metadata else None
 
-    def __set_data(self, data, data_modified=None):
+    def _set_data(self, data, data_modified=None):
         dimensional_shape = Image.dimensional_shape_from_data(data)
         data_and_metadata = self.data_and_metadata
         intensity_calibration = data_and_metadata.intensity_calibration if data_and_metadata else None
@@ -555,6 +551,12 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         metadata = data_and_metadata.metadata if data_and_metadata else None
         timestamp = None  # always update when the data is modified
         self.set_data_and_metadata(DataAndMetadata.DataAndMetadata.from_data(data, intensity_calibration, dimensional_calibrations, metadata, timestamp), data_modified)
+
+    def __get_data(self):
+        return self._get_data()
+
+    def __set_data(self, data, data_modified=None):
+        self._set_data(data, data_modified)
 
     def increment_data_ref_count(self):
         with self.__data_ref_count_mutex:
@@ -1310,7 +1312,10 @@ class DataItem(LibraryItem):
         super().__init__(item_uuid)
         self.large_format = large_format
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
+        self.data_item_changed_event = Event.Event()
+        self.d_metadata_changed_event = Event.Event()
         self.__write_delay_data_changed = False
+        self.__d_metadata_changed_event_listeners = list()
         self.__data_item_changed_event_listeners = list()
         self.__data_changed_event_listeners = list()
         if data is not None:
@@ -1332,6 +1337,9 @@ class DataItem(LibraryItem):
         for data_source in self.data_sources:
             self.__disconnect_data_source(0, data_source)
             data_source.close()
+        for listener in self.__d_metadata_changed_event_listeners:
+            listener.close()
+        self.__d_metadata_changed_event_listeners = list()
         for listener in self.__data_item_changed_event_listeners:
             listener.close()
         self.__data_item_changed_event_listeners = list()
@@ -1464,10 +1472,8 @@ class DataItem(LibraryItem):
 
     def update_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         assert threading.current_thread() == threading.main_thread()
-        display_specifier = DisplaySpecifier.from_data_item(self)
-        assert display_specifier.buffered_data_source and display_specifier.display
         with self.data_item_changes():
-            display_specifier.buffered_data_source.set_data_and_metadata(data_and_metadata)
+            self.set_xdata(data_and_metadata)
             self.timezone = Utility.get_local_timezone()
             self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
 
@@ -1487,10 +1493,14 @@ class DataItem(LibraryItem):
         # so load data here to keep the books straight when the transaction state is exited.
         if self.in_transaction_state:
             data_source.increment_data_ref_count()
+        def metadata_changed():
+            self.d_metadata_changed_event.fire()
+        self.__d_metadata_changed_event_listeners.insert(before_index, data_source.metadata_changed_event.listen(metadata_changed))
         def data_item_changed():
             if not self._is_reading:
                 self.__write_delay_data_changed = True
                 self._notify_library_item_content_changed()
+                self.data_item_changed_event.fire()
         self.__data_item_changed_event_listeners.insert(before_index, data_source.data_item_changed_event.listen(data_item_changed))
         self._notify_library_item_content_changed()
         # the document model watches for new data sources via observing.
@@ -1503,6 +1513,8 @@ class DataItem(LibraryItem):
         data_source.close()
 
     def __disconnect_data_source(self, index, data_source):
+        self.__d_metadata_changed_event_listeners[index].close()
+        del self.__d_metadata_changed_event_listeners[index]
         self.__data_item_changed_event_listeners[index].close()
         del self.__data_item_changed_event_listeners[index]
         data_source.set_dependent_data_item(None)
@@ -1528,6 +1540,12 @@ class DataItem(LibraryItem):
     def computation(self) -> typing.Optional[Symbolic.Computation]:
         return self.maybe_data_source.computation if self.maybe_data_source else None
 
+    def set_computation(self, computation: typing.Optional[Symbolic.Computation]) -> None:
+        self.maybe_data_source.computation = computation
+
+    def _set_computation(self, computation):
+        self.maybe_data_source._set_computation(computation)
+
     @property
     def maybe_data_source(self) -> typing.Optional[BufferedDataSource]:
         return self.data_sources[0] if len(self.data_sources) == 1 else None
@@ -1552,12 +1570,10 @@ class DataItem(LibraryItem):
 
     def increment_data_ref_count(self):
         for data_source in self.data_sources:
-            assert isinstance(data_source, BufferedDataSource)
             data_source.increment_data_ref_count()
 
     def decrement_data_ref_count(self):
         for data_source in self.data_sources:
-            assert isinstance(data_source, BufferedDataSource)
             data_source.decrement_data_ref_count()
 
     # primary display
@@ -1565,7 +1581,7 @@ class DataItem(LibraryItem):
     @property
     def primary_display_specifier(self):
         if len(self.data_sources) == 1:
-            return DisplaySpecifier(self, self.data_sources[0], self.data_sources[0].displays[0])
+            return DisplaySpecifier(self, self.displays[0])
         return DisplaySpecifier()
 
     def _update_timezone(self):
@@ -1574,83 +1590,274 @@ class DataItem(LibraryItem):
             data_source.timezone_offset = self.timezone_offset
         super()._update_timezone()
 
+    def rebind_computations(self, context) -> None:
+        for data_source in self.data_sources:
+            if data_source.computation:
+                data_source.computation.unbind()
+                data_source.computation.bind(context)
 
-class BufferedDataSourceSpecifier(object):
-    """Specify a BufferedDataSource contained within a DataItem.
+    def ensure_data_source(self) -> None:
+        if len(self.data_sources) == 0:
+            self.append_data_source(BufferedDataSource())
 
-    If buffered_data_source is not None, then data_item is not None.
-    """
+    @property
+    def data(self) -> numpy.ndarray:
+        return self.maybe_data_source.data if self.maybe_data_source else None
 
-    def __init__(self, data_item=None, buffered_data_source=None):
-        self.data_item = data_item
-        self.buffered_data_source = buffered_data_source
+    @property
+    def xdata(self) -> DataAndMetadata.DataAndMetadata:
+        return self.maybe_data_source.data_and_metadata if self.maybe_data_source else None
 
-    def __eq__(self, other):
-        return self.data_item == other.data_item and self.buffered_data_source == other.buffered_data_source
+    def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
+        if self.maybe_data_source:
+            self.maybe_data_source.set_data(data, data_modified)
 
-    def __ne__(self, other):
-        return self.data_item != other.data_item or self.buffered_data_source != other.buffered_data_source
+    def set_xdata(self, xdata: DataAndMetadata.DataAndMetadata, data_modified: datetime.datetime=None) -> None:
+        if self.maybe_data_source:
+            self.maybe_data_source.set_data_and_metadata(xdata, data_modified)
 
-    @classmethod
-    def from_data_item(cls, data_item):
-        buffered_data_source = data_item.maybe_data_source if data_item else None
-        return cls(data_item, buffered_data_source)
+    # grab a data reference as a context manager. the object
+    # returned defines data and data properties. reading data
+    # should use the data property. writing data (if allowed) should
+    # assign to the data property.
+    def data_ref(self):
+        get_data = self.__get_data
+        set_data = self.__set_data
+        class DataAccessor(object):
+            def __init__(self, data_item):
+                self.__data_item = data_item
+            def __enter__(self):
+                self.__data_item.increment_data_ref_count()
+                return self
+            def __exit__(self, type, value, traceback):
+                self.__data_item.decrement_data_ref_count()
+            @property
+            def data(self):
+                return get_data()
+            @data.setter
+            def data(self, value):
+                set_data(value)
+            def data_updated(self):
+                set_data(get_data())
+            @property
+            def master_data(self):
+                return get_data()
+            @master_data.setter
+            def master_data(self, value):
+                set_data(value)
+            def master_data_updated(self):
+                set_data(get_data())
+        return DataAccessor(self)
+
+    def __get_data(self):
+        return self.maybe_data_source._get_data()
+
+    def __set_data(self, data, data_modified=None):
+        self.maybe_data_source._set_data(data, data_modified)
+
+    def xdata_changes(self):
+        # return a context manager to batch up a set of changes so that listeners
+        # are only notified after the last change is complete.
+        buffered_data_source = self.maybe_data_source
+        class ChangeContextManager(object):
+            def __enter__(self):
+                buffered_data_source._begin_changes()
+                return self
+            def __exit__(self, type, value, traceback):
+                buffered_data_source._end_changes()
+        return ChangeContextManager()
+
+    @property
+    def data_modified(self) -> datetime.datetime:
+        return self.maybe_data_source.data_modified if self.maybe_data_source else None
+
+    @data_modified.setter
+    def data_modified(self, value: datetime.datetime) -> None:
+        if self.maybe_data_source:
+            self.maybe_data_source.data_modified = value
+
+    @property
+    def intensity_calibration(self) -> Calibration.Calibration:
+        return self.maybe_data_source.intensity_calibration if self.maybe_data_source else None
+
+    @intensity_calibration.setter
+    def intensity_calibration(self, intensity_calibration: Calibration.Calibration) -> None:
+        if self.maybe_data_source:
+            self.maybe_data_source.set_intensity_calibration(intensity_calibration)
+
+    def set_intensity_calibration(self, intensity_calibration):
+        self.intensity_calibration = intensity_calibration
+
+    @property
+    def dimensional_calibrations(self) -> typing.List[Calibration.Calibration]:
+        return self.maybe_data_source.dimensional_calibrations if self.maybe_data_source else list()
+
+    @dimensional_calibrations.setter
+    def dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
+        if self.maybe_data_source:
+            self.maybe_data_source.set_dimensional_calibrations(dimensional_calibrations)
+
+    def set_dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
+        self.dimensional_calibrations = dimensional_calibrations
+
+    def set_dimensional_calibration(self, dimension: int, calibration: Calibration.Calibration) -> None:
+        dimensional_calibrations = self.dimensional_calibrations
+        while len(dimensional_calibrations) <= dimension:
+            dimensional_calibrations.append(Calibration.Calibration())
+        dimensional_calibrations[dimension] = calibration
+        self.set_dimensional_calibrations(dimensional_calibrations)
+
+    @property
+    def d_metadata(self) -> dict:
+        return self.maybe_data_source.metadata if self.maybe_data_source else dict()
+
+    @d_metadata.setter
+    def d_metadata(self, value: dict) -> None:
+        if self.maybe_data_source:
+            self.maybe_data_source.metadata = value
+
+    @property
+    def displays(self) -> typing.List[Display.Display]:
+        return self.maybe_data_source.displays if self.maybe_data_source else list()
+
+    @property
+    def has_data(self) -> bool:
+        return self.maybe_data_source.has_data if self.maybe_data_source else False
+
+    # used for testing
+    @property
+    def is_data_loaded(self) -> bool:
+        return self.maybe_data_source.is_data_loaded if self.maybe_data_source else False
+
+    @property
+    def data_metadata(self):
+        return self.maybe_data_source.data_metadata if self.maybe_data_source else None
+
+    @property
+    def data_shape(self):
+        return self.maybe_data_source.data_shape if self.maybe_data_source else None
+
+    @property
+    def data_dtype(self):
+        return self.maybe_data_source.data_dtype if self.maybe_data_source else None
+
+    @property
+    def dimensional_shape(self):
+        return self.maybe_data_source.dimensional_shape if self.maybe_data_source else list()
+
+    @property
+    def datum_dimension_count(self) -> int:
+        return self.maybe_data_source.datum_dimension_count if self.maybe_data_source else 0
+
+    @property
+    def collection_dimension_count(self) -> int:
+        return self.maybe_data_source.collection_dimension_count if self.maybe_data_source else 0
+
+    @property
+    def is_collection(self):
+        return self.maybe_data_source.is_collection if self.maybe_data_source else None
+
+    @property
+    def is_sequence(self) -> bool:
+        return self.maybe_data_source.is_sequence if self.maybe_data_source else None
+
+    @property
+    def is_data_1d(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_1d
+
+    @property
+    def is_data_2d(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_2d
+
+    @property
+    def is_data_3d(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_3d
+
+    @property
+    def is_data_4d(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_4d
+
+    @property
+    def is_data_rgb(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_rgb
+
+    @property
+    def is_data_rgba(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_rgba
+
+    @property
+    def is_datum_1d(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_datum_1d
+
+    @property
+    def is_datum_2d(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_datum_2d
+
+    @property
+    def is_data_rgb_type(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_rgb_type
+
+    @property
+    def is_data_scalar_type(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_scalar_type
+
+    @property
+    def is_data_complex_type(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_complex_type
+
+    @property
+    def is_data_bool(self) -> bool:
+        return self.maybe_data_source is not None and self.maybe_data_source.is_data_bool
+
+    def get_data_value(self, pos):
+        return self.maybe_data_source.get_data_value(pos) if self.maybe_data_source else None
+
+    @property
+    def size_and_data_format_as_string(self):
+        return self.maybe_data_source.size_and_data_format_as_string if self.maybe_data_source else _("No Data")
 
 
 class DisplaySpecifier:
-    """Specify a Display contained within a DataItem.
+    """Specify a Display contained within a DataItem."""
 
-    If display is not None, then data_item is not None.
-    If buffered_data_source is not None, then data_item is not None.
-    """
-
-    def __init__(self, data_item: DataItem=None, buffered_data_source: BufferedDataSource=None, display: Display.Display=None):
+    def __init__(self, data_item: DataItem=None, display: Display.Display=None):
         self.data_item = data_item
-        self.buffered_data_source = buffered_data_source
         self.display = display
 
     def __eq__(self, other):
-        return self.data_item == other.data_item and self.buffered_data_source == other.buffered_data_source and self.display == other.display
+        return self.data_item == other.data_item and self.display == other.display
 
     def __ne__(self, other):
-        return self.data_item != other.data_item or self.buffered_data_source != other.buffered_data_source or self.display != other.display
+        return self.data_item != other.data_item or self.display != other.display
 
     @classmethod
     def from_data_item(cls, data_item):
-        buffered_data_source = data_item.maybe_data_source if data_item else None
-        display = buffered_data_source.displays[0] if buffered_data_source else None
-        return cls(data_item, buffered_data_source, display)
-
-    @property
-    def buffered_data_source_specifier(self):
-        return BufferedDataSourceSpecifier(self.data_item, self.buffered_data_source)
+        display = data_item.displays[0] if data_item and len(data_item.displays) > 0 else None
+        return cls(data_item, display)
 
 
 def sort_by_date_key(data_item):
     """ A sort key to for the created field of a data item. The sort by uuid makes it determinate. """
     return data_item.title + str(data_item.uuid) if data_item.is_live else str(), data_item.date_for_sorting, str(data_item.uuid)
 
+
 def new_data_item(data_and_metadata: DataAndMetadata.DataAndMetadata=None) -> DataItem:
     data_item = DataItem()
-    buffered_data_source = BufferedDataSource()
-    data_item.append_data_source(buffered_data_source)
-    buffered_data_source.set_data_and_metadata(data_and_metadata)
+    data_item.ensure_data_source()
+    data_item.set_xdata(data_and_metadata)
     return data_item
 
 
 class DataSource:
-    # NOTE: this is a different data source than the BufferedDataSource which will eventually be deprecated
-
     DATA_SOURCE_MIME_TYPE = "text/vnd.nion.display_source_type"
 
-    def __init__(self, data_item, graphic, changed_event):
+    def __init__(self, data_item: DataItem, graphic, changed_event):
         self.__data_item = data_item
         self.__graphic = graphic
         self.__changed_event = changed_event  # not public since it is passed in
-        buffered_data_source = data_item.maybe_data_source
-        display = buffered_data_source.displays[0]
-        self.__data_item_changed_event_listener = buffered_data_source.data_item_changed_event.listen(self.__changed_event.fire)
-        self.__display_values_event_listener = display.display_data_will_change_event.listen(self.__changed_event.fire)
+        display = data_item.displays[0] if len(data_item.displays) > 0 else None
+        self.__data_item_changed_event_listener = data_item.data_item_changed_event.listen(self.__changed_event.fire)
+        self.__display_values_event_listener = display.display_data_will_change_event.listen(self.__changed_event.fire) if display else None
         self.__property_changed_listener = None
         def property_changed(key):
             self.__changed_event.fire()
@@ -1672,9 +1879,9 @@ class DataSource:
                 if property_changed_listener:
                     property_changed_listener.close()
                     self.__changed_event.fire()
-        self.__graphic_inserted_event_listener = display.item_inserted_event.listen(graphic_inserted)
-        self.__graphic_removed_event_listener = display.item_removed_event.listen(graphic_removed)
-        for graphic in display.graphics:
+        self.__graphic_inserted_event_listener = display.item_inserted_event.listen(graphic_inserted) if display else None
+        self.__graphic_removed_event_listener = display.item_removed_event.listen(graphic_removed) if display else None
+        for graphic in display.graphics if display else list():
             property_changed_listener = None
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 property_changed_listener = graphic.property_changed_event.listen(filter_property_changed)
@@ -1685,17 +1892,20 @@ class DataSource:
             if graphic_property_changed_listener:
                 graphic_property_changed_listener.close()
         self.__graphic_property_changed_listeners = list()
-        self.__graphic_inserted_event_listener.close()
-        self.__graphic_inserted_event_listener = None
-        self.__graphic_removed_event_listener.close()
-        self.__graphic_removed_event_listener = None
+        if self.__graphic_inserted_event_listener:
+            self.__graphic_inserted_event_listener.close()
+            self.__graphic_inserted_event_listener = None
+        if self.__graphic_removed_event_listener:
+            self.__graphic_removed_event_listener.close()
+            self.__graphic_removed_event_listener = None
         if self.__property_changed_listener:
             self.__property_changed_listener.close()
             self.__property_changed_listener = None
         self.__data_item_changed_event_listener.close()
         self.__data_item_changed_event_listener = None
-        self.__display_values_event_listener.close()
-        self.__display_values_event_listener = None
+        if self.__display_values_event_listener:
+            self.__display_values_event_listener.close()
+            self.__display_values_event_listener = None
 
     @property
     def data_item(self):
@@ -1707,16 +1917,15 @@ class DataSource:
 
     @property
     def data(self) -> numpy.ndarray:
-        with self.__data_item.maybe_data_source.data_ref() as data_ref:
-            return data_ref.data
+        return self.__data_item.data
 
     @property
     def xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
-        return self.__data_item.maybe_data_source.data_and_metadata
+        return self.__data_item.xdata
 
     @property
     def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
-        return self.__data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_data_and_metadata
+        return self.__data_item.displays[0].get_calculated_display_values(True).display_data_and_metadata
 
     @property
     def cropped_display_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
@@ -1752,7 +1961,7 @@ class DataSource:
         if xdata.is_data_2d and xdata.is_data_complex_type:
             shape = xdata.data_shape
             mask = numpy.zeros(shape)
-            for graphic in self.__data_item.maybe_data_source.displays[0].graphics:
+            for graphic in self.__data_item.displays[0].graphics:
                 if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                     mask = numpy.logical_or(mask, graphic.get_mask(shape))
             return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
@@ -1762,7 +1971,7 @@ class DataSource:
     def filter_xdata(self) -> typing.Optional[DataAndMetadata.DataAndMetadata]:
         shape = self.display_xdata.data_shape
         mask = numpy.zeros(shape)
-        for graphic in self.__data_item.maybe_data_source.displays[0].graphics:
+        for graphic in self.__data_item.displays[0].graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 mask = numpy.logical_or(mask, graphic.get_mask(shape))
         return DataAndMetadata.DataAndMetadata.from_data(mask)

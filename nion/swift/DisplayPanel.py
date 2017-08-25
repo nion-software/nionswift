@@ -862,9 +862,8 @@ class DataItemDisplayTypeMonitor:
         self.__data_item = data_item
         display_type = None
         display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        buffered_data_source = display_specifier.buffered_data_source
         display = display_specifier.display
-        if buffered_data_source and display:
+        if display:
 
             def display_changed():
                 self.__set_display_type(display.actual_display_type)
@@ -1054,7 +1053,7 @@ class DataItemDisplayCanvasItemDelegate:
             if graphics and len(graphics) == 1:
                 mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
             mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
-            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.maybe_data_source.displays[0])
+            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.displays[0])
             if callable(self.on_begin_drag):
                 self.on_begin_drag(mime_data, thumbnail_data)
 

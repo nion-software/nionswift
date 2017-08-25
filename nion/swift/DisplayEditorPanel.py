@@ -33,7 +33,7 @@ class DisplayEditorDialog(Dialog.ActionDialog):
 
         self.ui = ui
         self.document_controller = document_controller
-        self.__display = data_item.maybe_data_source.displays[0]
+        self.__display = data_item.displays[0]
 
         self._create_menus()
 

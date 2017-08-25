@@ -58,9 +58,9 @@ class TestFacadeClass(unittest.TestCase):
             data_and_metadata =  api.create_data_and_metadata(data3)
             data_item3_ref = library.create_data_item_from_data_and_metadata(data_and_metadata, "three")
             self.assertEqual(library.data_item_count, 4)
-            self.assertTrue(numpy.array_equal(document_model.data_items[1].maybe_data_source.data_and_metadata.data, data1))
-            self.assertTrue(numpy.array_equal(document_model.data_items[2].maybe_data_source.data_and_metadata.data, data2))
-            self.assertTrue(numpy.array_equal(document_model.data_items[3].maybe_data_source.data_and_metadata.data, data3))
+            self.assertTrue(numpy.array_equal(document_model.data_items[1].data, data1))
+            self.assertTrue(numpy.array_equal(document_model.data_items[2].data, data2))
+            self.assertTrue(numpy.array_equal(document_model.data_items[3].data, data3))
 
     def test_library_and_data_items_can_be_compared_for_equality(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
@@ -97,7 +97,7 @@ class TestFacadeClass(unittest.TestCase):
             data_and_metadata =  DataAndMetadata.new_data_and_metadata(numpy.zeros((8, 4, 5)), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = library.create_data_item_from_data_and_metadata(data_and_metadata, "three")
             self.assertEqual(library.data_item_count, 1)
-            self.assertTrue(document_model.data_items[0].maybe_data_source.is_sequence)
+            self.assertTrue(document_model.data_items[0].is_sequence)
 
     def test_data_on_empty_data_item_returns_none(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
@@ -137,10 +137,10 @@ class TestFacadeClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             data0 = numpy.arange(64).reshape(8, 8)
             data_item = DataItem.DataItem(data0)
-            data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(0.1, 0.2, "dogs"))
-            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(0.3, 0.4, "cats"), Calibration.Calibration(0.5, 0.6, "cats")])
+            data_item.set_intensity_calibration(Calibration.Calibration(0.1, 0.2, "dogs"))
+            data_item.set_dimensional_calibrations([Calibration.Calibration(0.3, 0.4, "cats"), Calibration.Calibration(0.5, 0.6, "cats")])
             metadata = {"title": "Dogs eat cats."}
-            data_item.maybe_data_source.metadata = metadata
+            data_item.d_metadata = metadata
             document_model.append_data_item(data_item)
             api = Facade.get_api("~1.0", "~1.0")
             library = api.library
@@ -152,9 +152,9 @@ class TestFacadeClass(unittest.TestCase):
             data_item_ref.set_dimensional_calibrations([api.create_calibration(0.33, 0.44, "mice"), api.create_calibration(0.44, 0.66, "mice")])
             metadata2 = {"title": "Cats eat mice."}
             data_item_ref.set_metadata(metadata2)
-            self.assertAlmostEqual(data_item.maybe_data_source.intensity_calibration.offset, 0.11)
-            self.assertAlmostEqual(data_item.maybe_data_source.dimensional_calibrations[0].offset, 0.33)
-            self.assertEqual(data_item.maybe_data_source.metadata, metadata2)
+            self.assertAlmostEqual(data_item.intensity_calibration.offset, 0.11)
+            self.assertAlmostEqual(data_item.dimensional_calibrations[0].offset, 0.33)
+            self.assertEqual(data_item.d_metadata, metadata2)
 
     def test_data_item_regions(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
@@ -184,14 +184,14 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(r5.type, "channel-region")
             r4.set_property("end", 0.3)
             self.assertAlmostEqual(r4.get_property("end"), 0.3)
-            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics), 4)
-            self.assertEqual(len(data_item_1d.maybe_data_source.displays[0].graphics), 2)
-            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[0], Graphics.PointGraphic)
-            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[1], Graphics.RectangleGraphic)
-            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[2], Graphics.EllipseGraphic)
-            self.assertIsInstance(data_item.maybe_data_source.displays[0].graphics[3], Graphics.LineGraphic)
-            self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[0], Graphics.IntervalGraphic)
-            self.assertIsInstance(data_item_1d.maybe_data_source.displays[0].graphics[1], Graphics.ChannelGraphic)
+            self.assertEqual(len(data_item.displays[0].graphics), 4)
+            self.assertEqual(len(data_item_1d.displays[0].graphics), 2)
+            self.assertIsInstance(data_item.displays[0].graphics[0], Graphics.PointGraphic)
+            self.assertIsInstance(data_item.displays[0].graphics[1], Graphics.RectangleGraphic)
+            self.assertIsInstance(data_item.displays[0].graphics[2], Graphics.EllipseGraphic)
+            self.assertIsInstance(data_item.displays[0].graphics[3], Graphics.LineGraphic)
+            self.assertIsInstance(data_item_1d.displays[0].graphics[0], Graphics.IntervalGraphic)
+            self.assertIsInstance(data_item_1d.displays[0].graphics[1], Graphics.ChannelGraphic)
 
     def test_display_data_panel_reuses_existing_display(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()

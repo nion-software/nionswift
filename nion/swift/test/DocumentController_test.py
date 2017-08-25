@@ -315,9 +315,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel.set_displayed_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model.recompute_all()
-        self.assertEqual(new_data_item.maybe_data_source.data_shape, (h//2, w//2))
-        self.assertEqual(new_data_item.maybe_data_source.data_dtype, data_item.maybe_data_source.data_dtype)
-        self.assertAlmostEqual(new_data_item.maybe_data_source.data[h//4, w//4], -1.0)
+        self.assertEqual(new_data_item.data_shape, (h//2, w//2))
+        self.assertEqual(new_data_item.data_dtype, data_item.data_dtype)
+        self.assertAlmostEqual(new_data_item.data[h//4, w//4], -1.0)
         document_controller.close()
 
     def test_processing_on_crop_region_connects_region_to_operation(self):
@@ -329,9 +329,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.computation.variables[0].secondary_specifier).value.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.maybe_data_source.computation.variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.computation.variables[0].secondary_specifier).value.bounds)
         document_controller.close()
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
@@ -343,11 +343,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         cropped_data_item = document_model.get_invert_new(data_item, crop_region)
-        cropped_display_specifier = DataItem.BufferedDataSourceSpecifier.from_data_item(cropped_data_item)
         document_model.recompute_all()
-        self.assertFalse(cropped_data_item.maybe_data_source.computation.needs_update)
+        self.assertFalse(cropped_data_item.computation.needs_update)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertTrue(cropped_data_item.maybe_data_source.computation.needs_update)
+        self.assertTrue(cropped_data_item.computation.needs_update)
         document_controller.close()
 
     def test_creating_with_variable_produces_valid_computation(self):
@@ -360,7 +359,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item_r = document_model.assign_variable_to_data_item(data_item)
             computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2".format(data_item_r))
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data*2))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, data*2))
 
     def test_extra_variables_in_computation_get_purged(self):
         document_model = DocumentModel.DocumentModel()
@@ -377,9 +376,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item_r2 = document_model.assign_variable_to_data_item(data_item2)
             document_model.assign_variable_to_data_item(data_item3)
             computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2 + {1}.xdata".format(data_item_r, data_item_r2))
-            self.assertEqual(len(computed_data_item.maybe_data_source.computation.variables), 2)
+            self.assertEqual(len(computed_data_item.computation.variables), 2)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data*2 + data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, data*2 + data))
 
     def test_deleting_processed_data_item_and_then_recomputing_works(self):
         # processed data item should be removed from recomputing queue
@@ -441,11 +440,11 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             intermediate_data_item = document_model.get_pick_region_new(source_data_item)
-            intermediate_display = intermediate_data_item.maybe_data_source.displays[0]
+            intermediate_display = intermediate_data_item.displays[0]
             interval_region = Graphics.IntervalGraphic()
             intermediate_display.add_graphic(interval_region)
             target_data_item = document_model.get_invert_new(source_data_item)
-            target_computation = target_data_item.maybe_data_source.computation
+            target_computation = target_data_item.computation
             target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I")
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
@@ -462,13 +461,13 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             intermediate_data_item = document_model.get_pick_region_new(source_data_item)
-            intermediate_display = intermediate_data_item.maybe_data_source.displays[0]
+            intermediate_display = intermediate_data_item.displays[0]
             interval_region1 = Graphics.IntervalGraphic()
             intermediate_display.add_graphic(interval_region1)
             interval_region2 = Graphics.IntervalGraphic()
             intermediate_display.add_graphic(interval_region2)
             target_data_item = document_model.get_invert_new(source_data_item)
-            target_computation = target_data_item.maybe_data_source.computation
+            target_computation = target_data_item.computation
             target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I")
             target_computation.create_object("interval2", document_model.get_object_specifier(interval_region2), label="I")
             self.assertIn(source_data_item, document_model.data_items)
@@ -488,12 +487,12 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             crop_region = Graphics.RectangleGraphic()
-            source_data_item.maybe_data_source.displays[0].add_graphic(crop_region)
+            source_data_item.displays[0].add_graphic(crop_region)
             target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
             target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
             self.assertIn(target_data_item1, document_model.data_items)
             self.assertIn(target_data_item2, document_model.data_items)
-            source_data_item.maybe_data_source.displays[0].remove_graphic(crop_region)
+            source_data_item.displays[0].remove_graphic(crop_region)
             self.assertNotIn(target_data_item1, document_model.data_items)
             self.assertNotIn(target_data_item2, document_model.data_items)
 
@@ -504,7 +503,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             source_data_item = DataItem.DataItem(numpy.ones((8, 8, 8), numpy.float32))
             document_model.append_data_item(source_data_item)
             crop_region = Graphics.RectangleGraphic()
-            source_data_item.maybe_data_source.displays[0].add_graphic(crop_region)
+            source_data_item.displays[0].add_graphic(crop_region)
             target_data_item1 = document_model.get_invert_new(source_data_item, crop_region)
             target_data_item2 = document_model.get_invert_new(source_data_item, crop_region)
             self.assertIn(target_data_item1, document_model.data_items)
@@ -513,11 +512,11 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.remove_data_item(target_data_item1)
             self.assertNotIn(target_data_item1, document_model.data_items)
             self.assertIn(target_data_item2, document_model.data_items)
-            self.assertIn(crop_region, source_data_item.maybe_data_source.displays[0].graphics)
+            self.assertIn(crop_region, source_data_item.displays[0].graphics)
             # but removing the last target should delete both the target and the source graphic
             document_model.remove_data_item(target_data_item2)
             self.assertNotIn(target_data_item2, document_model.data_items)
-            self.assertNotIn(crop_region, source_data_item.maybe_data_source.displays[0].graphics)
+            self.assertNotIn(crop_region, source_data_item.displays[0].graphics)
 
     def test_crop_new_works_with_no_rectangle_graphic(self):
         document_model = DocumentModel.DocumentModel()
@@ -561,12 +560,12 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
             data_item_dup = document_controller.processing_duplicate().data_item
-            self.assertIsNotNone(data_item_dup.maybe_data_source.computation)
-            self.assertNotEqual(data_item_dup.maybe_data_source.computation, data_item.maybe_data_source.computation)
-            self.assertNotEqual(data_item_dup.maybe_data_source.computation.variables[0], data_item.maybe_data_source.computation.variables[0])
-            self.assertEqual(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier["uuid"], data_item.maybe_data_source.computation.variables[0].variable_specifier["uuid"])
-            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.maybe_data_source.computation.variables[0].variable_specifier).value.data_item,
-                             document_model.resolve_object_specifier(data_item.maybe_data_source.computation.variables[0].variable_specifier).value.data_item)
+            self.assertIsNotNone(data_item_dup.computation)
+            self.assertNotEqual(data_item_dup.computation, data_item.computation)
+            self.assertNotEqual(data_item_dup.computation.variables[0], data_item.computation.variables[0])
+            self.assertEqual(data_item_dup.computation.variables[0].variable_specifier["uuid"], data_item.computation.variables[0].variable_specifier["uuid"])
+            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.computation.variables[0].variable_specifier).value.data_item,
+                             document_model.resolve_object_specifier(data_item.computation.variables[0].variable_specifier).value.data_item)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()
@@ -587,7 +586,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(DataItem.DataItem(numpy.ones((2, ) + data_size, numpy.float32)))
         for data_item in document_model.data_items:
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].update_calculated_display_values()
             document_controller.fix_display_limits(display_specifier)
             self.assertEqual(len(display_specifier.display.display_limits), 2)
         document_controller.close()

@@ -68,7 +68,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.data_item.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
@@ -81,7 +81,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
         data_item_1d = DataItem.DataItem(create_1d_data(data_min=data_min, data_max=data_max))
-        data_item_1d.maybe_data_source.displays[0].update_calculated_display_values()
+        data_item_1d.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(data_item_1d)
         self.display_panel.set_displayed_data_item(data_item_1d)
         self.display_panel.display_canvas_item.layout_immediate(canvas_shape)
@@ -541,10 +541,10 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_mouse_tracking_moves_vertical_scale_with_calibrated_data_with_offset(self):
         # notice: dragging increasing y drags down.
         line_plot_canvas_item = self.setup_line_plot()
-        buffered_data_source = self.display_specifier.buffered_data_source
-        intensity_calibration = buffered_data_source.intensity_calibration
+        data_item = self.display_specifier.data_item
+        intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
-        buffered_data_source.set_intensity_calibration(intensity_calibration)
+        data_item.set_intensity_calibration(intensity_calibration)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item._data_info.y_properties.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item._data_info.y_properties.calibrated_data_max
@@ -582,10 +582,10 @@ class TestDisplayPanelClass(unittest.TestCase):
         # notice: dragging increasing y drags down.
         line_plot_canvas_item = self.setup_line_plot(data_min=0.1, data_max=980)
         self.display_specifier.display.y_style = "log"
-        buffered_data_source = self.display_specifier.buffered_data_source
-        intensity_calibration = buffered_data_source.intensity_calibration
+        data_item = self.display_specifier.data_item
+        intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
-        buffered_data_source.set_intensity_calibration(intensity_calibration)
+        data_item.set_intensity_calibration(intensity_calibration)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item._data_info.y_properties.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item._data_info.y_properties.calibrated_data_max
@@ -604,11 +604,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         # notice: dragging increasing y drags down.
         line_plot_canvas_item = self.setup_line_plot(data_min=0.1, data_max=980)
         self.display_specifier.display.y_style = "log"
-        buffered_data_source = self.display_specifier.buffered_data_source
-        intensity_calibration = buffered_data_source.intensity_calibration
+        data_item = self.display_specifier.data_item
+        intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = 0.2
         intensity_calibration.scale = 1.6
-        buffered_data_source.set_intensity_calibration(intensity_calibration)
+        data_item.set_intensity_calibration(intensity_calibration)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         calibrated_data_min = line_plot_canvas_item.line_graph_canvas_item._data_info.y_properties.calibrated_data_min
         calibrated_data_max = line_plot_canvas_item.line_graph_canvas_item._data_info.y_properties.calibrated_data_max
@@ -685,7 +685,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_mouse_tracking_expand_scale_by_high_amount_with_interval(self):
         line_plot_canvas_item = self.setup_line_plot()
         interval_graphic = Graphics.IntervalGraphic()
-        self.document_model.data_items[1].maybe_data_source.displays[0].add_graphic(interval_graphic)
+        self.document_model.data_items[1].displays[0].add_graphic(interval_graphic)
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
@@ -701,7 +701,7 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_mouse_tracking_contract_scale_by_high_amount_with_interval(self):
         line_plot_canvas_item = self.setup_line_plot()
         interval_graphic = Graphics.IntervalGraphic()
-        self.document_model.data_items[1].maybe_data_source.displays[0].add_graphic(interval_graphic)
+        self.document_model.data_items[1].displays[0].add_graphic(interval_graphic)
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_left = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.left + plot_origin.x
         plot_width = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.width
@@ -805,11 +805,11 @@ class TestDisplayPanelClass(unittest.TestCase):
         plot_origin = line_plot_canvas_item.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), line_plot_canvas_item)
         plot_height = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.height - 1
         plot_bottom = line_plot_canvas_item.line_graph_canvas_item.canvas_rect.bottom - 1 + plot_origin.y
-        buffered_data_source = self.display_specifier.buffered_data_source
+        data_item = self.display_specifier.data_item
         # adjust image panel display and trigger layout
-        intensity_calibration = buffered_data_source.intensity_calibration
+        intensity_calibration = data_item.intensity_calibration
         intensity_calibration.offset = -0.2
-        buffered_data_source.set_intensity_calibration(intensity_calibration)
+        data_item.set_intensity_calibration(intensity_calibration)
         self.display_panel.display_canvas_item.prepare_display()  # force layout
         # now stretch 1/2 + 100 to 1/2 + 150
         pos = Geometry.IntPoint(x=30, y=plot_bottom-320)
@@ -1056,8 +1056,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(self.display_panel.data_item, self.data_item)
 
     def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):
-        with self.data_item.maybe_data_source.data_ref() as dr:
-            dr.master_data = numpy.zeros((0, ))
+        self.data_item.set_data(numpy.zeros((0, )))
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
@@ -1068,8 +1067,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.document_model.recompute_all()
 
     def test_2d_data_with_zero_dimensions_display_fails_without_exception(self):
-        with self.data_item.maybe_data_source.data_ref() as dr:
-            dr.master_data = numpy.zeros((0, 0))
+        self.data_item.set_data(numpy.zeros((0, 0)))
         # display panel should not have any display_canvas_item now since data is not valid
         self.assertIsInstance(self.display_panel.display_canvas_item, DisplayPanel.MissingDataCanvasItem)
         # thumbnails and processors
@@ -1139,15 +1137,15 @@ class TestDisplayPanelClass(unittest.TestCase):
     def test_enter_to_auto_display_limits(self):
         # test preliminary assumptions (no display limits)
         display_limits = 0.5, 1.5
-        self.data_item.maybe_data_source.displays[0].display_limits = display_limits
+        self.data_item.displays[0].display_limits = display_limits
         self.assertIsNotNone(self.display_specifier.display.display_limits)
         # focus on the display panel, then press the enter key
         modifiers = CanvasItem.KeyboardModifiers()
         self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
         self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         # confirm that display limits were set
-        self.assertIsNotNone(self.data_item.maybe_data_source.displays[0].display_limits)
-        self.assertNotEqual(self.data_item.maybe_data_source.displays[0].display_limits, display_limits)
+        self.assertIsNotNone(self.data_item.displays[0].display_limits)
+        self.assertNotEqual(self.data_item.displays[0].display_limits, display_limits)
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count(self):
         self.assertIsNone(self.document_controller.ui.popup)
@@ -1307,7 +1305,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item1 = DataItem.DataItem(numpy.ones((8, 8), numpy.float))
             document_model.append_data_item(data_item1)
             data_item = document_model.get_crop_new(data_item1)
-            data_item.maybe_data_source.displays[0].display_type = "line_plot"
+            data_item.displays[0].display_type = "line_plot"
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
             display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
@@ -1320,8 +1318,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem()
-            data_item.append_data_source(DataItem.BufferedDataSource())
-            data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
+            data_item.ensure_data_source()
+            data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
@@ -1341,7 +1339,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
-            display = data_item.maybe_data_source.displays[0]
+            display = data_item.displays[0]
             display.update_calculated_display_values()
             update_count = display_panel.display_canvas_item._update_count
             display._send_display_values_for_test()
@@ -1362,7 +1360,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             update_count = display_panel.display_canvas_item._update_count
-            data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.new_data_and_metadata(numpy.random.randn(8, 8)))
+            data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.random.randn(8, 8)))
             self.assertEqual(update_count + 1, display_panel.display_canvas_item._update_count)
 
     def test_image_display_canvas_item_only_updates_once_if_graphic_changes(self):
@@ -1373,7 +1371,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             graphic = Graphics.RectangleGraphic()
-            data_item.maybe_data_source.displays[0].add_graphic(graphic)
+            data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 240))
@@ -1395,7 +1393,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
-            display = data_item.maybe_data_source.displays[0]
+            display = data_item.displays[0]
             display.update_calculated_display_values()
             update_count = display_panel.display_canvas_item._update_count
             display._send_display_values_for_test()

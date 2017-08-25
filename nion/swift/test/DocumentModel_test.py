@@ -111,12 +111,12 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             line_profile_data_item = document_model.get_line_profile_new(data_item)
-            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics[0].interval_descriptors), 0)
+            self.assertEqual(len(data_item.displays[0].graphics[0].interval_descriptors), 0)
             interval = Graphics.IntervalGraphic()
             interval.interval = 0.3, 0.6
-            line_profile_data_item.maybe_data_source.displays[0].add_graphic(interval)
-            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics[0].interval_descriptors), 1)
-            self.assertEqual(data_item.maybe_data_source.displays[0].graphics[0].interval_descriptors[0]["interval"], interval.interval)
+            line_profile_data_item.displays[0].add_graphic(interval)
+            self.assertEqual(len(data_item.displays[0].graphics[0].interval_descriptors), 1)
+            self.assertEqual(data_item.displays[0].graphics[0].interval_descriptors[0]["interval"], interval.interval)
 
     def test_processing_pick_configures_in_and_out_regions_and_connection(self):
         document_model = DocumentModel.DocumentModel()
@@ -125,22 +125,22 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             pick_data_item = document_model.get_pick_new(data_item)
-            self.assertEqual(len(data_item.maybe_data_source.displays[0].graphics), 1)
+            self.assertEqual(len(data_item.displays[0].graphics), 1)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(pick_data_item.maybe_data_source.data, d[4, 4, :]))
-            data_item.maybe_data_source.displays[0].graphics[0].position = 0, 0
+            self.assertTrue(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
+            data_item.displays[0].graphics[0].position = 0, 0
             document_model.recompute_all()
-            self.assertFalse(numpy.array_equal(pick_data_item.maybe_data_source.data, d[4, 4, :]))
-            self.assertTrue(numpy.array_equal(pick_data_item.maybe_data_source.data, d[0, 0, :]))
-            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
+            self.assertFalse(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
+            self.assertTrue(numpy.array_equal(pick_data_item.data, d[0, 0, :]))
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
             interval1 = 5 / d.shape[-1], 8 / d.shape[-1]
-            pick_data_item.maybe_data_source.displays[0].graphics[0].interval = interval1
-            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
-            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, interval1)
+            pick_data_item.displays[0].graphics[0].interval = interval1
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, interval1)
             interval2 = 10 / d.shape[-1], 15 / d.shape[-1]
-            data_item.maybe_data_source.displays[0].slice_interval = interval2
-            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, data_item.maybe_data_source.displays[0].slice_interval)
-            self.assertEqual(pick_data_item.maybe_data_source.displays[0].graphics[0].interval, interval2)
+            data_item.displays[0].slice_interval = interval2
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
+            self.assertEqual(pick_data_item.displays[0].graphics[0].interval, interval2)
 
     def test_recompute_after_data_item_deleted_does_not_update_data_on_deleted_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -160,13 +160,12 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             inverted_data_item = document_model.get_invert_new(data_item)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
-            with data_item.maybe_data_source.data_ref() as data_ref:
-                data_ref.data = (100 * numpy.random.randn(4, 4)).astype(numpy.int)
+            self.assertTrue(numpy.array_equal(inverted_data_item.data, -d))
+            data_item.set_data((100 * numpy.random.randn(4, 4)).astype(numpy.int))
             document_model.set_data_item_computation(inverted_data_item, None)
-            self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
+            self.assertTrue(numpy.array_equal(inverted_data_item.data, -d))
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(inverted_data_item.maybe_data_source.data, -d))
+            self.assertTrue(numpy.array_equal(inverted_data_item.data, -d))
 
     def test_recompute_twice_before_periodic_uses_final_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -184,21 +183,21 @@ class TestDocumentModelClass(unittest.TestCase):
             x.value = 10
             document_model.recompute_all(merge=False)
             document_model.perform_data_item_merges()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, d + 10))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, d + 10))
 
     def test_data_item_recording(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16)))
         data_item_recorder = Recorder.Recorder(data_item)
-        data_item.maybe_data_source.displays[0].display_type = "line_plot"
+        data_item.displays[0].display_type = "line_plot"
         point_graphic = Graphics.PointGraphic()
         point_graphic.position = 0.2, 0.3
-        data_item.maybe_data_source.displays[0].add_graphic(point_graphic)
+        data_item.displays[0].add_graphic(point_graphic)
         point_graphic.position = 0.21, 0.31
         new_data_item = DataItem.DataItem(numpy.zeros((16, 16)))
-        self.assertNotEqual(data_item.maybe_data_source.displays[0].display_type, new_data_item.maybe_data_source.displays[0].display_type)
+        self.assertNotEqual(data_item.displays[0].display_type, new_data_item.displays[0].display_type)
         data_item_recorder.apply(new_data_item)
-        self.assertEqual(data_item.maybe_data_source.displays[0].display_type, new_data_item.maybe_data_source.displays[0].display_type)
-        self.assertEqual(new_data_item.maybe_data_source.displays[0].graphics[0].position, point_graphic.position)
+        self.assertEqual(data_item.displays[0].display_type, new_data_item.displays[0].display_type)
+        self.assertEqual(new_data_item.displays[0].graphics[0].position, point_graphic.position)
 
 
 if __name__ == '__main__':

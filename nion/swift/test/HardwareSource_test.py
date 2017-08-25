@@ -323,7 +323,7 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 1)
     # ensure the recorded data is different from the view data.
-    testcase.assertNotEqual(document_controller.document_model.data_items[0].maybe_data_source.metadata["hardware_source"]["frame_index"], extended_data_list[0].metadata["hardware_source"]["frame_index"])
+    testcase.assertNotEqual(document_controller.document_model.data_items[0].d_metadata["hardware_source"]["frame_index"], extended_data_list[0].metadata["hardware_source"]["frame_index"])
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing
@@ -353,7 +353,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     testcase.assertEqual(len(document_model.data_items), 1)
     data_item = document_model.data_items[0]
     testcase.assertFalse(data_item.is_live)
-    frame_index = data_item.data_sources[0].metadata.get("hardware_source")["frame_index"]
+    frame_index = data_item.d_metadata.get("hardware_source")["frame_index"]
     # play the second time. it should make a copy of the first data item and use the original.
     new_data_item = copy.deepcopy(document_model.data_items[0])
     document_model.append_data_item(new_data_item)
@@ -366,8 +366,8 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     testcase.assertEqual(len(document_model.data_items), 2)
     data_item = document_model.data_items[0]
     copied_data_item = document_model.data_items[1]
-    new_frame_index = data_item.data_sources[0].metadata.get("hardware_source")["frame_index"]
-    copied_frame_index = copied_data_item.data_sources[0].metadata.get("hardware_source")["frame_index"]
+    new_frame_index = data_item.d_metadata.get("hardware_source")["frame_index"]
+    copied_frame_index = copied_data_item.d_metadata.get("hardware_source")["frame_index"]
     testcase.assertNotEqual(frame_index, new_frame_index)
     testcase.assertEqual(frame_index, copied_frame_index)
 
@@ -697,8 +697,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             document_model.append_data_item(new_data_item)
             self.__acquire_one(document_controller, hardware_source)
             self.assertEqual(len(document_model.data_items), 2)  # old one is copied
-            self.assertAlmostEqual(document_model.data_items[0].data_sources[0].data[0], 1.0)
-            self.assertAlmostEqual(document_model.data_items[1].data_sources[0].data[0], 2.0)
+            self.assertAlmostEqual(document_model.data_items[0].data[0], 1.0)
+            self.assertAlmostEqual(document_model.data_items[1].data[0], 2.0)
 
     def test_setup_channel_configures_tags_correctly(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -727,15 +727,14 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.abort_playing(sync_timeout=3.0)
             self.assertEqual(len(document_model.data_items), 1)
             document_controller.periodic()
-            data = document_model.data_items[0].data_sources[0].data
+            data = document_model.data_items[0].data
             self.assertAlmostEqual(data[0, 0], 1.0)
             self.assertAlmostEqual(data[128, 0], 16.0)
 
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = ScanAcquisitionTask(False, 0).make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        metadata = data_item.data_sources[0].metadata
-        self.assertTrue(isinstance(metadata.get("hardware_source"), dict))
+        self.assertTrue(isinstance(data_item.d_metadata.get("hardware_source"), dict))
 
     def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
         data_element = ScanAcquisitionTask(False, 0).make_data_element()
@@ -749,8 +748,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
-            buffered_data_source = data_item0.data_sources[0]
-            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+            hardware_source_metadata = data_item0.d_metadata.get("hardware_source", dict())
             self.assertEqual(data_item0.title, hardware_source.display_name)
             self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
             self.assertIsNone(hardware_source_metadata.get("channel_id"))
@@ -761,8 +759,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
-            buffered_data_source = data_item0.data_sources[0]
-            hardware_source_metadata = buffered_data_source.metadata.get("hardware_source", dict())
+            hardware_source_metadata = data_item0.d_metadata.get("hardware_source", dict())
             self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
             self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
             self.assertEqual(hardware_source_metadata.get("channel_id"), "a")
@@ -774,15 +771,13 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.channel_enabled_list = (True, True)
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
-            buffered_data_source0 = data_item0.data_sources[0]
-            hardware_source_metadata0 = buffered_data_source0.metadata.get("hardware_source", dict())
+            hardware_source_metadata0 = data_item0.d_metadata.get("hardware_source", dict())
             self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
             self.assertEqual(hardware_source_metadata0.get("channel_index"), 0)
             self.assertEqual(hardware_source_metadata0.get("channel_id"), "a")
             self.assertEqual(hardware_source_metadata0.get("channel_name"), "A")
             data_item1 = document_model.data_items[1]
-            buffered_data_source1 = data_item1.data_sources[0]
-            hardware_source_metadata1 = buffered_data_source1.metadata.get("hardware_source", dict())
+            hardware_source_metadata1 = data_item1.d_metadata.get("hardware_source", dict())
             self.assertEqual(data_item1.title, "%s (%s)" % (hardware_source.display_name, "B"))
             self.assertEqual(hardware_source_metadata1.get("channel_index"), 1)
             self.assertEqual(hardware_source_metadata1.get("channel_id"), "b")
@@ -793,18 +788,18 @@ class TestHardwareSourceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             hardware_source.channel_enabled_list = (True, True)
             self.__acquire_one(document_controller, hardware_source)
-            buffered_data_source0 = document_model.data_items[0].data_sources[0]
-            buffered_data_source1 = document_model.data_items[1].data_sources[0]
-            self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)  # 1.0 because top half of two part partial acquisition
-            self.assertAlmostEqual(buffered_data_source1.data[0, 0], 1.0)
-            self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)  # 2.0 because bottom half of two part partial acquisition
-            self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 2.0)
+            data_item0 = document_model.data_items[0]
+            data_item1 = document_model.data_items[1]
+            self.assertAlmostEqual(data_item0.data[0, 0], 1.0)  # 1.0 because top half of two part partial acquisition
+            self.assertAlmostEqual(data_item1.data[0, 0], 1.0)
+            self.assertAlmostEqual(data_item0.data[-1, -1], 2.0)  # 2.0 because bottom half of two part partial acquisition
+            self.assertAlmostEqual(data_item1.data[-1, -1], 2.0)
             hardware_source.channel_enabled_list = (False, True)
             self.__acquire_one(document_controller, hardware_source)
-            self.assertAlmostEqual(buffered_data_source0.data[0, 0], 1.0)
-            self.assertAlmostEqual(buffered_data_source1.data[0, 0], 3.0)
-            self.assertAlmostEqual(buffered_data_source0.data[-1, -1], 2.0)
-            self.assertAlmostEqual(buffered_data_source1.data[-1, -1], 4.0)
+            self.assertAlmostEqual(data_item0.data[0, 0], 1.0)
+            self.assertAlmostEqual(data_item1.data[0, 0], 3.0)
+            self.assertAlmostEqual(data_item0.data[-1, -1], 2.0)
+            self.assertAlmostEqual(data_item1.data[-1, -1], 4.0)
 
     def test_restarting_view_in_same_session_preserves_dependent_data_connections(self):
         document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
@@ -814,16 +809,16 @@ class TestHardwareSourceClass(unittest.TestCase):
             document_controller.periodic()
             document_model.recompute_all()
             modified = document_model.data_items[1].modified
-            value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
-            acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
+            value = document_model.data_items[1].data[0]
+            acq_value = document_model.data_items[0].data[0]
             self.assertEqual(acq_value, 1.0)
             self.assertEqual(value, -acq_value)
             self.__acquire_one(document_controller, hardware_source)
             document_controller.periodic()
             document_model.recompute_all()
             self.assertNotEqual(modified, document_model.data_items[1].modified)
-            value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
-            acq_value = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
+            value = document_model.data_items[1].data[0]
+            acq_value = document_model.data_items[0].data[0]
             self.assertEqual(acq_value, 2.0)
             self.assertEqual(value, -acq_value)
 
@@ -841,9 +836,9 @@ class TestHardwareSourceClass(unittest.TestCase):
             document_controller.periodic()
             document_model.recompute_all()
             self.assertEqual(len(document_model.data_items), 3)
-            value = document_model.data_items[1].data_sources[0].data_and_metadata.data[0]
-            acq_value0 = document_model.data_items[0].data_sources[0].data_and_metadata.data[0]
-            acq_value2 = document_model.data_items[2].data_sources[0].data_and_metadata.data[0]
+            value = document_model.data_items[1].data[0]
+            acq_value0 = document_model.data_items[0].data[0]
+            acq_value2 = document_model.data_items[2].data[0]
             self.assertEqual(acq_value0, 2.0)
             self.assertEqual(acq_value2, 1.0)
             self.assertEqual(value, -acq_value0)
@@ -923,10 +918,10 @@ class TestHardwareSourceClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
             display_panel.set_displayed_data_item(document_model.data_items[0])
-            display_panel.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            display_panel.data_item.displays[0].update_calculated_display_values()
             repaint_count = display_panel.display_canvas_item._repaint_count
             self.__acquire_one(document_controller, hardware_source)
-            display_panel.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            display_panel.data_item.displays[0].update_calculated_display_values()
             display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 1)
 
@@ -999,7 +994,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             data_item = library.get_data_item_for_hardware_source(hardware_source, create_if_needed=True)
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(document_model.data_items[0], data_item._data_item)
-            self.assertIsNone(document_model.data_items[0].maybe_data_source.data)
+            self.assertIsNone(document_model.data_items[0].data)
 
             hardware_source.start_playing()
             start_time = time.time()
@@ -1015,13 +1010,13 @@ class TestHardwareSourceClass(unittest.TestCase):
 
             self.assertEqual(len(document_model.data_items), 1)
             self.assertEqual(document_model.data_items[0], data_item._data_item)
-            self.assertIsNotNone(document_model.data_items[0].maybe_data_source.data)
+            self.assertIsNotNone(document_model.data_items[0].data)
 
     def test_hardware_source_grabs_data_with_correct_descriptor(self):
         document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source()
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
-            xdata = document_model.data_items[0].maybe_data_source.data_and_metadata
+            xdata = document_model.data_items[0].xdata
             self.assertEqual(len(xdata.dimensional_shape), 2)
             self.assertEqual(xdata.collection_dimension_count, 1)
             self.assertEqual(xdata.datum_dimension_count, 1)

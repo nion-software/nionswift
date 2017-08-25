@@ -651,7 +651,7 @@ class DocumentController(Window.Window):
 
     @property
     def selected_display_specifier(self):
-        """Return the selected display specifier (data_item, data_source, display).
+        """Return the selected display specifier (data_item, display).
 
         The selected display is the display that has keyboard focus in the data panel or a display panel.
         """
@@ -1068,21 +1068,21 @@ class DocumentController(Window.Window):
 
     def __get_crop_graphic(self, display_specifier):
         crop_graphic = None
-        buffered_data_source = display_specifier.buffered_data_source
+        data_item = display_specifier.data_item
         display = display_specifier.display
         current_index = display.graphic_selection.current_index if display else None
         graphic = display.graphics[current_index] if current_index is not None else None
-        if buffered_data_source and graphic:
-            if buffered_data_source.is_datum_1d and isinstance(graphic, Graphics.IntervalGraphic):
+        if data_item and graphic:
+            if data_item.is_datum_1d and isinstance(graphic, Graphics.IntervalGraphic):
                 crop_graphic = graphic
-            elif buffered_data_source.is_datum_2d and isinstance(graphic, Graphics.RectangleTypeGraphic):
+            elif data_item.is_datum_2d and isinstance(graphic, Graphics.RectangleTypeGraphic):
                 crop_graphic = graphic
         return crop_graphic
 
     def __get_mask_graphics(self, display_specifier):
         mask_graphics = list()
-        buffered_data_source = display_specifier.buffered_data_source
-        if buffered_data_source and len(buffered_data_source.dimensional_shape) == 2:
+        data_item = display_specifier.data_item
+        if data_item and len(data_item.dimensional_shape) == 2:
             display = display_specifier.display
             current_index = display.graphic_selection.current_index
             if current_index is not None:
@@ -1160,6 +1160,7 @@ class DocumentController(Window.Window):
             for variable_name, data_item in self.document_model.variable_to_data_item_map().items():
                 map[variable_name] = self.document_model.get_object_specifier(data_item)
         data_item = DataItem.DataItem()
+        data_item.ensure_data_source()
         data_item.title = _("Computation on ") + data_item.title
         computation = self.document_model.create_computation(expression)
         names = Symbolic.Computation.parse_names(expression)
@@ -1172,8 +1173,6 @@ class DocumentController(Window.Window):
                 object = self.document_model.resolve_object_specifier(variable.specifier)
                 if isinstance(object, DataItem.DataItem) and object.category == "temporary":
                     data_item.category = "temporary"
-        buffered_data_source = DataItem.BufferedDataSource()
-        data_item.append_data_source(buffered_data_source)
         self.document_model.append_data_item(data_item)
         self.document_model.set_data_item_computation(data_item, computation)
         self.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
@@ -1192,16 +1191,15 @@ class DocumentController(Window.Window):
             data_item = display_specifier.data_item
             display = display_specifier.display
             if display and len(display.graphic_selection.indexes) == 2:
-                buffered_data_source = display_specifier.buffered_data_source
                 index1 = display.graphic_selection.anchor_index
                 index2 = list(display.graphic_selection.indexes.difference({index1}))[0]
                 graphic1 = display.graphics[index1]
                 graphic2 = display.graphics[index2]
-                if buffered_data_source:
-                    if buffered_data_source.is_datum_1d and isinstance(graphic1, Graphics.IntervalGraphic) and isinstance(graphic2, Graphics.IntervalGraphic):
+                if data_item:
+                    if data_item.is_datum_1d and isinstance(graphic1, Graphics.IntervalGraphic) and isinstance(graphic2, Graphics.IntervalGraphic):
                         crop_graphic1 = graphic1
                         crop_graphic2 = graphic2
-                    elif buffered_data_source.is_datum_2d and isinstance(graphic1, Graphics.RectangleTypeGraphic) and isinstance(graphic2, Graphics.RectangleTypeGraphic):
+                    elif data_item.is_datum_2d and isinstance(graphic1, Graphics.RectangleTypeGraphic) and isinstance(graphic2, Graphics.RectangleTypeGraphic):
                         crop_graphic1 = graphic1
                         crop_graphic2 = graphic2
                     else:

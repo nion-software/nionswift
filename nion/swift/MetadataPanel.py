@@ -57,13 +57,14 @@ class MetadataModel:
 
     @metadata.setter
     def metadata(self, metadata):
-        buffered_data_source = self.__display_specifier.buffered_data_source
-        if buffered_data_source:
-            buffered_data_source.metadata = metadata
+        data_item = self.__display_specifier.data_item
+        if data_item:
+            data_item.d_metadata = metadata
 
-    def __metadata_changed(self, buffered_data_source):
-        if buffered_data_source:
-            metadata = buffered_data_source.metadata
+    def __metadata_changed(self, data_item):
+        if data_item:
+            metadata = data_item.d_metadata
+            assert isinstance(metadata, dict)
             if self.__metadata != metadata:
                 self.__metadata = metadata if metadata is not None else dict()
                 self.metadata_changed_event.fire(self.__metadata)
@@ -76,12 +77,12 @@ class MetadataModel:
                 self.__metadata_changed_event_listener = None
             self.__display_specifier = copy.copy(display_specifier)
             # update the expression text
-            buffered_data_source = self.__display_specifier.buffered_data_source
-            if buffered_data_source:
+            data_item = self.__display_specifier.data_item
+            if data_item:
                 def metadata_changed():
-                    self.__metadata_changed(buffered_data_source)
-                self.__metadata_changed_event_listener = buffered_data_source.metadata_changed_event.listen(metadata_changed)
-            self.__metadata_changed(buffered_data_source)
+                    self.__metadata_changed(data_item)
+                self.__metadata_changed_event_listener = data_item.d_metadata_changed_event.listen(metadata_changed)
+            self.__metadata_changed(data_item)
 
 
 class MetadataEditorTreeDelegate:
@@ -95,6 +96,7 @@ class MetadataEditorTreeDelegate:
 
     @metadata.setter
     def metadata(self, value):
+        assert isinstance(value, dict)
         self.__metadata = value
 
     def __is_expanded(self, value_path):

@@ -27,7 +27,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         data = numpy.full((10, 10), 200, dtype=numpy.uint32)
         data[5, 5] = 650
         self.data_item = DataItem.DataItem(data)
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.data_item.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.histogram_panel = HistogramPanel.HistogramPanel(self.document_controller, "histogram-panel", None, debounce=False, sample=False)
@@ -48,7 +48,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_canvas_item.mouse_pressed(60, 58, 0)
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
         self.histogram_canvas_item.mouse_released(90, 58, 0)
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.data_item.displays[0].update_calculated_display_values()
         self.assertIsNotNone(self.display_specifier.display.display_limits)
         self.assertEqual(self.display_specifier.display.get_calculated_display_values(True).display_range, (290, 320))
         # double click and return to None
@@ -57,7 +57,7 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.histogram_canvas_item.mouse_pressed(121, 51, 0)
         self.histogram_canvas_item.mouse_double_clicked(121, 51, 0)
         self.histogram_canvas_item.mouse_released(121, 51, 0)
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.data_item.displays[0].update_calculated_display_values()
         self.assertIsNone(self.display_specifier.display.display_limits)
         self.assertEqual(self.display_specifier.display.get_calculated_display_values(True).display_range, (200, 650))
 
@@ -68,9 +68,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         histogram_data1 = self.histogram_canvas_item.histogram_data
         self.assertIsNotNone(histogram_data1)
         # now change the data and verify that histogram gets recomputed via document model
-        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.display_specifier.data_item.set_data(numpy.ones((10, 10), dtype=numpy.uint32))
+        self.data_item.displays[0].update_calculated_display_values()
         # wait for histogram task to be complete
         self.histogram_panel._histogram_widget._histogram_data_func_value_model._run_until_complete()
         histogram_data2 = self.histogram_canvas_item.histogram_data
@@ -83,10 +82,9 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.assertIsNotNone(stats1_text)
         self.assertIsNotNone(stats2_text)
         # now change the data and verify that statistics gets recomputed via document model
-        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
+        self.display_specifier.data_item.set_data(numpy.ones((10, 10), dtype=numpy.uint32))
         # wait for statistics task to be complete
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.data_item.displays[0].update_calculated_display_values()
         self.histogram_panel._statistics_widget._statistics_func_value_model._run_until_complete()
         self.assertNotEqual(stats1_text, self.histogram_panel._statistics_widget._stats1_property.value)
         self.assertNotEqual(stats2_text, self.histogram_panel._statistics_widget._stats2_property.value)
@@ -95,8 +93,8 @@ class TestHistogramPanelClass(unittest.TestCase):
         data = numpy.zeros((100, 100))
         data[20:40, 20:40] = 1
         data[40:60, 40:60] = 2
-        self.display_specifier.buffered_data_source.set_data(data)
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.display_specifier.data_item.set_data(data)
+        self.data_item.displays[0].update_calculated_display_values()
         self.histogram_panel._statistics_widget._statistics_func_value_model._run_until_complete()
         stats1_text = self.histogram_panel._statistics_widget._stats1_property.value
         stats2_text = self.histogram_panel._statistics_widget._stats2_property.value
@@ -115,12 +113,11 @@ class TestHistogramPanelClass(unittest.TestCase):
         self.assertNotEqual(stats2_new_text, self.histogram_panel._statistics_widget._stats2_property.value)
 
     def test_cursor_histogram_of_empty_data_displays_without_exception(self):
-        self.data_item.maybe_data_source.set_data_and_metadata(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), numpy.float)))
+        self.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((0, 0), numpy.float)))
         self.histogram_canvas_item.mouse_position_changed(80, 58, 0)
 
     def test_histogram_statistics_with_zero_array(self):
-        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = numpy.ones((10, 10), dtype=numpy.uint32)
+        self.display_specifier.data_item.set_data(numpy.ones((10, 10), dtype=numpy.uint32))
         rect_region = Graphics.RectangleGraphic()
         rect_region.bounds = (10000, 10000), (10001, 10001)
         self.display_specifier.display.add_graphic(rect_region)
@@ -129,13 +126,12 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def test_histogram_statistics_on_slice(self):
         data = numpy.multiply(numpy.abs(numpy.random.randn(2, 2, 20)), 100).astype(numpy.uint32)
-        with self.display_specifier.buffered_data_source.data_ref() as data_ref:
-            data_ref.master_data = data
+        self.display_specifier.data_item.set_data(data)
         self.display_specifier.display.slice_center = 15
         self.display_specifier.display.slice_width = 2
         # get the values twice: one to finish anything pending, and one to get the correct values
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
-        self.data_item.maybe_data_source.displays[0].update_calculated_display_values()
+        self.data_item.displays[0].update_calculated_display_values()
+        self.data_item.displays[0].update_calculated_display_values()
         statistics_dict = self.histogram_panel._statistics_widget._statistics_func_value_model._evaluate_immediate()
         self.assertAlmostEqual(float(statistics_dict["mean"]), numpy.average(numpy.sum(data[..., 14:16], -1)))
         self.assertAlmostEqual(float(statistics_dict["min"]), numpy.amin(numpy.sum(data[..., 14:16], -1)))

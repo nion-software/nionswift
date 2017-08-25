@@ -45,7 +45,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((1000, )))
             document_model.append_data_item(data_item)
-            data_item.data_sources[0].displays[0].dimensional_calibration_style = "relative-top-left"
+            data_item.displays[0].dimensional_calibration_style = "relative-top-left"
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
             display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
@@ -108,9 +108,9 @@ class TestInfoPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.ones((100, 100, 20)))
-            data_item.maybe_data_source.displays[0].dimensional_calibration_style = "pixels-top-left"
+            data_item.displays[0].dimensional_calibration_style = "pixels-top-left"
             document_model.append_data_item(data_item)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].update_calculated_display_values()
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
             info_panel = document_controller.find_dock_widget("info-panel").panel
@@ -131,7 +131,7 @@ class TestInfoPanelClass(unittest.TestCase):
             data_and_metadata = DataAndMetadata.new_data_and_metadata(numpy.ones((20, 100, 100), numpy.float64), data_descriptor=DataAndMetadata.DataDescriptor(True, 0, 2))
             data_item = DataItem.new_data_item(data_and_metadata)
             document_model.append_data_item(data_item)
-            data_item.maybe_data_source.displays[0].update_calculated_display_values()
+            data_item.displays[0].update_calculated_display_values()
             display = DataItem.DisplaySpecifier.from_data_item(data_item).display
             display.sequence_index = 4
             display.dimensional_calibration_style = "pixels-top-left"
@@ -155,7 +155,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data = (numpy.random.randn(100, 100, 20, 20) * 100).astype(numpy.int32)
             data_item = DataItem.DataItem(data)
-            display = data_item.maybe_data_source.displays[0]
+            display = data_item.displays[0]
             display.dimensional_calibration_style = "pixels-top-left"
             display.collection_index = 20, 30
             document_model.append_data_item(data_item)

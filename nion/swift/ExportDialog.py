@@ -159,7 +159,7 @@ class ExportDialog(Dialog.OkCancelDialog):
                         components.append(data_item.created_local.isoformat().replace(':', ''))
                     if self.options.get("dimensions", False):
                         components.append(
-                            "x".join([str(shape_n) for shape_n in data_item.maybe_data_source.dimensional_shape]))
+                            "x".join([str(shape_n) for shape_n in data_item.dimensional_shape]))
                     if self.options.get("sequence", False):
                         components.append(str(index))
                     filename = "_".join(components)

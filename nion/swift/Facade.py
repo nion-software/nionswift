@@ -157,17 +157,15 @@ class ObjectSpecifier:
             return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type in ("region", "graphic"):
             for data_item in document_model.data_items:
-                for data_source in data_item.data_sources:
-                    for display in data_source.displays:
-                        for graphic in display.graphics:
-                            if graphic.uuid == object_uuid:
-                                return Graphic(graphic)
+                for display in data_item.displays:
+                    for graphic in display.graphics:
+                        if graphic.uuid == object_uuid:
+                            return Graphic(graphic)
         elif object_type == "display":
             for data_item in document_model.data_items:
-                for data_source in data_item.data_sources:
-                    for display in data_source.displays:
-                        if display.uuid == object_uuid:
-                            return Display(display)
+                for display in data_item.displays:
+                    if display.uuid == object_uuid:
+                        return Display(display)
         elif object_type == "hardware_source":
             return HardwareSource(HardwareSourceModule.HardwareSourceManager().get_hardware_source_for_hardware_source_id(object_id))
         elif object_type == "instrument":
@@ -966,8 +964,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        with self.__data_item.maybe_data_source.data_ref() as data_ref:
-            return data_ref.data
+        return self.__data_item.data
 
     @data.setter
     def data(self, data: numpy.ndarray) -> None:
@@ -979,8 +976,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        with self.__data_item.maybe_data_source.data_ref() as data_ref:
-            data_ref.data = numpy.copy(data)
+        self.__data_item.set_data(numpy.copy(data))
 
     def set_data(self, data: numpy.ndarray) -> None:
         """Set the data.
@@ -1001,7 +997,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.data_and_metadata
+        return self.__data_item.xdata
 
     @xdata.setter
     def xdata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
@@ -1011,7 +1007,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.maybe_data_source.set_data_and_metadata(data_and_metadata)
+        self.__data_item.set_xdata(data_and_metadata)
 
     @property
     def display_xdata(self) -> DataAndMetadata.DataAndMetadata:
@@ -1023,7 +1019,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.displays[0].get_calculated_display_values(True).display_data_and_metadata
+        return self.__data_item.displays[0].get_calculated_display_values(True).display_data_and_metadata
 
     @property
     def intensity_calibration(self) -> CalibrationModule.Calibration:
@@ -1033,7 +1029,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.intensity_calibration
+        return self.__data_item.intensity_calibration
 
     def set_intensity_calibration(self, intensity_calibration: CalibrationModule.Calibration) -> None:
         """Set the intensity calibration.
@@ -1044,7 +1040,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.maybe_data_source.set_intensity_calibration(intensity_calibration)
+        self.__data_item.set_intensity_calibration(intensity_calibration)
 
     @property
     def dimensional_calibrations(self) -> typing.List[CalibrationModule.Calibration]:
@@ -1054,7 +1050,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.dimensional_calibrations
+        return self.__data_item.dimensional_calibrations
 
     def set_dimensional_calibrations(self, dimensional_calibrations: typing.List[CalibrationModule.Calibration]) -> None:
         """Set the dimensional calibrations.
@@ -1065,7 +1061,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.maybe_data_source.set_dimensional_calibrations(dimensional_calibrations)
+        self.__data_item.set_dimensional_calibrations(dimensional_calibrations)
 
     @property
     def metadata(self) -> dict:
@@ -1078,7 +1074,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.metadata
+        return self.__data_item.d_metadata
 
     def set_metadata(self, metadata: dict) -> None:
         """Set the metadata dict.
@@ -1094,7 +1090,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.maybe_data_source.metadata = metadata
+        self.__data_item.d_metadata = metadata
 
     def has_metadata_value(self, key: str) -> bool:
         """Return whether the metadata value for the given key exists.
@@ -1121,7 +1117,7 @@ class DataItem(metaclass=SharedInstance):
                 return desc['path'][-1] in d
         desc = key_map.get(key)
         if desc is not None:
-            d = self.__data_item.maybe_data_source.metadata
+            d = self.__data_item.d_metadata
             for k in desc['path'][:-1]:
                 d =  d.setdefault(k, dict()) if d is not None else None
             if d is not None:
@@ -1152,7 +1148,7 @@ class DataItem(metaclass=SharedInstance):
             return v
         desc = key_map.get(key)
         if desc is not None:
-            v = self._data_item.maybe_data_source.metadata
+            v = self._data_item.d_metadata
             for k in desc['path']:
                 v =  v.get(k) if v is not None else None
             return v
@@ -1186,13 +1182,13 @@ class DataItem(metaclass=SharedInstance):
                 return
         desc = key_map.get(key)
         if desc is not None:
-            d0 = self.__data_item.maybe_data_source.metadata
+            d0 = self.__data_item.d_metadata
             d = d0
             for k in desc['path'][:-1]:
                 d =  d.setdefault(k, dict()) if d is not None else None
             if d is not None:
                 d[desc['path'][-1]] = value
-                self.__data_item.maybe_data_source.metadata = d0
+                self.__data_item.d_metadata = d0
                 return
         raise KeyError()
 
@@ -1224,13 +1220,13 @@ class DataItem(metaclass=SharedInstance):
                 return
         desc = key_map.get(key)
         if desc is not None:
-            d0 = self.__data_item.maybe_data_source.metadata
+            d0 = self.__data_item.d_metadata
             d = d0
             for k in desc['path'][:-1]:
                 d =  d.setdefault(k, dict()) if d is not None else None
             if d is not None and desc['path'][-1] in d:
                 d.pop(desc['path'][-1], None)
-                self.__data_item.maybe_data_source.metadata = d0
+                self.__data_item.d_metadata = d0
                 return
 
     @property
@@ -1243,7 +1239,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.maybe_data_source.data_and_metadata
+        return self.__data_item.xdata
 
     def set_data_and_metadata(self, data_and_metadata: DataAndMetadata.DataAndMetadata) -> None:
         """Set the data and metadata.
@@ -1254,7 +1250,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.maybe_data_source.set_data_and_metadata(data_and_metadata)
+        self.__data_item.set_xdata(data_and_metadata)
 
     @property
     def regions(self) -> typing.List[Graphic]:
@@ -1276,7 +1272,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return [Graphic(graphic) for graphic in self.__data_item.maybe_data_source.displays[0].graphics]
+        return [Graphic(graphic) for graphic in self.__data_item.displays[0].graphics]
 
     @property
     def display(self) -> "Display":
@@ -1296,45 +1292,45 @@ class DataItem(metaclass=SharedInstance):
         """
         graphic = Graphics.PointGraphic()
         graphic.position = Geometry.FloatPoint(y, x)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        self.__data_item.displays[0].add_graphic(graphic)
         return Graphic(graphic)
 
     def add_rectangle_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
         graphic = Graphics.RectangleGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        self.__data_item.displays[0].add_graphic(graphic)
         return Graphic(graphic)
 
     def add_ellipse_region(self, center_y: float, center_x: float, height: float, width: float) -> Graphic:
         graphic = Graphics.EllipseGraphic()
         graphic.center = Geometry.FloatPoint(center_y, center_x)
         graphic.size = Geometry.FloatSize(height, width)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        self.__data_item.displays[0].add_graphic(graphic)
         return Graphic(graphic)
 
     def add_line_region(self, start_y: float, start_x: float, end_y: float, end_x: float) -> Graphic:
         graphic = Graphics.LineGraphic()
         graphic.start = Geometry.FloatPoint(start_y, start_x)
         graphic.end = Geometry.FloatPoint(end_y, end_x)
-        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        self.__data_item.displays[0].add_graphic(graphic)
         return Graphic(graphic)
 
     def add_interval_region(self, start: float, end: float) -> Graphic:
         graphic = Graphics.IntervalGraphic()
         graphic.start = start
         graphic.end = end
-        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        self.__data_item.displays[0].add_graphic(graphic)
         return Graphic(graphic)
 
     def add_channel_region(self, position: float) -> Graphic:
         graphic = Graphics.ChannelGraphic()
         graphic.position = position
-        self.__data_item.maybe_data_source.displays[0].add_graphic(graphic)
+        self.__data_item.displays[0].add_graphic(graphic)
         return Graphic(graphic)
 
     def remove_region(self, graphic: Graphic) -> None:
-        self.__data_item.maybe_data_source.displays[0].remove_graphic(graphic._graphic)
+        self.__data_item.displays[0].remove_graphic(graphic._graphic)
 
     def mask_xdata(self) -> DataAndMetadata.DataAndMetadata:
         """Return the mask by combining any mask graphics on this data item as extended data.
@@ -1343,9 +1339,9 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        shape = self.__data_item.maybe_data_source.displays[0].preview_2d_shape
+        shape = self.__data_item.displays[0].preview_2d_shape
         mask = numpy.zeros(shape)
-        for graphic in self.__data_item.maybe_data_source.displays[0].graphics:
+        for graphic in self.__data_item.displays[0].graphics:
             if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
                 mask = numpy.logical_or(mask, graphic.get_mask(shape))
         return DataAndMetadata.DataAndMetadata.from_data(mask)
@@ -2156,7 +2152,7 @@ class Library(metaclass=SharedInstance):
         Scriptable: Yes
         """
         data_item = DataItemModule.DataItem()
-        data_item.append_data_source(DataItemModule.BufferedDataSource())
+        data_item.ensure_data_source()
         if title is not None:
             data_item.title = title
         self.__document_model.append_data_item(data_item)
@@ -2255,11 +2251,11 @@ class Library(metaclass=SharedInstance):
 
             def __enter__(self):
                 self.__document_model.begin_data_item_transaction(self.__data_item._data_item)
-                self.__data_item._data_item.maybe_data_source.increment_data_ref_count()
+                self.__data_item._data_item.increment_data_ref_count()
                 return self
 
             def __exit__(self, type, value, traceback):
-                self.__data_item._data_item.maybe_data_source.decrement_data_ref_count()
+                self.__data_item._data_item.decrement_data_ref_count()
                 self.__document_model.end_data_item_transaction(self.__data_item._data_item)
 
             @property
@@ -2268,11 +2264,10 @@ class Library(metaclass=SharedInstance):
 
             @data.setter
             def data(self, data):
-                with self.__data_item._data_item.maybe_data_source.data_ref() as data_ref:
-                    data_ref.data = data
+                self.__data_item._data_item.set_data(data)
 
             def __setitem__(self, key, value):
-                with self.__data_item._data_item.maybe_data_source.data_ref() as data_ref:
+                with self.__data_item._data_item.data_ref() as data_ref:
                     data_ref.data[key] = value
                     data_ref.data_updated()
 
@@ -2300,7 +2295,7 @@ class Library(metaclass=SharedInstance):
         data_item = data_item_reference.data_item
         if data_item is None and create_if_needed:
             data_item = DataItemModule.DataItem(large_format=large_format)
-            data_item.append_data_source(DataItemModule.BufferedDataSource())
+            data_item.ensure_data_source()
             document_model.append_data_item(data_item)
             document_model.setup_channel(data_item_reference_key, data_item)
             data_item.session_id = document_model.session_id
@@ -2327,11 +2322,10 @@ class Library(metaclass=SharedInstance):
         Scriptable: Yes
         """
         for data_item in self._document_model.data_items:
-            for data_source in data_item.data_sources:
-                for display in data_source.displays:
-                    for graphic in display.graphics:
-                        if graphic.uuid == graphic_uuid:
-                            return Graphic(graphic)
+            for display in data_item.displays:
+                for graphic in display.graphics:
+                    if graphic.uuid == graphic_uuid:
+                        return Graphic(graphic)
         return None
 
     def has_library_value(self, key: str) -> bool:
@@ -2800,7 +2794,7 @@ class API_1:
                 return io_handler_delegate.can_write_data_and_metadata(data_and_metadata, extension)
 
             def write(self, ui, data_item, file_path, extension):
-                data_and_metadata = data_item.maybe_data_source.data_and_metadata
+                data_and_metadata = data_item.xdata
                 data = data_and_metadata.data
                 if data is not None:
                     io_handler_delegate.write_data_and_metadata(data_and_metadata, file_path, extension)

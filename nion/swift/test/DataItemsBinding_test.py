@@ -273,7 +273,7 @@ class TestDataItemsBindingModule(unittest.TestCase):
                 time.sleep(0.01)
             self.assertEqual(len(binding.data_items), 4)
             self.assertEqual(list(document_model.data_items), binding.data_items)
-            with document_model.data_items[0].maybe_data_source.data_ref() as dr:
+            with document_model.data_items[0].data_ref() as dr:
                 dr.data += 1
             self.assertEqual([document_model.data_items[1], document_model.data_items[2], document_model.data_items[3], document_model.data_items[0]], binding.data_items)
 

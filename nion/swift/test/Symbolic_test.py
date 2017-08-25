@@ -146,7 +146,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.zeros((4, 8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
-            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(10, 20, "m"), Calibration.Calibration(11, 21, "mm"), Calibration.Calibration(12, 22, "nm")])
+            data_item.set_dimensional_calibrations([Calibration.Calibration(10, 20, "m"), Calibration.Calibration(11, 21, "mm"), Calibration.Calibration(12, 22, "nm")])
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata[2, ...]"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -214,7 +214,7 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             d = numpy.random.randn(4)
             data_item = DataItem.DataItem(d)
-            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m")])
+            data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m")])
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.reshape(a.xdata, (4, -1))"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -232,7 +232,7 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             d = numpy.random.randn(4, 1)
             data_item = DataItem.DataItem(d)
-            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration()])
+            data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration()])
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.reshape(a.xdata, (4, ))"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -271,8 +271,8 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             d = numpy.random.randn(4, 4)
             data_item = DataItem.DataItem(d)
-            data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
-            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "s")])
+            data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
+            data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "s")])
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.concatenate((a.xdata[0:2, 0:2], a.xdata[2:4, 2:4]))"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -376,7 +376,7 @@ class TestSymbolicClass(unittest.TestCase):
             region = Graphics.RectangleGraphic()
             region.center = 0.41, 0.51
             region.size = 0.52, 0.42
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.crop(a.xdata, regionA.bounds)"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -408,7 +408,7 @@ class TestSymbolicClass(unittest.TestCase):
                 needs_update_ref[0] = True
             needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
-                with data_item.maybe_data_source.data_ref() as dr:
+                with data_item.data_ref() as dr:
                     dr.data += 1.5
             self.assertTrue(needs_update_ref[0])
 
@@ -425,11 +425,11 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             # verify assumptions
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(data[0, 0, ...], computed_data_item.maybe_data_source.data))
+            self.assertTrue(numpy.array_equal(data[0, 0, ...], computed_data_item.data))
             # change display, check
-            data_item.maybe_data_source.displays[0].collection_index = 1, 1
+            data_item.displays[0].collection_index = 1, 1
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(data[1, 1, ...], computed_data_item.maybe_data_source.data))
+            self.assertTrue(numpy.array_equal(data[1, 1, ...], computed_data_item.data))
 
     def test_computation_fires_needs_update_event_when_metadata_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -444,9 +444,9 @@ class TestSymbolicClass(unittest.TestCase):
                 needs_update_ref[0] = True
             needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
-                metadata = data_item.maybe_data_source.metadata
+                metadata = data_item.d_metadata
                 metadata["abc"] = 1
-                data_item.maybe_data_source.metadata = metadata
+                data_item.d_metadata = metadata
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_does_not_update_when_graphic_changes_on_source(self):
@@ -454,7 +454,7 @@ class TestSymbolicClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data = numpy.ones((2, 2), numpy.double)
             data_item = DataItem.DataItem(data)
-            data_item.maybe_data_source.displays[0].add_graphic(Graphics.PointGraphic())
+            data_item.displays[0].add_graphic(Graphics.PointGraphic())
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -463,7 +463,7 @@ class TestSymbolicClass(unittest.TestCase):
                 needs_update_ref[0] = True
             needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
-                data_item.maybe_data_source.displays[0].graphics[0].position = (0.3, 0.4)
+                data_item.displays[0].graphics[0].position = (0.3, 0.4)
             self.assertFalse(needs_update_ref[0])
 
     def test_computation_fires_needs_update_event_when_object_property(self):
@@ -474,7 +474,7 @@ class TestSymbolicClass(unittest.TestCase):
             region = Graphics.RectangleGraphic()
             region.center = 0.41, 0.51
             region.size = 0.52, 0.42
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.crop(a.xdata, regionA.bounds)"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -484,7 +484,7 @@ class TestSymbolicClass(unittest.TestCase):
                 needs_update_ref[0] = True
             needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
-                data_item.maybe_data_source.displays[0].graphics[0].size = 0.53, 0.43
+                data_item.displays[0].graphics[0].size = 0.53, 0.43
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_fires_needs_update_event_when_variable_or_object_added(self):
@@ -495,7 +495,7 @@ class TestSymbolicClass(unittest.TestCase):
             region = Graphics.RectangleGraphic()
             region.center = 0.41, 0.51
             region.size = 0.52, 0.42
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + n"))
             needs_update_ref = [False]
@@ -528,7 +528,7 @@ class TestSymbolicClass(unittest.TestCase):
             region = Graphics.RectangleGraphic()
             region.center = 0.5, 0.5
             region.size = 0.6, 0.4
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.crop(a.xdata, api.library.get_graphic_by_uuid(uuid.UUID('{}')).bounds)".format(str(region.uuid))))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -542,16 +542,16 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
-            data_item.maybe_data_source.metadata = {"abc": 1}
-            data_item.maybe_data_source.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
-            data_item.maybe_data_source.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
+            data_item.d_metadata = {"abc": 1}
+            data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
+            data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata / numpy.average(a.data) * 5"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
             data_and_metadata = DocumentModel.evaluate_data(computation)
             self.assertEqual(data_and_metadata.metadata, dict())
-            self.assertEqual(data_and_metadata.intensity_calibration, data_item.maybe_data_source.intensity_calibration)
-            self.assertEqual(data_and_metadata.dimensional_calibrations, data_item.maybe_data_source.dimensional_calibrations)
+            self.assertEqual(data_and_metadata.intensity_calibration, data_item.intensity_calibration)
+            self.assertEqual(data_and_metadata.dimensional_calibrations, data_item.dimensional_calibrations)
 
     def test_remove_data_item_with_computation_succeeds(self):
         document_model = DocumentModel.DocumentModel()
@@ -622,10 +622,10 @@ class TestSymbolicClass(unittest.TestCase):
             map = {"a": document_model.get_object_specifier(data_item)}
             computed_data_item = document_controller.processing_computation(Symbolic.xdata_expression("-a.xdata"), map)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data))
-            computed_data_item.maybe_data_source.computation.expression = Symbolic.xdata_expression("-a.xdata * 2")
+            self.assertTrue(numpy.array_equal(computed_data_item.data, -data))
+            computed_data_item.computation.expression = Symbolic.xdata_expression("-a.xdata * 2")
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data * 2))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, -data * 2))
 
     def test_unary_functions_return_correct_dimensions(self):
         document_model = DocumentModel.DocumentModel()
@@ -715,9 +715,9 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             copied_data_item = copy.deepcopy(computed_data_item)
             document_model.append_data_item(copied_data_item)
-            self.assertIsNotNone(copied_data_item.maybe_data_source.computation)
-            self.assertEqual(computed_data_item.maybe_data_source.computation.error_text, copied_data_item.maybe_data_source.computation.error_text)
-            self.assertEqual(computed_data_item.maybe_data_source.computation.expression, copied_data_item.maybe_data_source.computation.expression)
+            self.assertIsNotNone(copied_data_item.computation)
+            self.assertEqual(computed_data_item.computation.error_text, copied_data_item.computation.error_text)
+            self.assertEqual(computed_data_item.computation.expression, copied_data_item.computation.expression)
 
     def test_changing_computation_source_data_updates_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -731,13 +731,12 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(data_item.maybe_data_source.data, data))
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
-            with data_item.maybe_data_source.data_ref() as dr:
-                dr.data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
+            self.assertTrue(numpy.array_equal(data_item.data, data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, -data_item.data))
+            data_item.set_data(((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32))
             document_model.recompute_all()
-            self.assertFalse(numpy.array_equal(data_item.maybe_data_source.data, data))
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
+            self.assertFalse(numpy.array_equal(data_item.data, data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, -data_item.data))
 
     def test_computation_is_live_after_copying_data_item_with_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -751,14 +750,13 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, -data_item.data))
             copied_data_item = copy.deepcopy(computed_data_item)
             document_model.append_data_item(copied_data_item)
-            with data_item.maybe_data_source.data_ref() as dr:
-                dr.data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.int32)
+            data_item.set_data(((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.int32))
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
-            self.assertTrue(numpy.array_equal(copied_data_item.maybe_data_source.data, -data_item.maybe_data_source.data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, -data_item.data))
+            self.assertTrue(numpy.array_equal(copied_data_item.data, -data_item.data))
 
     def test_computation_extracts_data_property_of_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -772,7 +770,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data_item.maybe_data_source.data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, data_item.data))
 
     def test_resample_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -786,7 +784,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Image.scaled(data_item.maybe_data_source.data, (5, 4))))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, Image.scaled(data_item.data, (5, 4))))
 
     def test_resample_with_data_shape_produces_correct_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -804,7 +802,7 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Image.scaled(data_item.maybe_data_source.data, (5, 4))))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, Image.scaled(data_item.data, (5, 4))))
 
     def test_computation_extracts_display_data_property_of_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -864,10 +862,10 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data + 5))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data + 5))
             x.value = 8
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data + 8))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data + 8))
 
     def test_changing_region_property_updates_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -878,7 +876,7 @@ class TestSymbolicClass(unittest.TestCase):
             line_region = Graphics.LineProfileGraphic()
             line_region.start = 0.25, 0.25
             line_region.end = 0.75, 0.75
-            data_item.maybe_data_source.displays[0].add_graphic(line_region)
+            data_item.displays[0].add_graphic(line_region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.line_profile(src.display_xdata, line_region.vector, line_region.line_width)"))
             computation.create_object("src", document_model.get_object_specifier(data_item))
@@ -887,10 +885,10 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_metadata, line_region.vector, 1.0).data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, Core.function_line_profile(data_item.xdata, line_region.vector, 1.0).data))
             line_region.start = 0.25, 0.20
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, Core.function_line_profile(data_item.maybe_data_source.data_and_metadata, line_region.vector, 1.0).data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, Core.function_line_profile(data_item.xdata, line_region.vector, 1.0).data))
 
     def test_changing_variable_name_has_no_effect_on_computation(self):
         document_model = DocumentModel.DocumentModel()
@@ -906,10 +904,10 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data + 5))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data + 5))
             x.name = "xx"
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data + 5))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data + 5))
 
     def test_computation_with_variable_reloads(self):
         document_model = DocumentModel.DocumentModel()
@@ -984,8 +982,7 @@ class TestSymbolicClass(unittest.TestCase):
             read_computation.needs_update = True
             read_computation.bind(document_model)
             src_data2 = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
-            with data_item.maybe_data_source.data_ref() as dr:
-                dr.data = src_data2
+            data_item.set_data(src_data2)
             self.assertTrue(numpy.array_equal(DocumentModel.evaluate_data(read_computation).data, src_data2 + 5))
 
     def test_computation_using_object_updates_efficiently_when_region_changes(self):
@@ -995,7 +992,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             region = Graphics.RectangleGraphic()
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.crop(a.xdata, r.bounds)"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -1004,14 +1001,14 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[3:9, 2:6]))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[3:9, 2:6]))
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.0, 0.0), Geometry.FloatSize(0.5, 0.5))
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.25, 0.25), Geometry.FloatSize(0.5, 0.5))
             evaluation_count = computation._evaluation_count_for_test
             document_model.recompute_all()
             self.assertEqual(computation._evaluation_count_for_test - evaluation_count, 1)
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[0:6, 0:4]))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[0:6, 0:4]))
 
     def test_computation_updates_efficiently_when_variable_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -1020,7 +1017,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             region = Graphics.RectangleGraphic()
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.gaussian_blur(a.xdata, s)"))
             s = computation.create_variable("s", value_type="integral", value=5)
@@ -1042,7 +1039,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             region = Graphics.RectangleGraphic()
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.gaussian_blur(a.xdata, s)"))
             s = computation.create_variable("s", value_type="integral", value=5)
@@ -1068,7 +1065,7 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             region = Graphics.RectangleGraphic()
             region.bounds = Geometry.FloatRect.from_center_and_size(Geometry.FloatPoint(0.5, 0.5), Geometry.FloatSize(0.5, 0.5))
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.gaussian_blur(a.xdata, s)"))
             s = computation.create_variable("s", value_type="integral", value=5)
@@ -1183,10 +1180,10 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data1 + 1))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data1 + 1))
             a.specifier = document_model.get_object_specifier(data_item2)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data2 + 1))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data2 + 1))
 
     def test_computation_in_document_is_still_live_when_region_specifier_uuid_str_changes(self):
         document_model = DocumentModel.DocumentModel()
@@ -1195,10 +1192,10 @@ class TestSymbolicClass(unittest.TestCase):
             data_item = DataItem.DataItem(src_data)
             region1 = Graphics.RectangleGraphic()
             region1.bounds = Geometry.FloatRect.from_tlhw(0.0, 0.0, 0.5, 0.5)
-            data_item.maybe_data_source.displays[0].add_graphic(region1)
+            data_item.displays[0].add_graphic(region1)
             region2 = Graphics.RectangleGraphic()
             region2.bounds = Geometry.FloatRect.from_tlhw(0.5, 0.5, 0.5, 0.5)
-            data_item.maybe_data_source.displays[0].add_graphic(region2)
+            data_item.displays[0].add_graphic(region2)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("xd.crop(a.xdata, r.bounds)"))
             computation.create_object("a", document_model.get_object_specifier(data_item))
@@ -1208,15 +1205,15 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             # verify assumptions
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[0:5, 0:5]))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[0:5, 0:5]))
             # now switch the region uuid
             r.specifier_uuid_str = str(region2.uuid)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[5:10, 5:10]))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[5:10, 5:10]))
             # and make sure recompute happens when new region uuid changes
             region2.bounds = Geometry.FloatRect.from_tlhw(0.0, 0.0, 0.5, 0.5)
             document_model.recompute_all()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, src_data[0:5, 0:5]))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, src_data[0:5, 0:5]))
 
     def test_computation_with_raw_reference_copies(self):
         document_model = DocumentModel.DocumentModel()
@@ -1224,7 +1221,7 @@ class TestSymbolicClass(unittest.TestCase):
             src_data = ((numpy.random.randn(10, 8) + 1) * 10).astype(numpy.uint32)
             data_item = DataItem.DataItem(src_data)
             region = Graphics.RectangleGraphic()
-            data_item.maybe_data_source.displays[0].add_graphic(region)
+            data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
             computation.create_variable("x", value_type="integral", value=5)
@@ -1246,12 +1243,12 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             document_model.recompute_all()
             self.assertIsNotNone(computation.error_text)
-            self.assertEqual(len(computed_data_item.maybe_data_source.data.shape), 2)  # original data
+            self.assertEqual(len(computed_data_item.data.shape), 2)  # original data
             x.value = 1
             document_model.recompute_all()
             self.assertIsNone(computation.error_text)
-            self.assertIsNotNone(computed_data_item.maybe_data_source.data)
-            self.assertEqual(len(computed_data_item.maybe_data_source.data.shape), 1)  # computed data
+            self.assertIsNotNone(computed_data_item.data)
+            self.assertEqual(len(computed_data_item.data.shape), 1)  # computed data
 
     def test_various_expressions_produces_data(self):
         document_model = DocumentModel.DocumentModel()
@@ -1282,9 +1279,9 @@ class TestSymbolicClass(unittest.TestCase):
                 document_model.append_data_item(computed_data_item)
                 document_model.set_data_item_computation(computed_data_item, computation)
                 document_model.recompute_all()
-                self.assertIsNotNone(computed_data_item.maybe_data_source.data)
+                self.assertIsNotNone(computed_data_item.data)
                 if data is not None:
-                    self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, data))
+                    self.assertTrue(numpy.array_equal(computed_data_item.data, data))
 
     def test_conversion_to_int(self):
         document_model = DocumentModel.DocumentModel()
@@ -1414,7 +1411,7 @@ class TestSymbolicClass(unittest.TestCase):
             listener.close()
             listener = None
             document_controller.periodic()
-            self.assertTrue(numpy.array_equal(computed_data_item.maybe_data_source.data, -src_data))
+            self.assertTrue(numpy.array_equal(computed_data_item.data, -src_data))
 
     def test_computation_on_deleted_data_item(self):
         document_model = DocumentModel.DocumentModel()
