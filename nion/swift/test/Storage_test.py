@@ -1055,8 +1055,8 @@ class TestStorageClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
         document_model.append_data_item(data_item)
-        self.assertTrue("data_shape" in data_item.properties.get("data_sources")[0])
-        self.assertTrue("data_dtype" in data_item.properties.get("data_sources")[0])
+        self.assertTrue("data_shape" in data_item.properties.get("data_source"))
+        self.assertTrue("data_dtype" in data_item.properties.get("data_source"))
         self.assertTrue("uuid" in data_item.properties)
         self.assertTrue("version" in data_item.properties)
         document_controller.close()
@@ -3023,7 +3023,7 @@ class TestStorageClass(unittest.TestCase):
             src_data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
             document_model.append_data_item(src_data_item)
         memory_persistent_storage_system.properties[str(src_data_item.uuid)]["created"] = "todaytodaytodaytodaytoday0"
-        memory_persistent_storage_system.properties[str(src_data_item.uuid)]["data_sources"][0]["created"] = "todaytodaytodaytodaytoday0"
+        memory_persistent_storage_system.properties[str(src_data_item.uuid)]["data_source"]["created"] = "todaytodaytodaytodaytoday0"
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             # for corrupt/missing created dates, a new one matching todays date should be assigned

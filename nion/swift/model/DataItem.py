@@ -666,7 +666,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def insert_model_item(self, container, name, before_index, item):
         """Insert a model item. Let this item's container do it if possible; otherwise do it directly.
-        
+
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
@@ -677,7 +677,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def remove_model_item(self, container, name, item):
         """Remove a model item. Let this item's container do it if possible; otherwise do it directly.
-        
+
         Passing responsibility to this item's container allows the library to easily track dependencies.
         However, if this item isn't yet in the library hierarchy, then do the operation directly.
         """
@@ -1083,21 +1083,20 @@ class DataItem(LibraryItem):
     def __init__(self, data=None, item_uuid=None, large_format=False):
         super().__init__(item_uuid)
         self.large_format = large_format
-        self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
-        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
+        self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)
         self.define_item("computation", computation_factory)
+        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.data_item_changed_event = Event.Event()
         self.d_metadata_changed_event = Event.Event()
         self.__write_delay_data_changed = False
-        self.__d_metadata_changed_event_listeners = list()
-        self.__data_changed_event_listeners = list()
+        self.__data_source_metadata_changed_event_listener = None
+        self.__data_source_data_changed_event_listener = None
         self.__change_thread = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__change_changed = False
         if data is not None:
-            data_source = BufferedDataSource(data)
-            self.append_data_source(data_source)
+            self.set_data_source(BufferedDataSource(data))
         self.add_display(Display.Display())  # always have one display, for now
         self.__update_displays()
 
@@ -1105,40 +1104,40 @@ class DataItem(LibraryItem):
         data_item_copy = super().__deepcopy__(memo)
         # format
         data_item_copy.large_format = self.large_format
-        # data sources
-        for data_source in copy.copy(data_item_copy.data_sources):
-            data_item_copy.remove_data_source(data_source)
-        for data_source in self.data_sources:
-            data_item_copy.append_data_source(copy.deepcopy(data_source))
+        # data source
+        data_item_copy.set_data_source(copy.deepcopy(self.data_source))
+        # computation
+        data_item_copy.set_computation(copy.deepcopy(self.computation))
         # displays
         for display in copy.copy(data_item_copy.displays):
             data_item_copy.remove_display(display)
         for display in self.displays:
             data_item_copy.add_display(copy.deepcopy(display))
-        # computation
-        data_item_copy.set_computation(copy.deepcopy(self.computation))
         data_item_copy.__update_displays()
         return data_item_copy
 
     def close(self):
         for display in self.displays:
             display.close()
-        for data_source in self.data_sources:
-            self.__disconnect_data_source(0, data_source)
+        data_source = self.data_source
+        if data_source:
+            self.__disconnect_data_source(data_source)
             data_source.close()
         super().close()
 
     def about_to_be_removed(self):
         for display in self.displays:
             display.about_to_be_removed()
-        for data_source in self.data_sources:
+        data_source = self.data_source
+        if data_source:
             data_source.about_to_be_removed()
         super().about_to_be_removed()
 
     def clone(self) -> "DataItem":
         data_item = super().clone()
-        for data_source in self.data_sources:
-            data_item.append_data_source(data_source.clone())
+        data_source = self.data_source
+        if data_source:
+            data_item.set_data_source(data_source.clone())
         for display in copy.copy(data_item.displays):
             data_item.remove_display(display)
         for display in self.displays:
@@ -1151,10 +1150,9 @@ class DataItem(LibraryItem):
         # format
         data_item.large_format = self.large_format
         # data sources
-        for data_source in copy.copy(data_item.data_sources):
-            data_item.remove_data_source(data_source)
-        for data_source in self.data_sources:
-            data_item.append_data_source(data_source.snapshot())
+        data_source = self.data_source
+        if data_source:
+            data_item.set_data_source(data_source.snapshot())
         for display in copy.copy(data_item.displays):
             data_item.remove_display(display)
         for display in self.displays:
@@ -1171,18 +1169,18 @@ class DataItem(LibraryItem):
         super()._enter_transaction_state()
         # tell each data source to load its data.
         # this prevents paging in and out.
-        for data_source in self.data_sources:
+        data_source = self.data_source
+        if data_source:
             data_source.increment_data_ref_count()
 
     def _exit_transaction_state(self):
         super()._exit_transaction_state()
         # finally, tell each data source to unload its data.
-        for data_source in self.data_sources:
+        data_source = self.data_source
+        if data_source:
             data_source.decrement_data_ref_count()
 
     def _read_from_dict_inner(self, properties):
-        for data_source in copy.copy(self.data_sources):
-            self.remove_data_source(data_source)
         for display in copy.copy(self.displays):
             self.remove_display(display)
         super()._read_from_dict_inner(properties)
@@ -1196,7 +1194,7 @@ class DataItem(LibraryItem):
 
     def _finish_write(self):
         super()._finish_write()
-        if self.maybe_data_source:
+        if self.data_source:
             self.persistent_object_context.rewrite_data_item_data(self)
 
     def _enter_write_delay_state_inner(self):
@@ -1252,7 +1250,8 @@ class DataItem(LibraryItem):
     @property
     def date_for_sorting(self):
         data_modified_list = list()
-        for data_source in self.data_sources:
+        data_source = self.data_source
+        if data_source:
             data_modified = data_source.data_modified
             if data_modified:
                 data_modified_list.append(data_modified)
@@ -1280,47 +1279,46 @@ class DataItem(LibraryItem):
         self.__change_changed = True
         self.d_metadata_changed_event.fire()
 
-    def __insert_data_source(self, name, before_index, data_source):
-        data_source.timezone = self.timezone
-        data_source.timezone_offset = self.timezone_offset
-        data_source._set_data_item(self)
-        self.__data_changed_event_listeners.insert(before_index, data_source.data_changed_event.listen(self.__handle_data_changed))
-        # being in transaction state means that data sources have their data loaded.
-        # so load data here to keep the books straight when the transaction state is exited.
-        if self.in_transaction_state:
-            data_source.increment_data_ref_count()
-        self.__d_metadata_changed_event_listeners.insert(before_index, data_source.metadata_changed_event.listen(self.__handle_d_metadata_changed))
-        self._notify_library_item_content_changed()
-        # the document model watches for new data sources via observing.
-        # send this message to make data_sources observable.
-        self.notify_insert_item("data_sources", data_source, before_index)
+    def __data_source_changed(self, name, old_data_source, data_source):
+        if old_data_source:
+            old_data_source.about_to_be_removed()
+            self.__disconnect_data_source(old_data_source)
+            old_data_source.close()
 
-    def __remove_data_source(self, name, index, data_source):
-        data_source.about_to_be_removed()
-        self.__disconnect_data_source(index, data_source)
-        data_source.close()
+        if data_source:
+            data_source.timezone = self.timezone
+            data_source.timezone_offset = self.timezone_offset
+            data_source._set_data_item(self)
+            self.__data_source_data_changed_event_listener = data_source.data_changed_event.listen(self.__handle_data_changed)
+            # being in transaction state means that data sources have their data loaded.
+            # so load data here to keep the books straight when the transaction state is exited.
+            if self.in_transaction_state:
+                data_source.increment_data_ref_count()
+            self.__data_source_metadata_changed_event_listener = data_source.metadata_changed_event.listen(self.__handle_d_metadata_changed)
+            self._notify_library_item_content_changed()
+            # the document model watches for new data sources via observing.
+            # send this message to make data_source observable.
+            self.notify_set_item("data_source", data_source)
 
-    def __disconnect_data_source(self, index, data_source):
-        self.__d_metadata_changed_event_listeners[index].close()
-        del self.__d_metadata_changed_event_listeners[index]
+    def __disconnect_data_source(self, data_source):
+        if self.__data_source_metadata_changed_event_listener:
+            self.__data_source_metadata_changed_event_listener.close()
+            self.__data_source_metadata_changed_event_listener = None
+        if self.__data_source_data_changed_event_listener:
+            self.__data_source_data_changed_event_listener.close()
+            self.__data_source_data_changed_event_listener = None
         data_source._set_data_item(None)
-        self.__data_changed_event_listeners[index].close()
-        del self.__data_changed_event_listeners[index]
         # being in transaction state means that data sources have their data loaded.
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.in_transaction_state:
             data_source.decrement_data_ref_count()
         # the document model watches for new data sources via observing.
-        # send this message to make data_sources observable.
-        self.notify_remove_item("data_sources", data_source, index)
+        # send this message to make data_source observable.
+        self.notify_clear_item("data_source")
 
-    def append_data_source(self, data_source):
-        """Add a display, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "data_sources", self.item_count("data_sources"), data_source)
-
-    def remove_data_source(self, data_source):
-        """Remove display, but do it through the container, so dependencies can be tracked."""
-        self.remove_model_item(self, "data_sources", data_source)
+    def set_data_source(self, data_source):
+        """Set data source."""
+        self.set_item("data_source", data_source)
 
     def __insert_display(self, name, before_index, display):
         display.about_to_be_inserted(self)
@@ -1345,18 +1343,16 @@ class DataItem(LibraryItem):
         self.set_item("computation", computation)
 
     @property
-    def maybe_data_source(self) -> typing.Optional[BufferedDataSource]:
-        return self.data_sources[0] if len(self.data_sources) == 1 else None
+    def data_source(self) -> typing.Optional[BufferedDataSource]:
+        return self.get_item("data_source")
 
     @property
     def size_and_data_format_as_string(self):
-        data_source_count = len(self.data_sources)
-        if data_source_count == 0:
-            return _("No Data")
-        elif data_source_count == 1:
-            return self.maybe_data_source.size_and_data_format_as_string
+        data_source = self.data_source
+        if data_source:
+            return data_source.size_and_data_format_as_string
         else:
-            return _("Multiple Data Sources ({0})".format(data_source_count))
+            return _("No Data")
 
     def increment_display_ref_count(self):
         super().increment_display_ref_count()
@@ -1367,24 +1363,28 @@ class DataItem(LibraryItem):
         self.decrement_data_ref_count()
 
     def increment_data_ref_count(self):
-        for data_source in self.data_sources:
+        data_source = self.data_source
+        if data_source:
             data_source.increment_data_ref_count()
 
     def decrement_data_ref_count(self):
-        for data_source in self.data_sources:
+        data_source = self.data_source
+        if data_source:
             data_source.decrement_data_ref_count()
 
     # primary display
 
     @property
     def primary_display_specifier(self):
-        if len(self.data_sources) == 1:
+        data_source = self.data_source
+        if data_source:
             return DisplaySpecifier(self, self.displays[0])
         return DisplaySpecifier()
 
     def _update_timezone(self):
         with self.data_source_changes():
-            for data_source in self.data_sources:
+            data_source = self.data_source
+            if data_source:
                 data_source.timezone = self.timezone
                 data_source.timezone_offset = self.timezone_offset
             super()._update_timezone()
@@ -1396,8 +1396,8 @@ class DataItem(LibraryItem):
             computation.bind(context)
 
     def ensure_data_source(self) -> None:
-        if len(self.data_sources) == 0:
-            self.append_data_source(BufferedDataSource())
+        if not self.data_source:
+            self.set_data_source(BufferedDataSource())
 
     @property
     def data(self) -> numpy.ndarray:
@@ -1405,15 +1405,15 @@ class DataItem(LibraryItem):
 
     @property
     def xdata(self) -> DataAndMetadata.DataAndMetadata:
-        return self.maybe_data_source.data_and_metadata if self.maybe_data_source else None
+        return self.data_source.data_and_metadata if self.data_source else None
 
     def set_data(self, data: numpy.ndarray, data_modified: datetime.datetime=None) -> None:
         self.set_xdata(DataAndMetadata.new_data_and_metadata(data, data_modified))
 
     def set_xdata(self, xdata: DataAndMetadata.DataAndMetadata, data_modified: datetime.datetime=None) -> None:
         with self.data_source_changes():
-            if self.maybe_data_source:
-                self.maybe_data_source.set_data_and_metadata(xdata, data_modified)
+            if self.data_source:
+                self.data_source.set_data_and_metadata(xdata, data_modified)
 
     # grab a data reference as a context manager. the object
     # returned defines data and data properties. reading data
@@ -1449,11 +1449,11 @@ class DataItem(LibraryItem):
         return DataAccessor(self)
 
     def __get_data(self):
-        return self.maybe_data_source._get_data() if self.maybe_data_source else None
+        return self.data_source._get_data() if self.data_source else None
 
     def __set_data(self, data, data_modified=None):
         with self.data_source_changes():
-            self.maybe_data_source._update_data(data, data_modified)
+            self.data_source._update_data(data, data_modified)
 
     def data_source_changes(self):
         # return a context manager to batch up a set of changes so that listeners
@@ -1507,36 +1507,36 @@ class DataItem(LibraryItem):
 
     @property
     def data_modified(self) -> datetime.datetime:
-        return self.maybe_data_source.data_modified if self.maybe_data_source else None
+        return self.data_source.data_modified if self.data_source else None
 
     @data_modified.setter
     def data_modified(self, value: datetime.datetime) -> None:
         with self.data_source_changes():
-            if self.maybe_data_source:
-                self.maybe_data_source.data_modified = value
+            if self.data_source:
+                self.data_source.data_modified = value
 
     @property
     def intensity_calibration(self) -> Calibration.Calibration:
-        return self.maybe_data_source.intensity_calibration if self.maybe_data_source else None
+        return self.data_source.intensity_calibration if self.data_source else None
 
     @intensity_calibration.setter
     def intensity_calibration(self, intensity_calibration: Calibration.Calibration) -> None:
         with self.data_source_changes():
-            if self.maybe_data_source:
-                self.maybe_data_source.set_intensity_calibration(intensity_calibration)
+            if self.data_source:
+                self.data_source.set_intensity_calibration(intensity_calibration)
 
     def set_intensity_calibration(self, intensity_calibration):
         self.intensity_calibration = intensity_calibration
 
     @property
     def dimensional_calibrations(self) -> typing.List[Calibration.Calibration]:
-        return self.maybe_data_source.dimensional_calibrations if self.maybe_data_source else list()
+        return self.data_source.dimensional_calibrations if self.data_source else list()
 
     @dimensional_calibrations.setter
     def dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
         with self.data_source_changes():
-            if self.maybe_data_source:
-                self.maybe_data_source.set_dimensional_calibrations(dimensional_calibrations)
+            if self.data_source:
+                self.data_source.set_dimensional_calibrations(dimensional_calibrations)
 
     def set_dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
         self.dimensional_calibrations = dimensional_calibrations
@@ -1550,109 +1550,109 @@ class DataItem(LibraryItem):
 
     @property
     def d_metadata(self) -> dict:
-        return self.maybe_data_source.metadata if self.maybe_data_source else dict()
+        return self.data_source.metadata if self.data_source else dict()
 
     @d_metadata.setter
     def d_metadata(self, value: dict) -> None:
         with self.data_source_changes():
-            if self.maybe_data_source:
-                self.maybe_data_source.metadata = value
+            if self.data_source:
+                self.data_source.metadata = value
 
     @property
     def has_data(self) -> bool:
-        return self.maybe_data_source.has_data if self.maybe_data_source else False
+        return self.data_source.has_data if self.data_source else False
 
     # used for testing
     @property
     def is_data_loaded(self) -> bool:
-        return self.maybe_data_source.is_data_loaded if self.maybe_data_source else False
+        return self.data_source.is_data_loaded if self.data_source else False
 
     @property
     def data_metadata(self):
-        return self.maybe_data_source.data_metadata if self.maybe_data_source else None
+        return self.data_source.data_metadata if self.data_source else None
 
     @property
     def data_shape(self):
-        return self.maybe_data_source.data_shape if self.maybe_data_source else None
+        return self.data_source.data_shape if self.data_source else None
 
     @property
     def data_dtype(self):
-        return self.maybe_data_source.data_dtype if self.maybe_data_source else None
+        return self.data_source.data_dtype if self.data_source else None
 
     @property
     def dimensional_shape(self):
-        return self.maybe_data_source.dimensional_shape if self.maybe_data_source else list()
+        return self.data_source.dimensional_shape if self.data_source else list()
 
     @property
     def datum_dimension_count(self) -> int:
-        return self.maybe_data_source.datum_dimension_count if self.maybe_data_source else 0
+        return self.data_source.datum_dimension_count if self.data_source else 0
 
     @property
     def collection_dimension_count(self) -> int:
-        return self.maybe_data_source.collection_dimension_count if self.maybe_data_source else 0
+        return self.data_source.collection_dimension_count if self.data_source else 0
 
     @property
     def is_collection(self):
-        return self.maybe_data_source.is_collection if self.maybe_data_source else None
+        return self.data_source.is_collection if self.data_source else None
 
     @property
     def is_sequence(self) -> bool:
-        return self.maybe_data_source.is_sequence if self.maybe_data_source else None
+        return self.data_source.is_sequence if self.data_source else None
 
     @property
     def is_data_1d(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_1d
+        return self.data_source is not None and self.data_source.is_data_1d
 
     @property
     def is_data_2d(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_2d
+        return self.data_source is not None and self.data_source.is_data_2d
 
     @property
     def is_data_3d(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_3d
+        return self.data_source is not None and self.data_source.is_data_3d
 
     @property
     def is_data_4d(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_4d
+        return self.data_source is not None and self.data_source.is_data_4d
 
     @property
     def is_data_rgb(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_rgb
+        return self.data_source is not None and self.data_source.is_data_rgb
 
     @property
     def is_data_rgba(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_rgba
+        return self.data_source is not None and self.data_source.is_data_rgba
 
     @property
     def is_datum_1d(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_datum_1d
+        return self.data_source is not None and self.data_source.is_datum_1d
 
     @property
     def is_datum_2d(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_datum_2d
+        return self.data_source is not None and self.data_source.is_datum_2d
 
     @property
     def is_data_rgb_type(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_rgb_type
+        return self.data_source is not None and self.data_source.is_data_rgb_type
 
     @property
     def is_data_scalar_type(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_scalar_type
+        return self.data_source is not None and self.data_source.is_data_scalar_type
 
     @property
     def is_data_complex_type(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_complex_type
+        return self.data_source is not None and self.data_source.is_data_complex_type
 
     @property
     def is_data_bool(self) -> bool:
-        return self.maybe_data_source is not None and self.maybe_data_source.is_data_bool
+        return self.data_source is not None and self.data_source.is_data_bool
 
     def get_data_value(self, pos):
-        return self.maybe_data_source.get_data_value(pos) if self.maybe_data_source else None
+        return self.data_source.get_data_value(pos) if self.data_source else None
 
     @property
     def size_and_data_format_as_string(self):
-        return self.maybe_data_source.size_and_data_format_as_string if self.maybe_data_source else _("No Data")
+        return self.data_source.size_and_data_format_as_string if self.data_source else _("No Data")
 
 
 class DisplaySpecifier:

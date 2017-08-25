@@ -532,7 +532,10 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     # pprint.pprint(properties)
                     # version 9 -> 10 merges regions into graphics.
                     data_source_dicts = properties.get("data_sources", list())
-                    for data_source_dict in data_source_dicts:
+                    if len(data_source_dicts) > 0:
+                        data_source_dict = data_source_dicts[0]
+
+                        # update computation content
                         variables_dict = data_source_dict.get("computation", dict()).get("variables")
                         processing_id = data_source_dict.get("computation", dict()).get("processing_id")
                         if variables_dict and processing_id:
@@ -552,16 +555,25 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                 variables_dict.remove(variable_lookup["crop_region1"])
                             # print(pprint.pformat(variables_dict))
                             # print("-----------------------")
-                    for data_source_dict in data_source_dicts:
+
+                        # update computation location
                         computation = data_source_dict.get("computation")
                         if computation:
                             properties["computation"] = computation
                         data_source_dict.pop("computation", None)
-                    for data_source_dict in data_source_dicts:
+
+                        # update displays location
                         displays = data_source_dict.get("displays")
                         if displays and len(displays) > 0:
                             properties["displays"] = displays[0:1]
                         data_source_dict.pop("displays", None)
+
+                        # update data_source location
+                        properties["data_source"] = data_source_dict
+
+                    # get rid of data_sources
+                    properties.pop("data_sources", None)
+
                     properties["version"] = 11
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (computed data items combined crop)", storage_handler.reference, properties["version"])
