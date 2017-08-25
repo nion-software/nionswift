@@ -2996,8 +2996,8 @@ class TestStorageClass(unittest.TestCase):
             computed_data_item = DataItem.DataItem(data.copy())
             document_model.append_data_item(computed_data_item)
             document_model.set_data_item_computation(computed_data_item, computation)
-        del memory_persistent_storage_system.properties[str(computed_data_item.uuid)]["data_sources"][0]["computation"]["variables"][0]
-        memory_persistent_storage_system.properties[str(computed_data_item.uuid)]["data_sources"][0]["computation"]["variables"][0]["uuid"] = str(uuid.uuid4())
+        del memory_persistent_storage_system.properties[str(computed_data_item.uuid)]["computation"]["variables"][0]
+        memory_persistent_storage_system.properties[str(computed_data_item.uuid)]["computation"]["variables"][0]["uuid"] = str(uuid.uuid4())
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_model.close()
 

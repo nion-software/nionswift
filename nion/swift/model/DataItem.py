@@ -111,10 +111,6 @@ def data_source_factory(lookup_id):
         return None
 
 
-def computation_factory(lookup_id):
-    return Symbolic.Computation()
-
-
 class UuidsToStringsConverter(object):
     def convert(self, value):
         return [str(uuid_) for uuid_ in value]
@@ -157,10 +153,8 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         self.define_property("intensity_calibration", Calibration.Calibration(), hidden=True, make=Calibration.Calibration, changed=self.__metadata_property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__dimensional_calibrations_changed)
         self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
-        self.define_property("source_data_modified", converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("data_modified", recordable=False, converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
-        self.define_item("computation", computation_factory)  # will be deep copied when copying, needs explicit set method set_computation
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.__timezone = None  # set by the data item, used when returning data_and_metadata
         self.__timezone_offset = None  # set by the data item, used when returning data_and_metadata
@@ -353,9 +347,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
-
-    def _set_computation(self, computation):
-        self.set_item("computation", computation)
 
     @property
     def timezone(self):
@@ -620,9 +611,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
     @property
     def data(self):
         """Return the cached data for this data item.
-
-        The data returned from this method may not be the latest data if a computation
-        is in progress.
 
         This method will never block and can be called from the main thread.
 
@@ -1306,12 +1294,17 @@ class CompositeLibraryItem(LibraryItem):
             data_item.decrement_display_ref_count()
 
 
+def computation_factory(lookup_id):
+    return Symbolic.Computation()
+
+
 class DataItem(LibraryItem):
 
     def __init__(self, data=None, item_uuid=None, large_format=False):
         super().__init__(item_uuid)
         self.large_format = large_format
         self.define_relationship("data_sources", data_source_factory, insert=self.__insert_data_source, remove=self.__remove_data_source)
+        self.define_item("computation", computation_factory)
         self.data_item_changed_event = Event.Event()
         self.d_metadata_changed_event = Event.Event()
         self.__write_delay_data_changed = False
@@ -1331,6 +1324,7 @@ class DataItem(LibraryItem):
             data_item_copy.remove_data_source(data_source)
         for data_source in self.data_sources:
             data_item_copy.append_data_source(copy.deepcopy(data_source))
+        data_item_copy.set_computation(copy.deepcopy(self.computation))
         return data_item_copy
 
     def close(self):
@@ -1413,14 +1407,13 @@ class DataItem(LibraryItem):
 
     def update_and_bind_computation(self, computation_context):
         super().update_and_bind_computation(computation_context)
-        for buffered_data_source in self.data_sources:
-            computation = buffered_data_source.computation
-            if computation:
-                try:
-                    self.__update_computation(computation, computation_context._processing_descriptions)
-                    computation.bind(computation_context)
-                except Exception as e:
-                    print(str(e))
+        computation = self.computation
+        if computation:
+            try:
+                self.__update_computation(computation, computation_context._processing_descriptions)
+                computation.bind(computation_context)
+            except Exception as e:
+                print(str(e))
 
     def __update_computation(self, computation: Symbolic.Computation, processing_descriptions) -> None:
         processing_id = computation.processing_id
@@ -1449,23 +1442,19 @@ class DataItem(LibraryItem):
 
     def data_item_was_inserted(self, computation_context):
         super().data_item_was_inserted(computation_context)
-        for data_source in self.data_sources:
-            if data_source.computation:
-                data_source.computation.bind(computation_context)
+        computation = self.computation
+        if computation:
+            computation.bind(computation_context)
 
     @property
     def date_for_sorting(self):
         data_modified_list = list()
         for data_source in self.data_sources:
-            source_data_modified = data_source.source_data_modified
-            if source_data_modified:
-                data_modified_list.append(source_data_modified)
+            data_modified = data_source.data_modified
+            if data_modified:
+                data_modified_list.append(data_modified)
             else:
-                data_modified = data_source.data_modified
-                if data_modified:
-                    data_modified_list.append(data_modified)
-                else:
-                    data_modified_list.append(self.created)
+                data_modified_list.append(self.created)
         if len(data_modified_list):
             return max(data_modified_list)
         return super().date_for_sorting
@@ -1538,13 +1527,10 @@ class DataItem(LibraryItem):
 
     @property
     def computation(self) -> typing.Optional[Symbolic.Computation]:
-        return self.maybe_data_source.computation if self.maybe_data_source else None
+        return self.get_item("computation")
 
     def set_computation(self, computation: typing.Optional[Symbolic.Computation]) -> None:
-        self.maybe_data_source.computation = computation
-
-    def _set_computation(self, computation):
-        self.maybe_data_source._set_computation(computation)
+        self.set_item("computation", computation)
 
     @property
     def maybe_data_source(self) -> typing.Optional[BufferedDataSource]:
@@ -1591,10 +1577,10 @@ class DataItem(LibraryItem):
         super()._update_timezone()
 
     def rebind_computations(self, context) -> None:
-        for data_source in self.data_sources:
-            if data_source.computation:
-                data_source.computation.unbind()
-                data_source.computation.bind(context)
+        computation = self.computation
+        if computation:
+            computation.unbind()
+            computation.bind(context)
 
     def ensure_data_source(self) -> None:
         if len(self.data_sources) == 0:

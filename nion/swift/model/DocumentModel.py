@@ -227,6 +227,7 @@ class DataItemStorage:
             if item:
                 item_dict = item.write_to_dict()
                 storage_dict[name] = item_dict
+                item.persistent_object_context = None
                 item.persistent_object_context = parent.persistent_object_context
             else:
                 if name in storage_dict:
@@ -551,6 +552,11 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                 variables_dict.remove(variable_lookup["crop_region1"])
                             # print(pprint.pformat(variables_dict))
                             # print("-----------------------")
+                    for data_source_dict in data_source_dicts:
+                        computation = data_source_dict.get("computation")
+                        if computation:
+                            properties["computation"] = computation
+                        data_source_dict.pop("computation", None)
                     properties["version"] = 11
                     if self.__log_migrations:
                         logging.info("Updated %s to %s (computed data items combined crop)", storage_handler.reference, properties["version"])
@@ -2219,10 +2225,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return data_item_copy
 
     def set_data_item_computation(self, data_item: DataItem.DataItem, computation: Symbolic.Computation) -> None:
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         if data_item:
             old_computation = data_item.computation
-            data_item._set_computation(computation)
+            data_item.set_computation(computation)
             self.__computation_changed(data_item, old_computation, computation)
 
     def __computation_changed(self, data_item, old_computation, new_computation):
