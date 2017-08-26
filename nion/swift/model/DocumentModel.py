@@ -17,6 +17,7 @@ import uuid
 import weakref
 
 # third party libraries
+import numpy
 import scipy
 
 # local libraries
@@ -1064,12 +1065,12 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         data_item._finish_write()
 
     def rewrite_data_item_properties(self, data_item):
-        persistent_storage = self._ensure_persistent_storage(data_item)
+        persistent_storage = self._get_persistent_storage_for_object(data_item)
         persistent_storage.update_properties()
 
-    def rewrite_data_item_data(self, data_item: DataItem.DataItem) -> None:
-        persistent_storage = self._ensure_persistent_storage(data_item)
-        persistent_storage.update_data(data_item.data)
+    def rewrite_data_item_data(self, data_item, data: numpy.ndarray) -> None:
+        persistent_storage = self._get_persistent_storage_for_object(data_item)
+        persistent_storage.update_data(data)
 
     def erase_data_item(self, data_item):
         persistent_storage = self._get_persistent_storage_for_object(data_item)

@@ -135,7 +135,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, data=None):
         super().__init__()
-        self.__weak_dependent_data_item = None
         self.define_type("buffered-data-source")
         data_shape = data.shape if data is not None else None
         data_dtype = data.dtype if data is not None else None
@@ -254,12 +253,6 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         if self.__data_and_metadata:
             self.__data_and_metadata.unloadable = self.persistent_object_context is not None
 
-    def _set_data_item(self, data_item):
-        self.__weak_dependent_data_item = weakref.ref(data_item) if data_item else None
-
-    def _get_data_item(self):
-        return self.__weak_dependent_data_item() if self.__weak_dependent_data_item else None
-
     def __data_description_changed(self, name, value):
         self.__property_changed(name, value)
         self.__metadata_changed()
@@ -351,7 +344,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
             self.__set_data_metadata_direct(new_data_and_metadata, data_modified)
             if self.__data_and_metadata is not None:
                 if self.persistent_object_context:
-                    self.persistent_object_context.rewrite_data_item_data(self._get_data_item())  # ouch, up reference to data item
+                    self.persistent_object_context.rewrite_data_item_data(self, self.__data_and_metadata.data)  # ouch, up reference to data item
                     self.__data_and_metadata.unloadable = True
         finally:
             self.decrement_data_ref_count()
@@ -1195,7 +1188,7 @@ class DataItem(LibraryItem):
     def _finish_write(self):
         super()._finish_write()
         if self.data_source:
-            self.persistent_object_context.rewrite_data_item_data(self)
+            self.persistent_object_context.rewrite_data_item_data(self, self.data)
 
     def _enter_write_delay_state_inner(self):
         super()._enter_write_delay_state_inner()
@@ -1204,7 +1197,7 @@ class DataItem(LibraryItem):
     def _finish_pending_write_inner(self):
         super()._finish_pending_write_inner()
         if self.__write_delay_data_changed:
-            self.persistent_object_context.rewrite_data_item_data(self)
+            self.persistent_object_context.rewrite_data_item_data(self, self.data)
 
     def update_and_bind_computation(self, computation_context):
         super().update_and_bind_computation(computation_context)
@@ -1288,7 +1281,6 @@ class DataItem(LibraryItem):
         if data_source:
             data_source.timezone = self.timezone
             data_source.timezone_offset = self.timezone_offset
-            data_source._set_data_item(self)
             self.__data_source_data_changed_event_listener = data_source.data_changed_event.listen(self.__handle_data_changed)
             # being in transaction state means that data sources have their data loaded.
             # so load data here to keep the books straight when the transaction state is exited.
@@ -1307,7 +1299,6 @@ class DataItem(LibraryItem):
         if self.__data_source_data_changed_event_listener:
             self.__data_source_data_changed_event_listener.close()
             self.__data_source_data_changed_event_listener = None
-        data_source._set_data_item(None)
         # being in transaction state means that data sources have their data loaded.
         # so unload data here to keep the books straight when the transaction state is exited.
         if self.in_transaction_state:
