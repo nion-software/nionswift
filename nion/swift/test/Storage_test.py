@@ -849,7 +849,7 @@ class TestStorageClass(unittest.TestCase):
             # now clear the memory_persistent_storage_system and see if it gets written again
             memory_persistent_storage_system.data.clear()
             with document_model.data_item_transaction(data_item):
-                data_item.metadata = data_item.metadata
+                data_item.description = data_item.description
             self.assertEqual(memory_persistent_storage_system.data, dict())
 
     def test_begin_end_transaction_with_data_change_should_write_data(self):
@@ -1358,8 +1358,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(display_specifier.data_item.dimensional_calibrations[0], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
             self.assertEqual(display_specifier.data_item.dimensional_calibrations[1], Calibration.Calibration(offset=1.0, scale=2.0, units="mm"))
             self.assertEqual(display_specifier.data_item.intensity_calibration, Calibration.Calibration(offset=0.1, scale=0.2, units="l"))
-            self.assertEqual(data_item.d_metadata.get("hardware_source")["voltage"], 200.0)
-            self.assertFalse("session_uuid" in data_item.d_metadata.get("hardware_source"))
+            self.assertEqual(data_item.metadata.get("hardware_source")["voltage"], 200.0)
+            self.assertFalse("session_uuid" in data_item.metadata.get("hardware_source"))
             self.assertIsNone(data_item.session_id)  # v1 is not allowed to set session_id
             self.assertEqual(display_specifier.data_item.data_dtype, numpy.uint32)
             self.assertEqual(display_specifier.data_item.data_shape, (8, 8))
@@ -1548,14 +1548,14 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 1)
-            self.assertEqual(document_model.data_items[0].d_metadata.get("hardware_source"), new_metadata)
+            self.assertEqual(document_model.data_items[0].metadata.get("hardware_source"), new_metadata)
             self.assertEqual(document_model.data_items[0].caption, caption)
             self.assertEqual(document_model.data_items[0].flag, flag)
             self.assertEqual(document_model.data_items[0].rating, rating)
             self.assertEqual(document_model.data_items[0].title, title)
             self.assertEqual(document_model.data_items[0].created, datetime.datetime.strptime("2000-06-30T22:02:00.000000", "%Y-%m-%dT%H:%M:%S.%f"))
             self.assertEqual(document_model.data_items[0].modified, document_model.data_items[0].created)
-            self.assertEqual(document_model.data_items[0].d_metadata.get("hardware_source").get("autostem").get("high_tension_v"), 42)
+            self.assertEqual(document_model.data_items[0].metadata.get("hardware_source").get("autostem").get("high_tension_v"), 42)
 
     def test_data_items_v8_to_v9_fft_migration(self):
         # construct v8 data items

@@ -575,9 +575,13 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     # get rid of data_sources
                     properties.pop("data_sources", None)
 
+                    # change metadata to description
+                    properties["description"] = properties.pop("metadata", dict()).get("description", dict())
+
                     properties["version"] = 11
+
                     if self.__log_migrations:
-                        logging.info("Updated %s to %s (computed data items combined crop)", storage_handler.reference, properties["version"])
+                        logging.info("Updated %s to %s (computed data items combined crop, data source merge)", storage_handler.reference, properties["version"])
             except Exception as e:
                 logging.debug("Error reading %s", storage_handler.reference)
                 import traceback

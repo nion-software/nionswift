@@ -444,9 +444,9 @@ class TestSymbolicClass(unittest.TestCase):
                 needs_update_ref[0] = True
             needs_update_event_listener = computation.computation_mutated_event.listen(needs_update)
             with contextlib.closing(needs_update_event_listener):
-                metadata = data_item.d_metadata
+                metadata = data_item.metadata
                 metadata["abc"] = 1
-                data_item.d_metadata = metadata
+                data_item.metadata = metadata
             self.assertTrue(needs_update_ref[0])
 
     def test_computation_does_not_update_when_graphic_changes_on_source(self):
@@ -542,7 +542,7 @@ class TestSymbolicClass(unittest.TestCase):
             d = numpy.zeros((8, 8), dtype=numpy.uint32)
             d[:] = random.randint(1, 100)
             data_item = DataItem.DataItem(d)
-            data_item.d_metadata = {"abc": 1}
+            data_item.metadata = {"abc": 1}
             data_item.set_intensity_calibration(Calibration.Calibration(1.0, 2.0, "nm"))
             data_item.set_dimensional_calibrations([Calibration.Calibration(1.1, 2.1, "m"), Calibration.Calibration(1.2, 2.2, "m")])
             document_model.append_data_item(data_item)

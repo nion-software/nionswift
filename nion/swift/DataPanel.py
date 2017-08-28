@@ -129,7 +129,7 @@ class DisplayItem:
     def status_str(self):
         data_item = self.__data_item
         if data_item.is_live:
-            live_metadata = data_item.d_metadata.get("hardware_source", dict())
+            live_metadata = data_item.metadata.get("hardware_source", dict())
             frame_index_str = str(live_metadata.get("frame_index", str()))
             partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
             return "{0:s} {1:s} {2:s}".format(_("Live"), frame_index_str, partial_str)

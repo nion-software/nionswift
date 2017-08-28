@@ -1344,14 +1344,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__shortcuts_canvas_item.set_data_item(data_item)
 
-        def metadata_changed():
+        def description_changed():
             if self.header_canvas_item:  # may be closed
                 self.header_canvas_item.title = self._data_item.displayed_title if self._data_item else None
 
         if data_item:
-            self.__data_item_metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
+            self.__data_item_metadata_changed_event_listener = data_item.description_changed_event.listen(description_changed)
 
-        metadata_changed()
+        description_changed()
 
         if self.__data_item_panel_canvas_item:  # may be closed
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)

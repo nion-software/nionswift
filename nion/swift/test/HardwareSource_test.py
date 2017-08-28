@@ -323,7 +323,7 @@ def _test_record_during_view_records_one_item_and_keeps_viewing(testcase, hardwa
     document_controller.periodic()
     testcase.assertEqual(len(document_controller.document_model.data_items), 1)
     # ensure the recorded data is different from the view data.
-    testcase.assertNotEqual(document_controller.document_model.data_items[0].d_metadata["hardware_source"]["frame_index"], extended_data_list[0].metadata["hardware_source"]["frame_index"])
+    testcase.assertNotEqual(document_controller.document_model.data_items[0].metadata["hardware_source"]["frame_index"], extended_data_list[0].metadata["hardware_source"]["frame_index"])
 
 def _test_abort_record_during_view_returns_to_view(testcase, hardware_source, document_controller):
     # first start playing
@@ -353,7 +353,7 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     testcase.assertEqual(len(document_model.data_items), 1)
     data_item = document_model.data_items[0]
     testcase.assertFalse(data_item.is_live)
-    frame_index = data_item.d_metadata.get("hardware_source")["frame_index"]
+    frame_index = data_item.metadata.get("hardware_source")["frame_index"]
     # play the second time. it should make a copy of the first data item and use the original.
     new_data_item = copy.deepcopy(document_model.data_items[0])
     document_model.append_data_item(new_data_item)
@@ -366,8 +366,8 @@ def _test_view_reuses_single_data_item(testcase, hardware_source, document_contr
     testcase.assertEqual(len(document_model.data_items), 2)
     data_item = document_model.data_items[0]
     copied_data_item = document_model.data_items[1]
-    new_frame_index = data_item.d_metadata.get("hardware_source")["frame_index"]
-    copied_frame_index = copied_data_item.d_metadata.get("hardware_source")["frame_index"]
+    new_frame_index = data_item.metadata.get("hardware_source")["frame_index"]
+    copied_frame_index = copied_data_item.metadata.get("hardware_source")["frame_index"]
     testcase.assertNotEqual(frame_index, new_frame_index)
     testcase.assertEqual(frame_index, copied_frame_index)
 
@@ -734,7 +734,7 @@ class TestHardwareSourceClass(unittest.TestCase):
     def test_standard_data_element_constructs_metadata_with_hardware_source_as_dict(self):
         data_element = ScanAcquisitionTask(False, 0).make_data_element()
         data_item = ImportExportManager.create_data_item_from_data_element(data_element)
-        self.assertTrue(isinstance(data_item.d_metadata.get("hardware_source"), dict))
+        self.assertTrue(isinstance(data_item.metadata.get("hardware_source"), dict))
 
     def test_updating_existing_data_item_updates_creation_even_if_an_updated_date_is_not_supplied(self):
         data_element = ScanAcquisitionTask(False, 0).make_data_element()
@@ -748,7 +748,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
-            hardware_source_metadata = data_item0.d_metadata.get("hardware_source", dict())
+            hardware_source_metadata = data_item0.metadata.get("hardware_source", dict())
             self.assertEqual(data_item0.title, hardware_source.display_name)
             self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
             self.assertIsNone(hardware_source_metadata.get("channel_id"))
@@ -759,7 +759,7 @@ class TestHardwareSourceClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
-            hardware_source_metadata = data_item0.d_metadata.get("hardware_source", dict())
+            hardware_source_metadata = data_item0.metadata.get("hardware_source", dict())
             self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
             self.assertEqual(hardware_source_metadata.get("channel_index"), 0)
             self.assertEqual(hardware_source_metadata.get("channel_id"), "a")
@@ -771,13 +771,13 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.channel_enabled_list = (True, True)
             self.__acquire_one(document_controller, hardware_source)
             data_item0 = document_model.data_items[0]
-            hardware_source_metadata0 = data_item0.d_metadata.get("hardware_source", dict())
+            hardware_source_metadata0 = data_item0.metadata.get("hardware_source", dict())
             self.assertEqual(data_item0.title, "%s (%s)" % (hardware_source.display_name, "A"))
             self.assertEqual(hardware_source_metadata0.get("channel_index"), 0)
             self.assertEqual(hardware_source_metadata0.get("channel_id"), "a")
             self.assertEqual(hardware_source_metadata0.get("channel_name"), "A")
             data_item1 = document_model.data_items[1]
-            hardware_source_metadata1 = data_item1.d_metadata.get("hardware_source", dict())
+            hardware_source_metadata1 = data_item1.metadata.get("hardware_source", dict())
             self.assertEqual(data_item1.title, "%s (%s)" % (hardware_source.display_name, "B"))
             self.assertEqual(hardware_source_metadata1.get("channel_index"), 1)
             self.assertEqual(hardware_source_metadata1.get("channel_id"), "b")

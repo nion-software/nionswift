@@ -527,7 +527,7 @@ class SessionManager(abc.ABC):
 
 class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     """
-    Data items represent a data, metadata, display, and graphics within a library.
+    Data items represent a data, description, display, and graphics within a library.
 
     * *created* a datetime item
     * *session_id* a string representing the session
@@ -585,11 +585,11 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.__pending_write = True
         self.__write_delay_modified_count = 0
         self.persistent_object_context = None
-        self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__metadata_property_changed)
+        self.define_property("created", datetime.datetime.utcnow(), converter=DatetimeToStringConverter(), changed=self.__description_property_changed)
         # windows utcnow has a resolution of 1ms, this sleep can guarantee unique times for all created times during a particular test.
         # this is not my favorite solution since it limits library item creation to 1000/s but until I find a better solution, this is my compromise.
         time.sleep(0.001)
-        self.define_property("metadata", dict(), hidden=True, changed=self.__property_changed)
+        self.define_property("description", dict(), hidden=True, changed=self.__property_changed)
         self.define_property("source_file_path", validate=self.__validate_source_file_path, changed=self.__property_changed)
         self.define_property("session_id", validate=self.__validate_session_id, changed=self.__session_id_changed)
         self.define_property("category", "persistent", changed=self.__property_changed)
@@ -598,9 +598,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__session_manager = None
-        self.__metadata = dict()
-        self.__metadata_lock = threading.RLock()
-        self.metadata_changed_event = Event.Event()
+        self.description_changed_event = Event.Event()
         self.data_item_content_changed_event = Event.Event()
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
@@ -619,7 +617,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def __deepcopy__(self, memo):
         library_item_copy = self.__class__()
         # metadata
-        library_item_copy.metadata = self.metadata
+        library_item_copy.description = self.description
         library_item_copy.session_metadata = self.session_metadata
         library_item_copy.created = self.created
         library_item_copy.timezone = self.timezone
@@ -690,7 +688,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         """Return a new library item which is a copy of this one with any dynamic behavior made static."""
         libary_item = self.__class__()
         # metadata
-        libary_item.metadata = self.metadata
+        libary_item.description = self.description
         libary_item.session_metadata = self.session_metadata
         libary_item.created = self.created
         libary_item.timezone = self.timezone
@@ -857,13 +855,13 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             value = os.path.normpath(value)
         return value
 
-    def __metadata_property_changed(self, name, value):
+    def __description_property_changed(self, name, value):
         self.__property_changed(name, value)
-        self.__metadata_changed()
+        self.__description_changed()
 
-    def __metadata_changed(self):
+    def __description_changed(self):
         self._notify_library_item_content_changed()
-        self.metadata_changed_event.fire()
+        self.description_changed_event.fire()
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -879,7 +877,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         """Used to signal changes to the ref var, which are kept in document controller. ugh."""
         self.r_var = r_var
         if notify_changed:  # set to False to set the r-value at startup; avoid marking it as a change
-            self.__metadata_changed()
+            self.__description_changed()
 
     def increment_display_ref_count(self):
         """Increment display reference count to indicate this library item is currently displayed."""
@@ -927,19 +925,19 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         tz_minutes = Utility.local_utcoffset_minutes(created_utc)
         return created_utc + datetime.timedelta(minutes=tz_minutes)
 
-    # access metadata
+    # access description
 
     @property
-    def metadata(self):
-        return copy.deepcopy(self._get_persistent_property_value("metadata"))
+    def description(self):
+        return copy.deepcopy(self._get_persistent_property_value("description"))
 
-    @metadata.setter
-    def metadata(self, metadata):
-        assert metadata is not None
-        self._set_persistent_property_value("metadata", copy.deepcopy(metadata))
+    @description.setter
+    def description(self, description):
+        assert description is not None
+        self._set_persistent_property_value("description", copy.deepcopy(description))
 
-    def set_metadata(self, metadata):
-        self.metadata = metadata
+    def set_description(self, description):
+        self.description = description
 
     @property
     def _session_manager(self) -> SessionManager:
@@ -966,51 +964,51 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def computation(self) -> typing.Optional[Symbolic.Computation]:
         return None
 
-    # descriptive metadata
+    # description
 
     @property
     def title(self):
-        return self.metadata.get("description", dict()).get("title", UNTITLED_STR)
+        return self.description.get("title", UNTITLED_STR)
 
     @title.setter
     def title(self, value):
-        metadata = self.metadata
-        metadata.setdefault("description", dict())["title"] = str(value) if value is not None else str()
-        self.metadata = metadata
-        self.__metadata_property_changed("title", value)
+        description = self.description
+        description["title"] = str(value) if value is not None else str()
+        self.description = description
+        self.__description_property_changed("title", value)
 
     @property
     def caption(self):
-        return self.metadata.get("description", dict()).get("caption", str())
+        return self.description.get("caption", str())
 
     @caption.setter
     def caption(self, value):
-        metadata = self.metadata
-        metadata.setdefault("description", dict())["caption"] = str(value) if value is not None else str()
-        self.metadata = metadata
-        self.__metadata_property_changed("caption", value)
+        description = self.description
+        description["caption"] = str(value) if value is not None else str()
+        self.description = description
+        self.__description_property_changed("caption", value)
 
     @property
     def flag(self):
-        return self.metadata.get("description", dict()).get("flag", 0)
+        return self.description.get("flag", 0)
 
     @flag.setter
     def flag(self, value):
-        metadata = self.metadata
-        metadata.setdefault("description", dict())["flag"] = max(min(int(value), 1), -1)
-        self.metadata = metadata
-        self.__metadata_property_changed("flag", value)
+        description = self.description
+        description["flag"] = max(min(int(value), 1), -1)
+        self.description = description
+        self.__description_property_changed("flag", value)
 
     @property
     def rating(self):
-        return self.metadata.get("description", dict()).get("rating", 0)
+        return self.description.get("rating", 0)
 
     @rating.setter
     def rating(self, value):
-        metadata = self.metadata
-        metadata.setdefault("description", dict())["rating"] = min(max(int(value), 0), 5)
-        self.metadata = metadata
-        self.__metadata_property_changed("rating", value)
+        description = self.description
+        description["rating"] = min(max(int(value), 0), 5)
+        self.description = description
+        self.__description_property_changed("rating", value)
 
     @property
     def text_for_filter(self):
@@ -1080,7 +1078,7 @@ class DataItem(LibraryItem):
         self.define_item("computation", computation_factory)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.data_item_changed_event = Event.Event()
-        self.d_metadata_changed_event = Event.Event()
+        self.metadata_changed_event = Event.Event()
         self.__write_delay_data_changed = False
         self.__data_source_metadata_changed_event_listener = None
         self.__data_source_data_changed_event_listener = None
@@ -1268,9 +1266,9 @@ class DataItem(LibraryItem):
         if self._session_manager:
             self.session_id = self._session_manager.current_session_id
 
-    def __handle_d_metadata_changed(self):
+    def __handle_metadata_changed(self):
         self.__change_changed = True
-        self.d_metadata_changed_event.fire()
+        self.metadata_changed_event.fire()
 
     def __data_source_changed(self, name, old_data_source, data_source):
         if old_data_source:
@@ -1286,7 +1284,7 @@ class DataItem(LibraryItem):
             # so load data here to keep the books straight when the transaction state is exited.
             if self.in_transaction_state:
                 data_source.increment_data_ref_count()
-            self.__data_source_metadata_changed_event_listener = data_source.metadata_changed_event.listen(self.__handle_d_metadata_changed)
+            self.__data_source_metadata_changed_event_listener = data_source.metadata_changed_event.listen(self.__handle_metadata_changed)
             self._notify_library_item_content_changed()
             # the document model watches for new data sources via observing.
             # send this message to make data_source observable.
@@ -1540,11 +1538,11 @@ class DataItem(LibraryItem):
         self.set_dimensional_calibrations(dimensional_calibrations)
 
     @property
-    def d_metadata(self) -> dict:
+    def metadata(self) -> dict:
         return self.data_source.metadata if self.data_source else dict()
 
-    @d_metadata.setter
-    def d_metadata(self, value: dict) -> None:
+    @metadata.setter
+    def metadata(self, value: dict) -> None:
         with self.data_source_changes():
             if self.data_source:
                 self.data_source.metadata = value

@@ -1027,7 +1027,7 @@ class CalibratedBinding(Binding.Binding):
         def update_target(value):
             self.update_target_direct(self.get_target_value())
         self.__value_binding.target_setter = update_target
-        self.__metadata_changed_event_listener = data_item.d_metadata_changed_event.listen(lambda: update_target(None))
+        self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(lambda: update_target(None))
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
                 update_target(display.displayed_dimensional_calibrations)
@@ -1082,7 +1082,7 @@ class CalibratedLengthBinding(Binding.Binding):
             self.update_target_direct(self.get_target_value())
         self.__start_binding.target_setter = update_target
         self.__end_binding.target_setter = update_target
-        self.__metadata_changed_event_listener = data_item.d_metadata_changed_event.listen(lambda: update_target(None))
+        self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(lambda: update_target(None))
         def calibrations_changed(k):
             if k == "displayed_dimensional_calibrations":
                 update_target(display.displayed_dimensional_calibrations)

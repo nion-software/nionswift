@@ -1150,7 +1150,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             data_item_inverted = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_inverted)
-            self.assertIsInstance(inverted_display_specifier.data_item.d_metadata, dict)
+            self.assertIsInstance(inverted_display_specifier.data_item.metadata, dict)
 
     def test_data_item_recorder_records_intensity_calibration_changes(self):
         document_model = DocumentModel.DocumentModel()

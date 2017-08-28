@@ -226,7 +226,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
                     display_specifier.data_item.set_dimensional_calibration(dimension, dimensional_calibration)
             if intensity_calibration:
                 display_specifier.data_item.set_intensity_calibration(intensity_calibration)
-            data_item.d_metadata = data_and_metadata.metadata
+            data_item.metadata = data_and_metadata.metadata
         else:
             display_specifier.data_item.set_xdata(data_and_metadata)
         # title
@@ -243,10 +243,7 @@ def update_data_item_from_data_element_1(data_item, data_element, data_file_path
         utc_datetime = data_and_metadata.timestamp
         data_item.created = utc_datetime
         if "time_zone" in data_and_metadata.metadata.get("description", dict()):
-            metadata = data_item.metadata
             timezone_dict = copy.deepcopy(data_and_metadata.metadata["description"]["time_zone"])
-            metadata.setdefault("description", dict())["time_zone"] = timezone_dict
-            data_item.metadata = metadata
             timezone = timezone_dict.get("timezone")
             if timezone is not None:
                 data_item.timezone = timezone
@@ -376,8 +373,8 @@ def create_data_element_from_data_item(data_item, include_data=True):
             data_element["is_sequence"] = data_item.is_sequence
         data_element["collection_dimension_count"] = data_item.collection_dimension_count
         data_element["datum_dimension_count"] = data_item.datum_dimension_count
-        data_element["metadata"] = copy.deepcopy(data_item.d_metadata)
-        data_element["properties"] = copy.deepcopy(data_item.d_metadata.get("hardware_source", dict()))
+        data_element["metadata"] = copy.deepcopy(data_item.metadata)
+        data_element["properties"] = copy.deepcopy(data_item.metadata.get("hardware_source", dict()))
         data_element["title"] = data_item.title
         data_element["source_file_path"] = data_item.source_file_path
         tz_value = data_item.timezone_offset

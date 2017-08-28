@@ -140,7 +140,7 @@ class TestFacadeClass(unittest.TestCase):
             data_item.set_intensity_calibration(Calibration.Calibration(0.1, 0.2, "dogs"))
             data_item.set_dimensional_calibrations([Calibration.Calibration(0.3, 0.4, "cats"), Calibration.Calibration(0.5, 0.6, "cats")])
             metadata = {"title": "Dogs eat cats."}
-            data_item.d_metadata = metadata
+            data_item.metadata = metadata
             document_model.append_data_item(data_item)
             api = Facade.get_api("~1.0", "~1.0")
             library = api.library
@@ -154,7 +154,7 @@ class TestFacadeClass(unittest.TestCase):
             data_item_ref.set_metadata(metadata2)
             self.assertAlmostEqual(data_item.intensity_calibration.offset, 0.11)
             self.assertAlmostEqual(data_item.dimensional_calibrations[0].offset, 0.33)
-            self.assertEqual(data_item.d_metadata, metadata2)
+            self.assertEqual(data_item.metadata, metadata2)
 
     def test_data_item_regions(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()

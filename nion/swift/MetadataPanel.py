@@ -59,11 +59,11 @@ class MetadataModel:
     def metadata(self, metadata):
         data_item = self.__display_specifier.data_item
         if data_item:
-            data_item.d_metadata = metadata
+            data_item.metadata = metadata
 
     def __metadata_changed(self, data_item):
         if data_item:
-            metadata = data_item.d_metadata
+            metadata = data_item.metadata
             assert isinstance(metadata, dict)
             if self.__metadata != metadata:
                 self.__metadata = metadata if metadata is not None else dict()
@@ -81,7 +81,7 @@ class MetadataModel:
             if data_item:
                 def metadata_changed():
                     self.__metadata_changed(data_item)
-                self.__metadata_changed_event_listener = data_item.d_metadata_changed_event.listen(metadata_changed)
+                self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
             self.__metadata_changed(data_item)
 
 

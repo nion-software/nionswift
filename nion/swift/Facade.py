@@ -1074,7 +1074,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return self.__data_item.d_metadata
+        return self.__data_item.metadata
 
     def set_metadata(self, metadata: dict) -> None:
         """Set the metadata dict.
@@ -1090,7 +1090,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        self.__data_item.d_metadata = metadata
+        self.__data_item.metadata = metadata
 
     def has_metadata_value(self, key: str) -> bool:
         """Return whether the metadata value for the given key exists.
@@ -1117,7 +1117,7 @@ class DataItem(metaclass=SharedInstance):
                 return desc['path'][-1] in d
         desc = key_map.get(key)
         if desc is not None:
-            d = self.__data_item.d_metadata
+            d = self.__data_item.metadata
             for k in desc['path'][:-1]:
                 d =  d.setdefault(k, dict()) if d is not None else None
             if d is not None:
@@ -1148,7 +1148,7 @@ class DataItem(metaclass=SharedInstance):
             return v
         desc = key_map.get(key)
         if desc is not None:
-            v = self._data_item.d_metadata
+            v = self._data_item.metadata
             for k in desc['path']:
                 v =  v.get(k) if v is not None else None
             return v
@@ -1182,13 +1182,13 @@ class DataItem(metaclass=SharedInstance):
                 return
         desc = key_map.get(key)
         if desc is not None:
-            d0 = self.__data_item.d_metadata
+            d0 = self.__data_item.metadata
             d = d0
             for k in desc['path'][:-1]:
                 d =  d.setdefault(k, dict()) if d is not None else None
             if d is not None:
                 d[desc['path'][-1]] = value
-                self.__data_item.d_metadata = d0
+                self.__data_item.metadata = d0
                 return
         raise KeyError()
 
@@ -1220,13 +1220,13 @@ class DataItem(metaclass=SharedInstance):
                 return
         desc = key_map.get(key)
         if desc is not None:
-            d0 = self.__data_item.d_metadata
+            d0 = self.__data_item.metadata
             d = d0
             for k in desc['path'][:-1]:
                 d =  d.setdefault(k, dict()) if d is not None else None
             if d is not None and desc['path'][-1] in d:
                 d.pop(desc['path'][-1], None)
-                self.__data_item.d_metadata = d0
+                self.__data_item.metadata = d0
                 return
 
     @property
