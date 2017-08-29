@@ -5,7 +5,7 @@ Found a bug?
 ------------
 Bug reports are welcome!  Please report all bugs on the GitHub [issue-tracker].
 
-Before you submit a bug report, search the open (and closed issues to make
+Before you submit a bug report, search the open (and closed) issues to make
 sure the issue hasn't come up before.
 
 Make sure you can reproduce the bug with the latest released version (or, better,
