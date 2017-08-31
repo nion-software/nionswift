@@ -1308,6 +1308,8 @@ class DataPanel(Panel.Panel):
         self.document_controller.selection.set_multiple(indexes)
 
     def library_model_receive_files(self, file_paths, threaded=True):
+        self.document_controller._register_ui_activity()
+
         def receive_files_complete(received_data_items):
             def select_library_all():
                 self.__data_browser_controller.set_data_browser_selection(data_items=[received_data_items[0]])

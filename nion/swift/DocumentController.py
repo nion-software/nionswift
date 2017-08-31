@@ -64,6 +64,8 @@ class DocumentController(Window.Window):
 
         self.__dialogs = list()
 
+        self.__last_activity = None
+
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model = document_model
@@ -183,6 +185,9 @@ class DocumentController(Window.Window):
         self.did_close_event.fire(self)
         self.did_close_event = None
         super().close()
+
+    def _register_ui_activity(self):
+        self.__last_activity = time.time()
 
     def about_to_show(self):
         geometry, state = self.workspace_controller.restore_geometry_state()
@@ -524,6 +529,8 @@ class DocumentController(Window.Window):
         self.document_model.perform_data_item_updates()
         if self.workspace_controller:
             self.workspace_controller.periodic()
+        if self.__last_activity is not None and time.time() - self.__last_activity > 60 * 60:
+            pass  # self.app.choose_library()
 
     @property
     def workspace_controller(self):

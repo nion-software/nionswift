@@ -157,6 +157,9 @@ class Workspace:
             dock_widget.on_size_changed = panel.size_changed
             dock_widget.on_focus_changed = panel.focus_changed
             dock_widget.does_retain_focus = False
+            def register_ui_activity():
+                self.document_controller._register_ui_activity()
+            dock_widget.on_ui_activity = register_ui_activity
             self.dock_widgets.append(dock_widget)
             return dock_widget
         except Exception as e:
