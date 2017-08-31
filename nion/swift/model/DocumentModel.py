@@ -407,7 +407,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 count[0] += 1
         return count
 
-    def read_data_items(self, target_document=None):
+    def read_data_items(self, target_document=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
         """
         Read data items from the data reference handler and return as a list.
 
@@ -442,9 +442,12 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                     data_item_uuid = uuid.UUID(properties["uuid"])
                     if target_document is not None:
                         if not target_document.get_data_item_by_uuid(data_item_uuid):
-                            new_data_item = self.__auto_migrate_data_item(data_item_uuid, storage_handler, properties, target_document)
-                            if new_data_item:
-                                data_items_by_uuid[data_item_uuid] = new_data_item
+                            if data_item_uuid in deletions:
+                                utilized_deletions.add(data_item_uuid)
+                            else:
+                                new_data_item = self.__auto_migrate_data_item(data_item_uuid, storage_handler, properties, target_document)
+                                if new_data_item:
+                                    data_items_by_uuid[data_item_uuid] = new_data_item
                     else:
                         if changed_ref[0]:
                             storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
@@ -1189,6 +1192,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
         self.define_property("data_item_variables", dict(), hidden=True)  # map string key to data item, used for reference in scripts
+        self.define_property("data_item_deletions", list(), hidden=True)  # list of deleted uuids. usefor for migration.
         self.session_id = None
         self.start_new_session()
         self.__read()
@@ -1221,17 +1225,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # first read the items
         self.read_from_dict(self.__library_storage.properties)
         data_items = self.persistent_object_context.read_data_items()
+        utilized_deletions = set()  # the uuid's skipped due to being deleted
+        deletions = self.data_item_deletions
         self.__finish_read_partial(data_items)
         for auto_migration in self.__auto_migrations:
             file_persistent_storage_system = FileStorageSystem(auto_migration.paths)
             persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=auto_migration.log_copying)
-            data_items = persistent_object_context.read_data_items(target_document=self)
+            data_items = persistent_object_context.read_data_items(target_document=self, deletions=deletions, utilized_deletions=utilized_deletions)
             self.__finish_read_partial(data_items)
-        self.__finish_read()
+        self.__finish_read(utilized_deletions)
 
     def __finish_read_partial(self, data_items: typing.List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
-            if data_item.uuid not in self.__data_item_uuids:  # an error, but don't crash
+            if data_item.uuid not in self.__data_item_uuids:
                 data_item.about_to_be_inserted(self)
                 self.__data_items.insert(index, data_item)
                 self.__data_item_uuids.add(data_item.uuid)
@@ -1243,7 +1249,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item in data_items:
             data_item.finish_reading()
 
-    def __finish_read(self) -> None:
+    def __finish_read(self, utilized_deletions: typing.Set[uuid.UUID]) -> None:
+        # deletions
+        self._set_persistent_property_value("data_item_deletions", [str(uuid) for uuid in utilized_deletions])
+        # computations and connections
         data_items = self.data_items
         for data_item in data_items:
             self.__computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
@@ -1431,6 +1440,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # do actual removal
         del self.__data_items[index]
         self.__data_item_uuids.remove(data_item.uuid)
+        self._set_persistent_property_value("data_item_deletions", self._get_persistent_property_value("data_item_deletions") + [str(data_item.uuid)])
         del self.__uuid_to_data_item[data_item.uuid]
         if data_item.r_var:
             data_item_variables = self._get_persistent_property_value("data_item_variables")
@@ -1449,6 +1459,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.data_item_removed_event.fire(self, data_item, index, False)
         data_item.close()  # make sure dependents get updated. argh.
         self.data_item_deleted_event.fire(data_item)
+
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
@@ -2113,6 +2124,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     # for testing
     def _get_pending_data_item_updates_count(self):
         return len(self.__pending_data_item_updates)
+
+    @property
+    def data_item_deletions(self) -> typing.Set[uuid.UUID]:
+        return {uuid.UUID(uuid_str) for uuid_str in self._get_persistent_property_value("data_item_deletions")}
 
     def _update_data_item_reference(self, key: str, data_item: DataItem.DataItem) -> None:
         assert threading.current_thread() == threading.main_thread()
