@@ -266,11 +266,13 @@ class Application:
     def continue_start(self, cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, ignore_older_files, welcome_message=True):
         storage_cache = Cache.DbStorageCache(cache_path)
         DocumentModel.DocumentModel.computation_min_period = 0.1
+        auto_migrations = list()
+        auto_migrations.append(DocumentModel.AutoMigration([os.path.join(workspace_dir, "Nion Swift Data")]))
+        auto_migrations.append(DocumentModel.AutoMigration([os.path.join(workspace_dir, "Nion Swift Data 10")]))
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
                                                      persistent_storage_systems=[file_persistent_storage_system],
-                                                     storage_cache=storage_cache, ignore_older_files=ignore_older_files)
-        document_model.auto_migrate([os.path.join(workspace_dir, "Nion Swift Data")])
-        document_model.auto_migrate([os.path.join(workspace_dir, "Nion Swift Data 10")])
+                                                     storage_cache=storage_cache, ignore_older_files=ignore_older_files,
+                                                     auto_migrations=auto_migrations)
         document_model.create_default_data_groups()
         document_model.start_dispatcher()
         # parse the hardware aliases file

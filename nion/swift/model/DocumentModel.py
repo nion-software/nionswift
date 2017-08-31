@@ -1131,6 +1131,11 @@ class ComputationQueueItem:
         return pending_data_item_merges
 
 
+class AutoMigration:
+    def __init__(self, paths: typing.List[str], log_copying: bool=True):
+        self.paths = paths
+        self.log_copying = log_copying
+
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
 
@@ -1141,7 +1146,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     computation_min_period = 0.0
 
-    def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False):
+    def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False, auto_migrations=None):
         super(DocumentModel, self).__init__()
 
         self.data_item_deleted_event = Event.Event()  # will be called after the item is deleted
@@ -1160,6 +1165,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__library_storage = library_storage if library_storage else FilePersistentStorage()
         self.persistent_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
+        self.__auto_migrations = auto_migrations or list()
         self.__transactions_lock = threading.RLock()
         self.__transactions = dict()
         self.__live_data_items_lock = threading.RLock()
@@ -1215,9 +1221,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # first read the items
         self.read_from_dict(self.__library_storage.properties)
         data_items = self.persistent_object_context.read_data_items()
-        self.__finish_read(data_items)
+        self.__finish_read_partial(data_items)
+        for auto_migration in self.__auto_migrations:
+            file_persistent_storage_system = FileStorageSystem(auto_migration.paths)
+            persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=auto_migration.log_copying)
+            data_items = persistent_object_context.read_data_items(target_document=self)
+            self.__finish_read_partial(data_items)
+        self.__finish_read()
 
-    def __finish_read(self, data_items: typing.List[DataItem.DataItem]) -> None:
+    def __finish_read_partial(self, data_items: typing.List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
             if data_item.uuid not in self.__data_item_uuids:  # an error, but don't crash
                 data_item.about_to_be_inserted(self)
@@ -1230,6 +1242,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # mark itself clean after reading all of them in.
         for data_item in data_items:
             data_item.finish_reading()
+
+    def __finish_read(self) -> None:
+        data_items = self.data_items
         for data_item in data_items:
             self.__computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
         for data_item in data_items:
@@ -1310,12 +1325,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.undefine_properties()
         self.undefine_items()
         self.undefine_relationships()
-
-    def auto_migrate(self, paths: typing.List[str], log_copying: bool=True) -> None:
-        file_persistent_storage_system = FileStorageSystem(paths)
-        persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=log_copying)
-        data_items = persistent_object_context.read_data_items(target_document=self)
-        self.__finish_read(data_items)
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
