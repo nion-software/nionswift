@@ -1259,7 +1259,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __finish_read(self, utilized_deletions: typing.Set[uuid.UUID]) -> None:
         # deletions
-        self._set_persistent_property_value("data_item_deletions", [str(uuid) for uuid in utilized_deletions])
+        self._set_persistent_property_value("data_item_deletions", [str(uuid_) for uuid_ in utilized_deletions])
         # computations and connections
         data_items = self.data_items
         for data_item in data_items:

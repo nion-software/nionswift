@@ -1175,12 +1175,9 @@ class DataItem(LibraryItem):
         for display in copy.copy(self.displays):
             self.remove_display(display)
         super()._read_from_dict_inner(properties)
+        self.__update_displays()  # this ensures that the display will validate
 
     def finish_reading(self):
-        data_and_metadata = self.xdata
-        for display in self.displays:
-            display.validate_slice_indexes()
-            display.update_data(data_and_metadata)
         super().finish_reading()
 
     def _finish_write(self):

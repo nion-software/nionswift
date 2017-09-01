@@ -3101,6 +3101,19 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(data_shape, computed_data_item.data_shape)
 
+    def test_computation_pick_and_display_interval_reloads(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data = numpy.ones((8, 4, 4), numpy.double)
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            document_model.get_pick_new(data_item)
+            document_model.recompute_all()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            self.assertEqual(len(document_model.data_items), 2)
+
     def test_computation_corrupt_variable_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
