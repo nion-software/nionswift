@@ -303,7 +303,7 @@ class MemoryStorageSystem:
             storage_handlers.append(MemoryStorageSystem.MemoryStorageHandler(key, self.properties, self.data, self._test_data_read_event))
         return storage_handlers
 
-    def make_storage_handler(self, data_item):
+    def make_storage_handler(self, data_item, file_handler=None):
         uuid = str(data_item.uuid)
         return MemoryStorageSystem.MemoryStorageHandler(uuid, self.properties, self.data, self._test_data_read_event)
 
@@ -358,10 +358,16 @@ class FileStorageSystem:
         path_components.append("data_" + encoded_uuid_str)
         return os.path.join(*path_components)
 
-    def make_storage_handler(self, data_item):
+    def get_file_handler_for_file(self, path):
+        for file_handler in self.__file_handlers:
+            if file_handler.is_matching(path):
+                return file_handler
+        return None
+
+    def make_storage_handler(self, data_item, file_handler=None):
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
-        file_handler = self.__file_handlers[-1] if data_item.large_format else self.__file_handlers[0]
+        file_handler = file_handler if file_handler else (self.__file_handlers[-1] if data_item.large_format else self.__file_handlers[0])
         return file_handler.make(os.path.join(self.__directories[0], self.__get_default_path(data_item)))
 
 
@@ -494,7 +500,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
             old_data_item.begin_reading()
             old_data_item.read_from_dict(properties)
             old_data_item.finish_reading()
-            target_storage_handler = persistent_storage_system.make_storage_handler(old_data_item)
+            old_data_item_path = storage_handler.reference
+            file_handler = persistent_storage_system.get_file_handler_for_file(old_data_item_path)
+            target_storage_handler = persistent_storage_system.make_storage_handler(old_data_item, file_handler)
             if target_storage_handler:
                 break
         if target_storage_handler:

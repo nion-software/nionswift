@@ -2904,6 +2904,57 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].modified, modified)
             self.assertEqual(document_model.data_items[1].modified, modified)
 
+    def test_auto_migrate_handles_secondary_storage_types(self):
+        current_working_directory = os.getcwd()
+        library_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(library_dir)
+        try:
+            # construct workspace with old file
+            library_filename = "Nion Swift Workspace.nslib"
+            library_path = os.path.join(library_dir, library_filename)
+            old_data_path = os.path.join(library_dir, "Nion Swift Data")
+            with open(library_path, "w") as fp:
+                json.dump({}, fp)
+            src_uuid_str = str(uuid.uuid4())
+            data_item_dict = dict()
+            data_item_dict["uuid"] = src_uuid_str
+            data_item_dict["version"] = 9
+            data_source_dict = dict()
+            data_source_dict["uuid"] = str(uuid.uuid4())
+            data_source_dict["type"] = "buffered-data-source"
+            data_source_dict["displays"] = [{"uuid": str(uuid.uuid4())}]
+            data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+            data_source_dict["data_shape"] = (8, 8)
+            data_source_dict["dimensional_calibrations"] = [{ "offset": 1.0, "scale": 2.0, "units": "mm" }, { "offset": 1.0, "scale": 2.0, "units": "mm" }]
+            data_source_dict["intensity_calibration"] = { "offset": 0.1, "scale": 0.2, "units": "l" }
+            data_item_dict["data_sources"] = [data_source_dict]
+            file_handler = DocumentModel.FileStorageSystem._file_handlers[1]  # HDF5
+            handler = file_handler(pathlib.PurePath(old_data_path, "File").with_suffix(file_handler.get_extension()))
+            with contextlib.closing(handler):
+                handler.write_properties(data_item_dict, datetime.datetime.utcnow())
+                handler.write_data(numpy.zeros((8,8)), datetime.datetime.utcnow())
+            library_storage = DocumentModel.FilePersistentStorage()
+
+            # auto migrate workspace
+            data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
+            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
+            auto_migration = DocumentModel.AutoMigration([old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[file_persistent_storage_system], auto_migrations=[auto_migration])
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 1)
+
+            # ensure it imports twice
+            data_path = os.path.join(library_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))
+            file_persistent_storage_system = DocumentModel.FileStorageSystem([data_path])
+            auto_migration = DocumentModel.AutoMigration([old_data_path], log_copying=False)
+            document_model = DocumentModel.DocumentModel(library_storage=library_storage, persistent_storage_systems=[file_persistent_storage_system], auto_migrations=[auto_migration])
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 1)
+
+        finally:
+            #logging.debug("rmtree %s", library_dir)
+            shutil.rmtree(library_dir)
+
     @unittest.expectedFailure
     def test_storage_cache_disabled_during_transaction(self):
         storage_cache = Cache.DictStorageCache()
