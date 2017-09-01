@@ -2108,17 +2108,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             with self.__pending_data_item_updates_lock:
                 found = False
                 pending_data_item_updates = list()
-                for data_item_, data_and_metadata_ in self.__pending_data_item_updates:
+                for data_item_ in self.__pending_data_item_updates:
                     # does it match? if so and not yet found, put the new data into the matching
                     # slot; but then filter the rest of the matches.
                     if data_item_ == data_item:
                         if not found:
-                            pending_data_item_updates.append((data_item, data_and_metadata))
+                            data_item.set_pending_xdata(data_and_metadata)
+                            pending_data_item_updates.append(data_item)
                             found = True
                     else:
-                        pending_data_item_updates.append((data_item_, data_and_metadata_))
+                        pending_data_item_updates.append(data_item_)
                 if not found:  # if not added yet, add it
-                    pending_data_item_updates.append((data_item, data_and_metadata))
+                    data_item.set_pending_xdata(data_and_metadata)
+                    pending_data_item_updates.append(data_item)
                 self.__pending_data_item_updates = pending_data_item_updates
 
     def perform_data_item_updates(self):
@@ -2126,8 +2128,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         with self.__pending_data_item_updates_lock:
             pending_data_item_updates = self.__pending_data_item_updates
             self.__pending_data_item_updates = list()
-        for data_item, data_and_metadata in pending_data_item_updates:
-            data_item.update_data_and_metadata(data_and_metadata)
+        for data_item in pending_data_item_updates:
+            data_item.update_to_pending_xdata()
 
     # for testing
     def _get_pending_data_item_updates_count(self):

@@ -1086,6 +1086,8 @@ class DataItem(LibraryItem):
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__change_changed = False
+        self.__pending_xdata_lock = threading.RLock()
+        self.__pending_xdata = None
         if data is not None:
             self.set_data_source(BufferedDataSource(data))
         self.add_display(Display.Display())  # always have one display, for now
@@ -1255,6 +1257,17 @@ class DataItem(LibraryItem):
             self.set_xdata(data_and_metadata)
             self.timezone = Utility.get_local_timezone()
             self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
+
+    def set_pending_xdata(self, xd: DataAndMetadata.DataAndMetadata) -> None:
+        with self.__pending_xdata_lock:
+            self.__pending_xdata = xd
+
+    def update_to_pending_xdata(self):
+        with self.__pending_xdata_lock:
+            pending_xdata = self.__pending_xdata
+            self.__pending_xdata = None
+        if pending_xdata:
+            self.update_data_and_metadata(pending_xdata)
 
     def __handle_data_changed(self, data_source):
         self.__change_changed = True
@@ -1488,7 +1501,6 @@ class DataItem(LibraryItem):
     def __update_displays(self):
         data_and_metadata = self.xdata
         for display in self.displays:
-            display.validate_slice_indexes()
             display.update_data(data_and_metadata)
 
     @property
