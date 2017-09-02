@@ -1,25 +1,11 @@
 # standard libraries
-import copy
-import functools
 import gettext
-import operator
-import random
-import string
-import uuid
-import weakref
 
 # third party libraries
 # None
 
 # local libraries
-from nion.swift import DataItemThumbnailWidget
-from nion.swift.model import DataItem
-from nion.swift.model import Symbolic
-from nion.ui import CanvasItem
 from nion.ui import Dialog
-from nion.utils import Binding
-from nion.utils import Converter
-from nion.utils import Event
 from nion.utils import Geometry
 
 _ = gettext.gettext

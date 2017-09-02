@@ -22,6 +22,7 @@ from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
 from nion.swift import ExportDialog
 from nion.swift import FilterPanel
+from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
 from nion.swift import Workspace
@@ -380,6 +381,8 @@ class DocumentController(Window.Window):
         self._view_menu.add_menu_item(_("Remove Workspace"), self.__remove_workspace)
         self._view_menu.add_separator()
         self._view_menu.add_sub_menu(_("Display Panel Type"), self._display_type_menu)
+        self._view_menu.add_separator()
+        self._view_menu.add_menu_item(_("Data Item Recorder..."), self.new_recorder_dialog, key_sequence="Ctrl+Shift+R")
         self._view_menu.add_separator()
 
         self.__dynamic_view_actions = []
@@ -870,6 +873,14 @@ class DocumentController(Window.Window):
             data_item = self.selected_display_specifier.data_item
         if data_item:
             interactive_dialog = DisplayEditorPanel.DisplayEditorDialog(self, data_item)
+            interactive_dialog.show()
+            self.__dialogs.append(weakref.ref(interactive_dialog))
+
+    def new_recorder_dialog(self, data_item=None):
+        if not data_item:
+            data_item = self.selected_display_specifier.data_item
+        if data_item:
+            interactive_dialog = RecorderPanel.RecorderDialog(self, data_item)
             interactive_dialog.show()
             self.__dialogs.append(weakref.ref(interactive_dialog))
 
