@@ -1380,6 +1380,10 @@ class SpotGraphic(Graphic):
         mask = numpy.zeros(data_shape)
         bounds_int = ((int(data_shape[0] * self.bounds[0][0]), int(data_shape[1] * self.bounds[0][1])),
                       (int(data_shape[0] * self.bounds[1][0]), int(data_shape[1] * self.bounds[1][1])))
+
+        if bounds_int[1][0] <= 0 or bounds_int[1][1] <= 0:
+            return mask
+
         a, b = bounds_int[0][0] + bounds_int[1][0] * 0.5, bounds_int[0][1] + bounds_int[1][1] * 0.5
         y, x = numpy.ogrid[-a:data_shape[0] - a, -b:data_shape[1] - b]
         mask_eq1 = x * x / ((bounds_int[1][1] / 2) * (bounds_int[1][1] / 2)) + y * y / ((bounds_int[1][0] / 2) * (bounds_int[1][0] / 2)) <= 1

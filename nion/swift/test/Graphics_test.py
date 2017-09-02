@@ -115,6 +115,35 @@ class TestGraphicsClass(unittest.TestCase):
         self.assertEqual(spot_graphic.test(mapping, get_font_metrics, (800, 700), move_only=False), ("inverted-top-right", True))
         self.assertIsNone(spot_graphic.test(mapping, get_font_metrics, (0, 0), move_only=False)[0])
 
+    def test_spot_mask_is_sensible_when_smaller_than_one_pixel(self):
+        spot_graphic = Graphics.SpotGraphic()
+        spot_graphic.bounds = (0.5, 0.5), (0.02, 0.02)
+        mask_data = spot_graphic.get_mask((10, 10))
+        self.assertEqual(mask_data.shape, (10, 10))
+        self.assertTrue(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+
+    def test_spot_mask_is_sensible_when_outside_bounds(self):
+        spot_graphic = Graphics.SpotGraphic()
+        spot_graphic.bounds = (1.5, 1.5), (0.1, 0.1)
+        mask_data = spot_graphic.get_mask((10, 10))
+        self.assertEqual(mask_data.shape, (10, 10))
+        self.assertTrue(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+        mask_data = spot_graphic.get_mask((10, 10))
+        spot_graphic.bounds = (-0.5, -0.5), (0.1, 0.1)
+        self.assertEqual(mask_data.shape, (10, 10))
+        self.assertTrue(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+
+    def test_spot_mask_is_sensible_when_partially_outside_bounds(self):
+        spot_graphic = Graphics.SpotGraphic()
+        spot_graphic.bounds = (0.75, 0.75), (0.5, 0.5)
+        mask_data = spot_graphic.get_mask((10, 10))
+        self.assertEqual(mask_data.shape, (10, 10))
+        self.assertFalse(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+        spot_graphic.bounds = (-0.25, -0.25), (0.5, 0.5)
+        mask_data = spot_graphic.get_mask((10, 10))
+        self.assertEqual(mask_data.shape, (10, 10))
+        self.assertFalse(numpy.array_equal(mask_data, numpy.zeros((10, 10))))
+
     def assertAlmostEqualPoint(self, p1, p2, e=0.00001):
         if not(Geometry.distance(p1, p2) < e):
             logging.debug("%s != %s", p1, p2)
