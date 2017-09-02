@@ -325,11 +325,16 @@ class DocumentController(Window.Window):
         self._processing_menu.add_menu_item(_("Pick Region"), functools.partial(self.__processing_new, self.document_model.get_pick_region_new))
         self._processing_menu.add_menu_item(_("Projection"), self.processing_projection)
         self._processing_menu.add_separator()
+
         self._processing_menu.add_menu_item(_("Add"), functools.partial(self.__processing_new2, self.document_model.get_add_new))
         self._processing_menu.add_menu_item(_("Subtract"), functools.partial(self.__processing_new2, self.document_model.get_subtract_new))
         self._processing_menu.add_menu_item(_("Multiply"), functools.partial(self.__processing_new2, self.document_model.get_multiply_new))
         self._processing_menu.add_menu_item(_("Divide"), functools.partial(self.__processing_new2, self.document_model.get_divide_new))
         self._processing_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
+        self._processing_menu.add_separator()
+
+        self._processing_menu.add_menu_item(_("Measure Shifts"), functools.partial(self.__processing_new, self.document_model.get_measure_shifts_new))
+        self._processing_menu.add_menu_item(_("Align Sequence"), functools.partial(self.__processing_new, self.document_model.get_align_sequence_new))
         self._processing_menu.add_separator()
 
         self._processing_menu.add_menu_item(_("Line Profile"), functools.partial(self.__processing_new, self.document_model.get_line_profile_new))

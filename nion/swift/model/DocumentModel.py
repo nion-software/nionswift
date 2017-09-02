@@ -2339,6 +2339,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         return None
                     if max_dimension is not None and dimensionality > max_dimension:
                         return None
+                if requirement_type == "is_sequence":
+                    if not data_item.is_sequence:
+                        return None
 
             suffix = i if len(src_dicts) > 1 else ""
             src_name = src_dict["name"]
@@ -2603,6 +2606,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
             requirement_2d = {"type": "dimensionality", "min": 2, "max": 2}
             requirement_3d = {"type": "dimensionality", "min": 3, "max": 3}
+            requirement_2d_to_3d = {"type": "dimensionality", "min": 2, "max": 3}
             requirement_2d_to_4d = {"type": "dimensionality", "min": 2, "max": 4}
             vs["crop"] = {"title": _("Crop"), "expression": "{src}",
                 "sources": [{"name": "src", "label": _("Source"), "croppable": True}]}
@@ -2631,6 +2635,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "sources": [{"name": "src", "label": _("Source"), "regions": [line_profile_in_region]}], "connections": [line_profile_connection]}
             vs["filter"] = {"title": _("Filter"), "expression": "xd.real(xd.ifft({src}))",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "use_filtered_data": True, "requirements": [requirement_2d]}]}
+            requirement_is_sequence = {"type": "is_sequence"}
+            vs["sequence-register"] = {"title": _("Shifts"), "expression": "xd.sequence_register_translation({src}, 100)",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+            vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}, 100)",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
@@ -2736,6 +2745,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 graphic.radius_2 = 0.25
                 display.add_graphic(graphic)
         return self.__make_computation("filter", [(data_item, crop_region)])
+
+    def get_measure_shifts_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-register", [(data_item, crop_region)])
+
+    def get_align_sequence_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-align", [(data_item, crop_region)])
+
 
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
 
