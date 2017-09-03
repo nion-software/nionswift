@@ -23,14 +23,20 @@ class DisplayEditorDialog(Dialog.ActionDialog):
 
         self._create_menus()
 
-        text_edit_row = ui.create_row_widget()
-        text_edit = ui.create_text_edit_widget(properties={"stylesheet": "min-width: 480; min-height: 200"})
+        # sizing in widget space (Qt) is difficult to get right and there seems to be bugs.
+        # in this case, two different elements are used to effectively make a minimum window
+        # size -- the text edit widget for the height and the error row for the width.
+        # if both are done on the text edit widget itself, which would be preferred, Qt seems
+        # to give up on layout when the scroll bar appears for too many lines.
+
+        text_edit_row = ui.create_row_widget(properties={"stylesheet": "min-height: 180"})
+        text_edit = ui.create_text_edit_widget()
         text_edit.placeholder_text = _("No Display Script")
         text_edit_row.add_spacing(8)
         text_edit_row.add(text_edit)
         text_edit_row.add_spacing(8)
 
-        error_row = ui.create_row_widget(properties={"stylesheet": "min-width: 120"})  # the stylesheet allows it to shrink. guh.
+        error_row = ui.create_row_widget(properties={"stylesheet": "min-width: 320"})  # the stylesheet allows it to shrink. guh.
         error_label = ui.create_label_widget("\n", properties={"stylesheet": "color: red; min-width: 120"})
         error_label.word_wrap = True
         error_row.add_spacing(8)
