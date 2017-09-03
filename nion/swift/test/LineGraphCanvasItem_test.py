@@ -1,12 +1,14 @@
 # standard libraries
 import contextlib
 import logging
+import math
 import unittest
 
 # third party libraries
 import numpy
 
 # local libraries
+from nion.data import Calibration
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import LineGraphCanvasItem
@@ -44,6 +46,21 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data_info = LineGraphCanvasItem.LineGraphDataInfo(data, None, None)
             self.assertEqual(data_info.y_properties.uncalibrated_data_min, expected_uncalibrated_data_min)
             self.assertEqual(data_info.y_properties.uncalibrated_data_max, expected_uncalibrated_data_max)
+
+    def test_display_limits_are_reasonable_when_using_log_scale(self):
+        data_info = LineGraphCanvasItem.LineGraphDataInfo(numpy.linspace(-0.1, 10.0, 10), data_style="log")
+        self.assertAlmostEqual(data_info.y_properties.uncalibrated_data_min, 1.0)
+        self.assertAlmostEqual(data_info.y_properties.uncalibrated_data_max, 10.0)
+        self.assertAlmostEqual(numpy.amin(data_info.data), math.log10(1.0))
+        self.assertAlmostEqual(numpy.amax(data_info.data), math.log10(10.0))
+
+    def test_display_limits_are_reasonable_when_using_calibrated_log_scale(self):
+        intensity_calibration = Calibration.Calibration(-5, 2)
+        data_info = LineGraphCanvasItem.LineGraphDataInfo(numpy.linspace(-0.1, 10.0, 10), intensity_calibration=intensity_calibration, data_style="log")
+        self.assertAlmostEqual(data_info.y_properties.calibrated_data_min, 0.0)
+        self.assertAlmostEqual(data_info.y_properties.calibrated_data_max, 1.5)  # empirically mesaured
+        self.assertAlmostEqual(numpy.amin(data_info.data), math.log10(1.0))
+        self.assertAlmostEqual(numpy.amax(data_info.data), math.log10(15.0))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup

@@ -82,12 +82,12 @@ class LineGraphDataInfo:
                 calibration = self.intensity_calibration
                 if calibration:
                     if self.data_style == "log":
-                        self.__data = numpy.log10(numpy.maximum(calibration.offset + calibration.scale * uncalibrated_data, 0.0) + numpy.nextafter(0,1))
+                        self.__data = numpy.log10(numpy.maximum(calibration.offset + calibration.scale * uncalibrated_data, 1.0))
                     else:
                         self.__data = calibration.offset + calibration.scale * uncalibrated_data
                 else:
                     if self.data_style == "log":
-                        self.__data = numpy.log10(numpy.maximum(uncalibrated_data, 0.0) + numpy.nextafter(0,1))
+                        self.__data = numpy.log10(numpy.maximum(uncalibrated_data, 1.0))
                     else:
                         self.__data = uncalibrated_data
         return self.__data
@@ -118,8 +118,8 @@ class LineGraphDataInfo:
             calibrated_data_max = calibration.convert_to_calibrated_value(raw_data_max) if calibration else raw_data_max
 
             if self.data_style == "log":
-                calibrated_data_min = math.log10(max(calibrated_data_min, 0.0) + numpy.nextafter(0,1))
-                calibrated_data_max = math.log10(max(calibrated_data_max, 0.0) + numpy.nextafter(0,1))
+                calibrated_data_min = math.log10(max(calibrated_data_min, 1.0))
+                calibrated_data_max = math.log10(max(calibrated_data_max, 1.0))
 
             if math.isnan(calibrated_data_min) or math.isnan(calibrated_data_max) or math.isinf(calibrated_data_min) or math.isinf(calibrated_data_max):
                 calibrated_data_min = 0.0
