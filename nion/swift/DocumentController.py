@@ -333,9 +333,15 @@ class DocumentController(Window.Window):
         self._processing_menu.add_menu_item(_("Negate"), functools.partial(self.__processing_new, self.document_model.get_invert_new))
         self._processing_menu.add_separator()
 
-        self._processing_menu.add_menu_item(_("Measure Shifts"), functools.partial(self.__processing_new, self.document_model.get_measure_shifts_new))
-        self._processing_menu.add_menu_item(_("Align Sequence"), functools.partial(self.__processing_new, self.document_model.get_align_sequence_new))
+        self._processing_sequence_menu = self.create_sub_menu()
+        self._processing_menu.add_sub_menu(_("Sequence"), self._processing_sequence_menu)
         self._processing_menu.add_separator()
+
+        self._processing_sequence_menu.add_menu_item(_("Measure Shifts"), functools.partial(self.__processing_new, self.document_model.get_sequence_measure_shifts_new))
+        self._processing_sequence_menu.add_menu_item(_("Align"), functools.partial(self.__processing_new, self.document_model.get_sequence_align_new))
+        self._processing_sequence_menu.add_menu_item(_("Integrate"), functools.partial(self.__processing_new, self.document_model.get_sequence_integrate_new))
+        self._processing_sequence_menu.add_menu_item(_("Trim"), functools.partial(self.__processing_new, self.document_model.get_sequence_trim_new))
+        self._processing_sequence_menu.add_menu_item(_("Extract"), functools.partial(self.__processing_new, self.document_model.get_sequence_extract_new))
 
         self._processing_menu.add_menu_item(_("Line Profile"), functools.partial(self.__processing_new, self.document_model.get_line_profile_new))
         self._processing_menu.add_menu_item(_("Histogram"), functools.partial(self.__processing_new, self.document_model.get_histogram_new))

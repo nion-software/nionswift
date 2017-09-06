@@ -2640,6 +2640,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
             vs["sequence-align"] = {"title": _("Alignment"), "expression": "xd.sequence_align({src}, 100)",
                 "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+            vs["sequence-integrate"] = {"title": _("Integrate"), "expression": "xd.sequence_integrate({src})",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}]}
+            trim_start_param = {"name": "start", "label": _("Start"), "type": "integral", "value": 0, "value_default": 0, "value_min": 0}
+            trim_end_param = {"name": "end", "label": _("End"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            vs["sequence-trim"] = {"title": _("Trim"), "expression": "xd.sequence_trim({src}, start, end)",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
+                "parameters": [trim_start_param, trim_end_param]}
+            index_param = {"name": "index", "label": _("Index"), "type": "integral", "value": 1, "value_default": 1, "value_min": 1}
+            vs["sequence-extract"] = {"title": _("Extract"), "expression": "xd.sequence_extract({src}, index)",
+                "sources": [{"name": "src", "label": _("Source"), "use_display_data": False, "requirements": [requirement_2d_to_3d, requirement_is_sequence]}],
+                "parameters": [index_param]}
             cls._builtin_processing_descriptions = vs
         return cls._builtin_processing_descriptions
 
@@ -2746,11 +2757,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 display.add_graphic(graphic)
         return self.__make_computation("filter", [(data_item, crop_region)])
 
-    def get_measure_shifts_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+    def get_sequence_measure_shifts_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-register", [(data_item, crop_region)])
 
-    def get_align_sequence_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+    def get_sequence_align_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-align", [(data_item, crop_region)])
+
+    def get_sequence_integrate_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-integrate", [(data_item, crop_region)])
+
+    def get_sequence_trim_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-trim", [(data_item, crop_region)])
+
+    def get_sequence_extract_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
+        return self.__make_computation("sequence-extract", [(data_item, crop_region)])
 
 
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())
