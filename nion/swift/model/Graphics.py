@@ -998,6 +998,7 @@ class LineProfileGraphic(LineTypeGraphic):
     def draw(self, ctx, get_font_metrics_fn, mapping, is_selected=False):
         p1 = mapping.map_point_image_norm_to_widget(self.start)
         p2 = mapping.map_point_image_norm_to_widget(self.end)
+        w = mapping.map_size_image_to_widget((self.width, 0))[0]
         with ctx.saver():
             ctx.begin_path()
             ctx.move_to(p1[1], p1[0])
@@ -1012,8 +1013,8 @@ class LineProfileGraphic(LineTypeGraphic):
             length = math.sqrt(math.pow(p2[0] - p1[0],2) + math.pow(p2[1] - p1[1], 2))
             dy = (p2[0] - p1[0]) / length if length > 0 else 0.0
             dx = (p2[1] - p1[1]) / length if length > 0 else 0.0
-            if self.width > 1.0:
-                half_width = self.width * 0.5
+            if w > 1.0:
+                half_width = w * 0.5
                 with ctx.saver():
                     ctx.begin_path()
                     ctx.move_to(p1[1] + dy * half_width, p1[0] - dx * half_width)

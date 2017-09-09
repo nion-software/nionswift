@@ -48,6 +48,11 @@ class ImageCanvasItemMapping:
         ms0 = self.map_point_image_to_image_norm((0, 0))
         return ms - ms0
 
+    def map_size_image_to_widget(self, s):
+        ms = self.map_point_image_to_widget(s)
+        ms0 = self.map_point_image_to_widget((0, 0))
+        return ms - ms0
+
     def map_size_widget_to_image_norm(self, s):
         ms = self.map_point_widget_to_image_norm(s)
         ms0 = self.map_point_widget_to_image_norm((0, 0))
@@ -84,6 +89,12 @@ class ImageCanvasItemMapping:
         if self.data_shape:
             p = Geometry.FloatPoint.make(p)
             return Geometry.FloatPoint(y=p.y / self.data_shape[0], x=p.x / self.data_shape[1])
+        return None
+
+    def map_point_image_to_widget(self, p):
+        p = Geometry.FloatPoint.make(p)
+        if self.data_shape:
+            return Geometry.FloatPoint(y=p.y * self.canvas_rect.height / self.data_shape[0] + self.canvas_rect.top, x=p.x * self.canvas_rect.width / self.data_shape[1] + self.canvas_rect.left)
         return None
 
 
