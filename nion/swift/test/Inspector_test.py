@@ -285,14 +285,14 @@ class TestInspectrorClass(unittest.TestCase):
             self.assertEqual(inspector_section.display_limits_limit_low.text, None)
             self.assertEqual(inspector_section.display_limits_limit_high.text, None)
             display.display_limits = (1, None)
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
             self.assertEqual(inspector_section.display_limits_limit_high.text, None)
             display.display_limits = (None, 2)
             self.assertEqual(inspector_section.display_limits_limit_low.text, None)
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
             display.display_limits = (1, 2)
-            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.00")
-            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.00")
+            self.assertEqual(inspector_section.display_limits_limit_low.text, "1.0000")
+            self.assertEqual(inspector_section.display_limits_limit_high.text, "2.0000")
 
     def test_image_display_inspector_sets_display_limits_when_text_is_changed(self):
         data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))

@@ -670,8 +670,8 @@ class ImageDisplayInspectorSection(InspectorSection):
         self.display_limits_range_row = ui.create_row_widget()
         self.display_limits_range_low = ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
-        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:.2f}", pass_none=True)
+        float_point_2_converter = Converter.FloatToStringConverter(format="{0:#.5g}")
+        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
         self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
@@ -730,7 +730,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.display_limits_range_row = self.ui.create_row_widget()
         self.display_limits_range_low = self.ui.create_label_widget(properties={"width": 80})
         self.display_limits_range_high = self.ui.create_label_widget(properties={"width": 80})
-        float_point_2_converter = Converter.FloatToStringConverter(format="{0:.2f}")
+        float_point_2_converter = Converter.FloatToStringConverter(format="{0:#.5g}")
         self.display_limits_range_low.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 0, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_high.bind_text(Binding.TuplePropertyBinding(self.__data_range_model, "value", 1, float_point_2_converter, fallback=_("N/A")))
         self.display_limits_range_row.add(self.ui.create_label_widget(_("Data Range:"), properties={"width": 120}))
@@ -739,7 +739,7 @@ class LinePlotDisplayInspectorSection(InspectorSection):
         self.display_limits_range_row.add(self.display_limits_range_high)
         self.display_limits_range_row.add_stretch()
 
-        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:.2f}", pass_none=True)
+        float_point_2_none_converter = Converter.FloatToStringConverter(format="{0:#.5g}", pass_none=True)
 
         self.display_limits_limit_row = self.ui.create_row_widget()
         self.display_limits_limit_low = self.ui.create_line_edit_widget(properties={"width": 80})
