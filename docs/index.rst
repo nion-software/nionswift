@@ -9,6 +9,7 @@ Nion Swift User's Guide
 * Workspaces
 * Data Panel
 * Display Panels
+* :ref:`coordinate-systems`
 * Images
 * Line Plots
 * Collections
@@ -29,6 +30,7 @@ Nion Swift User's Guide
 * Scripts
 
 .. toctree::
+   coordinates
    api/api_index
    :maxdepth: 1
    :caption: Contents:

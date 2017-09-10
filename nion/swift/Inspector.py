@@ -462,13 +462,10 @@ class CalibrationToObservable(Observable.Observable):
 
 
 def make_calibration_style_chooser(ui, display):
-    display_calibration_style_options = ((_("Calibrated (Top Left)"), "calibrated"), (_("Calibrated (Center)"), "calibrated-center"), (_("Pixels (Top Left)"), "pixels-top-left"), (_("Pixels (Center)"), "pixels-center"), (_("Relative (Top Left)"), "relative-top-left"), (_("Relative (Center)"), "relative-center"))
-    display_calibration_style_reverse_map = {"calibrated": 0, "calibrated-center": 1, "pixels-top-left": 2, "pixels-center": 3, "relative-top-left": 4, "relative-center": 5}
+    display_calibration_style_options = ((_("Calibrated"), "calibrated"), (_("Pixels (Top Left)"), "pixels-top-left"), (_("Pixels (Center)"), "pixels-center"), (_("Relative (Top Left)"), "relative-top-left"), (_("Relative (Center)"), "relative-center"))
+    display_calibration_style_reverse_map = {"calibrated": 0, "pixels-top-left": 1, "pixels-center": 2, "relative-top-left": 3, "relative-center": 4}
 
     class CalibrationStyleIndexConverter:
-        """
-            Convert from flag index (-1, 0, 1) to chooser index.
-        """
         def convert(self, value):
             return display_calibration_style_reverse_map.get(value, 0)
         def convert_back(self, value):

@@ -126,15 +126,15 @@ class TestInspectrorClass(unittest.TestCase):
         display_specifier.data_item.set_dimensional_calibration(1, Calibration.Calibration(units="mmm"))
         self.assertEqual(x_widget.text, "128.0 mmm")
 
-    def test_changing_calibration_style_to_calibrated_center_displays_correct_values(self):
+    def test_changing_calibration_style_to_calibrated_displays_correct_values(self):
         data_item = DataItem.DataItem(numpy.zeros((100, 100), numpy.uint32))
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         point_graphic = Graphics.PointGraphic()
         display_specifier.display.add_graphic(point_graphic)
         graphic_widget = self.app.ui.create_column_widget()
-        display_specifier.display.dimensional_calibration_style = "calibrated-center"
-        display_specifier.data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=0, scale=2, units="mm"))
-        display_specifier.data_item.set_dimensional_calibration(1, Calibration.Calibration(offset=0, scale=2, units="mm"))
+        display_specifier.display.dimensional_calibration_style = "calibrated"
+        display_specifier.data_item.set_dimensional_calibration(0, Calibration.Calibration(offset=-100, scale=2, units="mm"))
+        display_specifier.data_item.set_dimensional_calibration(1, Calibration.Calibration(offset=-100, scale=2, units="mm"))
         Inspector.make_point_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.display.graphics[0])
         x_widget = graphic_widget.find_widget_by_id("x")
         y_widget = graphic_widget.find_widget_by_id("y")
