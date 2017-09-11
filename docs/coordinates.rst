@@ -3,7 +3,7 @@
 Coordinate Systems
 ==================
 To be consistent with scripting and Python NumPy coordinates, all coordinate systems increase towards the right and
-down.
+down and indices are ordered such that the slowest changing index in memory is first.
 
 The pixel coordinate system displays pixels and can be displayed with the origin at the top-left or the origin at the
 center.

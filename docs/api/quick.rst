@@ -79,6 +79,7 @@ class :py:class:`nion.typeshed.API_1_0.DataItem`
    - :py:meth:`add_line_region <nion.typeshed.API_1_0.DataItem.add_line_region>`
    - :py:meth:`add_point_region <nion.typeshed.API_1_0.DataItem.add_point_region>`
    - :py:meth:`add_rectangle_region <nion.typeshed.API_1_0.DataItem.add_rectangle_region>`
+   - :py:meth:`delete_metadata_value <nion.typeshed.API_1_0.DataItem.delete_metadata_value>`
    - :py:meth:`get_metadata_value <nion.typeshed.API_1_0.DataItem.get_metadata_value>`
    - :py:meth:`has_metadata_value <nion.typeshed.API_1_0.DataItem.has_metadata_value>`
    - :py:meth:`mask_xdata <nion.typeshed.API_1_0.DataItem.mask_xdata>`
