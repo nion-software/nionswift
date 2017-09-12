@@ -245,7 +245,8 @@ class ConsoleDialog(Dialog.ActionDialog):
             "from nion.swift.model import PlugInManager",
             "from nion.data import xdata_1_0 as xd",
             "get_api = PlugInManager.api_broker_fn",
-            "api = get_api('~1.0', '~1.0')"
+            "api = get_api('~1.0', '~1.0')",
+            "show = api.show"
             ]
 
         variable_to_data_item_map = document_controller.document_model.variable_to_data_item_map()

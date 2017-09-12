@@ -16,7 +16,7 @@ If you are using ``nionlib`` you may need to add the following lines to your cod
 
    import numpy
    from nion.data import xdata_1_0 as xd
-   api = nionlib.get_api('1')
+   api = nionlib.get_api('~1.0')
 
 .. contents::
 
@@ -95,6 +95,13 @@ creates a new data item using the data, and displays it in the current workspace
 are no empty display panels, you can right/control click on an existing display panel and choose the menu item ``None``
 to provide space in which the new data item can be placed.
 
+The quick form (available in the console):
+
+   >>> data = numpy.random.randn(16, 32)
+   >>> show(data)
+
+The most general form:
+
    >>> window = api.application.document_windows[0]
    >>> data = numpy.random.randn(16, 32)
    >>> data_item = api.library.create_data_item_from_data(data)
@@ -118,7 +125,7 @@ name are specified. ::
    >>> dimensional_calibrations = [dimensional_calibration_0, dimensional_calibration_1]
    >>> data_item.set_intensity_calibration(intensity_calibration)
    >>> data_item.set_dimensional_calibrations(dimensional_calibrations)
-   >>> display_panel = window.display_data_item(data_item)
+   >>> show(data_item)
 
 The calibration objects transform their values like this: ``x' = x * scale + offset``.
 
@@ -137,7 +144,7 @@ steps.
    >>> window = api.application.document_windows[0]
    >>> data = r001.data + r002.data
    >>> data_item = api.library.create_data_item_from_data(data)
-   >>> display_panel = window.display_data_item(data_item)
+   >>> show(data_item)
 
 The new added data should be displayed in the display panel you freed up in step 2 or another free display panel.
 
@@ -260,6 +267,11 @@ descriptions and calibrations properly.
    >>> xdata = xd.column(xdata1.collection_dimension_shape)
 
 For a description of the full ``xdata`` library, see :ref:`xdata-guide`.
+
+For a quick description of the available methods or a specific method:
+
+   >>> help(xd)
+   >>> help(xd.fft)
 
 Extracting Display Data from Data Items
 ---------------------------------------

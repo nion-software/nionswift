@@ -3013,6 +3013,14 @@ class API_1:
         """
         return Library(self.__app.document_controllers[0].document_model)
 
+    def show(self, item: typing.Any) -> None:
+        if isinstance(item, numpy.ndarray):
+            data_item = self.library.create_data_item_from_data(item)
+            self.application.document_windows[0].display_data_item(data_item)
+        elif isinstance(item, DataAndMetadata.DataAndMetadata):
+            data_item = self.library.create_data_item_from_data_and_metadata(item)
+            self.application.document_windows[0].display_data_item(data_item)
+
     def resolve_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
 
