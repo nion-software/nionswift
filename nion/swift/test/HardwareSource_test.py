@@ -918,10 +918,8 @@ class TestHardwareSourceClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
             display_panel.set_displayed_data_item(document_model.data_items[0])
-            display_panel.data_item.displays[0].update_calculated_display_values()
             repaint_count = display_panel.display_canvas_item._repaint_count
             self.__acquire_one(document_controller, hardware_source)
-            display_panel.data_item.displays[0].update_calculated_display_values()
             display_panel.canvas_item.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             self.assertEqual(display_panel.display_canvas_item._repaint_count, repaint_count + 1)
 

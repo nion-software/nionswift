@@ -140,16 +140,15 @@ class TestDisplayClass(unittest.TestCase):
             def __init__(self):
                 self.data_range = None
                 self.display_range = None
-            def next_calculated_display_values(self, calculated_display_values):
+            def next_calculated_display_values(self):
+                calculated_display_values = display.get_calculated_display_values(True)
                 self.display_range = calculated_display_values.display_range
                 self.data_range = calculated_display_values.data_range
         o = Observer()
         listener = display.add_calculated_display_values_listener(o.next_calculated_display_values)
         # wait for initial display values to update.
-        data_item.displays[0].update_calculated_display_values()
         with contextlib.closing(listener):
             display_specifier.data_item.set_data(irow // 2 + 4)
-            data_item.displays[0].update_calculated_display_values()
             self.assertEqual(o.data_range, (4, 11))
             self.assertEqual(o.display_range, (4, 11))
 
@@ -389,7 +388,6 @@ class TestDisplayClass(unittest.TestCase):
             re, im = numpy.meshgrid(numpy.linspace(-0.8, 2.1, 16), numpy.linspace(-1.4, 1.4, 16))
             data[:, :] = re + 1j * im
             data_item = DataItem.DataItem(data)
-            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_specifier.display.reset_display_limits()
@@ -548,7 +546,7 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.new_data_item(data_and_metadata)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_model.append_data_item(data_item)
-            def next_calculated_display_values(calculated_display_values):
+            def next_calculated_display_values():
                 pass
             listener = display_specifier.display.add_calculated_display_values_listener(next_calculated_display_values)
             with contextlib.closing(listener):

@@ -818,7 +818,8 @@ class DisplayTransientsStream(Stream.AbstractStream):
         return self.__value
 
     def __display_changed(self, display):
-        def handle_next_calculated_display_values(calculated_display_values):
+        def handle_next_calculated_display_values():
+            calculated_display_values = display.get_calculated_display_values(True)
             new_value = getattr(calculated_display_values, self.__property_name)
             if not self.__cmp(new_value, self.__value):
                 self.__value = new_value
@@ -828,7 +829,7 @@ class DisplayTransientsStream(Stream.AbstractStream):
             self.__next_calculated_display_values_listener = None
         if display:
             self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
-            handle_next_calculated_display_values(display.get_calculated_display_values())
+            handle_next_calculated_display_values()
         else:
             self.__value = None
             self.value_stream.fire(None)

@@ -585,7 +585,8 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
                     display_graphic_selection_changed(display.graphic_selection)
                     # note: rgba data will be handled separately in next calculated display values
 
-                def handle_next_calculated_display_values(display_values):
+                def handle_next_calculated_display_values():
+                    display_values = display.get_calculated_display_values()
                     display_rgba_changed(display_values)
                     display_data_and_metadata_changed(display_values)
 
@@ -1785,7 +1786,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
     graphics = display.graphics
     display_type = display.actual_display_type
-    display_values = display.get_calculated_display_values()
+    display_values = display.get_calculated_display_values(True)
     drawing_context = DrawingContext.DrawingContext()
     display_canvas_item = create_display_canvas_item(display_type, ui.get_font_metrics, None, None, draw_background=False)
     if display_canvas_item:

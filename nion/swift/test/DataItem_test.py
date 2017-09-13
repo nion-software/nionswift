@@ -458,12 +458,10 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
-            inverted_data_item.displays[0].update_calculated_display_values()
             self.assertFalse(inverted_display_specifier.data_item.is_data_loaded)
 
     def test_loading_dependent_data_should_not_cause_source_data_to_load(self):

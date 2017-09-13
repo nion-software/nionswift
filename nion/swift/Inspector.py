@@ -696,7 +696,8 @@ class ImageDisplayInspectorSection(InspectorSection):
 
         self.finish_widget_content()
 
-        def handle_next_calculated_display_values(calculated_display_values):
+        def handle_next_calculated_display_values():
+            calculated_display_values = display.get_calculated_display_values(True)
             self.__data_range_model.value = calculated_display_values.data_range
 
         self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
@@ -789,7 +790,8 @@ class LinePlotDisplayInspectorSection(InspectorSection):
 
         self.finish_widget_content()
 
-        def handle_next_calculated_display_values(calculated_display_values):
+        def handle_next_calculated_display_values():
+            calculated_display_values = display.get_calculated_display_values(True)
             self.__data_range_model.value = calculated_display_values.data_range
 
         self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)

@@ -1082,6 +1082,7 @@ class DataItem(LibraryItem):
         self.__write_delay_data_changed = False
         self.__data_source_metadata_changed_event_listener = None
         self.__data_source_data_changed_event_listener = None
+        self.__display_ref_count = 0
         self.__change_thread = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
@@ -1329,9 +1330,13 @@ class DataItem(LibraryItem):
     def add_display(self, display):
         """Add a display, but do it through the container, so dependencies can be tracked."""
         self.insert_model_item(self, "displays", self.item_count("displays"), display)
+        if self.__display_ref_count > 0:
+            display.increment_display_ref_count()
 
     def remove_display(self, display):
         """Remove display, but do it through the container, so dependencies can be tracked."""
+        if self.__display_ref_count > 0:
+            display.decrement_display_ref_count()
         self.remove_model_item(self, "displays", display)
 
     @property
@@ -1356,10 +1361,18 @@ class DataItem(LibraryItem):
     def increment_display_ref_count(self):
         super().increment_display_ref_count()
         self.increment_data_ref_count()
+        self.__display_ref_count += 1
+        if self.__display_ref_count == 1:
+            for display in self.displays:
+                display.increment_display_ref_count()
 
     def decrement_display_ref_count(self):
         super().decrement_display_ref_count()
         self.decrement_data_ref_count()
+        self.__display_ref_count -= 1
+        if self.__display_ref_count == 0:
+            for display in self.displays:
+                display.decrement_display_ref_count()
 
     def increment_data_ref_count(self):
         data_source = self.data_source

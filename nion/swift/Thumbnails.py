@@ -187,7 +187,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
         no_cached_data = self.__thumbnail_processor.get_cached_data() is None
 
-        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(lambda x: thumbnail_changed(), send=no_cached_data)
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(thumbnail_changed, send=no_cached_data)
         self.__display_changed_event_listener = display.display_changed_event.listen(thumbnail_changed)
 
         def thumbnail_updated():

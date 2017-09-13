@@ -586,7 +586,6 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(DataItem.DataItem(numpy.ones((2, ) + data_size, numpy.float32)))
         for data_item in document_model.data_items:
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            data_item.displays[0].update_calculated_display_values()
             document_controller.fix_display_limits(display_specifier)
             self.assertEqual(len(display_specifier.display.display_limits), 2)
         document_controller.close()

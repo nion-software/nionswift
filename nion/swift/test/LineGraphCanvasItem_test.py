@@ -91,7 +91,6 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
-            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
@@ -112,7 +111,6 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.start = 0.9
             region.end = 0.95
             data_item.displays[0].add_graphic(region)
-            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
@@ -133,7 +131,6 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.start = 0.1
             region.end = 0.9
             data_item.displays[0].add_graphic(region)
-            data_item.displays[0].update_calculated_display_values()
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))

@@ -300,7 +300,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__last_image_norm_center = (0.5, 0.5)
         self.__image_canvas_mode = "fit"
 
-        self.__last_data_rgb = None
+        self.__last_display_values = None
         self.__graphics_changed = False
 
         # create the child canvas items
@@ -330,9 +330,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.add_canvas_item(self.scroll_area_canvas_item)
         self.add_canvas_item(self.__info_overlay_canvas_item)
 
-        self.__data_rgba = None
+        self.__display_values = None
         self.__data_shape = None
-        self.__data_timestamp = None
         self.__graphics = list()
         self.__graphic_selection = set()
 
@@ -386,15 +385,19 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             elif len(displayed_dimensional_calibrations) == 1:
                 dimensional_calibration = displayed_dimensional_calibrations[0]
             else:
-                display_data_and_metadata = display_values.display_data_and_metadata
-                if display_data_and_metadata:
-                    dimensional_calibration = display_data_and_metadata.dimensional_calibrations[-1]
+                if data_and_metadata:
+                    datum_dimensions = data_and_metadata.datum_dimension_indexes
+                    collection_dimensions = data_and_metadata.collection_dimension_indexes
+                    if len(collection_dimensions) > 0:
+                        dimensional_calibration = data_and_metadata.dimensional_calibrations[collection_dimensions[-1]]
+                    elif len(datum_dimensions) > 0:
+                        dimensional_calibration = data_and_metadata.dimensional_calibrations[datum_dimensions[-1]]
+                    else:
+                        dimensional_calibration = Calibration.Calibration()
                 else:
                     dimensional_calibration = Calibration.Calibration()
 
-            data_rgba = display_values.display_rgba
             data_shape = display.preview_2d_shape
-            data_timestamp = display_values.display_rgba_timestamp
             dimension_calibration = dimensional_calibration
             metadata = data_and_metadata.metadata
 
@@ -409,19 +412,18 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
                 self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
                 # if the data changes, update the display.
-                if data_rgba is not self.__data_rgba or self.__graphics_changed:
+                if display_values is not self.__display_values or self.__graphics_changed:
                     self.__graphics_changed = False
-                    self.__data_rgba = data_rgba
+                    self.__display_values = display_values
                     self.__data_shape = data_shape
-                    self.__data_timestamp = data_timestamp
                     if self.__display_frame_rate_id:
                         frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
                         if frame_index != self.__display_frame_rate_last_index:
                             Utility.fps_tick("frame_"+self.__display_frame_rate_id)
                             self.__display_frame_rate_last_index = frame_index
-                        if id(self.__data_rgba) != id(self.__last_data_rgb):
+                        if id(self.__display_values) != id(self.__last_display_values):
                             Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                            self.__last_data_rgb = self.__data_rgba
+                            self.__last_display_values = self.__display_values
                     # update the cursor info
                     self.__update_cursor_info()
 
@@ -1092,7 +1094,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def prepare_display(self):
         if self.__data_shape is not None:
             # configure the bitmap canvas item
-            data_rgba = self.__data_rgba
+            display_values = self.__display_values
+            data_rgba = display_values.display_rgba
+            display_values.finalize()
             if False:
                 # the next section does gaussian blur for image decimation in the case where the destination rectangle
                 # is smaller than the source. this results in lower performance, but higher quality display.
@@ -1109,7 +1113,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         data_rgba_u8_copy_view[..., 3] = data_rgba_u8_view[..., 3]
                     data_rgba = data_rgba_copy
             self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
-            self.__timestamp_canvas_item.timestamp = self.__data_timestamp if self.__display_latency else None
+            self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
 
     def set_fit_mode(self):
         #logging.debug("---------> fit")

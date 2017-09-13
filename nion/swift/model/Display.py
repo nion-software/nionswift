@@ -172,207 +172,122 @@ def calculate_display_range(display_limits, data_range, data_sample, xdata, comp
 class DisplayValues:
     """Display data used to render the display."""
 
-    def __init__(self, display_data_and_metadata, data_range, data_sample, display_range, display_rgba, display_rgba_timestamp):
-        self.display_data_and_metadata = display_data_and_metadata
-        self.data_range = data_range
-        self.data_sample = data_sample
-        self.display_range = display_range
-        self.display_rgba = display_rgba
-        self.display_rgba_timestamp = display_rgba_timestamp
-
-
-class DisplayValuesController:
-    """Manage dependencies between data and display, handle change messages, and calculate display values."""
-
-    def __init__(self):
-        # parent
-        self.__parent = None
-
-        # the calculated display values
-        self.__display_data_and_metadata = None
-        self.__data_range = None
-        self.__data_sample = None
-        self.__display_range = None
-        self.__display_rgba = None
-        self.__display_rgba_timestamp = None
-
-        self.__display_data_dirty = False
-        self.__display_range_dirty = False
-        self.__display_rgba_dirty = False
-
-        # the inputs
-        self.__data_and_metadata = None
-        self.__sequence_index = None
-        self.__collection_index = None
-        self.__slice_center = None
-        self.__slice_width = None
-        self.__complex_display_type = None
-        self.__display_limits = None
-        self.__color_map_data = None
-
-        # a lock for controlling access to the dirty flags
-        # a race condition happens if a dirty flag gets set during
-        # copying or clearing the dirty flags.
+    def __init__(self, data_and_metadata, sequence_index, collection_index, slice_center, slice_width, display_limits, complex_display_type, color_map_data):
         self.__lock = threading.RLock()
+        self.__data_and_metadata = data_and_metadata
+        self.__sequence_index = sequence_index
+        self.__collection_index = collection_index
+        self.__slice_center = slice_center
+        self.__slice_width = slice_width
+        self.__display_limits = display_limits
+        self.__complex_display_type = complex_display_type
+        self.__color_map_data = color_map_data
+        self.__display_data_and_metadata_dirty = True
+        self.__display_data_and_metadata = None
+        self.__data_range_dirty = True
+        self.__data_range = None
+        self.__data_sample_dirty = True
+        self.__data_sample = None
+        self.__display_range_dirty = True
+        self.__display_range = None
+        self.__display_rgba_dirty = True
+        self.__display_rgba = None
+        self.__display_rgba_timestamp = data_and_metadata.timestamp if data_and_metadata else None
+        self.__finalized = False
+        self.on_finalize = None
 
-    def _set_parent(self, parent: "DisplayValuesController") -> None:
-        self.__parent = parent
-
-    def copy_and_calculate(self) -> "DisplayValuesController":
+    def finalize(self):
         with self.__lock:
-            calculated_display_values = copy.copy(self)
-            self.__display_data_dirty = False
-            self.__display_range_dirty = False
-            self.__display_rgba_dirty = False
-        calculated_display_values._set_parent(self)
-        calculated_display_values.__calculate()
-        return calculated_display_values
+            self.__finalized = True
+        if callable(self.on_finalize):
+            self.on_finalize(self)
 
-    def values(self) -> DisplayValues:
-        return DisplayValues(self.__display_data_and_metadata, self.__data_range, self.__data_sample, self.__display_range, self.__display_rgba, self.__display_rgba_timestamp)
+    @property
+    def display_data_and_metadata(self):
+        with self.__lock:
+            if self.__display_data_and_metadata_dirty:
+                self.__display_data_and_metadata_dirty = False
+                data_and_metadata = self.__data_and_metadata
+                if data_and_metadata is not None:
+                    assert not self.__finalized
+                    timestamp = data_and_metadata.timestamp
+                    data_and_metadata, modified = Core.function_display_data_no_copy(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width, self.__complex_display_type)
+                    if data_and_metadata:
+                        data_and_metadata.data_metadata.timestamp = timestamp
+                    self.__display_data_and_metadata = data_and_metadata
+            return self.__display_data_and_metadata
 
-    def _get_display_data_and_metadata(self):
-        return self.__display_data_and_metadata
+    @property
+    def data_range(self):
+        with self.__lock:
+            if self.__data_range_dirty:
+                self.__data_range_dirty = False
+                display_data_and_metadata = self.display_data_and_metadata
+                display_data = display_data_and_metadata.data if display_data_and_metadata else None
+                if display_data is not None and display_data.size and self.__data_and_metadata:
+                    assert not self.__finalized
+                    data_shape = self.__data_and_metadata.data_shape
+                    data_dtype = self.__data_and_metadata.data_dtype
+                    if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
+                        self.__data_range = (0, 255)
+                    elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
+                        self.__data_range = (numpy.amin(display_data), numpy.amax(display_data))
+                    else:
+                        self.__data_range = (numpy.amin(display_data), numpy.amax(display_data))
+                else:
+                    self.__data_range = None
+                if self.__data_range is not None:
+                    if math.isnan(self.__data_range[0]) or math.isnan(self.__data_range[1]) or math.isinf(self.__data_range[0]) or math.isinf(self.__data_range[1]):
+                        self.__data_range = (0.0, 0.0)
+            return self.__data_range
 
-    def _get_display_rgba(self):
-        return self.__display_rgba
+    @property
+    def display_range(self):
+        with self.__lock:
+            if self.__display_range_dirty:
+                self.__display_range_dirty = False
+                assert not self.__finalized
+                self.__display_range = calculate_display_range(self.__display_limits, self.data_range, self.data_sample, self.__data_and_metadata, self.__complex_display_type)
+            return self.__display_range
 
-    def _get_display_rgba_timestamp(self):
+    @property
+    def data_sample(self):
+        with self.__lock:
+            if self.__data_sample_dirty:
+                self.__data_sample_dirty = False
+                display_data_and_metadata = self.display_data_and_metadata
+                display_data = display_data_and_metadata.data if display_data_and_metadata else None
+                if display_data is not None and display_data.size and self.__data_and_metadata:
+                    data_shape = self.__data_and_metadata.data_shape
+                    data_dtype = self.__data_and_metadata.data_dtype
+                    if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
+                        self.__data_sample = None
+                    elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
+                        assert not self.__finalized
+                        self.__data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape)), 200))
+                    else:
+                        self.__data_sample = None
+                else:
+                    self.__data_sample = None
+            return self.__data_sample
+
+    @property
+    def display_rgba(self):
+        with self.__lock:
+            if self.__display_rgba_dirty:
+                self.__display_rgba_dirty = False
+                display_data_and_metadata = self.display_data_and_metadata
+                if display_data_and_metadata is not None and self.__data_and_metadata is not None:
+                    if self.data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
+                        # display_range is just display_limits but calculated if display_limits is None
+                        display_range = self.display_range
+                        assert not self.__finalized
+                        self.__display_rgba = Core.function_display_rgba(display_data_and_metadata, display_range, self.__color_map_data).data
+            return self.__display_rgba
+
+    @property
+    def display_rgba_timestamp(self):
         return self.__display_rgba_timestamp
-
-    def _set_data_and_metadata(self, value):
-        self.__data_and_metadata = value
-        with self.__lock:
-            self.__display_data_dirty = True
-            self.__display_range_dirty = True
-            self.__display_rgba_dirty = True
-
-    def _set_sequence_index(self, value):
-        self.__sequence_index = value
-        with self.__lock:
-            self.__display_data_dirty = True
-            self.__display_range_dirty = True
-            self.__display_rgba_dirty = True
-
-    def _set_collection_index(self, value):
-        self.__collection_index = value
-        with self.__lock:
-            self.__display_data_dirty = True
-            self.__display_range_dirty = True
-            self.__display_rgba_dirty = True
-
-    def _set_slice_center(self, value):
-        self.__slice_center = value
-        with self.__lock:
-            self.__display_data_dirty = True
-            self.__display_range_dirty = True
-            self.__display_rgba_dirty = True
-
-    def _set_slice_width(self, value):
-        self.__slice_width = value
-        with self.__lock:
-            self.__display_data_dirty = True
-            self.__display_range_dirty = True
-            self.__display_rgba_dirty = True
-
-    def _set_complex_display_type(self, value):
-        self.__complex_display_type = value
-        with self.__lock:
-            self.__display_data_dirty = True
-            self.__display_range_dirty = True
-            self.__display_rgba_dirty = True
-
-    def _set_display_limits(self, value):
-        self.__display_limits = value
-        with self.__lock:
-            self.__display_range_dirty = True
-            self.__display_rgba_dirty = True
-
-    def _set_color_map_data(self, value):
-        self.__color_map_data = value
-        with self.__lock:
-            self.__display_rgba_dirty = True
-
-    def __calculate(self):
-        if self.__display_data_dirty:
-            self.__display_data_and_metadata = self.__calculate_display_data_and_metadata()
-            self.__data_range = self.__calculate_data_range()
-            self.__data_sample = self.__calculate_data_sample()
-        if self.__display_range_dirty:
-            self.__display_range = self.__calculate_display_range()
-        if self.__display_rgba_dirty:
-            self.__display_rgba, self.__display_rgba_timestamp = self.__calculate_display_rgba()
-        if self.__parent:
-            self.__parent.update_values(self.values())
-
-    def __calculate_display_data_and_metadata(self):
-        data_and_metadata = self.__data_and_metadata
-        if data_and_metadata is not None:
-            timestamp = data_and_metadata.timestamp
-            data_and_metadata = Core.function_display_data(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width, self.__complex_display_type)
-            if data_and_metadata:
-                data_and_metadata.data_metadata.timestamp = timestamp
-            return data_and_metadata
-        return None
-
-    def __calculate_data_range(self):
-        display_data_and_metadata = self.__display_data_and_metadata
-        display_data = display_data_and_metadata.data if display_data_and_metadata else None
-        if display_data is not None and display_data.size and self.__data_and_metadata:
-            data_shape = self.__data_and_metadata.data_shape
-            data_dtype = self.__data_and_metadata.data_dtype
-            if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-                data_range = (0, 255)
-            elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                data_range = (numpy.amin(display_data), numpy.amax(display_data))
-            else:
-                data_range = (numpy.amin(display_data), numpy.amax(display_data))
-        else:
-            data_range = None
-        if data_range is not None:
-            if math.isnan(data_range[0]) or math.isnan(data_range[1]) or math.isinf(data_range[0]) or math.isinf(data_range[1]):
-                data_range = (0.0, 0.0)
-        return data_range
-
-    def __calculate_data_sample(self):
-        display_data_and_metadata = self.__display_data_and_metadata
-        display_data = display_data_and_metadata.data if display_data_and_metadata else None
-        if display_data is not None and display_data.size and self.__data_and_metadata:
-            data_shape = self.__data_and_metadata.data_shape
-            data_dtype = self.__data_and_metadata.data_dtype
-            if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
-                data_sample = None
-            elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape)), 200))
-            else:
-                data_sample = None
-        else:
-            data_sample = None
-        return data_sample
-
-    def __calculate_display_range(self):
-        data_range = self.__data_range
-        data_sample = self.__data_sample
-        return calculate_display_range(self.__display_limits, data_range, data_sample, self.__data_and_metadata, self.__complex_display_type)
-
-    def __calculate_display_rgba(self):
-        display_data_and_metadata = self.__display_data_and_metadata
-        if display_data_and_metadata is not None and self.__data_and_metadata is not None:
-            # display_range is just display_limits but calculated if display_limits is None
-            data_range = self.__data_range
-            data_sample = self.__data_sample
-            if data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
-                display_range = calculate_display_range(self.__display_limits, data_range, data_sample, self.__data_and_metadata, self.__complex_display_type)
-                return Core.function_display_rgba(display_data_and_metadata, display_range, self.__color_map_data).data, display_data_and_metadata.timestamp
-        return None, None
-
-    def update_values(self, values):
-        self.__display_data_and_metadata = values.display_data_and_metadata
-        self.__data_range = values.data_range
-        self.__data_sample = values.data_sample
-        self.__display_range = values.display_range
-        self.__display_rgba = values.display_rgba
-        self.__display_rgba_timestamp = values.display_rgba_timestamp
 
 
 class Display(Observable.Observable, Persistence.PersistentObject):
@@ -407,23 +322,14 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
         self.will_close_event = Event.Event()  # for shutting down thumbnails; hopefully temporary.
 
-        self.__calculated_display_values = DisplayValuesController()
+        # # last display values is the last one to be fully displayed.
+        # # when the current display values makes it all the way to display, it will fire an event.
+        # # the display will listen for that event and update last display values.
+        self.__last_display_values = None
+        self.__current_display_values = None
+        self.__is_master = True
+
         self.__calculated_display_values_available_event = Event.Event()
-        self.__calculated_display_values_lock = threading.RLock()  # lock for display values pending flag
-        self.__calculated_display_values_thread = None
-        self.__calculated_display_values_thread_lock = threading.RLock()  # lock for starting and stopping thread
-        self.__calculated_display_values_pending = False
-
-        self._calculated_display_values_test_exception = False  # used for testing
-
-        self.__calculated_display_values._set_data_and_metadata(None)
-        self.__calculated_display_values._set_sequence_index(self.sequence_index)
-        self.__calculated_display_values._set_collection_index(self.collection_index)
-        self.__calculated_display_values._set_slice_center(self.slice_center)
-        self.__calculated_display_values._set_slice_width(self.slice_width)
-        self.__calculated_display_values._set_complex_display_type(self.complex_display_type)
-        self.__calculated_display_values._set_display_limits(self.display_limits)
-        self.__calculated_display_values._set_color_map_data(self.__color_map_data)
 
         self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
         self.__graphic_changed_listeners = list()
@@ -441,16 +347,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_type_changed_event = Event.Event()
         self.display_graphic_selection_changed_event = Event.Event()
         self._about_to_be_removed = False
-        self.__calculated_display_values_thread_ok = True
         self._closed = False
 
     def close(self):
         self.will_close_event.fire()
-        with self.__calculated_display_values_thread_lock:
-            self.__calculated_display_values_thread_ok = False
-            if self.__calculated_display_values_thread:
-                self.__calculated_display_values_thread.join()
-                self.__calculated_display_values_thread = None
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
@@ -726,7 +626,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_changed_event.fire()
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
             self.display_data_will_change_event.fire()
-            getattr(self.__calculated_display_values, "_set_" + property_name)(value)
             self.__send_next_calculated_display_values()
         if property_name in ("dimensional_calibration_style", ):
             self.notify_property_changed("displayed_dimensional_calibrations")
@@ -741,7 +640,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         new_data_shape = self.__data_and_metadata.data_shape if self.__data_and_metadata else None
         if old_data_shape != new_data_shape:
             self.validate_slice_indexes()
-        self.__calculated_display_values._set_data_and_metadata(data_and_metadata)
         self.__send_next_calculated_display_values()
         self.notify_property_changed("displayed_dimensional_calibrations")
         self.notify_property_changed("displayed_intensity_calibration")
@@ -756,46 +654,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             self.__send_next_calculated_display_values()
         return listener
 
-    def __calculate_display_values(self) -> None:
-        """Calculate the display values and send out the calculated values to listeners.
-
-        This method should be called from a thread.
-
-        If the underlying data changes while this method is computing, the values pending flag
-        will be set; and if that occurs, this method will be relaunched in another thread.
-
-        The thread-after-thread is used instead of a while loop as a simple way to tell when the
-        current display values have been calculated (join on the thread).
-
-        When shutting down this class, however, we need to ensure that another thread is not
-        launched; to do that there is a values_thread_ok flag which can be cleared to prevent
-        additional threads from being launched.
-        """
-        try:
-            if self._calculated_display_values_test_exception:  # for testing
-                raise Exception()
-            # calculate the display values
-            next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
-            display_values = next_calculated_display_values.values()
-            # send them to listeners
-            self.__calculated_display_values_available_event.fire(display_values)
-        except Exception as e:
-            if not self._calculated_display_values_test_exception:
-                import traceback
-                traceback.print_exc()
-                traceback.print_stack()
-            self._calculated_display_values_test_exception = False  # for testing
-        with self.__calculated_display_values_lock:
-            was_pending = self.__calculated_display_values_pending
-            self.__calculated_display_values_pending = False
-            if was_pending and self.__calculated_display_values_thread_ok:
-                with self.__calculated_display_values_thread_lock:
-                    calculated_display_values_thread = threading.Thread(target=self.__calculate_display_values)
-                    calculated_display_values_thread.start()
-                    self.__calculated_display_values_thread = calculated_display_values_thread
-            else:
-                self.__calculated_display_values_thread = None
-
     def __send_next_calculated_display_values(self) -> None:
         """Start thread to send next display values, if necessary.
 
@@ -803,43 +661,29 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
         Otherwise, start the thread to calculate the display values.
         """
-        with self.__calculated_display_values_lock:
-            if self.__calculated_display_values_thread:
-                self.__calculated_display_values_pending = True
-            else:
-                self.__calculated_display_values_pending = False
-                if self.__calculated_display_values_available_event.listener_count > 0:
-                    with self.__calculated_display_values_thread_lock:
-                        calculated_display_values_thread = threading.Thread(target=self.__calculate_display_values)
-                        calculated_display_values_thread.start()
-                        self.__calculated_display_values_thread = calculated_display_values_thread
-
-    def _send_display_values_for_test(self):
-        self.__send_next_calculated_display_values()
-
-    def update_calculated_display_values(self) -> None:
-        """Update the display values and store the latest version.
-
-        If a calculation thread is running, wait for it to end, at which point the values will be stored and the
-        changed message will be sent.
-
-        Otherwise, immediately calculate and store the values and send out the changed message.
-        """
-        with self.__calculated_display_values_thread_lock:
-            calculated_display_values_thread = self.__calculated_display_values_thread
-        if calculated_display_values_thread:
-            calculated_display_values_thread.join()
-        else:
-            next_calculated_display_values = self.__calculated_display_values.copy_and_calculate()
-            with self.__calculated_display_values_lock:
-                self.__calculated_display_values_pending = False
-            self.__calculated_display_values_available_event.fire(next_calculated_display_values.values())
+        self.__current_display_values = None
+        self.__calculated_display_values_available_event.fire()
 
     def get_calculated_display_values(self, immediate: bool = False) -> DisplayValues:
         """Return the display values, optionally forcing calculation."""
-        if immediate:
-            self.update_calculated_display_values()
-        return self.__calculated_display_values.values()
+        secondary = immediate
+
+        if not secondary or not self.__is_master or not self.__last_display_values:
+            if not self.__current_display_values:
+                self.__current_display_values = DisplayValues(self.__data_and_metadata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data)
+
+                def finalize(display_values):
+                    self.__last_display_values = display_values
+
+                self.__current_display_values.on_finalize = finalize
+            return self.__current_display_values
+        return self.__last_display_values
+
+    def increment_display_ref_count(self):
+        self.__is_master = True
+
+    def decrement_display_ref_count(self):
+        self.__is_master = False
 
     def __insert_graphic(self, name, before_index, graphic):
         graphic.about_to_be_inserted(self)

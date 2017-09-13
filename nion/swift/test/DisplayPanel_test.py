@@ -68,7 +68,6 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         self.display_panel = self.document_controller.selected_display_panel
         self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
-        self.data_item.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
@@ -81,7 +80,6 @@ class TestDisplayPanelClass(unittest.TestCase):
     def setup_line_plot(self, canvas_shape=None, data_min=0.0, data_max=1.0):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
         data_item_1d = DataItem.DataItem(create_1d_data(data_min=data_min, data_max=data_max))
-        data_item_1d.displays[0].update_calculated_display_values()
         self.document_model.append_data_item(data_item_1d)
         self.display_panel.set_displayed_data_item(data_item_1d)
         self.display_panel.display_canvas_item.layout_immediate(canvas_shape)
@@ -1340,10 +1338,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             display = data_item.displays[0]
-            display.update_calculated_display_values()
             update_count = display_panel.display_canvas_item._update_count
-            display._send_display_values_for_test()
-            display.update_calculated_display_values()
             document_controller.periodic()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
@@ -1394,10 +1389,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
             display = data_item.displays[0]
-            display.update_calculated_display_values()
             update_count = display_panel.display_canvas_item._update_count
-            display._send_display_values_for_test()
-            display.update_calculated_display_values()
             document_controller.periodic()
             self.display_panel.canvas_item.root_container.refresh_layout_immediate()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
