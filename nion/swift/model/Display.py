@@ -203,6 +203,10 @@ class DisplayValues:
             self.on_finalize(self)
 
     @property
+    def color_map_data(self):
+        return self.__color_map_data
+
+    @property
     def display_data_and_metadata(self):
         with self.__lock:
             if self.__display_data_and_metadata_dirty:

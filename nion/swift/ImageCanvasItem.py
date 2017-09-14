@@ -1095,24 +1095,38 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if self.__data_shape is not None:
             # configure the bitmap canvas item
             display_values = self.__display_values
-            data_rgba = display_values.display_rgba
-            display_values.finalize()
-            if False:
-                # the next section does gaussian blur for image decimation in the case where the destination rectangle
-                # is smaller than the source. this results in lower performance, but higher quality display.
-                height_ratio = (self.__bitmap_canvas_item.canvas_size.height / data_rgba.shape[0]) if data_rgba is not None and data_rgba.shape[0] > 0 else 1
-                if height_ratio < 1:
-                    sigma = 0.5 * ((1.0 / height_ratio) - 1.0)
-                    data_rgba_copy = numpy.empty_like(data_rgba)
-                    data_rgba_u8_view = data_rgba.view(numpy.uint8).reshape(data_rgba.shape + (-1, ))
-                    data_rgba_u8_copy_view = data_rgba_copy.view(numpy.uint8).reshape(data_rgba_copy.shape + (-1, ))
-                    data_rgba_u8_copy_view[..., 0] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 0], sigma=sigma)
-                    data_rgba_u8_copy_view[..., 1] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 1], sigma=sigma)
-                    data_rgba_u8_copy_view[..., 2] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 2], sigma=sigma)
-                    if data_rgba_u8_view.shape[-1] == 4:
-                        data_rgba_u8_copy_view[..., 3] = data_rgba_u8_view[..., 3]
-                    data_rgba = data_rgba_copy
-            self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
+            display_data = display_values.display_data_and_metadata
+            if display_data and display_data.data.dtype == numpy.float32:
+                display_range = display_values.display_range
+                color_map_data = display_values.color_map_data
+                display_values.finalize()
+                if color_map_data is not None:
+                    color_map_rgba = numpy.empty(color_map_data.shape[:-1] + (4,), numpy.uint8)
+                    color_map_rgba[..., 0:3] = color_map_data
+                    color_map_rgba[..., 3] = 255
+                    color_map_rgba = color_map_rgba.view(numpy.uint32).reshape(color_map_rgba.shape[:-1])
+                else:
+                    color_map_rgba = None
+                self.__bitmap_canvas_item.set_data(display_data.data, display_range, color_map_rgba, trigger_update=False)
+            else:
+                data_rgba = display_values.display_rgba
+                display_values.finalize()
+                if False:
+                    # the next section does gaussian blur for image decimation in the case where the destination rectangle
+                    # is smaller than the source. this results in lower performance, but higher quality display.
+                    height_ratio = (self.__bitmap_canvas_item.canvas_size.height / data_rgba.shape[0]) if data_rgba is not None and data_rgba.shape[0] > 0 else 1
+                    if height_ratio < 1:
+                        sigma = 0.5 * ((1.0 / height_ratio) - 1.0)
+                        data_rgba_copy = numpy.empty_like(data_rgba)
+                        data_rgba_u8_view = data_rgba.view(numpy.uint8).reshape(data_rgba.shape + (-1, ))
+                        data_rgba_u8_copy_view = data_rgba_copy.view(numpy.uint8).reshape(data_rgba_copy.shape + (-1, ))
+                        data_rgba_u8_copy_view[..., 0] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 0], sigma=sigma)
+                        data_rgba_u8_copy_view[..., 1] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 1], sigma=sigma)
+                        data_rgba_u8_copy_view[..., 2] = scipy.ndimage.gaussian_filter(data_rgba_u8_view[..., 2], sigma=sigma)
+                        if data_rgba_u8_view.shape[-1] == 4:
+                            data_rgba_u8_copy_view[..., 3] = data_rgba_u8_view[..., 3]
+                        data_rgba = data_rgba_copy
+                self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
             self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
 
     def set_fit_mode(self):
