@@ -51,7 +51,7 @@ Nion Swift for Windows requires you to install the Microsoft Visual C++ Redistri
 
     * `Visual C++ Redistributable for Visual Studio 2015 <https://www.microsoft.com/en-us/download/details.aspx?id=48145>`_
     * `Download Nion Swift 0.11.0 for Windows <http://nion.com/swift/files/NionSwift_Windows_np112py36_0.11.0.zip>`_
-    * md5 checksum efb40af60e886bdfe5d72caa0033f3dc
+    * md5 checksum TBD
 
 Run the `Swift.exe` program within the unzipped directory.
 
@@ -76,7 +76,7 @@ MacOS
 Nion Swift for macOS requires macOS 10.7 or later. We recommend using the latest version of macOS.
 
     * `Download Nion Swift 0.11.0 for macOS <http://nion.com/swift/files/NionSwift_MacOS_np112py36_0.11.0.zip>`_
-    * md5 checksum efb40af60e886bdfe5d72caa0033f3dc
+    * md5 checksum TBD
 
 Run the NionSwift program within the unzipped directory.
 
@@ -94,7 +94,7 @@ Swift has been tested with Ubuntu 16.04, 17.04, Debian 9, Fedora 26. It is not c
 please contact us if you need to run on Debian 8 as there may be workarounds.
 
     * `Download Nion Swift 0.11.0 for Linux <http://nion.com/swift/files/NionSwift_MacOS_np112py36_0.11.0.zip>`_
-    * md5 checksum efb40af60e886bdfe5d72caa0033f3dc
+    * md5 checksum TBD
 
 Run the NionSwift program within the unzipped directory from ``Terminal``.
 

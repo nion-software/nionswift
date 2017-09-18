@@ -216,6 +216,9 @@ class DataItem:
         self._proxy = proxy
         self.specifier = specifier
 
+    def _repr_svg_(self):
+        return call_method(self, 'data_item_to_svg')
+
     def add_channel_region(self, position):
         return call_method(self, 'add_channel_region', position)
 
@@ -233,6 +236,9 @@ class DataItem:
 
     def add_rectangle_region(self, center_y, center_x, height, width):
         return call_method(self, 'add_rectangle_region', center_y, center_x, height, width)
+
+    def delete_metadata_value(self, key):
+        call_method(self, 'delete_metadata_value', key)
 
     def get_metadata_value(self, key):
         return call_method(self, 'get_metadata_value', key)
