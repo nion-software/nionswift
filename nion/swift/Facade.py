@@ -64,6 +64,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
+from nion.ui import Declarative
 from nion.ui import DrawingContext
 from nion.utils import Geometry
 
@@ -2393,9 +2394,10 @@ class Library(metaclass=SharedInstance):
 
 class DocumentWindow(metaclass=SharedInstance):
 
-    release = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display", "target_data_item",
-        "show_get_string_message_box", "show_confirmation_message_box", "queue_task", "add_data", "create_data_item_from_data",
-        "create_data_item_from_data_and_metadata", "get_or_create_data_group"]
+    release = ["library", "all_display_panels", "get_display_panel_by_id", "display_data_item", "target_display",
+               "target_data_item", "show_get_string_message_box", "show_confirmation_message_box",
+               "show_modeless_dialog", "queue_task", "add_data", "create_data_item_from_data",
+               "create_data_item_from_data_and_metadata", "get_or_create_data_group"]
 
     def __init__(self, document_controller):
         self.__document_controller = document_controller
@@ -2500,6 +2502,12 @@ class DocumentWindow(metaclass=SharedInstance):
     def show_confirmation_message_box(self, caption: str, accepted_fn, rejected_fn=None, accepted_text: str=None, rejected_text: str=None, display_rejected: str=False) -> None:
         workspace = self.__document_controller.workspace_controller
         workspace.pose_confirmation_message_box(caption, accepted_fn, rejected_fn, accepted_text, rejected_text, display_rejected)
+
+    def show_modeless_dialog(self, item, handler=None):
+        if isinstance(item, dict) and item.get("type") == "modeless_dialog":
+            window = self._document_controller
+            dialog = Declarative.construct(window.ui, window, item, handler)
+            dialog.show()
 
     def queue_task(self, fn) -> None:
         self.__document_controller.queue_task(fn)
@@ -3013,13 +3021,16 @@ class API_1:
         """
         return Library(self.__app.document_controllers[0].document_model)
 
-    def show(self, item: typing.Any) -> None:
+    def show(self, item: typing.Any, *parameters) -> None:
+        window = self.application.document_windows[0]
         if isinstance(item, numpy.ndarray):
             data_item = self.library.create_data_item_from_data(item)
-            self.application.document_windows[0].display_data_item(data_item)
+            window.display_data_item(data_item)
         elif isinstance(item, DataAndMetadata.DataAndMetadata):
             data_item = self.library.create_data_item_from_data_and_metadata(item)
-            self.application.document_windows[0].display_data_item(data_item)
+            window.display_data_item(data_item)
+        elif isinstance(item, dict) and item.get("type") == "modeless_dialog":
+            window.show_modeless_dialog(item, *parameters)
 
     def resolve_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
@@ -3050,11 +3061,12 @@ def _get_api_with_app(version: str, ui_version: str, app: ApplicationModule.Appl
     return API_1(ui_version, app)
 
 
-def get_api(version: str, ui_version: str) -> API_1:
+def get_api(version: str, ui_version: str=None) -> API_1:
     """Get a versioned interface matching the given version and ui_version.
 
     version is a string in the form "1.0.2".
     """
+    ui_version = ui_version if ui_version else "~1.0"
     return _get_api_with_app(version, ui_version, ApplicationModule.app)
 
 

@@ -19,6 +19,7 @@ import numpy
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.swift import FacadeQueued
+from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import Widgets
 from nion.utils import Converter
@@ -287,11 +288,17 @@ class RunScriptDialog(Dialog.ActionDialog):
                     if Utility.compare_versions(version, actual_version) > 0:
                         raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
                     return interactive_session
-                def get_api(self, version, ui_version):
+                def get_api(self, version, ui_version=None):
+                    ui_version = ui_version if ui_version else "~1.0"
                     api = PlugInManager.api_broker_fn(version, ui_version)
                     queued_api = FacadeQueued.API(api, None)
                     queued_api._queue_task = api.queue_task
                     return queued_api
+                def get_ui(self, version):
+                    actual_version = "1.0.0"
+                    if Utility.compare_versions(version, actual_version) > 0:
+                        raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
+                    return Declarative.DeclarativeUI()
             try:
                 g = dict()
                 g["api_broker"] = APIBroker()

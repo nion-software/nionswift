@@ -501,6 +501,9 @@ class DocumentWindow:
     def show_get_string_message_box(self, caption, text, accepted_fn, rejected_fn=None, accepted_text=None, rejected_text=None):
         call_method(self, 'show_get_string_message_box', caption, text, accepted_fn, rejected_fn=rejected_fn, accepted_text=accepted_text, rejected_text=rejected_text)
 
+    def show_modeless_dialog(self, item, handler=None):
+        return call_method(self, 'show_modeless_dialog', item, handler=handler)
+
     @property
     def all_display_panels(self):
         return get_property(self, 'all_display_panels')

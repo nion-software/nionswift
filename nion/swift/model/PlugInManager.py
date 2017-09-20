@@ -14,6 +14,7 @@ import traceback
 import unittest
 
 from nion.swift.model import Utility
+from nion.ui import Declarative
 
 
 __modules = []
@@ -32,15 +33,20 @@ def register_api_broker_fn(new_api_broker_fn):
     global api_broker_fn
     api_broker_fn = new_api_broker_fn
 
+class APIBroker:
+    def get_api(self, *args, **kwargs):
+        global api_broker_fn
+        return api_broker_fn(*args, **kwargs)
+    def get_ui(self, version):
+        actual_version = "1.0.0"
+        if Utility.compare_versions(version, actual_version) > 0:
+            raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
+        return Declarative.DeclarativeUI()
+
 extensions = []
 
 def load_plug_in(module_path: str, module_name: str):
     try:
-        class APIBroker(object):
-            def get_api(self, *args, **kwargs):
-                global api_broker_fn
-                return api_broker_fn(*args, **kwargs)
-
         # First load the module.
         module = importlib.import_module(module_name)
         # Now scan through the module and look for extensions and tests.
