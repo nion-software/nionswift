@@ -7,6 +7,7 @@ Version 0.11.0, September 18, 2017
 ----------------------------------
 * (2017-09-14) Improve rendering pipeline again to reduce latency.
 * (2017-09-11) Add api.show(), available in Console as show(). Useful to quickly show data.
+* (2017-09-10) Consolidate calibrated center/top-left into just calibrated, for consistency.
 * (2017-09-09) Improve display of display limits in inspector (5 significant digits now).
 * (2017-09-09) Fix bug where width of line profile was displayed incorrectly.
 * (2017-09-06) Add menu items for sequence integration, trim, and extract index.
