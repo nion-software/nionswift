@@ -65,7 +65,7 @@ class ImportExportHandler(object):
     def read_data_elements(self, ui, extension, file_path):
         return None
 
-    def can_write(self, data_and_metadata, extension):
+    def can_write(self, x_data, extension):
         return False
 
     def write(self, ui, data_item, path, extension):
@@ -471,7 +471,7 @@ class StandardImportExportHandler(ImportExportHandler):
 class CSVImportExportHandler(ImportExportHandler):
 
     def __init__(self, io_handler_id, name, extensions):
-        super(CSVImportExportHandler, self).__init__(io_handler_id, name, extensions)
+        super().__init__(io_handler_id, name, extensions)
 
     def read_data_elements(self, ui, extension, path):
         data = numpy.loadtxt(path, delimiter=',')
@@ -481,13 +481,37 @@ class CSVImportExportHandler(ImportExportHandler):
             return [data_element]
         return list()
 
-    def can_write(self, data_item, extension):
+    def can_write(self, x_data, extension):
         return True
 
     def write(self, ui, data_item, path, extension):
         data = data_item.data
         if data is not None:
             numpy.savetxt(path, data, delimiter=', ')
+
+
+class CSV1ImportExportHandler(ImportExportHandler):
+
+    def __init__(self, io_handler_id, name, extensions):
+        super().__init__(io_handler_id, name, extensions)
+
+    def read_data_elements(self, ui, extension, path):
+        return None
+
+    def can_write(self, x_data, extension):
+        return x_data and x_data.is_data_1d
+
+    def write(self, ui, data_item, path, extension):
+        data = data_item.data
+        calibration = data_item.xdata.dimensional_calibrations[0]
+        intensity_calibration = data_item.xdata.intensity_calibration
+        if data is not None:
+            calibrated_data = numpy.empty(data.shape + (2,), data.dtype)
+            length = calibrated_data.shape[0]
+            calibrated_data[:, 0] = numpy.linspace(calibration.offset, calibration.offset + (length - 1) * calibration.scale, length)
+            calibrated_data[:, 1] = intensity_calibration.offset + data * intensity_calibration.scale
+            header = str(calibration.units) + ", " + str(intensity_calibration.units)
+            numpy.savetxt(path, calibrated_data, delimiter=', ', header=header)
 
 
 class NDataImportExportHandler(ImportExportHandler):
@@ -583,6 +607,7 @@ ImportExportManager().register_io_handler(StandardImportExportHandler("jpeg-io-h
 ImportExportManager().register_io_handler(StandardImportExportHandler("png-io-handler", "PNG", ["png"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("gif-io-handler", "GIF", ["gif"]))
 ImportExportManager().register_io_handler(StandardImportExportHandler("bmp-io-handler", "BMP", ["bmp"]))
-ImportExportManager().register_io_handler(CSVImportExportHandler("csv-io-handler", "CSV", ["csv"]))
+ImportExportManager().register_io_handler(CSVImportExportHandler("csv-io-handler", "CSV Raw", ["csv"]))
+ImportExportManager().register_io_handler(CSV1ImportExportHandler("csv1-io-handler", "CSV 1D", ["csv"]))
 ImportExportManager().register_io_handler(NDataImportExportHandler("ndata1-io-handler", "NData 1", ["ndata1"]))
 ImportExportManager().register_io_handler(NumPyImportExportHandler("numpy-io-handler", "Raw NumPy", ["npy"]))
