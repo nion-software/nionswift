@@ -417,9 +417,12 @@ panel. You can access the metadata using Python:
 **Session Description**
 ====================================== ====
 ``stem.session.instrument``            string
+``stem.session.detector``              string
 ``stem.session.microscopist``          string
 ``stem.session.sample``                string
 ``stem.session.sample_area``           string
+``stem.session.sample_source``         string
+``stem.session.sample_formula``        string
 ``stem.session.site``                  string
 ``stem.session.task``                  string
 ====================================== ====
@@ -459,9 +462,12 @@ If a key or set of keys should be added, Nion maintains a registry of keys. Plea
 **Session Description**
 ====================================== ====
 ``stem.session.instrument``            string
+``stem.session.detector``              string
 ``stem.session.microscopist``          string
 ``stem.session.sample``                string
 ``stem.session.sample_area``           string
+``stem.session.sample_source``         string
+``stem.session.sample_formula``        string
 ``stem.session.site``                  string
 ``stem.session.task``                  string
 ====================================== ====
@@ -472,6 +478,21 @@ If a key or set of keys should be added, Nion maintains a registry of keys. Plea
 **STEM Values**
 ====================================== ====
 ``stem.high_tension_v``                integer
+``stem.gun_type``                      string
+``stem.convergence_angle_rad``         real
+``stem.collection_angle_rad``          real
+``stem.probe_size_m2``                 real
+``stem.beam_current_a``                real
+====================================== ====
+
+|
+
+====================================== ====
+**EELS Values**
+====================================== ====
+``stem.eels.spectrum_type``            string
+``stem.eels.resolution_eV``            real
+``stem.eels.is_monochromated``         boolean
 ====================================== ====
 
 |

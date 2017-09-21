@@ -851,16 +851,29 @@ class Graphic(metaclass=SharedInstance):
 session_key_map = {
     'stem.session.site': {'path': ['site'], 'type': 'string'},
     'stem.session.instrument': {'path': ['instrument'], 'type': 'string'},
+    'stem.session.detector': {'path': ['detector'], 'type': 'string'},
     'stem.session.task': {'path': ['task'], 'type': 'string'},
     'stem.session.microscopist': {'path': ['microscopist'], 'type': 'string'},
     'stem.session.sample': {'path': ['sample'], 'type': 'string'},
     'stem.session.sample_area': {'path': ['sample_area'], 'type': 'string'},
+    'stem.session.sample_source': {'path': ['sample_source'], 'type': 'string'},
+    'stem.session.sample_formula': {'path': ['sample_formula'], 'type': 'string'},
 }
 
 key_map = {
-    'stem.high_tension_v': {'path': ['hardware_source', 'autostem', 'high_tension_v'], 'type': 'integer'},
     'stem.hardware_source.id': {'path': ['hardware_source', 'hardware_source_id'], 'type': 'string'},
     'stem.hardware_source.name': {'path': ['hardware_source', 'hardware_source_name'], 'type': 'string'},
+
+    'stem.high_tension_v': {'path': ['hardware_source', 'autostem', 'high_tension_v'], 'type': 'integer'},
+    'stem.gun_type': {'path': ['hardware_source', 'gun_type'], 'type': 'string'},
+    'stem.convergence_angle_rad': {'path': ['hardware_source', 'convergence_angle_rad'], 'type': 'real'},
+    'stem.collection_angle_rad': {'path': ['hardware_source', 'collection_angle_rad'], 'type': 'real'},
+    'stem.probe_size_m2': {'path': ['hardware_source', 'probe_size_m2'], 'type': 'real'},
+    'stem.beam_current_a': {'path': ['hardware_source', 'beam_current_a'], 'type': 'real'},
+
+    'stem.eels.spectrum_type': {'path': ['hardware_source', 'eels_spectrum_type'], 'type': 'string'},
+    'stem.eels.resolution_eV': {'path': ['hardware_source', 'eels_resolution_eV'], 'type': 'string'},
+    'stem.eels.is_monochromated': {'path': ['hardware_source', 'eels_is_monochromated'], 'type': 'boolean'},
 
     'stem.camera.binning': {'path': ['hardware_source', 'binning'], 'type': 'integer'},
     'stem.camera.channel_id': {'path': ['hardware_source', 'channel_id'], 'type': 'string'},
