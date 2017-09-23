@@ -3045,6 +3045,63 @@ class API_1:
         elif isinstance(item, dict) and item.get("type") == "modeless_dialog":
             window.show_modeless_dialog(item, *parameters)
 
+    def run_script(self, *, file_path=None, stdout=None) -> None:
+        import ast
+        import contextlib
+        import os
+        with open(file_path) as f:
+            script = f.read()
+        script_name = os.path.basename(file_path)
+        script_ast = ast.parse(script, script_name, 'exec')
+
+        class AddCallFunctionNodeTransformer(ast.NodeTransformer):
+            def __init__(self, func_id, arg_id):
+                self.__func_id = func_id
+                self.__arg_id = arg_id
+
+            def visit_Module(self, node):
+                name_expr = ast.Name(id=self.__func_id, ctx=ast.Load())
+                arg_expr = ast.Name(id=self.__arg_id, ctx=ast.Load())
+                call_expr = ast.Expr(value=ast.Call(func=name_expr, args=[arg_expr], keywords=[]))
+                new_node = copy.deepcopy(node)
+                new_node.body.append(call_expr)
+                ast.fix_missing_locations(new_node)
+                return new_node
+
+        # if script_main exists, add a node to call it
+        for node in script_ast.body:
+            if getattr(node, "name", None) == "script_main":
+                script_ast = AddCallFunctionNodeTransformer('script_main', 'api_broker').visit(script_ast)
+
+        compiled = compile(script_ast, script_name, 'exec')
+
+        if not stdout:
+            print_fn = print
+            class StdoutCatcher:
+                def __init__(self):
+                    pass
+                def write(self, stuff):
+                    print_fn(stuff.rstrip())
+                def flush(self):
+                    pass
+            stdout = StdoutCatcher()
+
+        class APIBroker:
+            def get_api(self, version, ui_version=None):
+                ui_version = ui_version if ui_version else "~1.0"
+                return PlugInManager.api_broker_fn(version, ui_version)
+            def get_ui(self, version):
+                actual_version = "1.0.0"
+                if Utility.compare_versions(version, actual_version) > 0:
+                    raise NotImplementedError("API requested version %s is greater than %s." % (version, actual_version))
+                return Declarative.DeclarativeUI()
+
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stdout):
+            g = dict()
+            g["api_broker"] = APIBroker()
+            g["print"] = stdout.write
+            exec(compiled, g)
+
     def resolve_object_specifier(self, d):
         return ObjectSpecifier.resolve(d)
 

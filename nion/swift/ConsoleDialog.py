@@ -45,8 +45,18 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
         self.__text_edit_widget.on_key_pressed = self.__key_pressed
         self.__text_edit_widget.on_insert_mime_data = self.__insert_mime_data
 
+        class StdoutCatcher:
+            def __init__(self, text_edit_widget):
+                self.__text_edit_widget = text_edit_widget
+            def write(self, stuff):
+                if self.__text_edit_widget:
+                    self.__text_edit_widget.append_text(str(stuff).rstrip())
+            def flush(self):
+                pass
+        stdout = StdoutCatcher(self.__text_edit_widget)
+
         locals = locals if locals is not None else dict()
-        locals.update({'__name__': None, '__console__': None, '__doc__': None})
+        locals.update({'__name__': None, '__console__': None, '__doc__': None, '_stdout': stdout})
         self.console = code.InteractiveConsole(locals)
         self.__text_edit_widget.append_text(self.prompt)
         self.__text_edit_widget.move_cursor_position("end")
@@ -56,6 +66,10 @@ class ConsoleWidget(Widgets.CompositeWidgetBase):
 
         self.__history = list()
         self.__history_point = None
+
+    def close(self):
+        super().close()
+        self.__text_edit_widget = None
 
     def insert_lines(self, lines):
         for l in lines:
@@ -248,7 +262,10 @@ class ConsoleDialog(Dialog.ActionDialog):
             "get_api = PlugInManager.api_broker_fn",
             "api = get_api('~1.0', '~1.0')",
             "ui = Declarative.DeclarativeUI()",
-            "show = api.show"
+            "show = api.show",
+            "def run_script(*args, **kwargs):",
+            "  api.run_script(*args, stdout=_stdout, **kwargs)",
+            "",
             ]
 
         variable_to_data_item_map = document_controller.document_model.variable_to_data_item_map()
