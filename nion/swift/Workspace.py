@@ -374,11 +374,13 @@ class Workspace:
             if rejected_fn: rejected_fn()
             self.message_column.remove(message_box_widget)
             del self.__message_boxes[message_box_id]
+            return False
 
         def accept_button_clicked():
             accepted_fn(string_edit_widget.text)
             self.message_column.remove(message_box_widget)
             del self.__message_boxes[message_box_id]
+            return False
 
         string_edit_widget = self.ui.create_line_edit_widget()
         string_edit_widget.text = text

@@ -44,10 +44,12 @@ def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, 
         if rejected_fn:
             rejected_fn()
         message_column.remove(message_box_widget)
+        return False
 
     def accept_button_clicked():
         accepted_fn(string_edit_widget.text)
         message_column.remove(message_box_widget)
+        return False
 
     string_edit_widget = ui.create_line_edit_widget()
     string_edit_widget.text = text
