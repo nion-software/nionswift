@@ -346,6 +346,7 @@ class Application:
                 self.library_name = library_base_name + library_base_index_str
 
                 def handle_new():
+                    self.library_name = self.__library_name_field.text
                     workspace_dir = os.path.join(self.directory, self.library_name)
                     Cache.db_make_directory_if_needed(workspace_dir)
                     path = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
@@ -355,6 +356,11 @@ class Application:
                     if os.path.exists(path):
                         app.switch_library(workspace_dir)
                         return True
+                    return False
+
+                def handle_new_and_close():
+                    handle_new()
+                    self.request_close()
                     return False
 
                 column = self.ui.create_column_widget()
@@ -389,7 +395,7 @@ class Application:
                 library_name_row.add_spacing(26)
                 library_name_field = self.ui.create_line_edit_widget(properties={"width": 400})
                 library_name_field.text = self.library_name
-                library_name_field.on_return_pressed = handle_new
+                library_name_field.on_return_pressed = handle_new_and_close
                 library_name_field.on_escape_pressed = self.request_close
                 library_name_row.add(library_name_field)
                 library_name_row.add_stretch()
