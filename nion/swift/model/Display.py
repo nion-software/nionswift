@@ -213,7 +213,6 @@ class DisplayValues:
                 self.__display_data_and_metadata_dirty = False
                 data_and_metadata = self.__data_and_metadata
                 if data_and_metadata is not None:
-                    assert not self.__finalized
                     timestamp = data_and_metadata.timestamp
                     data_and_metadata, modified = Core.function_display_data_no_copy(data_and_metadata, self.__sequence_index, self.__collection_index, self.__slice_center, self.__slice_width, self.__complex_display_type)
                     if data_and_metadata:
@@ -229,7 +228,6 @@ class DisplayValues:
                 display_data_and_metadata = self.display_data_and_metadata
                 display_data = display_data_and_metadata.data if display_data_and_metadata else None
                 if display_data is not None and display_data.size and self.__data_and_metadata:
-                    assert not self.__finalized
                     data_shape = self.__data_and_metadata.data_shape
                     data_dtype = self.__data_and_metadata.data_dtype
                     if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
@@ -250,7 +248,6 @@ class DisplayValues:
         with self.__lock:
             if self.__display_range_dirty:
                 self.__display_range_dirty = False
-                assert not self.__finalized
                 self.__display_range = calculate_display_range(self.__display_limits, self.data_range, self.data_sample, self.__data_and_metadata, self.__complex_display_type)
             return self.__display_range
 
@@ -267,7 +264,6 @@ class DisplayValues:
                     if Image.is_shape_and_dtype_rgb_type(data_shape, data_dtype):
                         self.__data_sample = None
                     elif Image.is_shape_and_dtype_complex_type(data_shape, data_dtype):
-                        assert not self.__finalized
                         self.__data_sample = numpy.sort(numpy.random.choice(display_data.reshape(numpy.product(display_data.shape)), 200))
                     else:
                         self.__data_sample = None
@@ -285,7 +281,6 @@ class DisplayValues:
                     if self.data_range is not None:  # workaround until validating and retrieving data stats is an atomic operation
                         # display_range is just display_limits but calculated if display_limits is None
                         display_range = self.display_range
-                        assert not self.__finalized
                         self.__display_rgba = Core.function_display_rgba(display_data_and_metadata, display_range, self.__color_map_data).data
             return self.__display_rgba
 
