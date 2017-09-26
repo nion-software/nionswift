@@ -837,13 +837,14 @@ class DocumentController(Window.Window):
         export_dir = os.path.join(export_dir, data_item.title)
         selected_filter = self.ui.get_persistent_string("export_filter")
         path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
+        selected_writer = filter_line_to_writer_map.get(selected_filter)
         if not os.path.splitext(path)[1]:
-            if selected_filter in filter_line_to_writer_map:
-                path = path + os.path.extsep + filter_line_to_writer_map[selected_filter].extensions[0]
-        if path:
+            if selected_writer:
+                path = path + os.path.extsep + selected_writer.extensions[0]
+        if selected_writer and path:
             self.ui.set_persistent_string("export_directory", selected_directory)
             self.ui.set_persistent_string("export_filter", selected_filter)
-            return ImportExportManager.ImportExportManager().write_data_items(self.ui, data_item, path)
+            return ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, selected_writer, data_item, path)
 
     def export_files(self, data_items):
         if len(data_items) > 1:
