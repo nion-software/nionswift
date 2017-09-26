@@ -2818,7 +2818,11 @@ class API_1:
                 data_and_metadata = data_item.xdata
                 data = data_and_metadata.data
                 if data is not None:
-                    io_handler_delegate.write_data_and_metadata(data_and_metadata, file_path, extension)
+                    if hasattr(io_handler_delegate, "write_data_item"):
+                        io_handler_delegate.write_data_item(DataItem(data_item), file_path, extension)
+                    else:
+                        assert hasattr(io_handler_delegate, "write_data_and_metadata")
+                        io_handler_delegate.write_data_and_metadata(data_and_metadata, file_path, extension)
 
         class IOHandlerReference:
 

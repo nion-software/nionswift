@@ -816,7 +816,7 @@ class DocumentController(Window.Window):
             self.queue_task(functools.partial(import_complete, data_items))
         self.receive_files(self.document_model, paths, completion_fn=import_complete_on_thread)
 
-    def export_file(self, data_item):
+    def export_file(self, data_item) -> None:
         # present a loadfile dialog to the user
         writers = ImportExportManager.ImportExportManager().get_writers_for_data_item(data_item)
         name_writer_dict = dict()
@@ -844,7 +844,7 @@ class DocumentController(Window.Window):
         if selected_writer and path:
             self.ui.set_persistent_string("export_directory", selected_directory)
             self.ui.set_persistent_string("export_filter", selected_filter)
-            return ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, selected_writer, data_item, path)
+            ImportExportManager.ImportExportManager().write_data_items_with_writer(self.ui, selected_writer, data_item, path)
 
     def export_files(self, data_items):
         if len(data_items) > 1:
