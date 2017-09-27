@@ -61,6 +61,7 @@ from nion.swift.model import DocumentModel as DocumentModelModule
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
+from nion.swift.model import Metadata
 from nion.swift.model import PlugInManager
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
@@ -848,55 +849,6 @@ class Graphic(metaclass=SharedInstance):
         self.set_property("width", value)
 
 
-session_key_map = {
-    'stem.session.site': {'path': ['site'], 'type': 'string'},
-    'stem.session.instrument': {'path': ['instrument'], 'type': 'string'},
-    'stem.session.detector': {'path': ['detector'], 'type': 'string'},
-    'stem.session.task': {'path': ['task'], 'type': 'string'},
-    'stem.session.microscopist': {'path': ['microscopist'], 'type': 'string'},
-    'stem.session.sample': {'path': ['sample'], 'type': 'string'},
-    'stem.session.sample_area': {'path': ['sample_area'], 'type': 'string'},
-    'stem.session.sample_source': {'path': ['sample_source'], 'type': 'string'},
-    'stem.session.sample_formula': {'path': ['sample_formula'], 'type': 'string'},
-}
-
-key_map = {
-    'stem.hardware_source.id': {'path': ['hardware_source', 'hardware_source_id'], 'type': 'string'},
-    'stem.hardware_source.name': {'path': ['hardware_source', 'hardware_source_name'], 'type': 'string'},
-
-    'stem.high_tension_v': {'path': ['hardware_source', 'autostem', 'high_tension_v'], 'type': 'integer'},
-    'stem.gun_type': {'path': ['hardware_source', 'gun_type'], 'type': 'string'},
-    'stem.convergence_angle_rad': {'path': ['hardware_source', 'convergence_angle_rad'], 'type': 'real'},
-    'stem.collection_angle_rad': {'path': ['hardware_source', 'collection_angle_rad'], 'type': 'real'},
-    'stem.probe_size_m2': {'path': ['hardware_source', 'probe_size_m2'], 'type': 'real'},
-    'stem.beam_current_a': {'path': ['hardware_source', 'beam_current_a'], 'type': 'real'},
-
-    'stem.eels.spectrum_type': {'path': ['hardware_source', 'eels_spectrum_type'], 'type': 'string'},
-    'stem.eels.resolution_eV': {'path': ['hardware_source', 'eels_resolution_eV'], 'type': 'string'},
-    'stem.eels.is_monochromated': {'path': ['hardware_source', 'eels_is_monochromated'], 'type': 'boolean'},
-
-    'stem.camera.binning': {'path': ['hardware_source', 'binning'], 'type': 'integer'},
-    'stem.camera.channel_id': {'path': ['hardware_source', 'channel_id'], 'type': 'string'},
-    'stem.camera.channel_index': {'path': ['hardware_source', 'channel_index'], 'type': 'integer'},
-    'stem.camera.channel_name': {'path': ['hardware_source', 'channel_name'], 'type': 'string'},
-    'stem.camera.exposure_s': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
-    'stem.camera.frame_index': {'path': ['hardware_source', 'frame_index'], 'type': 'integer'},
-    'stem.camera.valid_rows': {'path': ['hardware_source', 'valid_rows'], 'type': 'integer'},
-
-    'stem.scan.center_x_nm': {'path': ['hardware_source', 'center_x_nm'], 'type': 'real'},
-    'stem.scan.center_y_nm': {'path': ['hardware_source', 'center_y_nm'], 'type': 'real'},
-    'stem.scan.channel_id': {'path': ['hardware_source', 'channel_id'], 'type': 'string'},
-    'stem.scan.channel_index': {'path': ['hardware_source', 'channel_index'], 'type': 'integer'},
-    'stem.scan.channel_name': {'path': ['hardware_source', 'channel_name'], 'type': 'string'},
-    'stem.scan.frame_time_s': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
-    'stem.scan.fov_nm': {'path': ['hardware_source', 'fov_nm'], 'type': 'real'},
-    'stem.scan.frame_index': {'path': ['hardware_source', 'frame_index'], 'type': 'integer'},
-    'stem.scan.pixel_time_us': {'path': ['hardware_source', 'pixel_time_us'], 'type': 'real'},
-    'stem.scan.rotation_rad': {'path': ['hardware_source', 'rotation_rad'], 'type': 'real'},
-    'stem.scan.scan_id': {'path': ['hardware_source', 'scan_id'], 'type': 'string'},
-    'stem.scan.valid_rows': {'path': ['hardware_source', 'valid_rows'], 'type': 'integer'},
-}
-
 # TODO: add group maps to map dotted key to a metadata dict
 # TODO: add dict typing which converts the dict to json when externalized
 
@@ -1122,21 +1074,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
-        if desc is not None:
-            d = self._data_item.session_metadata
-            for k in desc['path'][:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None:
-                return desc['path'][-1] in d
-        desc = key_map.get(key)
-        if desc is not None:
-            d = self.__data_item.metadata
-            for k in desc['path'][:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None:
-                return desc['path'][-1] in d
-        raise False
+        return self._data_item.has_metadata_value(key)
 
     def get_metadata_value(self, key: str) -> typing.Any:
         """Get the metadata value for the given key.
@@ -1154,19 +1092,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
-        if desc is not None:
-            v = self._data_item.session_metadata
-            for k in desc['path']:
-                v =  v.get(k) if v is not None else None
-            return v
-        desc = key_map.get(key)
-        if desc is not None:
-            v = self._data_item.metadata
-            for k in desc['path']:
-                v =  v.get(k) if v is not None else None
-            return v
-        raise KeyError()
+        return self._data_item.get_metadata_value(key)
 
     def set_metadata_value(self, key: str, value: typing.Any) -> None:
         """Set the metadata value for the given key.
@@ -1184,27 +1110,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
-        if desc is not None:
-            d0 = self._data_item.session_metadata
-            d = d0
-            for k in desc['path'][:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None:
-                d[desc['path'][-1]] = value
-                self._data_item.session_metadata = d0
-                return
-        desc = key_map.get(key)
-        if desc is not None:
-            d0 = self.__data_item.metadata
-            d = d0
-            for k in desc['path'][:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None:
-                d[desc['path'][-1]] = value
-                self.__data_item.metadata = d0
-                return
-        raise KeyError()
+        self._data_item.set_metadata_value(key, value)
 
     def delete_metadata_value(self, key: str) -> None:
         """Delete the metadata value for the given key.
@@ -1222,26 +1128,7 @@ class DataItem(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
-        if desc is not None:
-            d0 = self._data_item.session_metadata
-            d = d0
-            for k in desc['path'][:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None and desc['path'][-1] in d:
-                d.pop(desc['path'][-1], None)
-                self._data_item.session_metadata = d0
-                return
-        desc = key_map.get(key)
-        if desc is not None:
-            d0 = self.__data_item.metadata
-            d = d0
-            for k in desc['path'][:-1]:
-                d =  d.setdefault(k, dict()) if d is not None else None
-            if d is not None and desc['path'][-1] in d:
-                d.pop(desc['path'][-1], None)
-                self.__data_item.metadata = d0
-                return
+        self._data_item.delete_metadata_value(key)
 
     @property
     def data_and_metadata(self) -> DataAndMetadata.DataAndMetadata:
@@ -2351,7 +2238,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
+        desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
             return self._document_model.has_session_field(field_id)
@@ -2366,7 +2253,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
+        desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
             return self._document_model.get_session_field(field_id)
@@ -2381,7 +2268,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
+        desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
             self._document_model.set_session_field(field_id, value)
@@ -2397,7 +2284,7 @@ class Library(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        desc = session_key_map.get(key)
+        desc = Metadata.session_key_map.get(key)
         if desc is not None:
             field_id = desc['path'][-1]
             self._document_model.delete_session_field(field_id)

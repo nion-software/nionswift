@@ -23,6 +23,7 @@ from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import Display
 from nion.swift.model import Graphics
+from nion.swift.model import Metadata
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.utils import Event
@@ -1664,6 +1665,18 @@ class DataItem(LibraryItem):
     @property
     def size_and_data_format_as_string(self):
         return self.data_source.size_and_data_format_as_string if self.data_source else _("No Data")
+
+    def has_metadata_value(self, key: str) -> bool:
+        return Metadata.has_metadata_value(self, key)
+
+    def get_metadata_value(self, key: str) -> typing.Any:
+        return Metadata.get_metadata_value(self, key)
+
+    def set_metadata_value(self, key: str, value: typing.Any) -> None:
+        Metadata.set_metadata_value(self, key, value)
+
+    def delete_metadata_value(self, key: str) -> None:
+        Metadata.delete_metadata_value(self, key)
 
 
 class DisplaySpecifier:
