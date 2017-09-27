@@ -169,6 +169,59 @@ def calculate_display_range(display_limits, data_range, data_sample, xdata, comp
     return data_range
 
 
+class CalibrationStyle:
+    label = None
+    calibration_style_id = None
+    is_calibrated = False
+
+    def get_dimensional_calibrations(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Sequence[Calibration.Calibration]:
+        return list()
+
+    def get_intensity_calibration(self, xdata: DataAndMetadata.DataAndMetadata) -> Calibration.Calibration:
+        return xdata.intensity_calibration if self.is_calibrated else Calibration.Calibration()
+
+
+class CalibrationStyleNative(CalibrationStyle):
+    label = _("Calibrated")
+    calibration_style_id = "calibrated"
+    is_calibrated = True
+
+    def get_dimensional_calibrations(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Sequence[Calibration.Calibration]:
+        return xdata.dimensional_calibrations
+
+
+class CalibrationStylePixelsTopLeft(CalibrationStyle):
+    label = _("Pixels (Top-Left)")
+    calibration_style_id = "pixels-top-left"
+
+    def get_dimensional_calibrations(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration() for display_dimension in xdata.dimensional_shape]
+
+
+class CalibrationStylePixelsCenter(CalibrationStyle):
+    label = _("Pixels (Center)")
+    calibration_style_id = "pixels-center"
+
+    def get_dimensional_calibrations(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration(offset=-display_dimension/2) for display_dimension in xdata.dimensional_shape]
+
+
+class CalibrationStyleFractionalTopLeft(CalibrationStyle):
+    label = _("Fractional (Top Left)")
+    calibration_style_id = "relative-top-left"
+
+    def get_dimensional_calibrations(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in xdata.dimensional_shape]
+
+
+class CalibrationStyleFractionalCenter(CalibrationStyle):
+    label = _("Fractional (Center)")
+    calibration_style_id = "relative-center"
+
+    def get_dimensional_calibrations(self, xdata: DataAndMetadata.DataAndMetadata) -> typing.Sequence[Calibration.Calibration]:
+        return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in xdata.dimensional_shape]
+
+
 class DisplayValues:
     """Display data used to render the display."""
 
@@ -365,11 +418,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         super().read_from_dict(properties)
         dimensional_calibration_style_property = self._get_persistent_property("dimensional_calibration_style")
         if self.dimensional_calibration_style is None:
-            dimensional_calibration_style_property.value = "calibrated" if self.display_calibrated_values else "pixels-center"
+            calibration_style = self.default_calibrated_calibration_style if self.display_calibrated_values else self.default_uncalibrated_calibration_style
+            dimensional_calibration_style_property.value = calibration_style.calibration_style_id
         else:
-            valid_calibration_styles = ("calibrated", "pixels-top-left", "pixels-center", "relative-top-left", "relative-center")
+            valid_calibration_styles = (calibrated_style.calibration_style_id for calibrated_style in self.calibration_styles)
             if not dimensional_calibration_style_property.value in valid_calibration_styles:
-                dimensional_calibration_style_property.value = "calibrated" if dimensional_calibration_style_property.value.startswith("calibration") else "pixels-center"
+                calibration_style = self.default_calibrated_calibration_style if dimensional_calibration_style_property.value.startswith("calibration") else self.default_uncalibrated_calibration_style
+                dimensional_calibration_style_property.value = calibration_style.calibration_style_id
 
     @property
     def container(self):
@@ -629,7 +684,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if property_name in ("dimensional_calibration_style", ):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
-            self._get_persistent_property("display_calibrated_values").value = (value == "calibrated")
+            calibration_style = self.__get_calibration_style_for_id(value)
+            self._get_persistent_property("display_calibrated_values").value = calibration_style.is_calibrated if calibration_style else None
 
     # message sent when data changes.
     # thread safe
@@ -730,28 +786,34 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         dimensional_calibration_style = self.dimensional_calibration_style
-        if (dimensional_calibration_style is None or dimensional_calibration_style == "calibrated") and self.__data_and_metadata:
-            return self.__data_and_metadata.dimensional_calibrations
-        else:
-            dimensional_shape = self.__data_and_metadata.dimensional_shape if self.__data_and_metadata is not None else None
-            if dimensional_shape is not None:
-                if dimensional_calibration_style == "relative-top-left":
-                    return [Calibration.Calibration(scale=1.0/display_dimension) for display_dimension in dimensional_shape]
-                elif dimensional_calibration_style == "relative-center":
-                    return [Calibration.Calibration(scale=2.0/display_dimension, offset=-1.0) for display_dimension in dimensional_shape]
-                elif dimensional_calibration_style == "pixels-top-left":
-                    return [Calibration.Calibration() for display_dimension in dimensional_shape]
-                else:  # "pixels-center"
-                    return [Calibration.Calibration(offset=-display_dimension/2) for display_dimension in dimensional_shape]
-            else:
-                return list()
+        calibration_style = self.__get_calibration_style_for_id(dimensional_calibration_style)
+        if calibration_style is None or self.__data_and_metadata is None:
+            return self.__data_and_metadata.dimensional_calibrations if self.__data_and_metadata else list()
+        return calibration_style.get_dimensional_calibrations(self.__data_and_metadata)
 
     @property
     def displayed_intensity_calibration(self):
-        if (self.dimensional_calibration_style == "calibrated") and self.__data_and_metadata:
-            return self.__data_and_metadata.intensity_calibration
-        else:
-            return Calibration.Calibration()
+        dimensional_calibration_style = self.dimensional_calibration_style
+        calibration_style = self.__get_calibration_style_for_id(dimensional_calibration_style)
+        if calibration_style is None or self.__data_and_metadata is None:
+            return self.__data_and_metadata.intensity_calibration if self.__data_and_metadata else Calibration.Calibration()
+        return calibration_style.get_intensity_calibration(self.__data_and_metadata)
+
+    @property
+    def calibration_styles(self) -> typing.List[CalibrationStyle]:
+        return [CalibrationStyleNative(), CalibrationStylePixelsTopLeft(), CalibrationStylePixelsCenter(),
+                CalibrationStyleFractionalTopLeft(), CalibrationStyleFractionalCenter()]
+
+    @property
+    def default_calibrated_calibration_style(self):
+        return CalibrationStyleNative()
+
+    @property
+    def default_uncalibrated_calibration_style(self):
+        return CalibrationStylePixelsCenter()
+
+    def __get_calibration_style_for_id(self, calibration_style_id: str) -> typing.Optional[CalibrationStyle]:
+        return next(filter(lambda x: x.calibration_style_id == calibration_style_id, self.calibration_styles), None)
 
     def __get_calibrated_value_text(self, value: float, intensity_calibration) -> str:
         if value is not None:

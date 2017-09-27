@@ -462,8 +462,11 @@ class CalibrationToObservable(Observable.Observable):
 
 
 def make_calibration_style_chooser(ui, display):
-    display_calibration_style_options = ((_("Calibrated"), "calibrated"), (_("Pixels (Top Left)"), "pixels-top-left"), (_("Pixels (Center)"), "pixels-center"), (_("Relative (Top Left)"), "relative-top-left"), (_("Relative (Center)"), "relative-center"))
-    display_calibration_style_reverse_map = {"calibrated": 0, "pixels-top-left": 1, "pixels-center": 2, "relative-top-left": 3, "relative-center": 4}
+    calibration_styles = display.calibration_styles
+
+    display_calibration_style_options = [(calibration_style.label, calibration_style.calibration_style_id) for calibration_style in calibration_styles]
+
+    display_calibration_style_reverse_map = {p[1]: i for i, p in enumerate(display_calibration_style_options)}
 
     class CalibrationStyleIndexConverter:
         def convert(self, value):
@@ -472,7 +475,7 @@ def make_calibration_style_chooser(ui, display):
             if value >= 0 and value < len(display_calibration_style_options):
                 return display_calibration_style_options[value][1]
             else:
-                return "calibrated"
+                return calibration_styles[0].label
 
     display_calibration_style_chooser = ui.create_combo_box_widget(items=display_calibration_style_options, item_getter=operator.itemgetter(0))
     display_calibration_style_chooser.bind_current_index(Binding.PropertyBinding(display, "dimensional_calibration_style", converter=CalibrationStyleIndexConverter(), fallback=0))
