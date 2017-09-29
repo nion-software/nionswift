@@ -1944,18 +1944,19 @@ class Instrument(metaclass=SharedInstance):
         self.__instrument.set_property(name, str(value))
 
     def get_property_as_float_point(self, name: str) -> Geometry.FloatPoint:
-        return Geometry.FloatPoint.make(self.__instrument.get_property(name))
+        value = self.__instrument.get_property(name)
+        return Geometry.FloatPoint.make(value) if value else None
 
     def set_property_as_float_point(self, name: str, value: Geometry.FloatPoint) -> None:
         self.__instrument.set_property(name, tuple(Geometry.FloatPoint.make(value)))
 
     def get_property(self, name: str):
         # deprecated
-        return self.get_property_as_float(name)
+        return self.__instrument.get_property(name)
 
     def set_property(self, name: str, value) -> None:
         # deprecated
-        self.set_property_as_float(name, value)
+        self.__instrument.set_property(name, value)
 
     def execute_command(self, command, args_str, kwargs_str):
         args = pickle.loads(args_str)
