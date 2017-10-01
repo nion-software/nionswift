@@ -6,8 +6,8 @@ import os
 setuptools.setup(
     name="nionswift",
     version="0.0.1",
-    packages=["nion.swift", "nion.swift.model", "nionui_app.nionswift", "nionswift_plugin", "nionlib", "nion.typeshed"],
-    namespace_packages=["nion", "nionswift_plugin"],
+    namespace_packages=["nion", "nionswift_plugin", "nionui_app"],
+    packages=["nion.swift", "nion.swift.model", "nionui_app.nionswift", "nionswift_plugin.none", "nionlib", "nion.typeshed"],
     install_requires=['scipy', 'numpy', 'h5py', 'pytz', 'tzlocal', 'nionutils', 'niondata', 'nionui'],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha"
