@@ -24,6 +24,10 @@ Nion Swift first searches its Python environment for packages.
 It looks for installed packages which have a ``nionswift_plugin`` namespace and treats packages within that
 namespace as packages to be loaded.
 
+When you create a Python package, you should NOT put a ``__init__.py`` in the ``nionswift_plugin`` directory, since it
+is a Python namespace. See `PEP 420 <https://www.python.org/dev/peps/pep-0420/>`_ for more details. Similarly, you will
+NOT need the `namespace_packages` directive in your `setup.py` file.
+
 Loading Your Python Package
 ---------------------------
 After Nion Swift finds your packages, it loads them.
@@ -80,7 +84,6 @@ For instance, you might have the following directory structure. ::
 
     mycompany/__init__.py
     mycompany/processing/feature_finder.py
-    nionswift_plugin/__init__.py
     nionswift_plugin/mycompany_featurefinder/feature_finder_ui.py
 
 This allows your UI code and other packages to access your ``feature_finder`` code. ::
