@@ -3,6 +3,15 @@
 Release Notes
 =============
 
+Version 0.11.1, In Progress
+---------------------------
+* (2017-10-11) Use min/max for auto display limits (enter key). Was more complex algorithm.
+* (2017-10-04) Fix launch issue on Linux with recent Miniconda releases.
+* (2017-10-02) Improvements to metadata organization during camera/scan acquisition.
+* (2017-09-25) Add additional options for exporting TIFF to ImageJ or Baseline compatible files.
+* (2017-09-21) Add option to export 1D as X-Y CSV.
+* (2017-09-21) Add interval/count controls to recorder dialog.
+
 Version 0.11.0, September 18, 2017
 ----------------------------------
 * (2017-09-14) Improve rendering pipeline again to reduce latency.
