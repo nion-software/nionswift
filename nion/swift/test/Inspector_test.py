@@ -501,7 +501,7 @@ class TestInspectrorClass(unittest.TestCase):
         display_specifier.display.add_graphic(point_graphic)
         graphic_widget = self.app.ui.create_column_widget()
         Inspector.make_rectangle_type_inspector(self.app.ui, graphic_widget, display_specifier, display_specifier.display.graphics[0])
-        display_specifier.display.dimensional_calibration_style = "pixel-center"
+        display_specifier.display.dimensional_calibration_style = "pixels-center"
         self.assertEqual(graphic_widget.find_widget_by_id("x").text, "0.0")  # x
         self.assertEqual(graphic_widget.find_widget_by_id("y").text, "0.0")  # y
         self.assertEqual(graphic_widget.find_widget_by_id("width").text, "50.0")  # width
