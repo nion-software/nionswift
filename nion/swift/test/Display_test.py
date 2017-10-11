@@ -419,8 +419,8 @@ class TestDisplayClass(unittest.TestCase):
             data_item = DataItem.DataItem(data)
             data_item.displays[0].auto_display_limits()
             low, high = data_item.displays[0].display_limits
-            self.assertAlmostEqual(low, 0.9)
-            self.assertAlmostEqual(high, 2.1)
+            self.assertAlmostEqual(low, 0.0)
+            self.assertAlmostEqual(high, 3.0)
 
     def test_display_range_is_recalculated_with_new_data(self):
         document_model = DocumentModel.DocumentModel()

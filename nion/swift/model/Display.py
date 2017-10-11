@@ -478,9 +478,12 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         display_data_and_metadata = self.get_calculated_display_values(True).display_data_and_metadata
         data = display_data_and_metadata.data if display_data_and_metadata else None
         if data is not None:
-            percentiles = numpy.nanpercentile(data.flatten(), (0.1, 99.9))
-            range = percentiles[1] - percentiles[0]
-            self.display_limits = percentiles[0] - range * 0.1, percentiles[1] + range * 0.1
+            # The old algorithm was a problem during EELS where the signal data
+            # is a small percentage of the overall data and was falling outside
+            # the included range. This is the new simplified algorithm. Future
+            # feature may allow user to select more complex algorithms.
+            mn, mx = numpy.nanmin(data), numpy.nanmax(data)
+            self.display_limits = mn, mx
 
     def view_to_intervals(self, data_and_metadata: DataAndMetadata.DataAndMetadata, intervals: typing.List[typing.Tuple[float, float]]) -> None:
         """Change the view to encompass the channels and data represented by the given intervals."""
