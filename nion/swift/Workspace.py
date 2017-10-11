@@ -372,13 +372,17 @@ class Workspace:
 
         def reject_button_clicked():
             if rejected_fn: rejected_fn()
-            self.message_column.remove(message_box_widget)
+            async def remove_widget():
+                self.message_column.remove(message_box_widget)
+            self.document_controller.event_loop.create_task(remove_widget())
             del self.__message_boxes[message_box_id]
             return False
 
         def accept_button_clicked():
             accepted_fn(string_edit_widget.text)
-            self.message_column.remove(message_box_widget)
+            async def remove_widget():
+                self.message_column.remove(message_box_widget)
+            self.document_controller.event_loop.create_task(remove_widget())
             del self.__message_boxes[message_box_id]
             return False
 

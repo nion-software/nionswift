@@ -43,12 +43,10 @@ def pose_get_string_message_box(ui, message_column, caption, text, accepted_fn, 
     def reject_button_clicked():
         if rejected_fn:
             rejected_fn()
-        message_column.remove(message_box_widget)
         return False
 
     def accept_button_clicked():
         accepted_fn(string_edit_widget.text)
-        message_column.remove(message_box_widget)
         return False
 
     string_edit_widget = ui.create_line_edit_widget()
@@ -87,11 +85,11 @@ def pose_confirmation_message_box(ui, message_column, caption, accepted_fn, reje
     def reject_button_clicked():
         if rejected_fn:
             rejected_fn()
-        message_column.remove(message_box_widget)
+        return False
 
     def accept_button_clicked():
         accepted_fn()
-        message_column.remove(message_box_widget)
+        return False
 
     reject_button = ui.create_push_button_widget(rejected_text)
     reject_button.on_clicked = reject_button_clicked
