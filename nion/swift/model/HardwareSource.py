@@ -887,7 +887,7 @@ class HardwareSource:
                 return new_xdatas
 
     @property
-    def channel_count(self) -> int:
+    def data_channel_count(self) -> int:
         return len(self.__data_channels)
 
     @property
