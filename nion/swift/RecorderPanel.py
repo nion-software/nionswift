@@ -95,6 +95,7 @@ class RecorderDialog(Dialog.ActionDialog):
         self.__recording_index = 0
         self.__recording_data_item = None
         self.__recording_transacted = False
+        self.__recording_error = False
 
         self.__recording_interval = self.__recording_interval_property.value / 1000
         self.__recording_count = self.__recording_count_property.value
@@ -125,16 +126,32 @@ class RecorderDialog(Dialog.ActionDialog):
                 self.__stop_recording()
                 self.request_close()
 
+        def data_changed():
+            current_xdata = self.__data_item.xdata
+            if current_xdata and not current_xdata.is_sequence:
+                hardware_source_metadata = current_xdata.metadata.get("hardware_source", dict())
+                valid_rows = hardware_source_metadata.get("valid_rows", 0) if "valid_rows" in hardware_source_metadata else current_xdata.data_shape[0]
+                if len(current_xdata.data_shape) == 1 or valid_rows >= current_xdata.data_shape[0]:
+                    self.__last_complete_xdata = current_xdata
+            else:
+                self.__recording_error = True
+
         self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
         self.__data_item_deleted_event_listener = self.document_controller.document_model.data_item_deleted_event.listen(data_item_deleted)
+        self.__data_item_data_changed_event_listener = self.__data_item.data_changed_event.listen(data_changed)
+
+        self.__last_complete_xdata = None
 
         data_item_content_changed()
+        data_changed()
 
     def close(self):
         self.__data_item_content_changed_event_listener.close()
         self.__data_item_content_changed_event_listener = None
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
+        self.__data_item_data_changed_event_listener.close()
+        self.__data_item_data_changed_event_listener = None
         super().close()
 
     def periodic(self):
@@ -152,9 +169,12 @@ class RecorderDialog(Dialog.ActionDialog):
                     self.__recording_data_item = data_item
                     self.__recording_transacted = False
                 # next grab the current data and stop if it is a sequence (can't record sequences)
-                current_xdata = self.__data_item.xdata
-                if current_xdata.is_sequence:
+                current_xdata = self.__last_complete_xdata
+                if self.__recording_error:
                     self.__stop_recording()
+                    return
+                if not current_xdata:
+                    # no first image yet
                     return
                 # now record the new data. it may or may not be a new frame at this point.
                 last_xdata = self.__recording_data_item.xdata
@@ -187,6 +207,7 @@ class RecorderDialog(Dialog.ActionDialog):
         self.__recording_state = "recording"
         self.__recording_last = 0.0
         self.__recording_index = 0
+        self.__recording_error = False
         self.__recording_interval = self.__recording_interval_property.value / 1000
         self.__recording_count = self.__recording_count_property.value
         self.__record_button.text = _("Stop")
@@ -196,6 +217,7 @@ class RecorderDialog(Dialog.ActionDialog):
             self.__recording_state = "stopped"
             self.__recording_last = 0.0
             self.__recording_index = 0
+            self.__recording_error = False
             if self.__recording_data_item and self.__recording_transacted:
                 self.__recording_data_item._exit_transaction_state()
                 self.__recording_data_item = None

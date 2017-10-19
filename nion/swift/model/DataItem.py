@@ -1078,8 +1078,9 @@ class DataItem(LibraryItem):
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)
         self.define_item("computation", computation_factory)
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
-        self.data_item_changed_event = Event.Event()
-        self.metadata_changed_event = Event.Event()
+        self.data_item_changed_event = Event.Event()  # anything has changed
+        self.data_changed_event = Event.Event()  # data has changed
+        self.metadata_changed_event = Event.Event()  # metadata has changed (always if data has changed)
         self.__write_delay_data_changed = False
         self.__data_source_metadata_changed_event_listener = None
         self.__data_source_data_changed_event_listener = None
@@ -1088,6 +1089,7 @@ class DataItem(LibraryItem):
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__change_changed = False
+        self.__change_data_changed = False
         self.__pending_xdata_lock = threading.RLock()
         self.__pending_xdata = None
         if data is not None:
@@ -1273,6 +1275,7 @@ class DataItem(LibraryItem):
 
     def __handle_data_changed(self, data_source):
         self.__change_changed = True
+        self.__change_data_changed = True
         self.timezone = Utility.get_local_timezone()
         self.timezone_offset = Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes())
         if self._session_manager:
@@ -1492,6 +1495,7 @@ class DataItem(LibraryItem):
 
     def __end_changes(self):
         changed = False
+        data_changed = False
         with self.__change_count_lock:
             if self.__change_count == 1:
                 self.__change_thread = None
@@ -1503,14 +1507,19 @@ class DataItem(LibraryItem):
             if change_count == 0:
                 changed = self.__change_changed
                 self.__change_changed = False
+                data_changed = self.__change_data_changed
+                self.__change_data_changed = False
         # if the change count is now zero, it means that we're ready
         # to pass on the next value.
-        if change_count == 0 and changed:
-            self.__update_displays()
-            if not self._is_reading:
-                self.__write_delay_data_changed = True
-                self._notify_library_item_content_changed()
-                self.data_item_changed_event.fire()
+        if change_count == 0:
+            if data_changed:
+                self.data_changed_event.fire()
+            if changed:
+                self.__update_displays()
+                if not self._is_reading:
+                    self.__write_delay_data_changed = True
+                    self._notify_library_item_content_changed()
+                    self.data_item_changed_event.fire()
 
     def __update_displays(self):
         data_and_metadata = self.xdata
