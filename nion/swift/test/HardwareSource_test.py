@@ -16,7 +16,6 @@ from nion.swift.model import Utility
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
-from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.utils import Geometry
@@ -68,15 +67,18 @@ class SimpleHardwareSource(HardwareSource.HardwareSource):
 
 class LinePlotAcquisitionTask(HardwareSource.AcquisitionTask):
 
-    def __init__(self, is_continuous, sleep):
+    def __init__(self, shape, is_continuous, sleep):
         super().__init__(is_continuous)
+        self.shape = shape
         self.sleep = sleep
+        self.frame_number = 0
 
     def make_data_element(self):
         return {
             "version": 1,
-            "data": numpy.zeros((16,2)),
-            "collection_dimension_count": 1,
+            "data": numpy.zeros(self.shape),
+            "frame_number": self.frame_number,
+            "collection_dimension_count": 1 if len(self.shape) > 1 else 0,
             "datum_dimension_count": 1,
             "properties": {
                 "exposure": 0.5,
@@ -87,6 +89,7 @@ class LinePlotAcquisitionTask(HardwareSource.AcquisitionTask):
         }
 
     def _acquire_data_elements(self):
+        self.frame_number += 1
         time.sleep(self.sleep)
         data_element = self.make_data_element()
         return [data_element]
@@ -94,17 +97,19 @@ class LinePlotAcquisitionTask(HardwareSource.AcquisitionTask):
 
 class LinePlotHardwareSource(HardwareSource.HardwareSource):
 
-    def __init__(self, sleep=0.05):
+    def __init__(self, shape, processed, sleep=0.05):
         super().__init__("described_hardware_source", "DescribedHardwareSource")
         self.add_data_channel()
+        if processed:
+            self.add_channel_processor(0, HardwareSource.SumProcessor(((0.0, 0.0), (1.0, 1.0))))
         self.sleep = sleep
-        self.image = numpy.zeros((256, 256))
+        self.shape = shape
 
     def _create_acquisition_view_task(self) -> LinePlotAcquisitionTask:
-        return LinePlotAcquisitionTask(True, self.sleep)
+        return LinePlotAcquisitionTask(self.shape, True, self.sleep)
 
     def _create_acquisition_record_task(self) -> LinePlotAcquisitionTask:
-        return LinePlotAcquisitionTask(False, self.sleep)
+        return LinePlotAcquisitionTask(self.shape, False, self.sleep)
 
 
 class SummedHardwareSource(HardwareSource.HardwareSource):
@@ -512,10 +517,10 @@ class TestHardwareSourceClass(unittest.TestCase):
         HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
         return document_controller, document_model, hardware_source
 
-    def __setup_line_plot_hardware_source(self, persistent_storage_systems=None):
+    def __setup_line_plot_hardware_source(self, shape, processed=False, persistent_storage_systems=None):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=persistent_storage_systems)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        hardware_source = LinePlotHardwareSource()
+        hardware_source = LinePlotHardwareSource(shape, processed)
         hardware_source.exposure = 0.01
         HardwareSource.HardwareSourceManager().register_hardware_source(hardware_source)
         return document_controller, document_model, hardware_source
@@ -1011,12 +1016,36 @@ class TestHardwareSourceClass(unittest.TestCase):
             self.assertIsNotNone(document_model.data_items[0].data)
 
     def test_hardware_source_grabs_data_with_correct_descriptor(self):
-        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source()
+        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source((16, 2))
         with contextlib.closing(document_controller):
             self.__acquire_one(document_controller, hardware_source)
             xdata = document_model.data_items[0].xdata
             self.assertEqual(len(xdata.dimensional_shape), 2)
             self.assertEqual(xdata.collection_dimension_count, 1)
+            self.assertEqual(xdata.datum_dimension_count, 1)
+
+    def test_hardware_source_grabs_summed_1d_data(self):
+        # really an error case, 1d acquisition + summed processing
+        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source((16, ), processed=True)
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            xdata = document_model.data_items[0].xdata
+            self.assertEqual(len(xdata.dimensional_shape), 1)
+            self.assertEqual(xdata.datum_dimension_count, 1)
+            xdata = document_model.data_items[1].xdata
+            self.assertEqual(len(xdata.dimensional_shape), 1)
+            self.assertEqual(xdata.datum_dimension_count, 1)
+
+    def test_hardware_source_grabs_summed_1xn_data(self):
+        # really an error case, 1d acquisition + summed processing
+        document_controller, document_model, hardware_source = self.__setup_line_plot_hardware_source((1, 16), processed=True)
+        with contextlib.closing(document_controller):
+            self.__acquire_one(document_controller, hardware_source)
+            xdata = document_model.data_items[0].xdata
+            self.assertEqual(len(xdata.dimensional_shape), 2)
+            self.assertEqual(xdata.datum_dimension_count, 1)
+            xdata = document_model.data_items[1].xdata
+            self.assertEqual(len(xdata.dimensional_shape), 1)
             self.assertEqual(xdata.datum_dimension_count, 1)
 
     def test_hardware_source_api_grabs_summed_data(self):

@@ -958,7 +958,12 @@ class SumProcessor(Observable.Observable, Persistence.PersistentObject):
                 self.__crop_graphic.bounds = value
 
     def process(self, data_and_metadata: Core.DataAndMetadata) -> Core.DataAndMetadata:
-        return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
+        if data_and_metadata.datum_dimension_count > 1 and data_and_metadata.data_shape[0] > 1:
+            return Core.function_sum(Core.function_crop(data_and_metadata, self.__bounds), 0)
+        elif len(data_and_metadata.data_shape) > 1:
+            return Core.function_sum(data_and_metadata, 0)
+        else:
+            return copy.deepcopy(data_and_metadata)
 
     def connect(self, data_item_reference):
         """Connect to the data item reference, creating a crop graphic if necessary.
