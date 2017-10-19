@@ -20,9 +20,11 @@ Interactive scripts must include a ``script_main`` function that looks similar t
 
     def script_main(api_broker):
         interactive = api_broker.get_interactive(version='~1.0')
+        api = api_broker.get_api(version='~1.0')
         is_confirmed = interactive.confirm_yes_no('Are you ready?')
         if is_confirmed:
             print('Proceeding...')
+            api.show(numpy.ones((16, 16)))
 
 The special object ``interactive`` represents functions useful in an interactive environment.
 
