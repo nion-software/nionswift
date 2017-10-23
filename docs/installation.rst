@@ -16,7 +16,7 @@ Python Environment
 To use Nion Swift for offline use, you will need to install a Python environment. We recommend have a dedicated
 Python installation that is only used for Nion Swift.
 
-On Windows and MacOS, you will first need to install Python for your specific platform.
+You will first need to install Python for your specific platform.
 
 Nion Swift has been tested extensively with the *Anaconda* Python distribution and we recommend using that. The
 Anaconda distribution includes a wide range of preinstalled Python packages, including everything required for
@@ -25,8 +25,9 @@ Nion Swift. If you are familiar with Python and wish to use a smaller distributi
 
 We recommend using Python 3.6 or later for best performance, although the application is compatible with Python 3.5.
 
-The Python environment requires the ``scipy``, ``pytz``, and ``h5py`` packages as a minimum installation requirement. The Anaconda
-distribution includes these by default. The Miniconda installation will require them to be installed explicitly.
+The Python environment requires the ``scipy``, ``pytz``, and ``h5py`` packages as a minimum installation requirement.
+The Anaconda distribution includes these by default. The Miniconda installation will require them to be installed
+explicitly.
 
 Begin by installing Anaconda or Miniconda on your system.
 
@@ -49,6 +50,7 @@ Nion Swift for Windows requires Windows 7 or later, although we recommend Window
 
 Nion Swift for Windows requires you to install the Microsoft Visual C++ Redistributable for Visual Studio 2015.
 
+    * Install Anaconda or Miniconda (see above)
     * `Visual C++ Redistributable for Visual Studio 2015 <https://www.microsoft.com/en-us/download/details.aspx?id=48145>`_
     * `Download Nion Swift 0.11.1 for Windows <http://nion.com/swift/files/NionSwift_Windows_np112py36_0.11.1.zip>`_
     * md5 checksum 69080329efe0dc520a9f09f532bdff96
@@ -75,6 +77,7 @@ MacOS
 -----
 Nion Swift for macOS requires macOS 10.7 or later. We recommend using the latest version of macOS.
 
+    * Install Anaconda or Miniconda (see above)
     * `Download Nion Swift 0.11.1 for macOS <http://nion.com/swift/files/NionSwift_MacOS_np112py36_0.11.1.zip>`_
     * md5 checksum b6c3fbb66e96fa0fb8a4eb917ce24d29
 
@@ -90,9 +93,11 @@ Linux
 Nion Swift for Linux requires Qt 5.5 or later (qt5-default), Python 3.5 or later, and packages scipy, h5py, and pytz to
 be installed.
 
-Swift has been tested with Ubuntu 16.04, 17.04, Debian 9, Fedora 26. It is not compatible with Debian 8 (Qt 5.3) but
-please contact us if you need to run on Debian 8 as there may be workarounds.
+Swift has been tested with Ubuntu 16.04, 17.04, 17.10, Debian 9, Fedora 26. It is not compatible with Debian 8 (Qt 5.3)
+but please contact us if you need to run on Debian 8 as there may be workarounds.
 
+    * Install Anaconda or Miniconda (see above)
+    * Install qt5-default (`sudo apt-get qt5-default`)
     * `Download Nion Swift 0.11.1 for Linux <http://nion.com/swift/files/NionSwift_Linux_np112py36_0.11.1.zip>`_
     * md5 checksum 23f82e46a83b6cdc72d3aee0149ecb37
 
