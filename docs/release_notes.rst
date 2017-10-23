@@ -3,8 +3,12 @@
 Release Notes
 =============
 
-Version 0.11.1, In Progress
----------------------------
+Version 0.11.1, October 23, 2017
+--------------------------------
+* (2017-10-20) Fixed nionlib import issue (wasn't starting host).
+* (2017-10-20) Additional documentation on readthedocs.
+* (2017-10-19) Improve recorder panel to sync to frames for devices with partial acquisition (scans).
+* (2017-10-11) Fix crashes in keyboard handling in interactive scripts and mouse tracker (scan rotation).
 * (2017-10-11) Use min/max for auto display limits (enter key). Was more complex algorithm.
 * (2017-10-04) Fix launch issue on Linux with recent Miniconda releases.
 * (2017-10-02) Improvements to metadata organization during camera/scan acquisition.
