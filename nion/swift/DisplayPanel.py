@@ -1492,6 +1492,7 @@ class DisplayPanel:
             is_focused = self._is_focused()
             canvas_item = self.__display_panel_content.canvas_item
             self.__display_panel_content.close()
+            self.__display_panel_content = None
             self.__canvas_item.remove_canvas_item(canvas_item)
 
         self.__display_panel_content = DataDisplayPanelContent(document_controller)
