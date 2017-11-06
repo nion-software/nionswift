@@ -62,12 +62,11 @@ class MetadataModel:
             data_item.metadata = metadata
 
     def __metadata_changed(self, data_item):
-        if data_item:
-            metadata = data_item.metadata
-            assert isinstance(metadata, dict)
-            if self.__metadata != metadata:
-                self.__metadata = metadata if metadata is not None else dict()
-                self.metadata_changed_event.fire(self.__metadata)
+        metadata = data_item.metadata if data_item else dict()
+        assert isinstance(metadata, dict)
+        if self.__metadata != metadata:
+            self.__metadata = metadata if metadata is not None else dict()
+            self.metadata_changed_event.fire(self.__metadata)
 
     # not thread safe
     def __set_display_specifier(self, display_specifier):
@@ -182,10 +181,11 @@ class MetadataPanel(Panel.Panel):
         scroll_area.content = column
 
         def content_height_changed(content_height):
-            metadata_editor_canvas_item.sizing.set_fixed_height(content_height + 12)
+            desired_height = content_height + 12
+            metadata_editor_canvas_item.sizing.set_fixed_height(desired_height)
             metadata_editor_widget.canvas_item.update_layout(Geometry.IntPoint(), scroll_area.size)
             if metadata_editor_canvas_item._has_layout:
-                column.size = Geometry.IntSize(height=metadata_editor_canvas_item.canvas_size.height, width=column.size.width)
+                column.size = Geometry.IntSize(height=desired_height, width=column.size.width)
 
         metadata_editor_canvas_item.on_content_height_changed = content_height_changed
 
