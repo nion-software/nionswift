@@ -453,10 +453,10 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                                     with self.__update_layout_handle_lock:
                                         self.__update_layout_handle = None
 
-    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
-        self.__graphics = copy.copy(graphics)
+    def update_regions(self, display, graphic_selection):
+        self.__graphics = copy.copy(display.graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
-        self.__graphics_canvas_item.update_graphics(displayed_shape, self.__graphics, self.__graphic_selection)
+        self.__graphics_canvas_item.update_graphics(display.preview_2d_shape, self.__graphics, self.__graphic_selection)
         self.__graphics_changed = True
 
     def handle_auto_display(self, display) -> bool:

@@ -563,10 +563,7 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
             if display:
                 def display_graphic_selection_changed(graphic_selection):
                     # this message comes from the display when the graphic selection changes
-                    displayed_shape = display.preview_2d_shape
-                    displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-                    graphics = display.graphics
-                    self.__display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics)
+                    self.__display_canvas_item.update_regions(display, graphic_selection)
 
                 def display_rgba_changed(display_values):
                     with self.__closing_lock:
@@ -955,7 +952,7 @@ class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
     def update_display_values(self, display, display_values):
         pass
 
-    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
+    def update_regions(self, display, graphic_selection):
         pass
 
     def handle_auto_display(self, display) -> bool:
@@ -1783,9 +1780,6 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
 
 
 def preview(ui, display: Display.Display, width: int, height: int) -> DrawingContext.DrawingContext:
-    displayed_shape = display.preview_2d_shape
-    displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
-    graphics = display.graphics
     display_type = display.actual_display_type
     display_values = display.get_calculated_display_values(True)
     drawing_context = DrawingContext.DrawingContext()
@@ -1793,7 +1787,7 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
             display_canvas_item.update_display_values(display, display_values)
-            display_canvas_item.update_regions(displayed_shape, displayed_dimensional_calibrations, Display.GraphicSelection(), graphics)
+            display_canvas_item.update_regions(display, Display.GraphicSelection())
 
             with drawing_context.saver():
                 frame_width, frame_height = width, int(width / display_canvas_item.default_aspect_ratio)

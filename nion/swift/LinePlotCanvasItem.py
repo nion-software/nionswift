@@ -266,7 +266,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                     self.__line_graph_horizontal_axis_scale_canvas_item.update()
                     self.__line_graph_horizontal_axis_ticks_canvas_item.update()
 
-    def update_regions(self, displayed_shape, displayed_dimensional_calibrations, graphic_selection, graphics):
+    def update_regions(self, display, graphic_selection):
+        displayed_shape = display.preview_2d_shape
+        graphics = display.graphics
+
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
 
@@ -274,7 +277,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return
 
         data_length = displayed_shape[-1]
-        dimensional_calibration = displayed_dimensional_calibrations[-1]
+        dimensional_calibration = display.displayed_dimensional_calibrations[-1]
 
         def convert_to_calibrated_value_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_length), samples=data_length, include_units=False))
