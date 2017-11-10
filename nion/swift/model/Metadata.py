@@ -14,9 +14,17 @@ session_key_map = {
     'stem.session.sample_formula': {'path': ['sample_formula'], 'type': 'string'},
 }
 
+# 'hardware_source' should be 'detector' at some point in the future. see HMSA file format for more thoughts.
+
+# keys can exclude the unit suffix if units are SI
+
 key_map = {
     'stem.hardware_source.id': {'path': ['hardware_source', 'hardware_source_id'], 'type': 'string'},
     'stem.hardware_source.name': {'path': ['hardware_source', 'hardware_source_name'], 'type': 'string'},
+
+    'stem.signal_type': {'path': ['hardware_source', 'signal_type'], 'type': 'string'},
+    # EDS, WDS, ELS, AES, PES, XRF, CLS, GAM, BEI, CBED, EBSD, EDIF, LEED, OPR, OPT, PIXE, RHEED, SEI, SXES, TEM
+    # see HMSA
 
     'stem.high_tension_v': {'path': ['hardware_source', 'autostem', 'high_tension_v'], 'type': 'integer'},
     'stem.gun_type': {'path': ['hardware_source', 'gun_type'], 'type': 'string'},
@@ -37,6 +45,7 @@ key_map = {
     'stem.camera.exposure_s': {'path': ['hardware_source', 'exposure'], 'type': 'real'},
     'stem.camera.frame_index': {'path': ['hardware_source', 'frame_index'], 'type': 'integer'},
     'stem.camera.valid_rows': {'path': ['hardware_source', 'valid_rows'], 'type': 'integer'},
+    'stem.camera.detector_current': {'path': ['hardware_source', 'detector_current'], 'type': 'real'},
 
     'stem.scan.center_x_nm': {'path': ['hardware_source', 'center_x_nm'], 'type': 'real'},
     'stem.scan.center_y_nm': {'path': ['hardware_source', 'center_y_nm'], 'type': 'real'},

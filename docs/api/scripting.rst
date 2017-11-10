@@ -483,6 +483,15 @@ If a key or set of keys should be added, Nion maintains a registry of keys. Plea
 ``stem.collection_angle_rad``          real
 ``stem.probe_size_m2``                 real
 ``stem.beam_current_a``                real
+``stem.defocus_m``                     real
+====================================== ====
+
+|
+
+====================================== ====
+**STEM Data**
+====================================== ====
+``stem.signal_type``                   string (EELS, EDS, CL, Ronchigram, HAADF, MAADF, BF)
 ====================================== ====
 
 |
@@ -516,6 +525,7 @@ If a key or set of keys should be added, Nion maintains a registry of keys. Plea
 ``stem.camera.exposure_s``             real
 ``stem.camera.frame_index``            integer
 ``stem.camera.valid_rows``             integer
+``stem.camera.detector_current``       real
 ====================================== ====
 
 |
