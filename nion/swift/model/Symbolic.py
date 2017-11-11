@@ -72,6 +72,8 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.variable_type_changed_event = Event.Event()
         self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
         self.needs_rebuild_event = Event.Event()  # an event to be fired when the UI needs a rebuild
+        self.__bound_item = None
+        self.__bound_item_changed_event_listener = None
 
     def __repr__(self):
         return "{} ({} {} {} {} {})".format(super().__repr__(), self.name, self.label, self.value, self.specifier, self.secondary_specifier)
@@ -149,6 +151,24 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 self.__variable_property_changed_listener = None
         return BoundVariable(self)
 
+    @property
+    def bound_item(self):
+        return self.__bound_item
+
+    @bound_item.setter
+    def bound_item(self, value):
+        self.__bound_item = value
+        if self.__bound_item:
+            def fire_changed_event():
+                self.changed_event.fire()
+            self.__bound_item_changed_event_listener = self.__bound_item.changed_event.listen(fire_changed_event)
+        else:
+            if self.__bound_item_changed_event_listener:
+                self.__bound_item_changed_event_listener.close()
+                self.__bound_item_changed_event_listener = None
+            if self.__bound_item:
+                self.__bound_item.close()
+
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
         if name in ["name", "label"]:
@@ -162,6 +182,12 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         self.changed_event.fire()
         if name in ["value_type", "value_min", "value_max", "control_type"]:
             self.needs_rebuild_event.fire()
+
+    def notify_property_changed(self, key):
+        # whenever a property changed event is fired, also fire the changed_event
+        # is there a test for this? not that I can find.
+        super().notify_property_changed(key)
+        self.changed_event.fire()
 
     def control_type_default(self, value_type: str) -> None:
         mapping = {"boolean": "checkbox", "integral": "slider", "real": "field", "complex": "field", "string": "field"}
@@ -404,9 +430,6 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("variables", variable_factory)
         self.__variable_changed_event_listeners = dict()
         self.__variable_needs_rebind_event_listeners = dict()
-        self.__bound_items = dict()
-        self.__bound_item_changed_event_listeners = dict()
-        self.__variable_property_changed_listener = dict()
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
         self.computation_mutated_event = Event.Event()
@@ -496,7 +519,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if needs_update:
             variables = dict()
             for variable in self.variables:
-                bound_object = self.__bound_items.get(variable.uuid)
+                bound_object = variable.bound_item
                 if bound_object is not None:
                     resolved_object = bound_object.value if bound_object else None
                     # in the ideal world, we could clone the object/data and computations would not be
@@ -534,23 +557,17 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return None
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
+        # bind the variable. the variable has a reference to another object in the library.
+        # this method finds that object and stores it into the variable. it also sets up
+        # listeners to notify this computation that the variable or the object referenced
+        # by the variable has changed in a way that the computation needs re-execution,
+        # and that the variable needs rebinding, which must be done from this class.
+
         def needs_update():
             self.needs_update = True
             self.computation_mutated_event.fire()
 
         self.__variable_changed_event_listeners[variable.uuid] = variable.changed_event.listen(needs_update)
-
-        variable_specifier = variable.variable_specifier
-        if not variable_specifier:
-            return
-
-        bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier)
-
-        self.__bound_items[variable.uuid] = bound_item
-
-        self.__variable_property_changed_listener[variable.uuid] = variable.property_changed_event.listen(lambda k: needs_update())
-        if bound_item:
-            self.__bound_item_changed_event_listeners[variable.uuid] = bound_item.changed_event.listen(needs_update)
 
         def rebind():
             self.__unbind_variable(variable)
@@ -558,22 +575,18 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
         self.__variable_needs_rebind_event_listeners[variable.uuid] = variable.needs_rebind_event.listen(rebind)
 
+        variable_specifier = variable.variable_specifier
+        if not variable_specifier:
+            return
+
+        variable.bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier)
+
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()
         del self.__variable_changed_event_listeners[variable.uuid]
         self.__variable_needs_rebind_event_listeners[variable.uuid].close()
         del self.__variable_needs_rebind_event_listeners[variable.uuid]
-        if variable.uuid in self.__bound_items:
-            bound_item = self.__bound_items[variable.uuid]
-            if bound_item:
-                bound_item.close()
-            del self.__bound_items[variable.uuid]
-        if variable.uuid in self.__bound_item_changed_event_listeners:
-            self.__bound_item_changed_event_listeners[variable.uuid].close()
-            del self.__bound_item_changed_event_listeners[variable.uuid]
-        if variable.uuid in self.__variable_property_changed_listener:
-            self.__variable_property_changed_listener[variable.uuid].close()
-            del self.__variable_property_changed_listener[variable.uuid]
+        variable.bound_item = None
 
     def bind(self, context) -> None:
         """Bind a context to this computation.
@@ -585,7 +598,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.__computation_context = ComputationContext(self, context)
 
         # re-bind is not valid. be careful to set the computation after the data item is already in document.
-        assert len(self.__bound_items) == 0
+        for variable in self.variables:
+            assert variable.bound_item is None
 
         # bind the individual variables
         for variable in self.variables:

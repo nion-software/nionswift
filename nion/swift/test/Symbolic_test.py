@@ -1454,6 +1454,20 @@ class TestSymbolicClass(unittest.TestCase):
                 Utility.local_timezone_override = None
                 Utility.local_utcoffset_override = None
 
+    def test_deleting_one_variable_on_bound_computation_rebinds_properly(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            src_data = numpy.random.randn(2, 2)
+            data_item = DataItem.DataItem(src_data)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("x"))
+            x_var = computation.create_variable("x")
+            computed_data_item = DataItem.DataItem(src_data.copy())
+            document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
+            computation.remove_variable(x_var)
+
     def disabled_test_reshape_rgb(self):
         assert False
 
