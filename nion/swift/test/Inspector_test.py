@@ -700,10 +700,10 @@ class TestInspectrorClass(unittest.TestCase):
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
             computation = document_model.create_computation()
             x = computation.create_variable("x", "integral", 0)
             data_item.set_computation(computation)
-            document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel

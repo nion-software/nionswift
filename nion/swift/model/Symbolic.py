@@ -584,12 +584,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         # make a computation context based on the enclosing context.
         self.__computation_context = ComputationContext(self, context)
 
-        # normally I would think re-bind should not be valid; but for testing, the expression
-        # is often evaluated and bound. it also needs to be bound a new data item is added to a document
-        # model. so special case to see if it already exists. this may prove troublesome down the road.
-        if len(self.__bound_items) == 0:  # check if already bound
-            for variable in self.variables:
-                self.__bind_variable(variable)
+        # re-bind is not valid. be careful to set the computation after the data item is already in document.
+        assert len(self.__bound_items) == 0
+
+        # bind the individual variables
+        for variable in self.variables:
+            self.__bind_variable(variable)
 
     def unbind(self):
         """Unlisten and close each bound item."""
