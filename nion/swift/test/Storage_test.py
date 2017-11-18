@@ -3169,6 +3169,40 @@ class TestStorageClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         document_model.close()
 
+    def __computation1(self, api, src):
+        d = -src.xdata
+        def compute(api, computation):
+            dst = computation.get_result("dst")
+            dst.xdata = d
+        return compute
+
+    def test_library_computation_reconnects_after_reload(self):
+        Symbolic.register_computation_type("computation1", {}, self.__computation1)
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item)
+            dst_data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(dst_data_item)
+            computation = document_model.create_computation()
+            computation.processing_id = "computation1"
+            computation.create_object("src", document_model.get_object_specifier(data_item))
+            computation.create_result("dst", document_model.get_object_specifier(dst_data_item, "data_item"))
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
+            self.assertEqual(len(document_model.computations), 1)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            self.assertEqual(len(document_model.computations), 1)
+            computation = document_model.computations[0]
+            document_model.data_items[0].set_data(numpy.random.randn(3, 3))
+            document_model.recompute_all()
+            self.assertEqual(document_model.data_items[0].data.shape, (3, 3))
+            self.assertTrue(numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data))
+
     def test_data_item_with_references_to_another_data_item_reloads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])

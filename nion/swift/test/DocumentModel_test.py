@@ -212,6 +212,205 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_item_r, "r01")
             self.assertEqual(composite_item_r, "r02")
 
+    find_max_eval_count = 0
+
+    def __find_max(self, api, src):
+        d = src.data
+        max_pos = list(numpy.unravel_index(numpy.argmax(d), d.shape))
+        max_pos = max_pos[0] / d.shape[0], max_pos[1] / d.shape[1]
+
+        def commit(api, computation):
+            graphic = computation.get_result("graphic", None)
+            if not graphic:
+                graphic = src.add_point_region(*max_pos)
+                computation.set_result("graphic", graphic)
+            graphic.position = max_pos
+            self.find_max_eval_count += 1
+
+        return commit
+
+    def test_new_computation_into_existing_result_graphic(self):
+        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((2, 2), numpy.int)
+            d[1, 0] = 1
+            data_item = DataItem.DataItem(d)
+            graphic = Graphics.PointGraphic()
+            data_item.displays[0].add_graphic(graphic)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_result("graphic", document_model.get_object_specifier(graphic))
+            computation.processing_id = "find_max"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(graphic.position, (0.5, 0))
+
+    def test_new_computation_into_new_result_graphic(self):
+        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((2, 2), numpy.int)
+            d[1, 0] = 1
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.processing_id = "find_max"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 1)
+            self.assertEqual(data_item.displays[0].graphics[0].position, (0.5, 0))
+
+    def test_new_computation_into_new_and_then_existing_result_graphic(self):
+        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((2, 2), numpy.int)
+            d[1, 0] = 1
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.processing_id = "find_max"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 1)
+            self.assertEqual(data_item.displays[0].graphics[0].position, (0.5, 0))
+            # change it again
+            d[0, 1] = 2
+            data_item.set_data(d)
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 1)
+            self.assertEqual(data_item.displays[0].graphics[0].position, (0, 0.5))
+
+    def test_new_computation_into_new_and_result_graphic_only_evaluates_once(self):
+        self.find_max_eval_count = 0
+        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            d = numpy.zeros((2, 2), numpy.int)
+            d[1, 0] = 1
+            data_item = DataItem.DataItem(d)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.processing_id = "find_max"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(self.find_max_eval_count, 1)
+            document_model.recompute_all()
+            self.assertEqual(self.find_max_eval_count, 1)
+
+    def __set_const(self, api, src, value):
+        new_data = numpy.full(src.data.shape, value)
+
+        def commit(api, computation):
+            dst_data_item = computation.get_result("dst")
+            dst_data_item.data = new_data
+
+        return commit
+
+    def test_new_computation_with_variable(self):
+        Symbolic.register_computation_type("set_const", {"inputs": [{"src": "data_item"}]}, self.__set_const)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            value = computation.create_variable("value", "integral", 3)
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, numpy.full((2, 2), 3)))
+            value.value = 5
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, numpy.full((2, 2), 5)))
+
+    def __optional_graphic(self, api, src, value):
+        def commit(api, computation):
+            graphic = computation.get_result("graphic", None)
+            if not value and graphic:
+                src.remove_region(graphic)
+                computation.set_result("graphic", None)
+            elif value and not graphic:
+                graphic = src.add_point_region(0.5, 0.5)
+                computation.set_result("graphic", graphic)
+        return commit
+
+    def test_new_computation_with_optional_result(self):
+        Symbolic.register_computation_type("optional_graphic", {}, self.__optional_graphic)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            value = computation.create_variable("value", "boolean", True)
+            computation.create_result("graphic")
+            computation.processing_id = "optional_graphic"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 1)
+            value.value = False
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 0)
+            value.value = True
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 1)
+
+    def __n_graphics(self, api, src, value):
+        def commit(api, computation):
+            graphics = computation.get_result("graphics")
+            while len(graphics) < value:
+                graphic = src.add_point_region(0.5, 0.5)
+                graphics.append(graphic)
+            while len(graphics) > value:
+                src.remove_region(graphics.pop())
+            computation.set_result("graphics", graphics)
+        return commit
+
+    def test_new_computation_with_list_result(self):
+        Symbolic.register_computation_type("n_graphics", {"inputs": [{"src": "data_item"}]}, self.__n_graphics)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            value = computation.create_variable("value", "integral", 3)
+            computation.create_result("graphics", specifiers=[])
+            computation.processing_id = "n_graphics"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 3)
+            value.value = 5
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.displays[0].graphics), 5)
+
+    # computation cascade deletes when keyed result marked for cascade delete is removed
+    # possible to keep multiple keyed results in computation
+    # possible to keep a set of results in computation
+    # possible to keep an ordered list of results in computation
+    # updating set or list of results does not trigger recompute
+    # loading computation binds results
+    # loading computation with missing inputs does not recompute
+    # computation with missing input does not recompute
+    # removing result automatically zeroes computation result
+    # loading missing input triggers a recompute
+    # data item computations are migrated to independent computations
+    # exporting a 'complete' set of data items includes all computations and references.
+    # splitting complex and reconstructing complex does so efficiently
+    # ability to add custom objects to library and depend on them and update them
+    # variable number of inputs, single output
+    # way to configure display for new data items?
+    # there exists a way for user to discover library computations, and see which ones are dead and why
+
 
 if __name__ == '__main__':
     unittest.main()

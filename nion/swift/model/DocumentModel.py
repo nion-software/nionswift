@@ -142,6 +142,77 @@ class FilePersistentStorage:
         self.__write_properties()
 
 
+class MemoryPersistentStorage:
+    # this class is used to store the data for the library itself.
+    # it is not used for library items.
+
+    def __init__(self, properties=None):
+        self.__properties = properties if properties else dict()
+        self.__properties_lock = threading.RLock()
+
+    def get_version(self):
+        return 0
+
+    @property
+    def properties(self):
+        with self.__properties_lock:
+            return copy.deepcopy(self.__properties)
+
+    def _set_properties(self, properties):
+        """Set the properties; used for testing."""
+        with self.__properties_lock:
+            self.__properties = properties
+
+    def __get_storage_dict(self, object):
+        persistent_object_parent = object.persistent_object_parent
+        if not persistent_object_parent:
+            return self.__properties
+        else:
+            parent_storage_dict = self.__get_storage_dict(persistent_object_parent.parent)
+            return object.get_accessor_in_parent()(parent_storage_dict)
+
+    def __update_modified_and_get_storage_dict(self, object):
+        storage_dict = self.__get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict["modified"] = object.modified.isoformat()
+        persistent_object_parent = object.persistent_object_parent
+        parent = persistent_object_parent.parent if persistent_object_parent else None
+        if parent:
+            self.__update_modified_and_get_storage_dict(parent)
+        return storage_dict
+
+    def insert_item(self, parent, name, before_index, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        with self.__properties_lock:
+            item_list = storage_dict.setdefault(name, list())
+            item_dict = item.write_to_dict()
+            item_list.insert(before_index, item_dict)
+            item.persistent_object_context = parent.persistent_object_context
+
+    def remove_item(self, parent, name, index, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        with self.__properties_lock:
+            item_list = storage_dict[name]
+            del item_list[index]
+        item.persistent_object_context = None
+
+    def set_item(self, parent, name, item):
+        storage_dict = self.__update_modified_and_get_storage_dict(parent)
+        with self.__properties_lock:
+            if item:
+                item_dict = item.write_to_dict()
+                storage_dict[name] = item_dict
+                item.persistent_object_context = parent.persistent_object_context
+            else:
+                if name in storage_dict:
+                    del storage_dict[name]
+
+    def set_property(self, object, name, value):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict[name] = value
+
+
 class DataItemStorage:
 
     """
@@ -535,6 +606,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         self.__migrate_to_v9(reader_info_list)
         self.__migrate_to_v10(reader_info_list)
         self.__migrate_to_v11(reader_info_list)
+        # TODO: rename specifier types (data_item -> data_source, library_item -> data_item, region -> graphic)
 
     def __migrate_to_v11(self, reader_info_list):
         for reader_info in reader_info_list:
@@ -1105,7 +1177,8 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
 
 
 class ComputationQueueItem:
-    def __init__(self, data_item):
+    def __init__(self, *, data_item=None, computation=None):
+        self.computation = computation
         self.data_item = data_item
         self.valid = True
 
@@ -1114,30 +1187,70 @@ class ComputationQueueItem:
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
         pending_data_item_merges = list()
-        data_item = self.data_item
-        computation = data_item.computation
-        if computation:
+        if self.data_item:
+            data_item = self.data_item
+            computation = data_item.computation
+        else:
+            data_item = None
+            computation = self.computation
+        if computation and computation.needs_update:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
-                data_item_clone = data_item.clone()
-                data_item_data_modified = data_item.data_modified or datetime.datetime.min
-                data_item_clone_recorder = Recorder.Recorder(data_item_clone)
-                api_data_item = api._new_api_object(data_item_clone)
-                error_text = computation.error_text
-                if computation.needs_update:
+                if self.computation:
+                    commit_fn, error_text = computation.evaluate(api)
+                    throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
+                    time.sleep(max(throttle_time, 0.0))
+                    if self.valid:  # TODO: race condition for 'valid'
+                        class APIComputation:
+                            def __init__(self, computation):
+                                self.__computation = computation
+                            def get_result(self, name: str, value=None):
+                                for result in self.__computation.results:
+                                    if result.name == name:
+                                        if isinstance(result.bound_item, list):
+                                            return [api._new_api_object(bound_item.value) for bound_item in result.bound_item]
+                                        if result.bound_item:
+                                            return api._new_api_object(result.bound_item.value)
+                                        return None
+                                return value
+                            def set_result(self, name: str, value) -> None:
+                                if isinstance(value, list):
+                                    result_specifiers = [v.specifier.rpc_dict for v in value]
+                                    for result in self.__computation.results:
+                                        if result.name == name:
+                                            result.specifiers = result_specifiers
+                                            return
+                                    self.__computation.create_result(name, specifiers=result_specifiers)
+                                else:
+                                    result_specifier = value.specifier.rpc_dict if value is not None else None
+                                    for result in self.__computation.results:
+                                        if result.name == name:
+                                            result.specifier = result_specifier
+                                            return
+                                    self.__computation.create_result(name, result_specifier)
+                        api_computation = APIComputation(computation)
+                        pending_data_item_merges.append(functools.partial(commit_fn, api, api_computation))
+                else:
+                    data_item_clone = data_item.clone()
+                    data_item_data_modified = data_item.data_modified or datetime.datetime.min
+                    data_item_clone_recorder = Recorder.Recorder(data_item_clone)
+                    api_data_item = api._new_api_object(data_item_clone)
+                    error_text = computation.error_text
                     error_text = computation.evaluate_with_target(api, api_data_item)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
-                if self.valid:  # TODO: race condition for 'valid'
-                    def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
-                        data_item_data_clone_modified = data_item_clone.data_modified or datetime.datetime.min
-                        with data_item.data_item_changes(), data_item.data_source_changes():
-                            if data_item_data_clone_modified > data_item_data_modified:
-                                data_item.set_xdata(api_data_item.data_and_metadata)
-                            data_item_clone_recorder.apply(data_item)
-                            if computation.error_text != error_text:
-                                computation.error_text = error_text
-                    pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
+                    if self.valid:  # TODO: race condition for 'valid'
+                        def data_item_merge(data_item, data_item_clone, data_item_clone_recorder):
+                            # merge the result item clones back into the document. this method is guaranteed to run at
+                            # periodic and shouldn't do anything too time consuming.
+                            data_item_data_clone_modified = data_item_clone.data_modified or datetime.datetime.min
+                            with data_item.data_item_changes(), data_item.data_source_changes():
+                                if data_item_data_clone_modified > data_item_data_modified:
+                                    data_item.set_xdata(api_data_item.data_and_metadata)
+                                data_item_clone_recorder.apply(data_item)
+                                if computation.error_text != error_text:
+                                    computation.error_text = error_text
+                        pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -1149,6 +1262,10 @@ class AutoMigration:
     def __init__(self, paths: typing.List[str], log_copying: bool=True):
         self.paths = paths
         self.log_copying = log_copying
+
+
+def computation_factory(lookup_id):
+    return Symbolic.Computation()
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
@@ -1199,6 +1316,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
+        self.define_relationship("computations", computation_factory, insert=self.__insert_computation, remove=self.__remove_computation)
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
@@ -1268,10 +1386,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # computations and connections
         data_items = self.data_items
         for data_item in data_items:
-            self.__computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
+            self.__data_item_computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
         for data_item in data_items:
             data_item.update_and_bind_computation(self)
             data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
+        for computation in self.computations:
+            self.__computation_changed(computation)
+            computation.bind(self)
         # initialize data item references
         data_item_references_dict = self._get_persistent_property_value("data_item_references")
         for key, data_item_uuid in data_item_references_dict.items():
@@ -1417,7 +1538,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # self.persistent_object_context.write_data_item(data_item)
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
-        self.__computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
+        self.__data_item_computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)
@@ -1468,7 +1589,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item.__storage_cache = None
         computation = data_item.computation
         if computation:
-            self.__computation_changed(data_item, computation, None)
+            self.__data_item_computation_changed(data_item, computation, None)
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
@@ -1583,44 +1704,61 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             dependent_displays = self.get_dependent_displays(display) if display else list()
             self.related_items_changed.fire(display, source_displays, dependent_displays)
 
-    def __computation_needs_update(self, data_item):
+    def __computation_needs_update(self, data_item, computation):
+        # When the computation for a data item is set or mutated, this function will be called.
+        # This function looks through the existing pending computation queue, and if this data
+        # item is not already in the queue, it adds it and ensures the dispatch thread eventually
+        # executes the computation.
         with self.__computation_queue_lock:
             for computation_queue_item in self.__computation_pending_queue:
-                if computation_queue_item.data_item == data_item:
+                if data_item and computation_queue_item.data_item == data_item:
                     return
-            computation_queue_item = ComputationQueueItem(data_item)
+                if computation and computation_queue_item.computation == computation:
+                    return
+            computation_queue_item = ComputationQueueItem(data_item=data_item, computation=computation)
             self.__computation_pending_queue.append(computation_queue_item)
         self.dispatch_task2(self.__recompute)
 
-    def __handle_computation_changed_or_mutated(self, data_item: DataItem.DataItem, computation) -> None:
-        """Establish the dependencies between data items based on the computation."""
+    def __resolve_computation_inputs(self, computation: Symbolic.Computation) -> typing.Set:
+        # resolve the computation inputs and return the set of input items.
+        input_items = set()
+        for variable in computation.variables:
+            specifier = variable.specifier
+            if specifier:
+                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier)
+                if hasattr(object, "value"):
+                    source_item = object.value
+                    if isinstance(source_item, DataItem.DataSource):
+                        input_items.add(source_item.data_item)
+                        if source_item.graphic:
+                            input_items.add(source_item.graphic)
+                    else:
+                        input_items.add(source_item)
+        return input_items
 
-        new_source_items = set()
-        if computation:
-            for variable in computation.variables:
-                specifier = variable.specifier
-                if specifier:
-                    object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier)
-                    if hasattr(object, "value"):
-                        source_item = object.value
-                        if isinstance(source_item, DataItem.DataSource):
-                            new_source_items.add(source_item.data_item)
-                            if source_item.graphic:
-                                new_source_items.add(source_item.graphic)
-                        else:
-                            new_source_items.add(source_item)
+    def __resolve_computation_outputs(self, computation: Symbolic.Computation) -> typing.Set:
+        # resolve the computation inputs and return the set of input items.
+        output_items = set()
+        for result in computation.results:
+            specifier = result.specifier
+            if specifier:
+                object = self.resolve_object_specifier(result.specifier)
+                if hasattr(object, "value"):
+                    source_item = object.value
+                    output_items.add(source_item)
+        return output_items
 
+    def __establish_computation_dependencies(self, input_items: typing.Set, output_items: typing.Set) -> None:
+        # establish dependencies between input and output items.
         with self.__dependency_tree_lock:
-            old_source_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(data_item), list()))
-            # add the items in new set that aren't in the old set
-            for source_item in (new_source_items - old_source_items):
-                self.__add_dependency(source_item, data_item)
-            # remove the items in the old set that aren't in the new set
-            for source_item in (old_source_items - new_source_items):
-                self.__remove_dependency(source_item, data_item)
-
-        if data_item.computation:
-            self.__computation_needs_update(data_item)
+            for output_item in output_items:
+                old_input_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(output_item), list()))
+                # add the items in new set that aren't in the old set
+                for input_item in (input_items - old_input_items):
+                    self.__add_dependency(input_item, output_item)
+                # remove the items in the old set that aren't in the new set
+                for input_item in (old_input_items - input_items):
+                    self.__remove_dependency(input_item, output_item)
 
     def rebind_computations(self):
         """Call this to rebind all computations.
@@ -1987,8 +2125,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             await event_loop.run_in_executor(None, sync_recompute)
             self.perform_data_item_merges()
 
-    def get_object_specifier(self, object):
+    def get_object_specifier(self, object, object_type: str=None) -> dict:
+        if isinstance(object, DataItem.DataItem) and object_type == "data_item":
+            return {"version": 1, "type": "data_item_object", "uuid": str(object.uuid)}
         if isinstance(object, DataItem.DataItem):
+            # should be "data_source" but requires file format change
             return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
         elif isinstance(object, Graphics.Graphic):
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
@@ -2006,7 +2147,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         document_model = self
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
-            if specifier_type == "data_item":
+            if specifier_type == "data_item":  # should be "data_source" but requires file format change
                 specifier_uuid_str = specifier.get("uuid")
                 secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -2025,6 +2166,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__data_source = None
                 if data_item:
                     return BoundDataSource(data_item, graphic)
+            elif specifier_type == "data_item_object":
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                if data_item:
+                    class BoundDataItem:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            self.__data_item_changed_event_listener = self.__object.data_item_changed_event.listen(self.changed_event.fire)
+                        def close(self):
+                            self.__data_item_changed_event_listener.close()
+                            self.__data_item_changed_event_listener = None
+                        @property
+                        def value(self):
+                            return self.__object
+                    return BoundDataItem(data_item)
             elif specifier_type == "region":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -2327,18 +2485,66 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if data_item:
             old_computation = data_item.computation
             data_item.set_computation(computation)
-            self.__computation_changed(data_item, old_computation, computation)
+            self.__data_item_computation_changed(data_item, old_computation, computation)
 
-    def __computation_changed(self, data_item, old_computation, new_computation):
+    def append_computation(self, computation):
+        self.insert_computation(len(self.computations), computation)
+
+    def insert_computation(self, before_index, computation):
+        self.insert_item("computations", before_index, computation)
+        self.notify_insert_item("computations", computation, before_index)
+
+    def remove_computation(self, computation):
+        index = self.computations.index(computation)
+        self.remove_item("computations", computation)
+        self.notify_remove_item("computations", computation, index)
+
+    def __computation_changed(self, computation):
+        # when the computation is mutated, this function is called. it calls the handle computation
+        # changed or mutated method to resolve computation variables and update dependencies between
+        # library objects. it also fires the computation_updated_event to allow the user interface
+        # to update.
+        input_items = self.__resolve_computation_inputs(computation)
+        output_items = self.__resolve_computation_outputs(computation)
+        self.__establish_computation_dependencies(input_items, output_items)
+        self.__computation_needs_update(None, computation)
+        # self.computation_updated_event.fire(data_item, new_computation)
+
+    def __insert_computation(self, name, before_index, computation):
+        self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
+        self.__computation_changed(computation)  # ensure the initial mutation is reported
+
+    def __remove_computation(self, name, index, computation):
+        computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
+        if computation_changed_listener: computation_changed_listener.close()
+
+    def __data_item_computation_changed(self, data_item, old_computation, new_computation):
+        # when the computation for a data item changes, this method is called to tear down the old listeners and
+        # configure the new listeners. it is called when the document loads the data item, when a data item is
+        # inserted, when a data item is removed, and when a data item is changed.
+        assert data_item is not None
+
         def computation_mutated():
-            self.__handle_computation_changed_or_mutated(data_item, new_computation)
+            # when the computation is mutated, this function is called. it calls the handle computation
+            # changed or mutated method to resolve computation variables and update dependencies between
+            # library objects. it also fires the computation_updated_event to allow the user interface
+            # to update.
+            input_items = self.__resolve_computation_inputs(new_computation) if new_computation else set()
+            self.__establish_computation_dependencies(input_items, {data_item})
+            if data_item.computation:
+                self.__computation_needs_update(data_item, None)
             self.computation_updated_event.fire(data_item, new_computation)
+
         if old_computation:
+            # remove computation_changed_listener associated with the old computation
             computation_changed_listener = self.__computation_changed_listeners.pop(data_item, None)
             if computation_changed_listener: computation_changed_listener.close()
+
         if new_computation:
+            # add computation_changed_listener to the new computation
             self.__computation_changed_listeners[data_item] = new_computation.computation_mutated_event.listen(computation_mutated)
-        computation_mutated()
+
+        computation_mutated()  # ensure the initial mutation is reported
 
     def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
@@ -2814,6 +3020,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_sequence_extract_new(self, data_item: DataItem.DataItem, crop_region: Graphics.RectangleTypeGraphic=None) -> DataItem.DataItem:
         return self.__make_computation("sequence-extract", [(data_item, crop_region)])
+
 
 
 DocumentModel.register_processing_descriptions(DocumentModel._get_builtin_processing_descriptions())

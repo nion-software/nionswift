@@ -9,8 +9,6 @@
 
 # standard libraries
 import ast
-import functools
-import threading
 import time
 import typing
 import uuid
@@ -43,6 +41,35 @@ class ComputationVariableType:
     def unregister_object(self, object):
         assert object.uuid in self.__objects
         del self.__objects[object.uuid]
+
+
+class ComputationOutput(Observable.Observable, Persistence.PersistentObject):
+    """Tracks an output of a computation."""
+
+    def __init__(self, name: str=None, specifier: dict=None, specifiers: typing.Sequence[dict]=None, label: str=None):  # defaults are None for factory
+        super().__init__()
+        self.define_type("output")
+        self.define_property("name", name, changed=self.__property_changed)
+        self.define_property("label", label if label else name, changed=self.__property_changed)
+        self.define_property("specifier", specifier, changed=self.__property_changed)
+        self.define_property("specifiers", specifiers, changed=self.__property_changed)
+        self.needs_rebind_event = Event.Event()  # an event to be fired when the computation needs to rebind
+        self.bound_item = None
+
+    def __property_changed(self, name, value):
+        self.notify_property_changed(name)
+        if name in ("specifier", "specifiers"):
+            self.needs_rebind_event.fire()
+
+    def bind(self, resolve_object_specifier):
+        if self.specifier:
+            self.bound_item = resolve_object_specifier(self.specifier)
+        elif self.specifiers is not None:
+            bound_items = [resolve_object_specifier(specifier) for specifier in self.specifiers]
+            bound_items = [bound_item for bound_item in bound_items if bound_item is not None]
+            self.bound_item = bound_items
+        else:
+            self.bound_item = None
 
 
 class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
@@ -375,12 +402,16 @@ def variable_factory(lookup_id):
     return build_map[type]() if type in build_map else None
 
 
+def result_factory(lookup_id):
+    return ComputationOutput()
+
+
 class ComputationContext:
     def __init__(self, computation, context):
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def resolve_object_specifier(self, object_specifier, secondary_specifier):
+    def resolve_object_specifier(self, object_specifier, secondary_specifier=None):
         """Resolve the object specifier.
 
         First lookup the object specifier in the enclosing computation. If it's not found,
@@ -428,14 +459,17 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.define_property("label", changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
+        self.define_relationship("results", result_factory)
         self.__variable_changed_event_listeners = dict()
         self.__variable_needs_rebind_event_listeners = dict()
+        self.__result_needs_rebind_event_listeners = dict()
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
         self.computation_mutated_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
         self._evaluation_count_for_test = 0
+        self.target_output = None
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
@@ -474,6 +508,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.add_variable(variable)
         return variable
 
+    def create_result(self, name: str=None, object_specifier: dict=None, specifiers: typing.Sequence[dict]=None, label: str=None) -> ComputationOutput:
+        result = ComputationOutput(name, specifier=object_specifier, specifiers=specifiers, label=label)
+        self.append_item("results", result)
+        self.__bind_result(result)
+        self.computation_mutated_event.fire()
+        return result
+
     def resolve_variable(self, object_specifier: dict) -> typing.Optional[ComputationVariable]:
         uuid_str = object_specifier.get("uuid")
         uuid_ = Converter.UuidToStringConverter().convert_back(uuid_str) if uuid_str else None
@@ -510,6 +551,34 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         except Exception:
             pass
         return names
+
+    def evaluate(self, api) -> typing.Tuple[typing.Callable, str]:
+        commit_fn = None
+        error_text = None
+        needs_update = self.needs_update
+        self.needs_update = False
+        if needs_update:
+            kwargs = dict()
+            for variable in self.variables:
+                bound_object = variable.bound_item
+                if bound_object is not None:
+                    resolved_object = bound_object.value if bound_object else None
+                    # in the ideal world, we could clone the object/data and computations would not be
+                    # able to modify the input objects; reality, though, dictates that performance is
+                    # more important than this protection. so use the resolved object directly.
+                    api_object = api._new_api_object(resolved_object) if resolved_object else None
+                    kwargs[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
+            computation_type = _computation_types[self.processing_id]
+            try:
+                commit_fn = computation_type["compute_fn"](api, **kwargs)
+            except Exception as e:
+                # import sys, traceback
+                # traceback.print_exc()
+                # traceback.format_exception(*sys.exc_info())
+                error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+            self._evaluation_count_for_test += 1
+            self.last_evaluate_data_time = time.perf_counter()
+        return commit_fn, error_text
 
     def evaluate_with_target(self, api, target) -> str:
         assert target is not None
@@ -589,6 +658,25 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         del self.__variable_needs_rebind_event_listeners[variable.uuid]
         variable.bound_item = None
 
+    def __bind_result(self, result: ComputationOutput) -> None:
+        # bind the result. the result has an optional reference to another object in the library.
+        # this method finds that object and stores it into the result. it also sets up
+        # a listener to notify this computation that the result or the object referenced
+        # by the result needs rebinding, which must be done from this class.
+
+        def rebind():
+            self.__unbind_result(result)
+            self.__bind_result(result)
+
+        self.__result_needs_rebind_event_listeners[result.uuid] = result.needs_rebind_event.listen(rebind)
+
+        result.bind(self.__computation_context.resolve_object_specifier)
+
+    def __unbind_result(self, result: ComputationOutput) -> None:
+        self.__result_needs_rebind_event_listeners[result.uuid].close()
+        del self.__result_needs_rebind_event_listeners[result.uuid]
+        result.bound_item = None
+
     def bind(self, context) -> None:
         """Bind a context to this computation.
 
@@ -602,14 +690,20 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for variable in self.variables:
             assert variable.bound_item is None
 
-        # bind the individual variables
+        # bind the variables
         for variable in self.variables:
             self.__bind_variable(variable)
+
+        # bind the results
+        for result in self.results:
+            self.__bind_result(result)
 
     def unbind(self):
         """Unlisten and close each bound item."""
         for variable in self.variables:
             self.__unbind_variable(variable)
+        for result in self.results:
+            self.__unbind_result(result)
 
     def _set_variable_value(self, variable_name, value):
         for variable in self.variables:
@@ -621,6 +715,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             if variable.name == variable_name:
                 return True
         return False
+
+# for computations
+
+_computation_types = dict()
+
+def register_computation_type(computation_type_id: str, computation_description: dict, compute_fn: typing.Callable) -> None:
+    _computation_types[computation_type_id] = {"description": computation_description, "compute_fn": compute_fn}
 
 # for testing
 
