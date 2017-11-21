@@ -134,15 +134,20 @@ class ObjectSpecifier:
 
     @property
     def rpc_dict(self):
-        return {"object_type": self.object_type, "object_uuid": self.object_uuid, "object_id": self.object_id}
+        d = {"version": 1, "type": self.object_type}
+        if self.object_uuid:
+            d["uuid"] = self.object_uuid
+        if self.object_id:
+            d["id"]  = self.object_id
+        return d
 
     @classmethod
     def resolve(cls, d):
         if d is None:
             return get_api("~1.0", "~1.0")
-        object_type = d.get("object_type")
-        object_uuid_str = d.get("object_uuid")
-        object_id = d.get("object_id")
+        object_type = d.get("type")
+        object_uuid_str = d.get("uuid")
+        object_id = d.get("id")
         object_uuid = uuid_module.UUID(object_uuid_str) if object_uuid_str else None
         document_model = ApplicationModule.app.document_controllers[0].document_model
         if object_type == "application":
@@ -158,7 +163,7 @@ class ObjectSpecifier:
                 if display_panel:
                     return DisplayPanel(display_panel)
             return None
-        elif object_type == "data_item":
+        elif object_type == "data_item_object":
             return DataItem(document_model.get_data_item_by_uuid(uuid_module.UUID(object_uuid_str)))
         elif object_type == "data_group":
             return DataGroup(document_model.get_data_group_by_uuid(uuid_module.UUID(object_uuid_str)))
@@ -625,7 +630,7 @@ class Graphic(metaclass=SharedInstance):
 
     @property
     def specifier(self):
-        return ObjectSpecifier("graphic", self.__graphic.uuid)
+        return ObjectSpecifier("region", self.__graphic.uuid)
 
     @property
     def uuid(self) -> uuid_module.UUID:
@@ -875,7 +880,7 @@ class DataItem(metaclass=SharedInstance):
 
     @property
     def specifier(self):
-        return ObjectSpecifier("data_item", self.__data_item.uuid)
+        return ObjectSpecifier("data_item_object", self.__data_item.uuid)
 
     @property
     def uuid(self) -> uuid_module.UUID:
@@ -1298,6 +1303,10 @@ class DataSource(metaclass=SharedInstance):
     @property
     def specifier(self):
         return ObjectSpecifier("data_source", uuid_module.uuid4())
+
+    @property
+    def data_item(self) -> DataItem:
+        return DataItem(self.__data_source.data_item)
 
     @property
     def cropped_display_xdata(self) -> DataAndMetadata.DataAndMetadata:
