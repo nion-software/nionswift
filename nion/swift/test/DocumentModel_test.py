@@ -393,23 +393,25 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(len(data_item.displays[0].graphics), 5)
 
-    # computation cascade deletes when keyed result marked for cascade delete is removed
-    # possible to keep multiple keyed results in computation
-    # possible to keep a set of results in computation
-    # possible to keep an ordered list of results in computation
-    # updating set or list of results does not trigger recompute
-    # loading computation binds results
+    # computation cascade deletes when result marked for cascade delete is removed
+    # computation cascade deletes when input marked for cascade delete is removed
     # loading computation with missing inputs does not recompute
     # computation with missing input does not recompute
-    # removing result automatically zeroes computation result
-    # loading missing input triggers a recompute
-    # data item computations are migrated to independent computations
-    # exporting a 'complete' set of data items includes all computations and references.
+    # successfully loading missing input triggers a recompute
+    # removing result object from library automatically zeroes computation result
     # splitting complex and reconstructing complex does so efficiently
-    # ability to add custom objects to library and depend on them and update them
     # variable number of inputs, single output
+    # test dependencies when result created inside computation
+    # api computation can be configured from nionlib and interactive (set input/output objects and values)
+    # menu example to toggle an operation on a data item
+    # exporting a 'complete' set of data items includes all computations and references.
+    # updating set or list of results does not trigger recompute
+    # data item computations are migrated to independent computations
     # way to configure display for new data items?
     # there exists a way for user to discover library computations, and see which ones are dead and why
+    # ability to add custom objects to library and depend on them and update them
+    # file vaults (HDF5 w/ multiple data items) includes the library computations.
+    # possible to keep an ordered list of results in computation
 
 
 if __name__ == '__main__':

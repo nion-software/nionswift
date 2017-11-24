@@ -39,6 +39,7 @@ import copy
 import collections
 import datetime
 import gettext
+import numbers
 import pickle
 import threading
 import typing
@@ -63,6 +64,7 @@ from nion.swift.model import HardwareSource as HardwareSourceModule
 from nion.swift.model import ImportExportManager
 from nion.swift.model import Metadata
 from nion.swift.model import PlugInManager
+from nion.swift.model import Symbolic
 from nion.swift.model import Utility
 from nion.ui import CanvasItem as CanvasItemModule
 from nion.ui import Declarative
@@ -1980,6 +1982,84 @@ class Instrument(metaclass=SharedInstance):
         return result_str
 
 
+class Computation(metaclass=SharedInstance):
+    release = ["uuid"]
+
+    def __init__(self, computation: Symbolic.Computation):
+        self.__computation = computation
+
+    @property
+    def _computation(self) -> Symbolic.Computation:
+        return self.__computation
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("library")
+
+    @property
+    def uuid(self) -> uuid_module.UUID:
+        """Return the uuid of this object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__computation.uuid
+
+    def set_input_value(self, name: str, value):
+        for variable in self.__computation.variables:
+            if variable.name == name:
+                if isinstance(value, str):
+                    variable.value = value
+                elif isinstance(value, bool):
+                    variable.value = value
+                elif isinstance(value, numbers.Integral):
+                    variable.value = value
+                elif isinstance(value, numbers.Real):
+                    variable.value = value
+                elif isinstance(value, numbers.Complex):
+                    variable.value = value
+                elif isinstance(value, dict) and value.get("object"):
+                    object = value.get("object")
+                    object_type = value.get("type")
+                    if object_type == "data_source":
+                        specifier_dict = {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+                    else:
+                        specifier_dict = object.specifier.rpc_dict
+                    variable.specifier = specifier_dict
+                else:
+                    specifier_dict = value.specifier.rpc_dict if value else None
+                    variable.specifier = specifier_dict
+                return
+        raise Exception("No variable matching name.")
+
+    def get_result(self, name: str, value=None):
+        for result in self.__computation.results:
+            if result.name == name:
+                if isinstance(result.bound_item, list):
+                    return [_new_api_object(bound_item.value) for bound_item in result.bound_item]
+                if result.bound_item:
+                    return _new_api_object(result.bound_item.value)
+                return None
+        return value
+
+    def set_result(self, name: str, value) -> None:
+        if isinstance(value, list):
+            result_specifiers = [v.specifier.rpc_dict for v in value]
+            for result in self.__computation.results:
+                if result.name == name:
+                    result.specifiers = result_specifiers
+                    return
+            self.__computation.create_result(name, specifiers=result_specifiers)
+        else:
+            result_specifier = value.specifier.rpc_dict if value is not None else None
+            for result in self.__computation.results:
+                if result.name == name:
+                    result.specifier = result_specifier
+                    return
+            self.__computation.create_result(name, result_specifier)
+
+
 class Library(metaclass=SharedInstance):
     release = ["uuid", "data_item_count", "data_items", "create_data_item", "create_data_item_from_data",
                "create_data_item_from_data_and_metadata",
@@ -2306,6 +2386,44 @@ class Library(metaclass=SharedInstance):
             self._document_model.delete_session_field(field_id)
             return
         raise KeyError()
+
+    def has_computation_with_input(self, computation_type_id: str, input) -> bool:
+        for computation in self._document_model.computations:
+            for variable in computation.variables:
+                if variable.bound_item and variable.bound_item.value.uuid == input.uuid:
+                    return True
+        return False
+
+    def create_computation(self, computation_type_id, inputs, outputs) -> Computation:
+        computation = self.__document_model.create_computation()
+        for name, item in inputs.items():
+            if isinstance(item, str):
+                computation.create_variable(name, value_type="string", value=item)
+            elif isinstance(item, bool):
+                computation.create_variable(name, value_type="boolean", value=item)
+            elif isinstance(item, numbers.Integral):
+                computation.create_variable(name, value_type="integral", value=item)
+            elif isinstance(item, numbers.Real):
+                computation.create_variable(name, value_type="real", value=item)
+            elif isinstance(item, numbers.Complex):
+                computation.create_variable(name, value_type="complex", value=item)
+            elif isinstance(item, dict) and item.get("object"):
+                object = item.get("object")
+                object_type = item.get("type")
+                if object_type == "data_source":
+                    specifier_dict = {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+                else:
+                    specifier_dict = object.specifier.rpc_dict
+                computation.create_object(name, specifier_dict)
+            else:
+                specifier_dict = item.specifier.rpc_dict if item else None
+                computation.create_object(name, specifier_dict)
+        for name, item in outputs.items():
+            specifier_dict = item.specifier.rpc_dict if item else None
+            computation.create_result(name, specifier_dict)
+        computation.processing_id = computation_type_id
+        self._document_model.append_computation(computation)
+        return Computation(computation)
 
 
 class DocumentWindow(metaclass=SharedInstance):
@@ -2942,6 +3060,9 @@ class API_1:
         assert self.__app.document_model
         return Library(self.__app.document_model)
 
+    def register_computation_type(self, computation_type_id, computation_description, fn):
+        Symbolic.register_computation_type(computation_type_id, computation_description, fn)
+
     def show(self, item: typing.Any, *parameters) -> None:
         window = self.application.document_windows[0]
         if isinstance(item, numpy.ndarray):
@@ -3014,15 +3135,7 @@ class API_1:
         return ObjectSpecifier.resolve(d)
 
     def _new_api_object(self, object):
-        if isinstance(object, DocumentModelModule.DocumentModel):
-            return Library(object)
-        if isinstance(object, DataItemModule.DataItem):
-            return DataItem(object)
-        if isinstance(object, Graphics.Graphic):
-            return Graphic(object)
-        if isinstance(object, DataItemModule.DataSource):
-            return DataSource(object)
-        return None
+        return _new_api_object(object)
 
     # provisional
     def queue_task(self, fn) -> None:
@@ -3030,6 +3143,20 @@ class API_1:
 
     def raise_requirements_exception(self, reason) -> None:
         raise PlugInManager.RequirementsException(reason)
+
+
+def _new_api_object(object):
+    if isinstance(object, DocumentModelModule.DocumentModel):
+        return Library(object)
+    if isinstance(object, DataItemModule.DataItem):
+        return DataItem(object)
+    if isinstance(object, Graphics.Graphic):
+        return Graphic(object)
+    if isinstance(object, DataItemModule.DataSource):
+        return DataSource(object)
+    if isinstance(object, Symbolic.Computation):
+        return Computation(object)
+    return None
 
 
 def _get_api_with_app(version: str, ui_version: str, app: ApplicationModule.Application) -> API_1:

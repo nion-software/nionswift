@@ -17,6 +17,9 @@ from nion.ui import TestUI
 from nion.utils import Geometry
 
 
+Facade.initialize()
+
+
 class TestFacadeClass(unittest.TestCase):
 
     def setUp(self):
@@ -318,6 +321,109 @@ class TestFacadeClass(unittest.TestCase):
             data_item.xdata = api.create_data_and_metadata_from_data(data)
             data[:, :] = numpy.random.randn(2, 2)
             self.assertFalse(numpy.array_equal(data, data_item.data))
+
+    def __computation1(self, api, src):
+        def compute(api, computation):
+            graphic = computation.get_result("graphic")
+            if not graphic:
+                graphic = src.add_point_region(0.5, 0.5)
+                computation.set_result("graphic", graphic)
+        return compute
+
+    def test_register_library_computation_and_execute_it(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0")
+            api.register_computation_type("computation1", {}, self.__computation1)
+            data = numpy.random.randn(2, 2)
+            data_item = api.library.create_data_item()
+            data_item.set_data(data)
+            api.library.create_computation("computation1", inputs={"src": data_item}, outputs={"graphic": None})
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.graphics), 1)
+
+    def __computation2(self, api, src, value):
+        def compute(api, computation):
+            graphic = computation.get_result("graphic")
+            if not graphic:
+                graphic = src.add_point_region(0.5, 0.5)
+                computation.set_result("graphic", graphic)
+            graphic.label = str(value)
+        return compute
+
+    def test_register_library_computation_with_variable_and_execute_it(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0")
+            api.register_computation_type("computation2", {}, self.__computation2)
+            data = numpy.random.randn(2, 2)
+            data_item = api.library.create_data_item()
+            data_item.set_data(data)
+            computation = api.library.create_computation("computation2", inputs={"src": data_item, "value": "label"}, outputs={"graphic": None})
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.graphics), 1)
+            self.assertEqual(data_item.graphics[0].label, "label")
+            computation.set_input_value("value", "label2")
+            document_model.recompute_all()
+            self.assertEqual(len(data_item.graphics), 1)
+            self.assertEqual(data_item.graphics[0].label, "label2")
+
+    def __computation3(self, api, src):
+        d = src.data
+        def compute(api, computation):
+            dst = computation.get_result("dst")
+            dst.set_data(d)
+        return compute
+
+    def test_library_computation_change_object_input(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0")
+            api.register_computation_type("computation3", {}, self.__computation3)
+            data1 = numpy.ones((2, 2)) * 1
+            data_item1 = api.library.create_data_item()
+            data_item1.set_data(data1)
+            data2 = numpy.ones((2, 2)) * 2
+            data_item2 = api.library.create_data_item()
+            data_item2.set_data(data2)
+            dst_data_item = api.library.create_data_item()
+            computation = api.library.create_computation("computation3", inputs={"src": data_item1}, outputs={"dst": dst_data_item})
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(dst_data_item.data, data1))
+            computation.set_input_value("src", data_item2)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(dst_data_item.data, data2))
+
+    def __computation4(self, api, src):
+        assert isinstance(src, Facade.DataSource)
+        d = src.data
+        def compute(api, computation):
+            dst = computation.get_result("dst")
+            dst.set_data(d)
+        return compute
+
+    def test_library_computation_change_object_data_source_input(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = self.app.create_document_controller(document_model, "library")
+        with contextlib.closing(document_controller):
+            api = Facade.get_api("~1.0")
+            api.register_computation_type("computation4", {}, self.__computation4)
+            data1 = numpy.ones((2, 2)) * 1
+            data_item1 = api.library.create_data_item()
+            data_item1.set_data(data1)
+            data2 = numpy.ones((2, 2)) * 2
+            data_item2 = api.library.create_data_item()
+            data_item2.set_data(data2)
+            dst_data_item = api.library.create_data_item()
+            computation = api.library.create_computation("computation4", inputs={"src": {"object": data_item1, "type": "data_source"}}, outputs={"dst": dst_data_item})
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(dst_data_item.data, data1))
+            computation.set_input_value("src", {"object": data_item2, "type": "data_source"})
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(dst_data_item.data, data2))
 
 
 if __name__ == '__main__':

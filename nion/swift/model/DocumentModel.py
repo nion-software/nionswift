@@ -1201,34 +1201,7 @@ class ComputationQueueItem:
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                     if self.valid:  # TODO: race condition for 'valid'
-                        class APIComputation:
-                            def __init__(self, computation):
-                                self.__computation = computation
-                            def get_result(self, name: str, value=None):
-                                for result in self.__computation.results:
-                                    if result.name == name:
-                                        if isinstance(result.bound_item, list):
-                                            return [api._new_api_object(bound_item.value) for bound_item in result.bound_item]
-                                        if result.bound_item:
-                                            return api._new_api_object(result.bound_item.value)
-                                        return None
-                                return value
-                            def set_result(self, name: str, value) -> None:
-                                if isinstance(value, list):
-                                    result_specifiers = [v.specifier.rpc_dict for v in value]
-                                    for result in self.__computation.results:
-                                        if result.name == name:
-                                            result.specifiers = result_specifiers
-                                            return
-                                    self.__computation.create_result(name, specifiers=result_specifiers)
-                                else:
-                                    result_specifier = value.specifier.rpc_dict if value is not None else None
-                                    for result in self.__computation.results:
-                                        if result.name == name:
-                                            result.specifier = result_specifier
-                                            return
-                                    self.__computation.create_result(name, result_specifier)
-                        api_computation = APIComputation(computation)
+                        api_computation = api._new_api_object(computation)
                         pending_data_item_merges.append(functools.partial(commit_fn, api, api_computation))
                 else:
                     data_item_clone = data_item.clone()
