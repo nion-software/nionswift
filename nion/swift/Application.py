@@ -56,8 +56,10 @@ class Application:
 
         self.__event_loop = None
 
-        if set_global:
+        if True or set_global:
             app = self  # hack to get the single instance set. hmm. better way?
+
+        self.__document_model = None
 
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
@@ -139,6 +141,14 @@ class Application:
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:
         return self.__event_loop
+
+    @property
+    def document_model(self):
+        return self.__document_model
+
+    # for testing
+    def _set_document_model(self, document_model):
+        self.__document_model = document_model
 
     def migrate_library(self, workspace_dir, library_path, welcome_message=True):
         """ Migrate library to latest version. """
@@ -576,6 +586,7 @@ class Application:
         choose_library_dialog.show()
 
     def create_document_controller(self, document_model, workspace_id, data_item=None):
+        self._set_document_model(document_model)  # required to allow API to find document model
         document_controller = DocumentController.DocumentController(self.ui, document_model, workspace_id=workspace_id, app=self)
         self.__did_close_event_listeners[document_controller] = document_controller.did_close_event.listen(self.__document_controller_did_close)
         self.__create_new_event_listeners[document_controller] = document_controller.create_new_document_controller_event.listen(self.create_document_controller)

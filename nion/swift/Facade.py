@@ -1990,6 +1990,7 @@ class Library(metaclass=SharedInstance):
                "copy_data_item", "snapshot_data_item"]
 
     def __init__(self, document_model: DocumentModelModule.DocumentModel):
+        assert document_model
         self.__document_model = document_model
 
     @property
@@ -2499,7 +2500,7 @@ class Application(metaclass=SharedInstance):
 
         Scriptable: Yes
         """
-        return Library(self.__application.document_controllers[0].document_model)
+        return Library(self.__application.document_model)
 
     @property
     def document_controllers(self) -> typing.List[DocumentWindow]:
@@ -2938,7 +2939,8 @@ class API_1:
 
         Scriptable: Yes
         """
-        return Library(self.__app.document_controllers[0].document_model)
+        assert self.__app.document_model
+        return Library(self.__app.document_model)
 
     def show(self, item: typing.Any, *parameters) -> None:
         window = self.application.document_windows[0]
