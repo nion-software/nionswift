@@ -838,7 +838,7 @@ class DocumentController(Window.Window):
         selected_filter = self.ui.get_persistent_string("export_filter")
         path, selected_filter, selected_directory = self.get_save_file_path(_("Export File"), export_dir, filter, selected_filter)
         selected_writer = filter_line_to_writer_map.get(selected_filter)
-        if not os.path.splitext(path)[1]:
+        if path and not os.path.splitext(path)[1]:
             if selected_writer:
                 path = path + os.path.extsep + selected_writer.extensions[0]
         if selected_writer and path:
