@@ -308,6 +308,9 @@ class TestDocumentModelClass(unittest.TestCase):
 
         def commit(api, computation):
             dst_data_item = computation.get_result("dst")
+            if not dst_data_item:
+                dst_data_item = api.library.create_data_item()
+                computation.set_result("dst", dst_data_item)
             dst_data_item.data = new_data
 
         return commit
@@ -364,6 +367,29 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(len(data_item.displays[0].graphics), 1)
 
+    def test_new_computation_with_optional_result_updates_dependencies(self):
+        Symbolic.register_computation_type("optional_graphic", {}, self.__optional_graphic)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            value = computation.create_variable("value", "boolean", True)
+            computation.create_result("graphic")
+            computation.processing_id = "optional_graphic"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item.displays[0].graphics[0])
+            value.value = False
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
+            value.value = True
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item.displays[0].graphics[0])
+
     def __n_graphics(self, api, src, value):
         def commit(api, computation):
             graphics = computation.get_result("graphics")
@@ -393,15 +419,124 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(len(data_item.displays[0].graphics), 5)
 
+    def test_new_computation_with_list_result_updates_dependencies(self):
+        Symbolic.register_computation_type("n_graphics", {"inputs": [{"src": "data_item"}]}, self.__n_graphics)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            value = computation.create_variable("value", "integral", 3)
+            computation.create_result("graphics", specifiers=[])
+            computation.processing_id = "n_graphics"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
+            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(data_item.displays[0].graphics))
+            value.value = 5
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 5)
+            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(data_item.displays[0].graphics))
+            value.value = 3
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 3)
+            self.assertEqual(set(document_model.get_dependent_items(data_item)), set(data_item.displays[0].graphics))
+
+    def test_new_computation_creates_dependency_when_result_created_during_computation(self):
+        Symbolic.register_computation_type("set_const", {}, self.__set_const)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_variable("value", "integral", 3)
+            computation.processing_id = "set_const"
+            document_model.append_computation(computation)
+            self.assertEqual(len(document_model.data_items), 1)
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 0)
+            self.assertEqual(len(document_model.computations), 1)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_data_items(data_item)[0], document_model.data_items[1])
+
+    def test_new_computation_creates_dependency_when_result_created_before_computation(self):
+        Symbolic.register_computation_type("set_const", {}, self.__set_const)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.create_variable("value", "integral", 3)
+            computation.processing_id = "set_const"
+            document_model.append_computation(computation)
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 1)
+            self.assertEqual(len(document_model.computations), 1)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_data_items(data_item)[0], document_model.data_items[1])
+
+    def test_new_computation_deletes_computation_and_result_data_item_when_input_data_item_deleted(self):
+        Symbolic.register_computation_type("set_const", {}, self.__set_const)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            value = computation.create_variable("value", "integral", 3)
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(len(document_model.computations), 1)
+            self.assertEqual(len(document_model.data_items), 2)
+            document_model.remove_data_item(data_item)
+            self.assertEqual(len(document_model.data_items), 0)
+            self.assertEqual(len(document_model.computations), 0)
+
+    def test_new_computation_deletes_computation_when_result_data_item_deleted(self):
+        assert False
+
+    def test_new_computation_deletes_auto_created_result_data_item_when_input_data_item_deleted(self):
+        assert False
+
+    def test_new_computation_deletes_result_graphic_when_input_data_item_deleted(self):
+        assert False
+
+    def test_new_computation_cannot_result_in_parallel_dependency(self):
+        # no path from any input to any output can already exist
+        assert False
+
+    def test_new_computation_cannot_result_in_circular_dependency(self):
+        # no path from any input to any other input can be the result
+        assert False
+
     # computation cascade deletes when result marked for cascade delete is removed
     # computation cascade deletes when input marked for cascade delete is removed
     # loading computation with missing inputs does not recompute
     # computation with missing input does not recompute
     # successfully loading missing input triggers a recompute
-    # removing result object from library automatically zeroes computation result
-    # splitting complex and reconstructing complex does so efficiently
+    # removing result object from library automatically zeroes computation result (or removes computation)
+    # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
     # variable number of inputs, single output
     # test dependencies when result created inside computation
+    # user has way to see error output from a failed computation
+    # future ability to undo is not precluded
+    # ability to debounce and sample change messages for improved performance
+    # ability to have long running operations
     # api computation can be configured from nionlib and interactive (set input/output objects and values)
     # menu example to toggle an operation on a data item
     # exporting a 'complete' set of data items includes all computations and references.

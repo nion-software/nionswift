@@ -466,10 +466,13 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.last_evaluate_data_time = 0
         self.needs_update = expression is not None
         self.computation_mutated_event = Event.Event()
+        self.computation_output_changed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
         self._evaluation_count_for_test = 0
         self.target_output = None
+        self._inputs = set()  # used by document model for tracking dependencies
+        self._outputs = set()
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
@@ -667,6 +670,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         def rebind():
             self.__unbind_result(result)
             self.__bind_result(result)
+            self.computation_output_changed_event.fire()
 
         self.__result_needs_rebind_event_listeners[result.uuid] = result.needs_rebind_event.listen(rebind)
 

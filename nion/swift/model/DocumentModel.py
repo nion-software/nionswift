@@ -1281,6 +1281,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__data_item_uuids = set()
         self.__uuid_to_data_item = dict()
         self.__computation_changed_listeners = dict()
+        self.__computation_output_changed_listeners = dict()
         self.__data_item_references = dict()
         self.__recompute_lock = threading.RLock()
         self.__computation_queue_lock = threading.RLock()
@@ -1363,6 +1364,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item in data_items:
             data_item.update_and_bind_computation(self)
             data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
+        # this loop reestablishes dependencies now that everything is loaded.
+        # the change listener for the computation will already have been established via the regular
+        # loading mechanism; but because some data items may not have been loaded at the first time computation
+        # changed was called (during insert computation), this call is made to update the dependencies.
         for computation in self.computations:
             self.__computation_changed(computation)
             computation.bind(self)
@@ -1715,23 +1720,54 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for result in computation.results:
             specifier = result.specifier
             if specifier:
-                object = self.resolve_object_specifier(result.specifier)
+                object = self.resolve_object_specifier(specifier)
                 if hasattr(object, "value"):
                     source_item = object.value
                     output_items.add(source_item)
+            specifiers = result.specifiers
+            if specifiers:
+                for specifier in specifiers:
+                    object = self.resolve_object_specifier(specifier)
+                    if hasattr(object, "value"):
+                        source_item = object.value
+                        output_items.add(source_item)
         return output_items
 
-    def __establish_computation_dependencies(self, input_items: typing.Set, output_items: typing.Set) -> None:
+    def __establish_computation_dependencies(self, old_inputs: typing.Set, new_inputs: typing.Set, old_outputs: typing.Set, new_outputs: typing.Set) -> None:
         # establish dependencies between input and output items.
         with self.__dependency_tree_lock:
-            for output_item in output_items:
-                old_input_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(output_item), list()))
-                # add the items in new set that aren't in the old set
-                for input_item in (input_items - old_input_items):
-                    self.__add_dependency(input_item, output_item)
-                # remove the items in the old set that aren't in the new set
-                for input_item in (old_input_items - input_items):
-                    self.__remove_dependency(input_item, output_item)
+            removed_inputs = old_inputs - new_inputs
+            added_inputs = new_inputs - old_inputs
+            removed_outputs = old_outputs - new_outputs
+            added_outputs = new_outputs - old_outputs
+            same_inputs = old_inputs.intersection(new_inputs)
+            # a, b -> x, y => a, c => x, z
+            # [a -> x, a -> y, b -> x, b -> y]
+            # [a -> x, a -> z, c -> x, c -> z]
+            # old_inputs = [a, b]
+            # new_inputs = [a, c]
+            # removed inputs = [b]
+            # added_inputs = [c]
+            # old_outputs = [x, y]
+            # new_outputs = [x, z]
+            # removed_outputs = [y]
+            # added_outputs = [z]
+            # for each removed input, remove dependency to old outputs: [a -> x, a -> y]
+            # for each removed output, remove dependency from old inputs to that output: [a -> x]
+            # for each added input, add dependency to new outputs: [a -> x, c -> x, c -> z]
+            # for each added output, add dependency from unchanged inputs to that output: [a -> x, a -> z, c -> x, c -> z]
+            for input in removed_inputs:
+                for output in old_outputs:
+                    self.__remove_dependency(input, output)
+            for output in removed_outputs:
+                for input in old_inputs:
+                    self.__remove_dependency(input, output)
+            for input in added_inputs:
+                for output in new_outputs:
+                    self.__add_dependency(input, output)
+            for output in added_outputs:
+                for input in same_inputs:
+                    self.__add_dependency(input, output)
 
     def rebind_computations(self):
         """Call this to rebind all computations.
@@ -1748,6 +1784,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return tuple(self.__data_items)  # tuple makes it read only
 
     # transactions, live state, and dependencies
+
+    def get_source_items(self, item) -> typing.List:
+        with self.__dependency_tree_lock:
+            return [item for item in self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())]
+
+    def get_dependent_items(self, item) -> typing.List:
+        """Return the list of data items containing data that directly depends on data in this item."""
+        with self.__dependency_tree_lock:
+            return [item for item in self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())]
 
     def get_source_data_items(self, data_item: DataItem.DataItem) -> typing.List[DataItem.DataItem]:
         with self.__dependency_tree_lock:
@@ -2477,19 +2522,29 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # changed or mutated method to resolve computation variables and update dependencies between
         # library objects. it also fires the computation_updated_event to allow the user interface
         # to update.
+        self.__computation_update_dependencies(computation)
+        self.__computation_needs_update(None, computation)
+
+    def __computation_update_dependencies(self, computation):
+        # when a computation output is changed, this function is called to establish dependencies.
+        # if other parts of the computation are changed (inputs, values, etc.), the __computation_changed
+        # will handle the change (and trigger a new computation).
         input_items = self.__resolve_computation_inputs(computation)
         output_items = self.__resolve_computation_outputs(computation)
-        self.__establish_computation_dependencies(input_items, output_items)
-        self.__computation_needs_update(None, computation)
-        # self.computation_updated_event.fire(data_item, new_computation)
+        self.__establish_computation_dependencies(computation._inputs, input_items, computation._outputs, output_items)
+        computation._inputs = input_items
+        computation._outputs = output_items
 
     def __insert_computation(self, name, before_index, computation):
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
+        self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
         self.__computation_changed(computation)  # ensure the initial mutation is reported
 
     def __remove_computation(self, name, index, computation):
         computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
         if computation_changed_listener: computation_changed_listener.close()
+        computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
+        if computation_output_changed_listener: computation_output_changed_listener.close()
 
     def __data_item_computation_changed(self, data_item, old_computation, new_computation):
         # when the computation for a data item changes, this method is called to tear down the old listeners and
@@ -2503,7 +2558,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # library objects. it also fires the computation_updated_event to allow the user interface
             # to update.
             input_items = self.__resolve_computation_inputs(new_computation) if new_computation else set()
-            self.__establish_computation_dependencies(input_items, {data_item})
+            old_input_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(data_item), list()))
+            self.__establish_computation_dependencies(old_input_items, input_items, {data_item}, {data_item})
             if data_item.computation:
                 self.__computation_needs_update(data_item, None)
             self.computation_updated_event.fire(data_item, new_computation)
