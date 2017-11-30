@@ -453,6 +453,10 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def __init__(self, expression: str=None):
         super().__init__()
+        self.__container_weak_ref = None
+        self.about_to_be_removed_event = Event.Event()
+        self._about_to_be_removed = False
+        self._closed = False
         self.define_type("computation")
         self.define_property("original_expression", expression)
         self.define_property("error_text", changed=self.__error_changed)
@@ -473,6 +477,39 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.target_output = None
         self._inputs = set()  # used by document model for tracking dependencies
         self._outputs = set()
+
+    def close(self):
+        assert self._about_to_be_removed
+        assert not self._closed
+        self._closed = True
+        self.__container_weak_ref = None
+
+    @property
+    def container(self):
+        return self.__container_weak_ref()
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
+
+    def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        self.about_to_be_removed_event.fire()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
+        self.__container_weak_ref = None
+
+    def insert_model_item(self, container, name, before_index, item):
+        if self.__container_weak_ref:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item):
+        if self.__container_weak_ref:
+            self.container.remove_model_item(container, name, item)
+        else:
+            container.remove_item(name, item)
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)

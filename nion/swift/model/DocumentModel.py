@@ -1202,7 +1202,7 @@ class ComputationQueueItem:
                     time.sleep(max(throttle_time, 0.0))
                     if self.valid:  # TODO: race condition for 'valid'
                         api_computation = api._new_api_object(computation)
-                        pending_data_item_merges.append(functools.partial(commit_fn, api, api_computation))
+                        pending_data_item_merges.append((computation, functools.partial(commit_fn, api, api_computation)))
                 else:
                     data_item_clone = data_item.clone()
                     data_item_data_modified = data_item.data_modified or datetime.datetime.min
@@ -1223,7 +1223,7 @@ class ComputationQueueItem:
                                 data_item_clone_recorder.apply(data_item)
                                 if computation.error_text != error_text:
                                     computation.error_text = error_text
-                        pending_data_item_merges.append(functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
+                        pending_data_item_merges.append((computation, functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder)))
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -1290,7 +1290,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
-        self.define_relationship("computations", computation_factory, insert=self.__insert_computation, remove=self.__remove_computation)
+        self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
@@ -1317,6 +1317,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.__pending_data_item_merges_lock = threading.RLock()
         self.__pending_data_item_merges = list()
+        self.__current_computation = None
 
         self.call_soon_event = Event.Event()
 
@@ -1448,6 +1449,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.undefine_properties()
         self.undefine_items()
         self.undefine_relationships()
+
+    @property
+    def _s2tm(self):
+        return self.__dependency_tree_source_to_target_map
+
+    @property
+    def _t2sm(self):
+        return self.__dependency_tree_target_to_source_map
 
     def start_new_session(self):
         self.session_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1610,8 +1619,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # first handle the case where a data item that is the only target of a graphic cascades to the graphic.
             # this is the only case where a target causes a source to be deleted.
             items.append(item)
+            sources = self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())
             if isinstance(item, DataItem.DataItem):
-                sources = self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())
                 for source in sources:
                     if isinstance(source, Graphics.Graphic):
                         source_targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(source), list())
@@ -1622,33 +1631,59 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         self.__build_cascade(graphic, items, dependencies)
             targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
             for target in targets:
-                assert isinstance(target, DataItem.DataItem)
-                dependencies.append((item, target))
+                if (item, target) not in dependencies:
+                    dependencies.append((item, target))
                 self.__build_cascade(target, items, dependencies)
+            for source in sources:
+                if (source, item) not in dependencies:
+                    dependencies.append((source, item))
 
-    def __cascade_delete(self, item):
+    def __cascade_delete(self, master_item, items=None, dependencies=None):
         # print(f"cascade {item}")
-        items = list()
-        dependencies = list()
-        self.__build_cascade(item, items, dependencies)
+        items = items if items else list()
+        dependencies = dependencies if dependencies else list()
+        self.__build_cascade(master_item, items, dependencies)
         # print(list(reversed(items)))
         for source, target in reversed(dependencies):
             self.__remove_dependency(source, target)
+        # now delete the actual items
         for item in reversed(items):
             container = item.container
-            name = "data_items" if isinstance(item, DataItem.DataItem) else "graphics"
+            if isinstance(item, DataItem.DataItem):
+                name = "data_items"
+            elif isinstance(item, Graphics.Graphic):
+                name = "graphics"
+            elif isinstance(item, Symbolic.Computation):
+                name = "computations"
+            else:
+                name = None
+            assert name
             # print(container, name, item)
-            if container is self:
+            if container is self and name == "data_items":
                 # call the version of __remove_data_item that doesn't cascade again
                 self.__remove_data_item(item)
             else:
                 container.remove_item(name, item)
+        # adjust computation bookkeeping to remove deleted items, then delete unused computations
+        items_set = set(items)
+        for computation in copy.copy(self.computations):
+            output_deleted = master_item in computation._outputs
+            computation._inputs -= items_set
+            computation._outputs -= items_set
+            if computation not in items and computation != self.__current_computation:
+                # computations are auto deleted if all inputs are deleted or any output is deleted
+                if output_deleted or all(input in items for input in computation._inputs):
+                    self.remove_computation(computation)
 
     def __remove_dependency(self, source_item, target_item):
         # print(f"remove dependency {source_item} {target_item}")
         with self.__dependency_tree_lock:
-            self.__dependency_tree_source_to_target_map.setdefault(weakref.ref(source_item), list()).remove(target_item)
-            self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(target_item), list()).remove(source_item)
+            target_items = self.__dependency_tree_source_to_target_map.setdefault(weakref.ref(source_item), list())
+            if target_item in target_items:
+                target_items.remove(target_item)
+            source_items = self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(target_item), list())
+            if source_item in source_items:
+                source_items.remove(source_item)
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
             # propagate transaction and live states to dependents
             if source_item.in_transaction_state:
@@ -1793,6 +1828,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         """Return the list of data items containing data that directly depends on data in this item."""
         with self.__dependency_tree_lock:
             return [item for item in self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())]
+
+    def __get_deep_dependent_item_set(self, item, item_set) -> None:
+        """Return the list of data items containing data that directly depends on data in this item."""
+        if not item in item_set:
+            item_set.add(item)
+            with self.__dependency_tree_lock:
+                dependents = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
+                for dependent in dependents:
+                    self.get_deep_dependent_items(dependent, item_set)
 
     def get_source_data_items(self, data_item: DataItem.DataItem) -> typing.List[DataItem.DataItem]:
         with self.__dependency_tree_lock:
@@ -2131,8 +2175,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         with self.__pending_data_item_merges_lock:
             pending_data_item_merges = self.__pending_data_item_merges
             self.__pending_data_item_merges = list()
-        for pending_data_item_merge in pending_data_item_merges:
-            pending_data_item_merge()
+        for computation, pending_data_item_merge in pending_data_item_merges:
+            self.__current_computation = computation
+            try:
+                pending_data_item_merge()
+            finally:
+                self.__current_computation = None
 
     async def recompute_immediate(self, event_loop: asyncio.AbstractEventLoop, data_item: DataItem.DataItem) -> None:
         computation = data_item.computation
@@ -2509,6 +2557,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.insert_computation(len(self.computations), computation)
 
     def insert_computation(self, before_index, computation):
+        input_items = self.__resolve_computation_inputs(computation)
+        output_items = self.__resolve_computation_outputs(computation)
+        input_set = set()
+        for input in input_items:
+            self.__get_deep_dependent_item_set(input, input_set)
+        output_set = set()
+        for output in output_items:
+            self.__get_deep_dependent_item_set(output, output_set)
+        if input_set.intersection(output_set):
+            raise Exception("Computation would result in duplicate dependency.")
         self.insert_item("computations", before_index, computation)
         self.notify_insert_item("computations", computation, before_index)
 
@@ -2535,16 +2593,25 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation._inputs = input_items
         computation._outputs = output_items
 
-    def __insert_computation(self, name, before_index, computation):
+    def __inserted_computation(self, name, before_index, computation):
+        computation.about_to_be_inserted(self)
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
         self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
         self.__computation_changed(computation)  # ensure the initial mutation is reported
 
-    def __remove_computation(self, name, index, computation):
+    def __removed_computation(self, name, index, computation):
         computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
         if computation_output_changed_listener: computation_output_changed_listener.close()
+        self.__current_computation = computation
+        try:
+            for output in computation._outputs:
+                self.__cascade_delete(output)
+        finally:
+            self.__current_computation = None
+        computation.about_to_be_removed()
+        computation.close()
 
     def __data_item_computation_changed(self, data_item, old_computation, new_computation):
         # when the computation for a data item changes, this method is called to tear down the old listeners and
