@@ -299,6 +299,9 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
     def __init__(self, type):
         super().__init__()
         self.__container_weak_ref = None
+        self.about_to_be_removed_event = Event.Event()
+        self._about_to_be_removed = False
+        self._closed = False
         self.define_type(type)
         self.define_property("graphic_id", None, changed=self._property_changed, validate=lambda s: str(s) if s else None)
         self.define_property("color", "#F80", changed=self._property_changed)
@@ -308,11 +311,8 @@ class Graphic(Observable.Observable, Persistence.PersistentObject):
         self.define_property("is_bounds_constrained", False, changed=self._property_changed)
         self.__region = None
         self.graphic_changed_event = Event.Event()
-        self.about_to_be_removed_event = Event.Event()
         self.label_padding = 4
         self.label_font = "normal 11px serif"
-        self._about_to_be_removed = False
-        self._closed = False
 
     def close(self):
         assert self._about_to_be_removed
