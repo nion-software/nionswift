@@ -593,11 +593,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         return names
 
     def evaluate(self, api) -> typing.Tuple[typing.Callable, str]:
-        commit_fn = None
+        compute_obj = None
         error_text = None
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
+            is_resolved = True
             kwargs = dict()
             for variable in self.variables:
                 bound_object = variable.bound_item
@@ -608,17 +609,26 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     # more important than this protection. so use the resolved object directly.
                     api_object = api._new_api_object(resolved_object) if resolved_object else None
                     kwargs[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
-            computation_type = _computation_types[self.processing_id]
-            try:
-                commit_fn = computation_type["compute_fn"](api, **kwargs)
-            except Exception as e:
-                # import sys, traceback
-                # traceback.print_exc()
-                # traceback.format_exception(*sys.exc_info())
-                error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+                else:
+                    is_resolved = False
+            if is_resolved:
+                compute_class = _computation_types[self.processing_id]
+                try:
+                    api_computation = api._new_api_object(self)
+                    api_computation.api = api
+                    compute_obj = compute_class(api_computation)
+                    compute_obj.execute(**kwargs)
+                except Exception as e:
+                    # import sys, traceback
+                    # traceback.print_exc()
+                    # traceback.format_exception(*sys.exc_info())
+                    compute_obj = None
+                    error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+            else:
+                error_text = "Missing parameters."
             self._evaluation_count_for_test += 1
             self.last_evaluate_data_time = time.perf_counter()
-        return commit_fn, error_text
+        return compute_obj, error_text
 
     def evaluate_with_target(self, api, target) -> str:
         assert target is not None
@@ -769,8 +779,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
 _computation_types = dict()
 
-def register_computation_type(computation_type_id: str, computation_description: dict, compute_fn: typing.Callable) -> None:
-    _computation_types[computation_type_id] = {"description": computation_description, "compute_fn": compute_fn}
+def register_computation_type(computation_type_id: str, compute_class: typing.Callable) -> None:
+    _computation_types[computation_type_id] = compute_class
 
 # for testing
 

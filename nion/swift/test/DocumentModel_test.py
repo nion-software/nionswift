@@ -214,23 +214,27 @@ class TestDocumentModelClass(unittest.TestCase):
 
     find_max_eval_count = 0
 
-    def __find_max(self, api, src):
-        d = src.data
-        max_pos = list(numpy.unravel_index(numpy.argmax(d), d.shape))
-        max_pos = max_pos[0] / d.shape[0], max_pos[1] / d.shape[1]
+    class FindMax:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
 
-        def commit(api, computation):
-            graphic = computation.get_result("graphic", None)
+        def execute(self, src):
+            d = src.data
+            max_pos = list(numpy.unravel_index(numpy.argmax(d), d.shape))
+            max_pos = max_pos[0] / d.shape[0], max_pos[1] / d.shape[1]
+            self.__src = src
+            self.__max_pos = max_pos
+
+        def commit(self):
+            graphic = self.computation.get_result("graphic", None)
             if not graphic:
-                graphic = src.add_point_region(*max_pos)
-                computation.set_result("graphic", graphic)
-            graphic.position = max_pos
-            self.find_max_eval_count += 1
-
-        return commit
+                graphic = self.__src.add_point_region(*self.__max_pos)
+                self.computation.set_result("graphic", graphic)
+            graphic.position = self.__max_pos
+            TestDocumentModelClass.find_max_eval_count += 1
 
     def test_new_computation_into_existing_result_graphic(self):
-        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        Symbolic.register_computation_type("find_max", self.FindMax)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((2, 2), numpy.int)
@@ -248,7 +252,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(graphic.position, (0.5, 0))
 
     def test_new_computation_into_new_result_graphic(self):
-        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        Symbolic.register_computation_type("find_max", self.FindMax)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((2, 2), numpy.int)
@@ -264,7 +268,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_item.displays[0].graphics[0].position, (0.5, 0))
 
     def test_new_computation_into_new_and_then_existing_result_graphic(self):
-        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        Symbolic.register_computation_type("find_max", self.FindMax)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((2, 2), numpy.int)
@@ -286,8 +290,8 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_item.displays[0].graphics[0].position, (0, 0.5))
 
     def test_new_computation_into_new_and_result_graphic_only_evaluates_once(self):
-        self.find_max_eval_count = 0
-        Symbolic.register_computation_type("find_max", {"inputs": [{"src": "data_item"}]}, self.__find_max)
+        TestDocumentModelClass.find_max_eval_count = 0
+        Symbolic.register_computation_type("find_max", self.FindMax)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             d = numpy.zeros((2, 2), numpy.int)
@@ -299,24 +303,26 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.processing_id = "find_max"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(self.find_max_eval_count, 1)
+            self.assertEqual(TestDocumentModelClass.find_max_eval_count, 1)
             document_model.recompute_all()
-            self.assertEqual(self.find_max_eval_count, 1)
+            self.assertEqual(TestDocumentModelClass.find_max_eval_count, 1)
 
-    def __set_const(self, api, src, value):
-        new_data = numpy.full(src.data.shape, value)
+    class SetConst:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
 
-        def commit(api, computation):
-            dst_data_item = computation.get_result("dst")
+        def execute(self, src, value):
+            self.__new_data = numpy.full(src.data.shape, value)
+
+        def commit(self):
+            dst_data_item = self.computation.get_result("dst")
             if not dst_data_item:
-                dst_data_item = api.library.create_data_item()
-                computation.set_result("dst", dst_data_item)
-            dst_data_item.data = new_data
-
-        return commit
+                dst_data_item = self.computation.api.library.create_data_item()
+                self.computation.set_result("dst", dst_data_item)
+            dst_data_item.data = self.__new_data
 
     def test_new_computation_with_variable(self):
-        Symbolic.register_computation_type("set_const", {"inputs": [{"src": "data_item"}]}, self.__set_const)
+        Symbolic.register_computation_type("set_const", self.SetConst)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -335,19 +341,25 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item2.data, numpy.full((2, 2), 5)))
 
-    def __optional_graphic(self, api, src, value):
-        def commit(api, computation):
-            graphic = computation.get_result("graphic", None)
-            if not value and graphic:
-                src.remove_region(graphic)
-                computation.set_result("graphic", None)
-            elif value and not graphic:
-                graphic = src.add_point_region(0.5, 0.5)
-                computation.set_result("graphic", graphic)
-        return commit
+    class OptionalGraphic:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src, value):
+            self.__src = src
+            self.__value = value
+
+        def commit(self):
+            graphic = self.computation.get_result("graphic", None)
+            if not self.__value and graphic:
+                self.__src.remove_region(graphic)
+                self.computation.set_result("graphic", None)
+            elif self.__value and not graphic:
+                graphic = self.__src.add_point_region(0.5, 0.5)
+                self.computation.set_result("graphic", graphic)
 
     def test_new_computation_with_optional_result(self):
-        Symbolic.register_computation_type("optional_graphic", {}, self.__optional_graphic)
+        Symbolic.register_computation_type("optional_graphic", self.OptionalGraphic)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -370,7 +382,7 @@ class TestDocumentModelClass(unittest.TestCase):
         # it will also set a result on the computation which will also try to remove the dependency.
 
     def test_new_computation_with_optional_result_updates_dependencies(self):
-        Symbolic.register_computation_type("optional_graphic", {}, self.__optional_graphic)
+        Symbolic.register_computation_type("optional_graphic", self.OptionalGraphic)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -392,19 +404,25 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
             self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item.displays[0].graphics[0])
 
-    def __n_graphics(self, api, src, value):
-        def commit(api, computation):
-            graphics = computation.get_result("graphics")
-            while len(graphics) < value:
-                graphic = src.add_point_region(0.5, 0.5)
+    class NGraphics:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src, value):
+            self.__src = src
+            self.__value = value
+
+        def commit(self):
+            graphics = self.computation.get_result("graphics")
+            while len(graphics) < self.__value:
+                graphic = self.__src.add_point_region(0.5, 0.5)
                 graphics.append(graphic)
-            while len(graphics) > value:
-                src.remove_region(graphics.pop())
-            computation.set_result("graphics", graphics)
-        return commit
+            while len(graphics) > self.__value:
+                self.__src.remove_region(graphics.pop())
+            self.computation.set_result("graphics", graphics)
 
     def test_new_computation_with_list_result(self):
-        Symbolic.register_computation_type("n_graphics", {"inputs": [{"src": "data_item"}]}, self.__n_graphics)
+        Symbolic.register_computation_type("n_graphics", self.NGraphics)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -422,7 +440,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(data_item.displays[0].graphics), 5)
 
     def test_new_computation_with_list_result_updates_dependencies(self):
-        Symbolic.register_computation_type("n_graphics", {"inputs": [{"src": "data_item"}]}, self.__n_graphics)
+        Symbolic.register_computation_type("n_graphics", self.NGraphics)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -446,7 +464,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(set(document_model.get_dependent_items(data_item)), set(data_item.displays[0].graphics))
 
     def test_new_computation_creates_dependency_when_result_created_during_computation(self):
-        Symbolic.register_computation_type("set_const", {}, self.__set_const)
+        Symbolic.register_computation_type("set_const", self.SetConst)
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
@@ -466,7 +484,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_data_items(data_item)[0], document_model.data_items[1])
 
     def test_new_computation_creates_dependency_when_result_created_before_computation(self):
-        Symbolic.register_computation_type("set_const", {}, self.__set_const)
+        Symbolic.register_computation_type("set_const", self.SetConst)
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
@@ -489,7 +507,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_data_items(data_item)[0], document_model.data_items[1])
 
     def test_new_computation_deletes_computation_and_result_data_item_when_input_data_item_deleted(self):
-        Symbolic.register_computation_type("set_const", {}, self.__set_const)
+        Symbolic.register_computation_type("set_const", self.SetConst)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -511,18 +529,20 @@ class TestDocumentModelClass(unittest.TestCase):
 
     add2_eval_count = 0
 
-    def __add2(self, api, src1, src2):
-        new_data = src1.data + src2.data
+    class Add2:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
 
-        def commit(api, computation):
-            dst_data_item = computation.get_result("dst")
-            dst_data_item.data = new_data
-            self.add2_eval_count += 1
+        def execute(self, src1, src2):
+            self.__new_data = src1.data + src2.data
 
-        return commit
+        def commit(self):
+            dst_data_item = self.computation.get_result("dst")
+            dst_data_item.data = self.__new_data
+            TestDocumentModelClass.add2_eval_count += 1
 
     def test_new_computation_keeps_computation_until_last_input_deleted(self):
-        Symbolic.register_computation_type("add2", {}, self.__add2)
+        Symbolic.register_computation_type("add2", self.Add2)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
@@ -553,7 +573,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 0)
 
     def test_new_computation_deletes_computation_when_result_data_item_deleted(self):
-        Symbolic.register_computation_type("add2", {}, self.__add2)
+        Symbolic.register_computation_type("add2", self.Add2)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
@@ -579,7 +599,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.computations), 0)
 
     def test_new_computation_deleting_computation_deletes_all_results(self):
-        Symbolic.register_computation_type("add2", {}, self.__add2)
+        Symbolic.register_computation_type("add2", self.Add2)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
@@ -605,7 +625,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.computations), 0)
 
     def test_new_computation_deleting_computation_deletes_all_result_lists(self):
-        Symbolic.register_computation_type("n_graphics", {"inputs": [{"src": "data_item"}]}, self.__n_graphics)
+        Symbolic.register_computation_type("n_graphics", self.NGraphics)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -627,7 +647,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.computations), 0)
 
     def test_new_computation_deleting_result_on_computation_with_multiple_results_deletes_all_results_and_computation(self):
-        Symbolic.register_computation_type("n_graphics", {"inputs": [{"src": "data_item"}]}, self.__n_graphics)
+        Symbolic.register_computation_type("n_graphics", self.NGraphics)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.zeros((2, 2), numpy.int))
@@ -649,7 +669,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.computations), 0)
 
     def test_new_computation_deletes_auto_created_result_data_item_when_input_data_item_deleted(self):
-        Symbolic.register_computation_type("set_const", {}, self.__set_const)
+        Symbolic.register_computation_type("set_const", self.SetConst)
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
@@ -667,17 +687,19 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_model.computations), 0)
 
-    def __copy_data(self, api, src):
-        new_data = src.data
+    class CopyData:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
 
-        def commit(api, computation):
-            dst_data_item = computation.get_result("dst")
-            dst_data_item.data = new_data
+        def execute(self, src):
+            self.__new_data = src.data
 
-        return commit
+        def commit(self):
+            dst_data_item = self.computation.get_result("dst")
+            dst_data_item.data = self.__new_data
 
     def test_new_computation_cannot_result_in_parallel_dependency(self):
-        Symbolic.register_computation_type("copy_data", {}, self.__copy_data)
+        Symbolic.register_computation_type("copy_data", self.CopyData)
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
@@ -698,7 +720,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_computation(computation2)
 
     def test_new_computation_cannot_result_in_immediate_circular_dependency(self):
-        Symbolic.register_computation_type("copy_data", {}, self.__copy_data)
+        Symbolic.register_computation_type("copy_data", self.CopyData)
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
@@ -712,7 +734,7 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_computation(computation)
 
     def test_new_computation_cannot_result_in_secondary_circular_dependency(self):
-        Symbolic.register_computation_type("copy_data", {}, self.__copy_data)
+        Symbolic.register_computation_type("copy_data", self.CopyData)
         document_model = DocumentModel.DocumentModel()
         self.app._set_document_model(document_model)  # required to allow API to find document model
         with contextlib.closing(document_model):
@@ -733,7 +755,8 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.append_computation(computation)
 
     def test_new_computation_with_missing_input_does_not_recompute(self):
-        Symbolic.register_computation_type("add2", {}, self.__add2)
+        TestDocumentModelClass.add2_eval_count = 0
+        Symbolic.register_computation_type("add2", self.Add2)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
@@ -749,15 +772,16 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(self.add2_eval_count, 1)
+            self.assertEqual(TestDocumentModelClass.add2_eval_count, 1)
             document_model.recompute_all()
-            self.assertEqual(self.add2_eval_count, 1)
+            self.assertEqual(TestDocumentModelClass.add2_eval_count, 1)
             document_model.remove_data_item(data_item)
             document_model.recompute_all()
-            self.assertEqual(self.add2_eval_count, 1)
+            self.assertEqual(TestDocumentModelClass.add2_eval_count, 1)
 
     def test_new_computation_with_missing_input_recomputes_when_missing_input_supplied(self):
-        Symbolic.register_computation_type("add2", {}, self.__add2)
+        TestDocumentModelClass.add2_eval_count = 0
+        Symbolic.register_computation_type("add2", self.Add2)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
@@ -772,13 +796,14 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(self.add2_eval_count, 0)
+            self.assertEqual(TestDocumentModelClass.add2_eval_count, 0)
             document_model.append_data_item(data_item2)
             document_model.recompute_all()
-            self.assertEqual(self.add2_eval_count, 1)
+            self.assertEqual(TestDocumentModelClass.add2_eval_count, 1)
 
     def test_new_computation_with_initially_missing_input_fails_gracefully(self):
-        Symbolic.register_computation_type("add2", {}, self.__add2)
+        TestDocumentModelClass.add2_eval_count = 0
+        Symbolic.register_computation_type("add2", self.Add2)
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
@@ -792,13 +817,18 @@ class TestDocumentModelClass(unittest.TestCase):
             computation.processing_id = "add2"
             document_model.append_computation(computation)
             document_model.recompute_all()
-            self.assertEqual(self.add2_eval_count, 0)
+            self.assertEqual(TestDocumentModelClass.add2_eval_count, 0)
 
+    # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
+    # way to configure display for new data items?
+    # ability to add custom objects to library and depend on them and update them
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
     # variable number of inputs, single output
     # user has way to see error output from a failed computation
+    # future ability to prepare is not precluded
     # future ability to undo is not precluded
     # naming method, similar to commit
+    # provenance, similar to commit
     # check to delete method, similar to commit
     # ability to debounce and sample change messages for improved performance
     # ability to have long running operations
@@ -807,11 +837,10 @@ class TestDocumentModelClass(unittest.TestCase):
     # exporting a 'complete' set of data items includes all computations and references.
     # updating set or list of results does not trigger recompute
     # data item computations are migrated to independent computations
-    # way to configure display for new data items?
     # there exists a way for user to discover library computations, and see which ones are dead and why
-    # ability to add custom objects to library and depend on them and update them
     # file vaults (HDF5 w/ multiple data items) includes the library computations.
     # possible to keep an ordered list of results in computation
+    # idea of intermediate mode computations - pass results directly to another computation? chain?
 
 
 if __name__ == '__main__':

@@ -1197,14 +1197,13 @@ class ComputationQueueItem:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 if self.computation:
-                    commit_fn, error_text = computation.evaluate(api)
+                    compute_obj, error_text = computation.evaluate(api)
                     if computation.error_text != error_text:
                         computation.error_text = error_text
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
-                    if self.valid and commit_fn:  # TODO: race condition for 'valid'
-                        api_computation = api._new_api_object(computation)
-                        pending_data_item_merges.append((computation, functools.partial(commit_fn, api, api_computation)))
+                    if self.valid and compute_obj:  # TODO: race condition for 'valid'
+                        pending_data_item_merges.append((computation, functools.partial(compute_obj.commit)))
                 else:
                     data_item_clone = data_item.clone()
                     data_item_data_modified = data_item.data_modified or datetime.datetime.min

@@ -3171,16 +3171,21 @@ class TestStorageClass(unittest.TestCase):
 
     computation1_eval_count = 0
 
-    def __computation1(self, api, src):
-        self.computation1_eval_count += 1
-        d = -src.xdata
-        def compute(api, computation):
-            dst = computation.get_result("dst")
-            dst.xdata = d
-        return compute
+    class Computation1:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src):
+            TestStorageClass.computation1_eval_count += 1
+            self.__xdata = -src.xdata
+
+        def commit(self):
+            dst = self.computation.get_result("dst")
+            dst.xdata = self.__xdata
 
     def test_library_computation_reconnects_after_reload(self):
-        Symbolic.register_computation_type("computation1", {}, self.__computation1)
+        TestStorageClass.computation1_eval_count = 0
+        Symbolic.register_computation_type("computation1", self.Computation1)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         library_storage = DocumentModel.MemoryPersistentStorage()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
@@ -3206,7 +3211,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data))
 
     def test_library_computation_listens_to_changes_after_reload(self):
-        Symbolic.register_computation_type("computation1", {}, self.__computation1)
+        TestStorageClass.computation1_eval_count = 0
+        Symbolic.register_computation_type("computation1", self.Computation1)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         library_storage = DocumentModel.MemoryPersistentStorage()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
@@ -3233,7 +3239,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_data_items(new_data_item)[0], dst_data_item)
 
     def test_library_computation_does_not_evaluate_with_missing_inputs(self):
-        Symbolic.register_computation_type("computation1", {}, self.__computation1)
+        TestStorageClass.computation1_eval_count = 0
+        Symbolic.register_computation_type("computation1", self.Computation1)
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         library_storage = DocumentModel.MemoryPersistentStorage()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)

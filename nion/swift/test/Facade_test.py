@@ -322,20 +322,25 @@ class TestFacadeClass(unittest.TestCase):
             data[:, :] = numpy.random.randn(2, 2)
             self.assertFalse(numpy.array_equal(data, data_item.data))
 
-    def __computation1(self, api, src):
-        def compute(api, computation):
-            graphic = computation.get_result("graphic")
+    class Computation1:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src):
+            self.__src = src
+
+        def commit(self):
+            graphic = self.computation.get_result("graphic")
             if not graphic:
-                graphic = src.add_point_region(0.5, 0.5)
-                computation.set_result("graphic", graphic)
-        return compute
+                graphic = self.__src.add_point_region(0.5, 0.5)
+                self.computation.set_result("graphic", graphic)
 
     def test_register_library_computation_and_execute_it(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0")
-            api.register_computation_type("computation1", {}, self.__computation1)
+            api.register_computation_type("computation1", self.Computation1)
             data = numpy.random.randn(2, 2)
             data_item = api.library.create_data_item()
             data_item.set_data(data)
@@ -343,21 +348,27 @@ class TestFacadeClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(len(data_item.graphics), 1)
 
-    def __computation2(self, api, src, value):
-        def compute(api, computation):
-            graphic = computation.get_result("graphic")
+    class Computation2:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src, value):
+            self.__src = src
+            self.__value = value
+
+        def commit(self):
+            graphic = self.computation.get_result("graphic")
             if not graphic:
-                graphic = src.add_point_region(0.5, 0.5)
-                computation.set_result("graphic", graphic)
-            graphic.label = str(value)
-        return compute
+                graphic = self.__src.add_point_region(0.5, 0.5)
+                self.computation.set_result("graphic", graphic)
+            graphic.label = str(self.__value)
 
     def test_register_library_computation_with_variable_and_execute_it(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0")
-            api.register_computation_type("computation2", {}, self.__computation2)
+            api.register_computation_type("computation2", self.Computation2)
             data = numpy.random.randn(2, 2)
             data_item = api.library.create_data_item()
             data_item.set_data(data)
@@ -370,19 +381,24 @@ class TestFacadeClass(unittest.TestCase):
             self.assertEqual(len(data_item.graphics), 1)
             self.assertEqual(data_item.graphics[0].label, "label2")
 
-    def __computation3(self, api, src):
-        d = src.data
-        def compute(api, computation):
-            dst = computation.get_result("dst")
-            dst.set_data(d)
-        return compute
+    class Computation3:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src):
+            self.__data = src.data
+            self.__src = src
+
+        def commit(self):
+            dst = self.computation.get_result("dst")
+            dst.set_data(self.__data)
 
     def test_library_computation_change_object_input(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0")
-            api.register_computation_type("computation3", {}, self.__computation3)
+            api.register_computation_type("computation3", self.Computation3)
             data1 = numpy.ones((2, 2)) * 1
             data_item1 = api.library.create_data_item()
             data_item1.set_data(data1)
@@ -397,20 +413,25 @@ class TestFacadeClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(dst_data_item.data, data2))
 
-    def __computation4(self, api, src):
-        assert isinstance(src, Facade.DataSource)
-        d = src.data
-        def compute(api, computation):
-            dst = computation.get_result("dst")
-            dst.set_data(d)
-        return compute
+    class Computation4:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src):
+            assert isinstance(src, Facade.DataSource)
+            self.__data = src.data
+            self.__src = src
+
+        def commit(self):
+            dst = self.computation.get_result("dst")
+            dst.set_data(self.__data)
 
     def test_library_computation_change_object_data_source_input(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = self.app.create_document_controller(document_model, "library")
         with contextlib.closing(document_controller):
             api = Facade.get_api("~1.0")
-            api.register_computation_type("computation4", {}, self.__computation4)
+            api.register_computation_type("computation4", self.Computation4)
             data1 = numpy.ones((2, 2)) * 1
             data_item1 = api.library.create_data_item()
             data_item1.set_data(data1)

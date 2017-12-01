@@ -3060,8 +3060,8 @@ class API_1:
         assert self.__app.document_model
         return Library(self.__app.document_model)
 
-    def register_computation_type(self, computation_type_id, computation_description, fn):
-        Symbolic.register_computation_type(computation_type_id, computation_description, fn)
+    def register_computation_type(self, computation_type_id, compute_class):
+        Symbolic.register_computation_type(computation_type_id, compute_class)
 
     def show(self, item: typing.Any, *parameters) -> None:
         window = self.application.document_windows[0]
