@@ -666,6 +666,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             return str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
         return None
 
+    def mark_update(self):
+        self.needs_update = True
+        self.computation_mutated_event.fire()
+
+    @property
+    def is_resolved(self):
+        return all(not v.specifier or v.bound_item for v in self.variables)
+
     def __bind_variable(self, variable: ComputationVariable) -> None:
         # bind the variable. the variable has a reference to another object in the library.
         # this method finds that object and stores it into the variable. it also sets up

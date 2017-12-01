@@ -1198,9 +1198,11 @@ class ComputationQueueItem:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 if self.computation:
                     commit_fn, error_text = computation.evaluate(api)
+                    if computation.error_text != error_text:
+                        computation.error_text = error_text
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
-                    if self.valid:  # TODO: race condition for 'valid'
+                    if self.valid and commit_fn:  # TODO: race condition for 'valid'
                         api_computation = api._new_api_object(computation)
                         pending_data_item_merges.append((computation, functools.partial(commit_fn, api, api_computation)))
                 else:
@@ -1532,6 +1534,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
         data_item.data_item_was_inserted(self)
+        # when a new data item is inserted, check for computations with unresolved variables
+        # rebind them, and recompute if they no longer have unresolved variables.
+        for computation in self.computations:
+            if not computation.is_resolved:
+                computation.unbind()
+                computation.bind(self)
+                if computation.is_resolved:
+                    computation.mark_update()
 
     def remove_data_item(self, data_item):
         """Remove data item from document model.

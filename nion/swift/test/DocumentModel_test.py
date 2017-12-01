@@ -509,12 +509,15 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 0)
             self.assertEqual(len(document_model.computations), 0)
 
+    add2_eval_count = 0
+
     def __add2(self, api, src1, src2):
         new_data = src1.data + src2.data
 
         def commit(api, computation):
             dst_data_item = computation.get_result("dst")
             dst_data_item.data = new_data
+            self.add2_eval_count += 1
 
         return commit
 
@@ -729,9 +732,68 @@ class TestDocumentModelClass(unittest.TestCase):
                 computation.processing_id = "copy_data"
                 document_model.append_computation(computation)
 
-    # loading computation with missing inputs does not recompute
-    # computation with missing input does not recompute
-    # successfully loading missing input triggers a recompute
+    def test_new_computation_with_missing_input_does_not_recompute(self):
+        Symbolic.register_computation_type("add2", {}, self.__add2)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item))
+            computation.create_object("src2", document_model.get_object_specifier(data_item2))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "add2"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(self.add2_eval_count, 1)
+            document_model.recompute_all()
+            self.assertEqual(self.add2_eval_count, 1)
+            document_model.remove_data_item(data_item)
+            document_model.recompute_all()
+            self.assertEqual(self.add2_eval_count, 1)
+
+    def test_new_computation_with_missing_input_recomputes_when_missing_input_supplied(self):
+        Symbolic.register_computation_type("add2", {}, self.__add2)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item2 = DataItem.DataItem(numpy.ones((2, 2), numpy.int))  # NOT INITIALLY ADDED TO DOCUMENT
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item))
+            computation.create_object("src2", document_model.get_object_specifier(data_item2))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "add2"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(self.add2_eval_count, 0)
+            document_model.append_data_item(data_item2)
+            document_model.recompute_all()
+            self.assertEqual(self.add2_eval_count, 1)
+
+    def test_new_computation_with_initially_missing_input_fails_gracefully(self):
+        Symbolic.register_computation_type("add2", {}, self.__add2)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item))
+            # computation.create_object("src2")
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "add2"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(self.add2_eval_count, 0)
+
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
     # variable number of inputs, single output
     # user has way to see error output from a failed computation
