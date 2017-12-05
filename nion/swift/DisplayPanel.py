@@ -522,13 +522,14 @@ def is_valid_display_type(display_type: str) -> bool:
     return display_type in ("image", "line_plot", "display_script")
 
 
-class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
+class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
 
-    def __init__(self, data_item, delegate, get_font_metrics_fn, event_loop):
+    def __init__(self, display: Display.Display, delegate, get_font_metrics_fn, event_loop):
         super().__init__()
 
+        assert display is not None
+
         self.__closing_lock = threading.RLock()
-        self.__data_item = data_item
         self.__delegate = delegate
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__event_loop = event_loop
@@ -537,15 +538,12 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__next_calculated_display_values_listener = None
         self.__display_type_changed_event_listener = None
         self.__display_type_monitor = None
+        self.__display = display
 
-        assert self.__data_item
-
-        self.__data_item.increment_display_ref_count()  # ensure data stays in memory while displayed
+        self.__display.increment_display_ref_count()  # ensure data stays in memory while displayed
 
         # safe to call 'close' now -- so put the rest in an exception handler
         try:
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-            display = display_specifier.display
             display_type = display.actual_display_type if display else None
             self.__display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics_fn, self, self.__event_loop)
             self.add_canvas_item(self.__display_canvas_item)
@@ -616,53 +614,44 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
             if self.__display_type_monitor:
                 self.__display_type_monitor.close()
                 self.__display_type_monitor = None
-            self.__data_item.decrement_display_ref_count()  # ensure data stays in memory while displayed
+            self.__display.decrement_display_ref_count()  # ensure data stays in memory while displayed
         super().close()
 
     @property
-    def _data_item(self):
-        return self.__data_item
+    def _display(self):
+        return self.__display
 
     @property
     def display_canvas_item(self):
         return self.__display_canvas_item
 
     def add_index_to_selection(self, index):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display_specifier.display.graphic_selection.add(index)
+        self.__display.graphic_selection.add(index)
 
     def remove_index_from_selection(self, index):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display_specifier.display.graphic_selection.remove(index)
+        self.__display.graphic_selection.remove(index)
 
     def set_selection(self, index):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display_specifier.display.graphic_selection.set(index)
+        self.__display.graphic_selection.set(index)
 
     def clear_selection(self):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display_specifier.display.graphic_selection.clear()
+        self.__display.graphic_selection.clear()
 
     def add_and_select_region(self, region: Graphics.Graphic):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display_specifier.display.add_graphic(region)  # this will also make a drawn graphic
+        self.__display.add_graphic(region)  # this will also make a drawn graphic
         # hack to select it. it will be the last item.
-        display_specifier.display.graphic_selection.set(len(display_specifier.display.graphics) - 1)
+        self.__display.graphic_selection.set(len(self.__display.graphics) - 1)
 
     def nudge_selected_graphics(self, mapping, delta):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            all_graphics = display.graphics
-            graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if display.graphic_selection.contains(graphic_index)]
-            for graphic in graphics:
-                graphic.nudge(mapping, delta)
+        all_graphics = self.__display.graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
+        for graphic in graphics:
+            graphic.nudge(mapping, delta)
 
     def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        with display_specifier.data_item.data_item_changes():
+        with self.__display._changes():
             for graphic in graphic_drag_items:
-                index = display_specifier.display.graphics.index(graphic)
+                index = self.__display.graphics.index(graphic)
                 part_data = (graphic_drag_part, ) + graphic_part_data[index]
                 graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
 
@@ -675,13 +664,13 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
         self.__delegate.tool_mode = value
 
     def show_context_menu(self, gx, gy):
-        return self.__delegate.show_context_menu(self.__data_item, gx, gy)
+        return self.__delegate.show_context_menu(self.__display, gx, gy)
 
     def begin_mouse_tracking(self):
-        self.__delegate.begin_data_item_transaction(self.__data_item)
+        self.__delegate.begin_display_transaction(self.__display)
 
     def end_mouse_tracking(self):
-        self.__delegate.end_data_item_transaction(self.__data_item)
+        self.__delegate.end_display_transaction(self.__display)
 
     def image_clicked(self, image_position, modifiers):
         return self.__delegate.image_clicked(image_position, modifiers)
@@ -699,127 +688,90 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
         return self.__delegate.remove_selected_graphic()
 
     def enter_key_pressed(self):
-        display = DataItem.DisplaySpecifier.from_data_item(self.__data_item).display
-        if display:
-            return self.__display_canvas_item.handle_auto_display(display)
-        return False
+        return self.__display_canvas_item.handle_auto_display(self.__display)
 
     def cursor_changed(self, pos):
-        self.__delegate.cursor_changed(self.__data_item, pos)
+        self.__delegate.cursor_changed(self.__display, pos)
 
     def drag_graphics(self, graphics):
-        self.__delegate.drag_graphics(self.__data_item, graphics)
+        self.__delegate.drag_graphics(self.__display, graphics)
 
     def update_display_properties(self, display_properties):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
         for key, value in iter(display_properties.items()):
-            setattr(display_specifier.display, key, value)
+            setattr(self.__display, key, value)
 
     def create_rectangle(self, pos):
         bounds = tuple(pos), (0, 0)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            region = Graphics.RectangleGraphic()
-            region.bounds = bounds
-            display.add_graphic(region)
-            display.graphic_selection.set(display.graphics.index(region))
-            return region
-        return None
+        self.__display.graphic_selection.clear()
+        region = Graphics.RectangleGraphic()
+        region.bounds = bounds
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
     def create_ellipse(self, pos):
         bounds = tuple(pos), (0, 0)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            region = Graphics.EllipseGraphic()
-            region.bounds = bounds
-            display.add_graphic(region)
-            display.graphic_selection.set(display.graphics.index(region))
-            return region
-        return None
+        self.__display.graphic_selection.clear()
+        region = Graphics.EllipseGraphic()
+        region.bounds = bounds
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
     def create_line(self, pos):
         pos = tuple(pos)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            region = Graphics.LineGraphic()
-            region.start = pos
-            region.end = pos
-            display.add_graphic(region)
-            display.graphic_selection.set(display.graphics.index(region))
-            return region
-        return None
+        self.__display.graphic_selection.clear()
+        region = Graphics.LineGraphic()
+        region.start = pos
+        region.end = pos
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
     def create_point(self, pos):
         pos = tuple(pos)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            region = Graphics.PointGraphic()
-            region.position = pos
-            display.add_graphic(region)
-            display.graphic_selection.set(display.graphics.index(region))
-            return region
-        return None
+        self.__display.graphic_selection.clear()
+        region = Graphics.PointGraphic()
+        region.position = pos
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
     def create_line_profile(self, pos):
         pos = tuple(pos)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            line_profile_region = Graphics.LineProfileGraphic()
-            line_profile_region.start = pos
-            line_profile_region.end = pos
-            display.add_graphic(line_profile_region)
-            self.__delegate.display_line_profile(self.__data_item, line_profile_region)
-            return line_profile_region
-        return None
+        self.__display.graphic_selection.clear()
+        line_profile_region = Graphics.LineProfileGraphic()
+        line_profile_region.start = pos
+        line_profile_region.end = pos
+        self.__display.add_graphic(line_profile_region)
+        self.__delegate.display_line_profile(self.__display, line_profile_region)
+        return line_profile_region
 
     def create_spot(self, pos):
         bounds = tuple(pos), (0, 0)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            region = Graphics.SpotGraphic()
-            region.bounds = bounds
-            display.add_graphic(region)
-            display.graphic_selection.set(display.graphics.index(region))
-            return region
-        return None
+        self.__display.graphic_selection.clear()
+        region = Graphics.SpotGraphic()
+        region.bounds = bounds
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
     def create_wedge(self, angle):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            region = Graphics.WedgeGraphic()
-            region.end_angle = angle
-            region.start_angle = angle + math.pi
-            display.add_graphic(region)
-            display.graphic_selection.set(display.graphics.index(region))
-            return region
-        return None
+        self.__display.graphic_selection.clear()
+        region = Graphics.WedgeGraphic()
+        region.end_angle = angle
+        region.start_angle = angle + math.pi
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
     def create_ring(self, radius):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-            display.graphic_selection.clear()
-            region = Graphics.RingGraphic()
-            region.radius_1 = radius
-            display.add_graphic(region)
-            display.graphic_selection.set(display.graphics.index(region))
-            return region
-        return None
+        self.__display.graphic_selection.clear()
+        region = Graphics.RingGraphic()
+        region.radius_1 = radius
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
 
 class DisplayTypeMonitor:
@@ -958,7 +910,7 @@ class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
         drawing_context.restore()
 
 
-class DataItemDisplayCanvasItemDelegate:
+class DisplayCanvasItemDelegate:
     def __init__(self, ui, display_panel_content, on_begin_drag):
         self.__ui = ui
         self.__display_panel_content = display_panel_content
@@ -972,17 +924,17 @@ class DataItemDisplayCanvasItemDelegate:
     def tool_mode(self, value):
         self.__display_panel_content.document_controller.tool_mode = value
 
-    def show_context_menu(self, data_item, gx, gy):
+    def show_context_menu(self, display, gx, gy):
         document_controller = self.__display_panel_content.document_controller
         document_model = document_controller.document_model
-        menu = document_controller.create_context_menu_for_data_item(data_item, container=document_model)
+        menu = document_controller.create_context_menu_for_display(display, container=document_model)
         return self.__display_panel_content.show_context_menu(menu, gx, gy)
 
-    def begin_data_item_transaction(self, data_item):
-        self.__display_panel_content.document_controller.document_model.begin_data_item_transaction(data_item)
+    def begin_display_transaction(self, display: Display.Display) -> None:
+        self.__display_panel_content.document_controller.document_model.begin_display_transaction(display)
 
-    def end_data_item_transaction(self, data_item):
-        self.__display_panel_content.document_controller.document_model.end_data_item_transaction(data_item)
+    def end_display_transaction(self, display: Display.Display) -> None:
+        self.__display_panel_content.document_controller.document_model.end_display_transaction(display)
 
     def image_clicked(self, image_position, modifiers):
         return self.__display_panel_content.image_clicked(image_position, modifiers)
@@ -1001,9 +953,7 @@ class DataItemDisplayCanvasItemDelegate:
             return True
         return False
 
-    def cursor_changed(self, data_item, pos):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        display = display_specifier.display
+    def cursor_changed(self, display: Display.Display, pos):
         position_text, value_text = str(), str()
         try:
             position_text, value_text = display.get_value_and_position_text(pos)
@@ -1015,15 +965,18 @@ class DataItemDisplayCanvasItemDelegate:
         else:
             self.__display_panel_content.document_controller.cursor_changed(None)
 
-    def display_line_profile(self, data_item: DataItem.DataItem, line_profile_region: Graphics.LineTypeGraphic):
-        document_controller = self.__display_panel_content.document_controller
-        document_model = document_controller.document_model
-        line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
-        new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
-        document_controller.display_data_item(new_display_specifier)
+    def display_line_profile(self, display: Display.Display, line_profile_region: Graphics.LineTypeGraphic):
+        data_item = display.container
+        if isinstance(data_item, DataItem.DataItem):
+            document_controller = self.__display_panel_content.document_controller
+            document_model = document_controller.document_model
+            line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
+            document_controller.display_data_item(new_display_specifier)
 
-    def drag_graphics(self, data_item, graphics):
-        if data_item is not None:
+    def drag_graphics(self, display: Display.Display, graphics):
+        data_item = display.container
+        if isinstance(data_item, DataItem.DataItem):
             mime_data = self.__ui.create_mime_data()
             mime_data_content = dict()
             mime_data_content["data_item_uuid"] = str(data_item.uuid)
@@ -1315,11 +1268,15 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__data_item = data_item
 
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
+        display = display_specifier.display
+
         if len(self.__data_item_panel_canvas_item.canvas_items) > 1:
             self.__data_item_panel_canvas_item.remove_canvas_item(self.__data_item_panel_canvas_item.canvas_items[0])
+            self.__display_canvas_item = None
         if self._data_item:
-            delegate = DataItemDisplayCanvasItemDelegate(self.ui, self, self.on_begin_drag)
-            self.__display_canvas_item = DataItemDisplayCanvasItem(self._data_item, delegate, self.ui.get_font_metrics, self.document_controller.event_loop)
+            delegate = DisplayCanvasItemDelegate(self.ui, self, self.on_begin_drag)
+            self.__display_canvas_item = DisplayCanvasItem(display, delegate, self.ui.get_font_metrics, self.document_controller.event_loop)
             self.__data_item_panel_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
 
         self.__shortcuts_canvas_item.set_data_item(data_item)
@@ -1334,7 +1291,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         description_changed()
 
         if self.__data_item_panel_canvas_item:  # may be closed
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             self.__data_item_panel_canvas_item.wants_mouse_events = self.__display_canvas_item is None
             self.__data_item_panel_canvas_item.selected = display_specifier.display is not None and self._is_selected()
 

@@ -560,8 +560,8 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[1]._drag_finished(document_controller, "move")
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item1)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_canvas_item_delegate._data_item, data_item2)
-            self.assertEqual(document_controller.workspace_controller.display_panels[1]._content_for_test._display_canvas_item_delegate._data_item, data_item1)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_canvas_item_delegate._display.container, data_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1]._content_for_test._display_canvas_item_delegate._display.container, data_item1)
 
     def test_clicking_in_header_selects_and_focuses_display_panel(self):
         document_model = DocumentModel.DocumentModel()

@@ -1337,12 +1337,12 @@ class DataItem(LibraryItem):
         """Add a display, but do it through the container, so dependencies can be tracked."""
         self.insert_model_item(self, "displays", self.item_count("displays"), display)
         if self.__display_ref_count > 0:
-            display.increment_display_ref_count()
+            display._become_master()
 
     def remove_display(self, display):
         """Remove display, but do it through the container, so dependencies can be tracked."""
         if self.__display_ref_count > 0:
-            display.decrement_display_ref_count()
+            display._relinquish_master()
         self.remove_model_item(self, "displays", display)
 
     @property
@@ -1370,7 +1370,7 @@ class DataItem(LibraryItem):
         self.__display_ref_count += 1
         if self.__display_ref_count == 1:
             for display in self.displays:
-                display.increment_display_ref_count()
+                display._become_master()
 
     def decrement_display_ref_count(self):
         super().decrement_display_ref_count()
@@ -1378,7 +1378,7 @@ class DataItem(LibraryItem):
         self.__display_ref_count -= 1
         if self.__display_ref_count == 0:
             for display in self.displays:
-                display.decrement_display_ref_count()
+                display._relinquish_master()
 
     def increment_data_ref_count(self):
         data_source = self.data_source

@@ -27,6 +27,7 @@ from nion.swift.model import Cache
 from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import HardwareSource
 from nion.swift.model import ImportExportManager
@@ -1688,6 +1689,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for dependent_data_item in self.get_dependent_data_items(data_item):
                 self.end_data_item_transaction(dependent_data_item)
             data_item._exit_transaction_state()
+
+    def begin_display_transaction(self, display: Display.Display) -> None:
+        data_item = display.container
+        if isinstance(data_item, DataItem.DataItem):
+            self.begin_data_item_transaction(data_item)
+
+    def end_display_transaction(self, display: Display.Display) -> None:
+        data_item = display.container
+        if isinstance(data_item, DataItem.DataItem):
+            self.end_data_item_transaction(data_item)
 
     def data_item_live(self, data_item):
         """ Return a context manager to put the data item in a 'live state'. """

@@ -29,6 +29,7 @@ from nion.swift import Workspace
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
@@ -1471,3 +1472,9 @@ class DocumentController(Window.Window):
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), dependent_data_item.title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
+
+    def create_context_menu_for_display(self, display: Display.Display, container=None):
+        data_item = display.container
+        if isinstance(data_item, DataItem.DataItem):
+            return self.create_context_menu_for_data_item(data_item, container)
+        return self.create_context_menu()

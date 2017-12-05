@@ -738,10 +738,19 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         return self.__last_display_values
 
     def increment_display_ref_count(self):
-        self.__is_master = True
+        self.container.increment_display_ref_count()
 
     def decrement_display_ref_count(self):
+        self.container.decrement_display_ref_count()
+
+    def _become_master(self):
+        self.__is_master = True
+
+    def _relinquish_master(self):
         self.__is_master = False
+
+    def _changes(self):
+        return self.container.data_item_changes()
 
     def __insert_graphic(self, name, before_index, graphic):
         graphic.about_to_be_inserted(self)
