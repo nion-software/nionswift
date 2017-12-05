@@ -136,7 +136,7 @@ class RecorderDialog(Dialog.ActionDialog):
             else:
                 self.__recording_error = True
 
-        self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
+        self.__library_item_changed_event_listener = data_item.library_item_changed_event.listen(data_item_content_changed)
         self.__data_item_deleted_event_listener = self.document_controller.document_model.data_item_deleted_event.listen(data_item_deleted)
         self.__data_item_data_changed_event_listener = self.__data_item.data_changed_event.listen(data_changed)
 
@@ -146,8 +146,8 @@ class RecorderDialog(Dialog.ActionDialog):
         data_changed()
 
     def close(self):
-        self.__data_item_content_changed_event_listener.close()
-        self.__data_item_content_changed_event_listener = None
+        self.__library_item_changed_event_listener.close()
+        self.__library_item_changed_event_listener = None
         self.__data_item_deleted_event_listener.close()
         self.__data_item_deleted_event_listener = None
         self.__data_item_data_changed_event_listener.close()

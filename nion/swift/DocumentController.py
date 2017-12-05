@@ -29,7 +29,6 @@ from nion.swift import Workspace
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
 from nion.swift.model import ImportExportManager
@@ -37,6 +36,7 @@ from nion.swift.model import Symbolic
 from nion.ui import Dialog
 from nion.ui import Window
 from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -88,15 +88,15 @@ class DocumentController(Window.Window):
 
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
-        # data items binding tracks the main list of items selected in the data panel.
-        # filtered data items binding tracks the filtered items from those in data items binding.
-        self.__data_items_binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__filtered_data_items_binding = DataItemsBinding.DataItemsFilterBinding(self.__data_items_binding, self.selection)
-        self.__last_display_filter = DataItemsBinding.Filter(True)
+        # data items model tracks the main list of items selected in the data panel.
+        # filtered data items model tracks the filtered items from those in data items model.
+        self.__data_items_model = ListModel.FilteredListModel(items_key="data_items")
+        self.__filtered_data_items_model = ListModel.FilteredListModel(items_key="data_items", container=self.__data_items_model, selection=self.selection)
+        self.__last_display_filter = ListModel.Filter(True)
 
         def data_item_will_be_removed(data_item):
-            if data_item in self.__filtered_data_items_binding.data_items:
-                index = self.__filtered_data_items_binding.data_items.index(data_item)
+            if data_item in self.__filtered_data_items_model.data_items:
+                index = self.__filtered_data_items_model.data_items.index(data_item)
                 if self.selection.contains(index):
                     self.selection.remove(index)
 
@@ -166,17 +166,16 @@ class DocumentController(Window.Window):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
-        # get rid of the bindings
         self.__data_item_will_be_removed_event_listener.close()
         self.__data_item_will_be_removed_event_listener = None
         self.__call_soon_event_listener.close()
         self.__call_soon_event_listener = None
-        self.__filtered_data_items_binding.close()
-        self.__filtered_data_items_binding = None
+        self.__filtered_data_items_model.close()
+        self.__filtered_data_items_model = None
         self.filter_controller.close()
         self.filter_controller = None
-        self.__data_items_binding.close()
-        self.__data_items_binding = None
+        self.__data_items_model.close()
+        self.__data_items_model = None
         self.__data_browser_controller.close()
         self.__data_browser_controller = None
         # document_model may be shared between several DocumentControllers, so use reference counting
@@ -567,12 +566,12 @@ class DocumentController(Window.Window):
             display_panel.request_focus()
 
     @property
-    def data_items_binding(self):
-        return self.__data_items_binding
+    def data_items_model(self):
+        return self.__data_items_model
 
     @property
-    def filtered_data_items_binding(self):
-        return self.__filtered_data_items_binding
+    def filtered_data_items_model(self):
+        return self.__filtered_data_items_model
 
     @property
     def data_browser_controller(self):
@@ -581,61 +580,59 @@ class DocumentController(Window.Window):
     def create_data_browser_controller_for_display_panel(self) -> DataPanel.DataBrowserController:
         return self.__data_browser_controller.clone_for_display_panel()
 
-    def __update_data_item_binding(self, binding: DataItemsBinding.AbstractDataItemsBinding, data_group, filter_id):
+    def __update_data_items_model(self, data_items_model: ListModel.FilteredListModel, data_group, filter_id):
+        """Update the data item model with a new container, filter, and sorting.
 
-        """
-            Update the data item binding with a new container, filter, and sorting.
-
-            This is called when the data item binding is created or when the user changes
-            the data group or sorting settings.
+        This is called when the data item model is created or when the user changes
+        the data group or sorting settings.
         """
 
-        with binding.changes():  # change filter and sort together
+        with data_items_model.changes():  # change filter and sort together
             if data_group is not None:
-                binding.container = data_group
-                binding.filter = DataItemsBinding.Filter(True)
-                binding.sort_key = None
+                data_items_model.container = data_group
+                data_items_model.filter = ListModel.Filter(True)
+                data_items_model.sort_key = None
             elif filter_id == "latest-session":
-                binding.container = self.document_model
-                binding.filter = DataItemsBinding.EqFilter("session_id", self.document_model.session_id)
-                binding.sort_key = DataItem.sort_by_date_key
-                binding.sort_reverse = True
+                data_items_model.container = self.document_model
+                data_items_model.filter = ListModel.EqFilter("session_id", self.document_model.session_id)
+                data_items_model.sort_key = DataItem.sort_by_date_key
+                data_items_model.sort_reverse = True
             elif filter_id == "temporary":
-                binding.container = self.document_model
-                binding.filter = DataItemsBinding.NotEqFilter("category", "persistent")
-                binding.sort_key = DataItem.sort_by_date_key
-                binding.sort_reverse = True
+                data_items_model.container = self.document_model
+                data_items_model.filter = ListModel.NotEqFilter("category", "persistent")
+                data_items_model.sort_key = DataItem.sort_by_date_key
+                data_items_model.sort_reverse = True
             elif filter_id == "none":  # not intended to be used directly
-                binding.container = self.document_model
-                binding.filter = DataItemsBinding.Filter(False)
-                binding.sort_key = DataItem.sort_by_date_key
-                binding.sort_reverse = True
+                data_items_model.container = self.document_model
+                data_items_model.filter = ListModel.Filter(False)
+                data_items_model.sort_key = DataItem.sort_by_date_key
+                data_items_model.sort_reverse = True
             else:  # "all"
-                binding.container = self.document_model
-                binding.filter = DataItemsBinding.EqFilter("category", "persistent")
-                binding.sort_key = DataItem.sort_by_date_key
-                binding.sort_reverse = True
+                data_items_model.container = self.document_model
+                data_items_model.filter = ListModel.EqFilter("category", "persistent")
+                data_items_model.sort_key = DataItem.sort_by_date_key
+                data_items_model.sort_reverse = True
 
-    def create_data_item_binding(self, data_group, filter_id):
-        binding = DataItemsBinding.DataItemsInContainerBinding()
-        self.__update_data_item_binding(binding, data_group, filter_id)
-        return binding
+    def create_data_items_model(self, data_group, filter_id) -> ListModel.FilteredListModel:
+        data_items_model = ListModel.FilteredListModel(items_key="data_items")
+        self.__update_data_items_model(data_items_model, data_group, filter_id)
+        return data_items_model
 
     def set_data_group_or_filter(self, data_group, filter_id):
-        if self.__data_items_binding is not None:
-            self.__update_data_item_binding(self.__data_items_binding, data_group, filter_id)
+        if self.__data_items_model is not None:
+            self.__update_data_items_model(self.__data_items_model, data_group, filter_id)
 
     @property
-    def display_filter(self) -> DataItemsBinding.Filter:
-        return self.__filtered_data_items_binding.filter
+    def display_filter(self) -> ListModel.Filter:
+        return self.__filtered_data_items_model.filter
 
     @display_filter.setter
-    def display_filter(self, display_filter: DataItemsBinding.Filter) -> None:
-        if self.__filtered_data_items_binding is not None:  # during close
-            self.__filtered_data_items_binding.filter = display_filter
+    def display_filter(self, display_filter: ListModel.Filter) -> None:
+        if self.__filtered_data_items_model is not None:  # during close
+            self.__filtered_data_items_model.filter = display_filter
 
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-        all_data_items = self.filtered_data_items_binding.data_items
+        all_data_items = self.filtered_data_items_model.data_items
         indexes = [all_data_items.index(data_item) for data_item in data_items]
         self.selection.set_multiple(indexes)
         self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
@@ -695,7 +692,7 @@ class DocumentController(Window.Window):
 
     def delete_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         for data_item in copy.copy(data_items):
-            container = self.__data_items_binding.container
+            container = self.__data_items_model.container
             container = DataGroup.get_data_item_container(container, data_item)
             if container and data_item in container.data_items:
                 container.remove_data_item(data_item)
@@ -1309,7 +1306,7 @@ class DocumentController(Window.Window):
     def toggle_filter(self):
         if self.workspace_controller.filter_row.visible:
             self.__last_display_filter = self.display_filter
-            self.display_filter = DataItemsBinding.Filter(True)
+            self.display_filter = ListModel.Filter(True)
         else:
             self.display_filter = self.__last_display_filter
         self.workspace_controller.filter_row.visible = not self.workspace_controller.filter_row.visible
@@ -1418,7 +1415,7 @@ class DocumentController(Window.Window):
         menu = self.create_context_menu()
         if data_item:
             if not container:
-                container = self.data_items_binding.container
+                container = self.data_items_model.container
                 container = DataGroup.get_data_item_container(container, data_item)
 
             def delete():

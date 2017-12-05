@@ -600,7 +600,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__session_manager = None
         self.description_changed_event = Event.Event()
-        self.data_item_content_changed_event = Event.Event()
+        self.library_item_changed_event = Event.Event()
+        self.item_changed_event = Event.Event()  # equivalent to library_item_changed_event
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__content_changed = False
@@ -848,7 +849,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         # if the change count is now zero, it means that we're ready to notify listeners. but only notify listeners if
         # there are actual changes to report.
         if change_count == 0 and content_changed:
-            self.data_item_content_changed_event.fire()
+            self.library_item_changed_event.fire()
+            self.item_changed_event.fire()
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()

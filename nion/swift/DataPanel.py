@@ -67,7 +67,7 @@ class DisplayItem:
         def data_item_content_changed():
             self.needs_update_event.fire()
 
-        self.__data_item_content_changed_event_listener = data_item.data_item_content_changed_event.listen(data_item_content_changed)
+        self.__library_item_changed_event_listener = data_item.library_item_changed_event.listen(data_item_content_changed)
 
         self.__thumbnail_updated_event_listener = None
         self.__thumbnail_source = None
@@ -80,8 +80,8 @@ class DisplayItem:
         if self.__thumbnail_source:
             self.__thumbnail_source.close()
             self.__thumbnail_source = None
-        self.__data_item_content_changed_event_listener.close()
-        self.__data_item_content_changed_event_listener = None
+        self.__library_item_changed_event_listener.close()
+        self.__library_item_changed_event_listener = None
 
     @property
     def data_item(self):
@@ -599,8 +599,8 @@ class DataGridWidget(Widgets.CompositeWidgetBase):
 class DataBrowserController:
     """Controls and stores the data browser selection (filter, data group, and data items).
 
-    Notifies the document controller when the data browser selection changes, which updates the data item binding and
-    filtered data item binding.
+    Notifies the document controller when the data browser selection changes, which updates the data item model and
+    filtered data item model.
 
     Notifies the UI when the data browser selection changes so that it can update to match the selection.
 
@@ -650,7 +650,7 @@ class DataBrowserController:
 
         Passing None for data_items will retain the existing selection.
 
-        The data item binding and filtered data item binding will be updated (set_data_group_or_filter).
+        The data item model and filtered data item model will be updated (set_data_group_or_filter).
 
         The UI will be updated to match the selection (filter_changed_event).
 
@@ -1016,43 +1016,46 @@ class DataPanel(Panel.Panel):
 
         class LibraryItemController:
 
-            def __init__(self, base_title, binding):
+            def __init__(self, base_title, data_items_model):
                 self.__base_title = base_title
                 self.__count = 0
-                self.__binding = binding
+                self.__data_items_model = data_items_model
                 self.on_title_changed = None
 
                 # not thread safe. must be called on ui thread.
-                def data_item_inserted(data_item, before_index):
+                def data_item_inserted(key, data_item, before_index):
                     self.__count += 1
                     if self.on_title_changed:
                         document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
 
                 # not thread safe. must be called on ui thread.
-                def data_item_removed(data_item, index):
+                def data_item_removed(key, data_item, index):
                     self.__count -= 1
                     if self.on_title_changed:
                         document_controller.queue_task(functools.partial(self.on_title_changed, self.title))
 
-                self.__binding.inserters[id(self)] = data_item_inserted
-                self.__binding.removers[id(self)] = data_item_removed
-                self.__count = len(self.__binding.data_items)
+                self.__library_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
+                self.__library_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
+
+                self.__count = len(self.__data_items_model.data_items)
 
             @property
             def title(self):
                 return self.__base_title + (" (%i)" % self.__count)
 
             def close(self):
-                del self.__binding.inserters[id(self)]
-                del self.__binding.removers[id(self)]
-                self.__binding.close()
+                self.__library_item_inserted_listener.close()
+                self.__library_item_inserted_listener = None
+                self.__library_item_removed_listener.close()
+                self.__library_item_removed_listener = None
+                self.__data_items_model.close()
 
-        all_items_binding = document_controller.create_data_item_binding(None, "all")
-        all_items_controller = LibraryItemController(_("All"), all_items_binding)
-        live_items_binding = document_controller.create_data_item_binding(None, "temporary")
-        live_items_controller = LibraryItemController(_("Live"), live_items_binding)
-        latest_items_binding = document_controller.create_data_item_binding(None, "latest-session")
-        latest_items_controller = LibraryItemController(_("Latest Session"), latest_items_binding)
+        all_library_items_model = document_controller.create_data_items_model(None, "all")
+        all_items_controller = LibraryItemController(_("All"), all_library_items_model)
+        live_library_items_model = document_controller.create_data_items_model(None, "temporary")
+        live_items_controller = LibraryItemController(_("Live"), live_library_items_model)
+        latest_library_items_model = document_controller.create_data_items_model(None, "latest-session")
+        latest_items_controller = LibraryItemController(_("Latest Session"), latest_library_items_model)
         self.__item_controllers = [all_items_controller, live_items_controller, latest_items_controller]
 
         self.library_model_controller = LibraryModelController(ui, self.__item_controllers)
@@ -1163,28 +1166,29 @@ class DataPanel(Panel.Panel):
         data_list_widget = DataListWidget(ui, self.data_list_controller)
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
-        def data_item_inserted(data_item, before_index):
+        def data_item_inserted(key, data_item, before_index):
             assert threading.current_thread() == threading.main_thread()
             display_item = DisplayItem(data_item, ui)
             self.__display_items.insert(before_index, display_item)
             self.data_list_controller.display_item_inserted(display_item, before_index)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 
-        def data_item_removed(data_item, index):
+        def data_item_removed(key, data_item, index):
             assert threading.current_thread() == threading.main_thread()
             self.data_list_controller.display_item_removed(index)
             self.data_grid_controller.display_item_removed(index)
             self.__display_items[index].close()
             del self.__display_items[index]
 
-        self.__binding = document_controller.filtered_data_items_binding
-        self.__binding.inserters[id(self)] = data_item_inserted
-        self.__binding.removers[id(self)] = data_item_removed
+        self.__filtered_data_items_model = document_controller.filtered_data_items_model
+
+        self.__library_item_inserted_listener = self.__filtered_data_items_model.item_inserted_event.listen(data_item_inserted)
+        self.__library_item_removed_listener = self.__filtered_data_items_model.item_removed_event.listen(data_item_removed)
 
         self.__display_items = list()
 
-        for index, data_item in enumerate(self.__binding.data_items):
-            data_item_inserted(data_item, index)
+        for index, data_item in enumerate(self.__filtered_data_items_model.data_items):
+            data_item_inserted("data_items", data_item, index)
 
         list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/list_icon_20.png")))
         grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/grid_icon_20.png")))
@@ -1244,11 +1248,13 @@ class DataPanel(Panel.Panel):
         self.__data_browser_controller.set_data_browser_selection()
 
     def close(self):
-        # binding should not be closed since it isn't created in this object
+        # data items model should not be closed since it isn't created in this object
         self.splitter.save_state("window/v1/data_panel_splitter")
         # self.__data_browser_controller.set_data_browser_selection()
-        del self.__binding.inserters[id(self)]
-        del self.__binding.removers[id(self)]
+        self.__library_item_inserted_listener.close()
+        self.__library_item_inserted_listener = None
+        self.__library_item_removed_listener.close()
+        self.__library_item_removed_listener = None
         # close the models
         self.data_group_model_controller.close()
         self.data_group_model_controller = None

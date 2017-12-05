@@ -128,6 +128,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         assert data_item.uuid not in self.data_item_uuids
         self.__data_items.insert(before_index, data_item)
         self.data_item_inserted_event.fire(self, data_item, before_index, self.__moving)
+        self.notify_insert_item("data_items", data_item, before_index)
         self.update_counted_data_items(collections.Counter([data_item]))
         data_item_uuids = self.data_item_uuids
         data_item_uuids.insert(before_index, data_item.uuid)
@@ -139,6 +140,7 @@ class DataGroup(Observable.Observable, Persistence.PersistentObject):
         self.__data_items.remove(data_item)
         self.subtract_counted_data_items(collections.Counter([data_item]))
         self.data_item_removed_event.fire(self, data_item, index, self.__moving)
+        self.notify_remove_item("data_items", data_item, index)
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
         self.data_item_uuids = data_item_uuids

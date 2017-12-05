@@ -6,7 +6,6 @@
 import bisect
 import datetime
 import gettext
-import re
 import threading
 import weakref
 
@@ -14,8 +13,8 @@ import weakref
 # None
 
 # local libraries
-from nion.swift.model import DataItemsBinding
 from nion.swift import Panel
+from nion.utils import ListModel
 
 _ = gettext.gettext
 
@@ -56,9 +55,9 @@ class FilterController:
         self.__data_item_tree.tree_node_updated = self.__update_tree_node
 
         # thread safe.
-        def data_item_inserted(data_item, before_index):
+        def data_item_inserted(key, data_item, before_index):
             """
-                This method will be called from the data item list binding, which comes from the document controller to
+                This method will be called from the data item list model, which comes from the document controller to
                 notify that the list of data items in the document has changed.
                 This method breaks the date-related metadata out into a list of indexes which are then displayed
                 in tree format for the date browser. in this case, the indexes are added.
@@ -70,9 +69,9 @@ class FilterController:
                 self.__data_item_tree.insert_value(indexes, data_item)
 
         # thread safe.
-        def data_item_removed(data_item, index):
+        def data_item_removed(key, data_item, index):
             """
-                This method will be called from the data item list binding, which comes from the document controller to
+                This method will be called from the data item list model, which comes from the document controller to
                 notify that the list of data items in the document has changed.
                 This method breaks the date-related metadata out into a list of indexes which are then displayed
                 in tree format for the date browser. in this case, the indexes are removed.
@@ -83,12 +82,13 @@ class FilterController:
                 indexes = created.year, created.month, created.day
                 self.__data_item_tree.remove_value(indexes, data_item)
 
-        # connect the data_items_binding from the document controller to self.
+        # connect the data_items_model from the document controller to self.
         # when data items are inserted or removed from the document controller, the inserter and remover methods
         # will be called.
-        self.__data_item_list_binding = document_controller.data_items_binding
-        self.__data_item_list_binding.inserters[id(self)] = data_item_inserted
-        self.__data_item_list_binding.removers[id(self)] = data_item_removed
+        self.__data_items_model = document_controller.data_items_model
+
+        self.__library_item_inserted_listener = self.__data_items_model.item_inserted_event.listen(data_item_inserted)
+        self.__library_item_removed_listener = self.__data_items_model.item_removed_event.listen(data_item_removed)
 
         self.__mapping = dict()
         self.__mapping[id(self.__data_item_tree)] = self.item_model_controller.root
@@ -98,12 +98,11 @@ class FilterController:
         self.__text_filter = None
 
     def close(self):
-        """
-            Close the date model controller. Un-listen to the data item list binding and close
-            the item model controller.
-        """
-        del self.__data_item_list_binding.inserters[id(self)]
-        del self.__data_item_list_binding.removers[id(self)]
+        # Close the data model controller. Un-listen to the data item list model and close the item model controller.
+        self.__library_item_inserted_listener.close()
+        self.__library_item_inserted_listener = None
+        self.__library_item_removed_listener.close()
+        self.__library_item_removed_listener = None
         self.__periodic_listener.close()
         self.__periodic_listener = None
         self.item_model_controller.close()
@@ -193,10 +192,10 @@ class FilterController:
         for index, parent_row, parent_id in selected_indexes:
             item_model_controller = self.item_model_controller
             tree_node = item_model_controller.item_value("tree_node", index, parent_id)
-            partial_date_filters.append(DataItemsBinding.PartialDateFilter("created_local", *tree_node.keys))
+            partial_date_filters.append(ListModel.PartialDateFilter("created_local", *tree_node.keys))
 
         if len(partial_date_filters) > 0:
-            self.__date_filter = DataItemsBinding.OrFilter(partial_date_filters)
+            self.__date_filter = ListModel.OrFilter(partial_date_filters)
         else:
             self.__date_filter = None
 
@@ -211,7 +210,7 @@ class FilterController:
         text = text.strip() if text else None
 
         if text is not None:
-            self.__text_filter = DataItemsBinding.TextFilter("text_for_filter", text)
+            self.__text_filter = ListModel.TextFilter("text_for_filter", text)
         else:
             self.__text_filter = None
 
@@ -226,7 +225,7 @@ class FilterController:
             filters.append(self.__date_filter)
         if self.__text_filter:
             filters.append(self.__text_filter)
-        self.document_controller.display_filter = DataItemsBinding.AndFilter(filters)
+        self.document_controller.display_filter = ListModel.AndFilter(filters)
 
 
 class FilterPanel:

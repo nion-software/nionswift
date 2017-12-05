@@ -1413,6 +1413,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
+        self.notify_insert_item("data_items", data_item, before_index)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
         data_item.data_item_was_inserted(self)
@@ -1465,6 +1466,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
         self.data_item_removed_event.fire(self, data_item, index, False)
+        self.notify_remove_item("data_items", data_item, index)
         data_item.close()  # make sure dependents get updated. argh.
         self.data_item_deleted_event.fire(data_item)
 

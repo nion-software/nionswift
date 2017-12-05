@@ -1102,7 +1102,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
             return self.show_context_menu(menu, gx, gy)
 
-        self.__selection = document_controller.filtered_data_items_binding.make_selection()
+        self.__selection = document_controller.filtered_data_items_model.make_selection()
 
         def data_list_drag_started(mime_data, thumbnail_data):
             self.content_canvas_item.drag(mime_data, thumbnail_data)
@@ -1138,7 +1138,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__display_items = list()
 
-        def data_item_inserted(data_item, before_index):
+        def data_item_inserted(key, data_item, before_index):
             assert threading.current_thread() == threading.main_thread()
             if self.__display_items is not None:  # closed?
                 display_item = DataPanel.DisplayItem(data_item, ui)
@@ -1146,7 +1146,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
                 self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
 
-        def data_item_removed(data_item, index):
+        def data_item_removed(key, data_item, index):
             assert threading.current_thread() == threading.main_thread()
             if self.__display_items is not None:  # closed?
                 self.__horizontal_data_grid_controller.display_item_removed(index)
@@ -1154,12 +1154,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 self.__display_items[index].close()
                 del self.__display_items[index]
 
-        self.__binding = document_controller.filtered_data_items_binding
-        self.__binding.inserters[id(self)] = data_item_inserted
-        self.__binding.removers[id(self)] = data_item_removed
+        self.__binding = document_controller.filtered_data_items_model
+
+        self.__library_item_inserted_listener = self.__binding.item_inserted_event.listen(data_item_inserted)
+        self.__library_item_removed_listener = self.__binding.item_removed_event.listen(data_item_removed)
 
         for index, data_item in enumerate(self.__binding.data_items):
-            data_item_inserted(data_item, index)
+            data_item_inserted("data_items", data_item, index)
 
         self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
         self.__horizontal_browser_canvas_item.sizing.set_fixed_height(80)
@@ -1191,8 +1192,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_canvas_item = None
         self.set_displayed_data_item(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
-        del self.__binding.inserters[id(self)]
-        del self.__binding.removers[id(self)]
+        self.__library_item_inserted_listener.close()
+        self.__library_item_inserted_listener = None
+        self.__library_item_removed_listener.close()
+        self.__library_item_removed_listener = None
         self.__horizontal_data_grid_controller.close()
         self.__horizontal_data_grid_controller = None
         self.__grid_data_grid_controller.close()
@@ -1202,7 +1205,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_items = None
         self.__selected_data_items_changed_event_listener.close()
         self.__selected_data_items_changed_event_listener = None
-        self.document_controller.filtered_data_items_binding.release_selection(self.__selection)
+        self.document_controller.filtered_data_items_model.release_selection(self.__selection)
         self.__selection = None
         super().close()
 

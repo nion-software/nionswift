@@ -13,10 +13,10 @@ from nion.swift import DisplayPanel
 from nion.swift import Facade
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
-from nion.swift.model import DataItemsBinding
 from nion.swift.model import DocumentModel
 from nion.ui import TestUI
 from nion.utils import Geometry
+from nion.utils import ListModel
 
 
 Facade.initialize()
@@ -304,15 +304,15 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
             data_group.append_data_item(data_item2)
-            binding = DataItemsBinding.DataItemsInContainerBinding()
-            binding.container = data_group
-            self.assertTrue(data_item1 in binding.data_items)
+            filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
+            filtered_data_items.container = data_group
+            self.assertTrue(data_item1 in filtered_data_items.items)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             document_controller.select_data_group_in_data_panel(data_group=data_group, data_item=data_item1)
-            binding.close()
-            binding = None
+            filtered_data_items.close()
+            filtered_data_items = None
 
-    def test_data_group_data_items_binding_should_close_nicely(self):
+    def test_data_group_data_items_model_should_close_nicely(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -327,13 +327,13 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
             data_group.append_data_item(data_item2)
-            binding = DataItemsBinding.DataItemsInContainerBinding()
-            binding.container = data_group
-            self.assertTrue(data_item1 in binding.data_items)
-            binding.close()
-            binding = None
+            filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
+            filtered_data_items.container = data_group
+            self.assertTrue(data_item1 in filtered_data_items.items)
+            filtered_data_items.close()
+            filtered_data_items = None
 
-    def test_data_group_data_items_binding_should_replace_data_group_with_itself_without_failing(self):
+    def test_data_group_data_items_model_should_replace_data_group_with_itself_without_failing(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         with contextlib.closing(document_controller):
@@ -348,12 +348,12 @@ class TestDataPanelClass(unittest.TestCase):
             data_item2.title = "data_item2"
             document_model.append_data_item(data_item2)
             data_group.append_data_item(data_item2)
-            binding = DataItemsBinding.DataItemsInContainerBinding()
-            binding.container = data_group
-            binding.container = data_group
-            self.assertTrue(data_item1 in binding.data_items)
-            binding.close()
-            binding = None
+            filtered_data_items = ListModel.FilteredListModel(items_key="data_items")
+            filtered_data_items.container = data_group
+            filtered_data_items.container = data_group
+            self.assertTrue(data_item1 in filtered_data_items.items)
+            filtered_data_items.close()
+            filtered_data_items = None
 
     def test_add_remove_sync(self):
         document_model = DocumentModel.DocumentModel()
@@ -516,10 +516,10 @@ class TestDataPanelClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             document_controller.periodic()  # changes to filter will be queued. update that here.
-            self.assertEqual(len(document_controller.filtered_data_items_binding.data_items), 3)
-            document_controller.display_filter = DataItemsBinding.TextFilter("title", "Y")
+            self.assertEqual(len(document_controller.filtered_data_items_model.items), 3)
+            document_controller.display_filter = ListModel.TextFilter("title", "Y")
             document_controller.periodic()  # changes to filter will be queued. update that here.
-            self.assertEqual(len(document_controller.filtered_data_items_binding.data_items), 1)
+            self.assertEqual(len(document_controller.filtered_data_items_model.items), 1)
 
     def test_changing_display_limits_causes_display_changed_message(self):
         # necessary to make the thumbnails update in the data panel
