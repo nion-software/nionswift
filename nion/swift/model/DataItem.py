@@ -888,7 +888,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def decrement_display_ref_count(self):
         """Decrement display reference count to indicate this library item is no longer displayed."""
-        pass
+        assert not self._closed
 
     @property
     def displayed_title(self):

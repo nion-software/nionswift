@@ -1467,8 +1467,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item_reference.data_item_removed(data_item)
         self.data_item_removed_event.fire(self, data_item, index, False)
         self.notify_remove_item("data_items", data_item, index)
-        data_item.close()  # make sure dependents get updated. argh.
-        self.data_item_deleted_event.fire(data_item)
+        self.data_item_deleted_event.fire(data_item)  # this gets fired before closing to give listeners a chance
+        data_item.close()
 
 
     def insert_model_item(self, container, name, before_index, item):
