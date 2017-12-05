@@ -557,7 +557,7 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
                 self.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
                 self.__display_canvas_item = new_display_canvas_item
 
-            self.__display_type_monitor = DataItemDisplayTypeMonitor(self.__data_item)
+            self.__display_type_monitor = DisplayTypeMonitor(display)
             self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
 
             if display:
@@ -822,55 +822,34 @@ class DataItemDisplayCanvasItem(CanvasItem.CanvasItemComposition):
         return None
 
 
-class DataItemDisplayTypeMonitor:
-    """Monitor a data item for changes to the display type.
+class DisplayTypeMonitor:
+    """Monitor a display for changes to the display type.
 
     Provides the display_type_changed(display_type) event.
 
     Provides the display_type r/o property.
     """
 
-    def __init__(self, data_item):
-        self.__data_item = None
+    def __init__(self, display):
         self.display_type_changed_event = Event.Event()
         self.__display_changed_event_listener = None
         self.__display_type = None
         self.__first = True  # handle case where there is no data, so display_type is always None and doesn't change
-        self.set_data_item(data_item)
+        if display:
+            self.__display_changed_event_listener = display.display_changed_event.listen(functools.partial(self.__update_display_type, display))
+        self.__update_display_type(display)
 
     def close(self):
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
 
-    @property
-    def display_type(self):
-        return self.__display_type
-
-    def __set_display_type(self, display_type):
+    def __update_display_type(self, display):
+        display_type = display.actual_display_type if display else None
         if self.__display_type != display_type or self.__first:
             self.__display_type = display_type
             self.display_type_changed_event.fire(display_type)
             self.__first = False
-
-    def set_data_item(self, data_item):
-        if self.__display_changed_event_listener:
-            self.__display_changed_event_listener.close()
-            self.__display_changed_event_listener = None
-        self.__data_item = data_item
-        display_type = None
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        if display:
-
-            def display_changed():
-                self.__set_display_type(display.actual_display_type)
-
-            self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
-
-            display_type = display.actual_display_type
-
-        self.__set_display_type(display_type)
 
 
 class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
@@ -1154,12 +1133,12 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 self.__display_items[index].close()
                 del self.__display_items[index]
 
-        self.__binding = document_controller.filtered_data_items_model
+        filtered_data_items_model = document_controller.filtered_data_items_model
 
-        self.__library_item_inserted_listener = self.__binding.item_inserted_event.listen(data_item_inserted)
-        self.__library_item_removed_listener = self.__binding.item_removed_event.listen(data_item_removed)
+        self.__library_item_inserted_listener = filtered_data_items_model.item_inserted_event.listen(data_item_inserted)
+        self.__library_item_removed_listener = filtered_data_items_model.item_removed_event.listen(data_item_removed)
 
-        for index, data_item in enumerate(self.__binding.data_items):
+        for index, data_item in enumerate(filtered_data_items_model.data_items):
             data_item_inserted("data_items", data_item, index)
 
         self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
