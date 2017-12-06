@@ -1604,27 +1604,29 @@ def make_image_chooser(ui, document_model, variable):
     bound_data_source = document_model.resolve_object_specifier(base_variable_specifier)
     data_item = bound_data_source.value.data_item if bound_data_source else None
 
-    def data_item_drop(data_item_uuid):
-        data_item = document_model.get_data_item_by_key(data_item_uuid)
-        variable_specifier = document_model.get_object_specifier(data_item)
-        variable.specifier = variable_specifier
+    def drop_mime_data(mime_data, x, y):
+        if mime_data.has_format("text/data_item_uuid"):
+            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            data_item = document_model.get_data_item_by_key(data_item_uuid)
+            variable_specifier = document_model.get_object_specifier(data_item)
+            variable.specifier = variable_specifier
+            return "copy"
+        return None
 
     def data_item_delete():
         variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
         variable.specifier = variable_specifier
 
-    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item)
-    data_item_chooser_widget = DataItemThumbnailWidget.DataItemThumbnailWidget(ui,
-                                                                               data_item_thumbnail_source,
-                                                                               Geometry.IntSize(80, 80))
+    data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item=data_item)
+    data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
 
     def thumbnail_widget_drag(mime_data, thumbnail, hot_spot_x, hot_spot_y):
         # use this convoluted base object for drag so that it doesn't disappear after the drag.
         column.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     data_item_chooser_widget.on_drag = thumbnail_widget_drag
-    data_item_chooser_widget.on_data_item_drop = data_item_drop
-    data_item_chooser_widget.on_data_item_delete = data_item_delete
+    data_item_chooser_widget.on_drop_mime_data = drop_mime_data
+    data_item_chooser_widget.on_delete = data_item_delete
 
     def property_changed(key):
         if key == "specifier":

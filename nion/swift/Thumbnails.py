@@ -18,7 +18,8 @@ from nion.utils import Event
 from nion.utils import ReferenceCounting
 
 
-class ThumbnailDataItemProcessor:
+class ThumbnailProcessor:
+    """Processes thumbnails for a display in a thread."""
 
     def __init__(self, display):
         self.__display = display
@@ -169,6 +170,7 @@ class ThumbnailDataItemProcessor:
 
 
 class ThumbnailSource(ReferenceCounting.ReferenceCounted):
+    """Produce a thumbnail for a display."""
 
     def __init__(self, ui, display: Display):
         super().__init__()
@@ -176,7 +178,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
         self._display = display
 
         self.thumbnail_updated_event = Event.Event()
-        self.__thumbnail_processor = ThumbnailDataItemProcessor(display)
+        self.__thumbnail_processor = ThumbnailProcessor(display)
         self._on_will_delete = None
 
         def thumbnail_changed():
@@ -236,7 +238,8 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
 
 
 class ThumbnailManager(metaclass=Utility.Singleton):
-    """Tracks thumbnails for a Display."""
+    """Manages thumbnail sources for displays."""
+
     def __init__(self):
         self.__thumbnail_sources = dict()
         self.__lock = threading.RLock()

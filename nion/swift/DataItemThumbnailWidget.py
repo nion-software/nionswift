@@ -1,7 +1,5 @@
 # standard libraries
-import abc
-import asyncio
-import uuid
+# None
 
 # third party libraries
 # None
@@ -10,25 +8,22 @@ import uuid
 from nion.data import Image
 from nion.swift import Thumbnails
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import DocumentModel
 from nion.ui import CanvasItem
 from nion.ui import Widgets
 from nion.utils import Geometry
 
 
-class AbstractDataItemThumbnailSource(metaclass=abc.ABCMeta):
+class AbstractThumbnailSource:
 
     def __init__(self):
-        self.on_rgba_bitmap_data_changed = None
+        self.on_thumbnail_data_changed = None
         self.__thumbnail_data = None
+        self.overlay_canvas_item = CanvasItem.EmptyCanvasItem()
 
     def close(self):
-        self.on_rgba_bitmap_data_changed = None
-
-    @property
-    @abc.abstractmethod
-    def data_item(self):
-        pass
+        self.on_thumbnail_data_changed = None
 
     @property
     def thumbnail_data(self):
@@ -37,74 +32,8 @@ class AbstractDataItemThumbnailSource(metaclass=abc.ABCMeta):
     def _set_thumbnail_data(self, thumbnail_data):
         self.__thumbnail_data = thumbnail_data
 
-    def _update_thumbnail(self, data_item: DataItem.DataItem) -> None:
-        display = data_item.primary_display_specifier.display if data_item else None
-        self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display(display))
-        if callable(self.on_rgba_bitmap_data_changed):
-            self.on_rgba_bitmap_data_changed(data_item, self.__thumbnail_data)
-
-
-class DataItemThumbnailSource(AbstractDataItemThumbnailSource):
-
-    def __init__(self, ui, data_item):
-        super().__init__()
-        self.ui = ui
-        self.__data_item = None
-        self.__thumbnail_source = None
-        self.__thumbnail_updated_event_listener = None
-        self.set_data_item(data_item)
-
-    def close(self):
-        self.__detach_listeners()
-        super().close()
-
-    def __detach_listeners(self):
-        if self.__thumbnail_updated_event_listener:
-            self.__thumbnail_updated_event_listener.close()
-            self.__thumbnail_updated_event_listener = None
-        if self.__thumbnail_source:
-            self.__thumbnail_source.close()
-            self.__thumbnail_source = None
-
-    @property
-    def data_item(self):
-        return self.__data_item
-
-    def set_data_item(self, data_item):
-        self.__detach_listeners()
-
-        self.__data_item = data_item
-
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        if display_specifier.display:
-
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display_specifier.display)
-
-            def thumbnail_updated():
-                self._update_thumbnail(data_item)
-
-            self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(thumbnail_updated)
-
-        self._update_thumbnail(data_item)
-
-
-class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
-    """Used to track a data item referenced by a data item reference.
-
-    Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations."""
-
-    def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference):
-        super().__init__(ui, data_item_reference.data_item)
-
-        def data_item_changed():
-            self.set_data_item(data_item_reference.data_item)
-
-        self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
-
-    def close(self):
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
-        super().close()
+    def populate_mime_data_for_drag(self, mime_data, size: Geometry.IntSize):
+        return False, None
 
 
 class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
@@ -118,15 +47,13 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         self.wants_mouse_events = True
         self.__drag_start = None
         self.on_drop_mime_data = None
-        self.on_data_item_drop = None
-        self.on_data_item_delete = None
+        self.on_delete = None
         self.on_drag_pressed = None
         self.active = False
 
     def close(self):
         self.on_drop_mime_data = None
-        self.on_data_item_drop = None
-        self.on_data_item_delete = None
+        self.on_delete = None
         self.on_drag_pressed = None
         super().close()
 
@@ -181,19 +108,13 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
             result = self.on_drop_mime_data(mime_data, x, y)
             if result:
                 return result
-        if mime_data.has_format("text/data_item_uuid"):
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
-            on_data_item_drop = self.on_data_item_drop
-            if callable(on_data_item_drop):
-                on_data_item_drop(data_item_uuid)
-                return "copy"
-            return "ignore"
+        return super().drop(mime_data, x, y)
 
     def key_pressed(self, key):
         if key.is_delete:
-            on_data_item_delete = self.on_data_item_delete
-            if callable(on_data_item_delete):
-                on_data_item_delete()
+            on_delete = self.on_delete
+            if callable(on_delete):
+                on_delete()
                 return True
         return super().key_pressed(key)
 
@@ -214,58 +135,47 @@ class BitmapOverlayCanvasItem(CanvasItem.CanvasItemComposition):
                 on_drag_pressed(x, y, modifiers)
 
 
-class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
+class ThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
 
-    # TODO: add 1 pixel progress bar to indicate live acquisition
-
-    def __init__(self, ui, data_item_thumbnail_source: AbstractDataItemThumbnailSource, size: Geometry.IntSize):
+    def __init__(self, ui, thumbnail_source: AbstractThumbnailSource, size: Geometry.IntSize):
         super().__init__()
         bitmap_overlay_canvas_item = BitmapOverlayCanvasItem()
         bitmap_canvas_item = CanvasItem.BitmapCanvasItem(background_color="#CCC", border_color="#444")
         bitmap_canvas_item.sizing.set_fixed_size(size)
         bitmap_overlay_canvas_item.add_canvas_item(bitmap_canvas_item)
-        self.__thumbnail_source = data_item_thumbnail_source
+        thumbnail_source.overlay_canvas_item.sizing.set_fixed_size(size)
+        bitmap_overlay_canvas_item.add_canvas_item(thumbnail_source.overlay_canvas_item)
+        self.__thumbnail_source = thumbnail_source
         self.on_drag = None
         self.on_drop_mime_data = None
-        self.on_data_item_drop = None
-        self.on_data_item_delete = None
+        self.on_delete = None
 
         def drag_pressed(x, y, modifiers):
             on_drag = self.on_drag
             if callable(on_drag):
-                data_item = data_item_thumbnail_source.data_item
-                display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-                if display_specifier.data_item is not None:
-                    mime_data = ui.create_mime_data()
-                    mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
-                    rgba_image_data = self.__thumbnail_source.thumbnail_data
-                    on_drag(mime_data, Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height))), x, y)
+                mime_data = ui.create_mime_data()
+                valid, thumbnail = thumbnail_source.populate_mime_data_for_drag(mime_data, size)
+                if valid:
+                    on_drag(mime_data, thumbnail, x, y)
 
         def drop_mime_data(mime_data, x, y):
             if callable(self.on_drop_mime_data):
                 return self.on_drop_mime_data(mime_data, x, y)
             return None
 
-        def data_item_drop(data_item_uuid):
-            on_data_item_drop = self.on_data_item_drop
-            if callable(on_data_item_drop):
-                on_data_item_drop(data_item_uuid)
-
-        def data_item_delete():
-            on_data_item_delete = self.on_data_item_delete
-            if callable(on_data_item_delete):
-                on_data_item_delete()
+        def delete():
+            on_delete = self.on_delete
+            if callable(on_delete):
+                on_delete()
 
         bitmap_overlay_canvas_item.on_drag_pressed = drag_pressed
         bitmap_overlay_canvas_item.on_drop_mime_data = drop_mime_data
-        bitmap_overlay_canvas_item.on_data_item_drop = data_item_drop
-        bitmap_overlay_canvas_item.on_data_item_delete = data_item_delete
+        bitmap_overlay_canvas_item.on_delete = delete
 
-        def rgba_bitmap_data_changed(data_item, thumbnail_data):
-            bitmap_overlay_canvas_item.active = data_item.is_live if data_item else False
+        def thumbnail_data_changed(thumbnail_data):
             bitmap_canvas_item.rgba_bitmap_data = thumbnail_data
 
-        self.__thumbnail_source.on_rgba_bitmap_data_changed = rgba_bitmap_data_changed
+        self.__thumbnail_source.on_thumbnail_data_changed = thumbnail_data_changed
 
         bitmap_canvas_item.rgba_bitmap_data = self.__thumbnail_source.thumbnail_data
 
@@ -276,23 +186,21 @@ class DataItemThumbnailCanvasItem(CanvasItem.CanvasItemComposition):
         self.__thumbnail_source = None
         self.on_drag = None
         self.on_drop_mime_data = None
-        self.on_data_item_drop = None
-        self.on_data_item_delete = None
+        self.on_delete = None
         super().close()
 
 
-class DataItemThumbnailWidget(Widgets.CompositeWidgetBase):
+class ThumbnailWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, data_item_thumbnail_source: AbstractDataItemThumbnailSource, size: Geometry.IntSize):
+    def __init__(self, ui, thumbnail_source: AbstractThumbnailSource, size: Geometry.IntSize):
         super().__init__(ui.create_column_widget())
-        data_item_thumbnail_canvas_item = DataItemThumbnailCanvasItem(ui, data_item_thumbnail_source, size)
+        thumbnail_canvas_item = ThumbnailCanvasItem(ui, thumbnail_source, size)
         bitmap_canvas_widget = ui.create_canvas_widget(properties={"height": size.height, "width": size.width})
-        bitmap_canvas_widget.canvas_item.add_canvas_item(data_item_thumbnail_canvas_item)
+        bitmap_canvas_widget.canvas_item.add_canvas_item(thumbnail_canvas_item)
         self.content_widget.add(bitmap_canvas_widget)
         self.on_drop_mime_data = None
         self.on_drag = None
-        self.on_data_item_drop = None
-        self.on_data_item_delete = None
+        self.on_delete = None
 
         def drop_mime_data(mime_data, x, y):
             if callable(self.on_drop_mime_data):
@@ -304,24 +212,118 @@ class DataItemThumbnailWidget(Widgets.CompositeWidgetBase):
             if callable(on_drag):
                 on_drag(mime_data, thumbnail, x, y)
 
-        def data_item_drop(data_item_uuid):
-            on_data_item_drop = self.on_data_item_drop
-            if callable(on_data_item_drop):
-                on_data_item_drop(data_item_uuid)
+        def delete():
+            on_delete = self.on_delete
+            if callable(on_delete):
+                on_delete()
 
-        def data_item_delete():
-            on_data_item_delete = self.on_data_item_delete
-            if callable(on_data_item_delete):
-                on_data_item_delete()
-
-        data_item_thumbnail_canvas_item.on_drop_mime_data = drop_mime_data
-        data_item_thumbnail_canvas_item.on_drag = drag
-        data_item_thumbnail_canvas_item.on_data_item_drop = data_item_drop
-        data_item_thumbnail_canvas_item.on_data_item_delete = data_item_delete
+        thumbnail_canvas_item.on_drop_mime_data = drop_mime_data
+        thumbnail_canvas_item.on_drag = drag
+        thumbnail_canvas_item.on_delete = delete
 
     def close(self):
         super().close()
         self.on_drop_mime_data = None
         self.on_drag = None
-        self.on_data_item_drop = None
-        self.on_data_item_delete = None
+        self.on_delete = None
+
+
+class DataItemBitmapOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self):
+        super().__init__()
+        self.__active = False
+
+    @property
+    def active(self):
+        return self.__active
+
+    @active.setter
+    def active(self, value):
+        if value != self.__active:
+            self.__active = value
+            self.update()
+
+    def _repaint(self, drawing_context):
+        super()._repaint(drawing_context)
+        if self.active:
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.round_rect(2, 2, 6, 6, 3)
+                drawing_context.fill_style = "rgba(0, 255, 0, 0.80)"
+                drawing_context.fill()
+
+
+class DataItemThumbnailSource(AbstractThumbnailSource):
+
+    def __init__(self, ui, *, data_item=None, display=None):
+        super().__init__()
+        self.ui = ui
+        self.__thumbnail_source = None
+        self.__thumbnail_updated_event_listener = None
+        self.overlay_canvas_item = DataItemBitmapOverlayCanvasItem()
+        if data_item:
+            self.set_data_item(data_item)
+        if display:
+            self.set_display(display)
+
+    def close(self):
+        self.__detach_listeners()
+        super().close()
+
+    def __detach_listeners(self):
+        if self.__thumbnail_updated_event_listener:
+            self.__thumbnail_updated_event_listener.close()
+            self.__thumbnail_updated_event_listener = None
+        if self.__thumbnail_source:
+            self.__thumbnail_source.close()
+            self.__thumbnail_source = None
+
+    def __update_thumbnail(self) -> None:
+        self._set_thumbnail_data(Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__display))
+        self.overlay_canvas_item.active = self.__display.is_live if self.__display else False
+        if callable(self.on_thumbnail_data_changed):
+            self.on_thumbnail_data_changed(self.thumbnail_data)
+
+    def set_data_item(self, data_item: DataItem.DataItem) -> None:
+        display = data_item.primary_display_specifier.display if data_item else None
+        self.set_display(display)
+
+    def set_display(self, display: Display.Display) -> None:
+        self.__detach_listeners()
+        self.__display = display
+        if display:
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display)
+            self.__thumbnail_updated_event_listener = self.__thumbnail_source.thumbnail_updated_event.listen(self.__update_thumbnail)
+        self.__update_thumbnail()
+
+    def populate_mime_data_for_drag(self, mime_data, size: Geometry.IntSize):
+        data_item = self.__display.container if self.__display else None
+        if isinstance(data_item, DataItem.DataItem):
+            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+            rgba_image_data = self.__thumbnail_source.thumbnail_data
+            thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height)))
+            return True, thumbnail
+        return False, None
+
+
+class DataItemReferenceThumbnailSource(DataItemThumbnailSource):
+    """Used to track a data item referenced by a data item reference.
+
+    Useful, for instance, for displaying a live update thumbnail that can be dragged to other locations."""
+
+    def __init__(self, ui, data_item_reference: DocumentModel.DocumentModel.DataItemReference):
+        super().__init__(ui, data_item=data_item_reference.data_item)
+
+        def data_item_changed():
+            self.set_data_item(data_item_reference.data_item)
+
+        self.__data_item_changed_event_listener = data_item_reference.data_item_changed_event.listen(data_item_changed)
+
+    def close(self):
+        self.__data_item_changed_event_listener.close()
+        self.__data_item_changed_event_listener = None
+        super().close()
+
+
+DataItemThumbnailWidget = ThumbnailWidget

@@ -850,13 +850,13 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
         self.__dependent_thumbnails.remove_all_canvas_items()
         if data_item is not None:
             for source_data_item in self.__document_model.get_source_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, source_data_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, data_item=source_data_item)
+                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
             for dependent_data_item in self.__document_model.get_dependent_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, dependent_data_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.DataItemThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
+                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, data_item=dependent_data_item)
+                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
 

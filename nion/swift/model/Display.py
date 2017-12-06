@@ -752,6 +752,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def _changes(self):
         return self.container.data_item_changes()
 
+    @property
+    def is_live(self):
+        return self.container.is_live
+
     def __insert_graphic(self, name, before_index, graphic):
         graphic.about_to_be_inserted(self)
         graphic_changed_listener = graphic.graphic_changed_event.listen(functools.partial(self.graphic_changed, graphic))
