@@ -409,20 +409,6 @@ class BaseDisplayPanelContent:
     def footer_canvas_item(self):
         return self.__footer_canvas_item
 
-    # tasks can be added in two ways, queued or added
-    # queued tasks are guaranteed to be executed in the order queued.
-    # added tasks are only executed if not replaced before execution.
-    # added tasks do not guarantee execution order or execution at all.
-
-    def add_task(self, key, task):
-        self.document_controller.add_task(key + str(id(self)), task)
-
-    def clear_task(self, key):
-        self.document_controller.clear_task(key + str(id(self)))
-
-    def queue_task(self, task):
-        self.document_controller.queue_task(task)
-
     # save and restore the contents of the image panel
 
     def save_contents(self):
@@ -458,15 +444,6 @@ class BaseDisplayPanelContent:
     def _is_focused(self):
         """ Used for testing. """
         return self.__content_canvas_item.focused
-
-    @property
-    def _data_item(self):
-        """Return the data item in this image panel, if any."""
-        return None
-
-    # set the default display for the data item. just a simpler method to call.
-    def set_displayed_data_item(self, data_item):
-        raise NotImplementedError()
 
     def _select(self):
         pass
@@ -996,14 +973,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         ui = document_controller.ui
 
-        self.__data_item = None
+        self.__display = None
         self.__display_property_changed_event_listener = None
 
         # if the item displayed in this panel gets deleted, remove it from this panel.
         # called when an item is removed from the document
         def item_removed(key, value, index):
-            if value == self.__data_item:
-                self.set_displayed_data_item(None)
+            if value == self._data_item:
+                self.set_display(None)
 
         document_model = self.document_controller.document_model
         self.__item_removed_event_listener = document_model.item_removed_event.listen(item_removed)
@@ -1112,7 +1089,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.content_canvas_item.add_canvas_item(self.__combo_canvas_item)
 
-        self.__data_item_changed = False  # put this at end of init to avoid transient initialization states
+        self.__display_changed = False  # put this at end of init to avoid transient initialization states
 
     def close(self):
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
@@ -1123,7 +1100,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__item_removed_event_listener.close()
         self.__item_removed_event_listener = None
         self.__display_canvas_item = None
-        self.set_displayed_data_item(None)  # required before destructing display thread
+        self.set_display(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
         self.__library_item_inserted_listener.close()
         self.__library_item_inserted_listener = None
@@ -1166,9 +1143,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
-        data_item = self.__data_item
-        if data_item:
-            d["data_item_uuid"] = str(data_item.uuid)
+        if self.__display:
+            d["data_item_uuid"] = str(self.__display.container.uuid)
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1195,7 +1171,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     @property
     def _is_result_panel(self) -> bool:
-        return not self.__data_item and not self.__grid_browser_canvas_item.visible and not self.__display_panel_controller
+        return not self.__display and not self.__grid_browser_canvas_item.visible and not self.__display_panel_controller
 
     @property
     def _display_panel_type(self):
@@ -1203,7 +1179,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             return "horizontal"
         elif self.__grid_browser_canvas_item.visible:
             return "grid"
-        elif self.__data_item:
+        elif self.__display:
             return "data_item"
         else:
             return "empty"
@@ -1233,7 +1209,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     @property
     def _data_item(self):
-        return self.__data_item
+        return self.__display.container if self.__display else None
 
     def __set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -1243,32 +1219,34 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if not display_panel_controller:
             self.header_canvas_item.reset_header_colors()
         if self.__display_panel_controller:
-            self.set_displayed_data_item(self.__data_item)
+            self.set_display(self.__display)
 
     # sets the data item that this panel displays
     # not thread safe
     def set_displayed_data_item(self, data_item: DataItem.DataItem) -> None:
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        self.set_display(display_specifier.display)
+
+    # sets the data item that this panel displays
+    # not thread safe
+    def set_display(self, display: Display.Display) -> None:
         # listen for changes to display content and parameters, metadata, or the selection
         # changes to the underlying data will trigger changes in the display content
 
         # increment ref count on new item first to ensure if it is the same as the old item, it stays in memory.
-        if data_item:
-            data_item.increment_display_ref_count()  # ensure data stays in memory while displayed
+        if display:
+            display.increment_display_ref_count()  # ensure data stays in memory while displayed
 
         # decrement the ref count on the old item to release it if no longer used.
-        if self.__data_item:
-            self.__data_item.decrement_display_ref_count()  # release old data from memory
+        if self.__display:
+            self.__display.decrement_display_ref_count()  # release old data from memory
 
         # un-listen to the old description changed event
         if self.__display_property_changed_event_listener:
             self.__display_property_changed_event_listener.close()
             self.__display_property_changed_event_listener = None
 
-        self.__data_item = data_item
-
-        # grab the display from the data item
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
+        self.__display = display
 
         # remove any existing display canvas item
         if len(self.__display_panel_canvas_item.canvas_items) > 1:
@@ -1298,19 +1276,19 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         # update want mouse and selected status.
         if self.__display_panel_canvas_item:  # may be closed
             self.__display_panel_canvas_item.wants_mouse_events = self.__display_canvas_item is None
-            self.__display_panel_canvas_item.selected = display_specifier.display is not None and self._is_selected()
+            self.__display_panel_canvas_item.selected = display is not None and self._is_selected()
 
     def _select(self):
         self.content_canvas_item.request_focus()
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        if display_specifier.data_item is not None:
+        data_item = self._data_item
+        if data_item is not None:
             mime_data = self.ui.create_mime_data()
-            mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
+            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
-            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(display_specifier.display)
+            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__display)
             on_begin_drag = self.on_begin_drag
             if callable(on_begin_drag):
                 on_begin_drag(mime_data, thumbnail_data)
@@ -1333,7 +1311,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def __cycle_display(self):
         # the second part of the if statement below handles the case where the data item has been changed by
         # the user so the cycle should go back to the main display.
-        if self.__display_panel_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__data_item_changed):
+        if self.__display_panel_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__display_changed):
             if self.__horizontal_browser_canvas_item.visible:
                 self.__switch_to_grid_browser()
                 self.__update_selection_to_data_item()
@@ -1345,12 +1323,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         else:
             self.__switch_to_no_browser()
             self._select()
-        self.__data_item_changed = False
+        self.__display_changed = False
 
     def __update_selection_to_data_item(self):
         data_items = [display_item.data_item for display_item in self.__display_items]
-        if self.__data_item in data_items:
-            self.__selection.set(data_items.index(self.__data_item))
+        data_item = self._data_item
+        if data_item in data_items:
+            self.__selection.set(data_items.index(data_item))
             self.__horizontal_data_grid_controller.make_selection_visible()
             self.__grid_data_grid_controller.make_selection_visible()
 
@@ -1386,15 +1365,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             getattr(target, fn)(*args, **keywords)
 
     def select_all(self):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.__data_item)
-        display = display_specifier.display
-        display.graphic_selection.add_range(range(len(display.graphics)))
+        if self.__display:
+            self.__display.graphic_selection.add_range(range(len(self.__display.graphics)))
         return True
 
     def __data_panel_selected_data_items_changed(self, data_items):
         data_item = data_items[0] if len(data_items) == 1 else None
         self.set_displayed_data_item(data_item)
-        self.__data_item_changed = True
+        self.__display_changed = True
 
 
 class DisplayPanel:
