@@ -7,6 +7,7 @@ import math
 import random
 import string
 import threading
+import typing
 import uuid
 import weakref
 
@@ -804,7 +805,8 @@ class DisplayTypeMonitor:
             self.__first = False
 
 
-class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
+class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
+    """Display icons to related items (sources and dependencies)."""
 
     def __init__(self, ui, document_model):
         super().__init__()
@@ -828,37 +830,41 @@ class ShortcutsCanvasItem(CanvasItem.CanvasItemComposition):
         self.add_canvas_item(row)
         self.add_spacing(4)
         self.on_drag = None
-        self.__data_item = None
-
-        def dependency_changed(source_data_item, target_data_item):
-            if source_data_item == self.__data_item or target_data_item == self.__data_item:
-                self.set_data_item(self.__data_item)
-
-        self.__depedency_added_event_listener = document_model.dependency_added_event.listen(dependency_changed)
-        self.__depedency_removed_event_listener = document_model.dependency_removed_event.listen(dependency_changed)
+        self.__display = None
 
     def close(self):
-        self.__depedency_added_event_listener.close()
-        self.__depedency_added_event_listener = None
-        self.__depedency_removed_event_listener.close()
-        self.__depedency_removed_event_listener = None
+        self.set_display(None)
         super().close()
 
-    def set_data_item(self, data_item):
-        self.__data_item = data_item
+    def __related_items_changed(self, display, source_displays, dependent_displays):
         self.__source_thumbnails.remove_all_canvas_items()
         self.__dependent_thumbnails.remove_all_canvas_items()
-        if data_item is not None:
-            for source_data_item in self.__document_model.get_source_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, data_item=source_data_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
+        if display == self.__display:
+            for source_display in source_displays:
+                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display=source_display)
+                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__source_thumbnails.add_canvas_item(thumbnail_canvas_item)
-            for dependent_data_item in self.__document_model.get_dependent_data_items(data_item):
-                data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, data_item=dependent_data_item)
-                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, data_item_thumbnail_source, self.__thumbnail_size)
+            for dependent_display in dependent_displays:
+                thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display=dependent_display)
+                thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
                 thumbnail_canvas_item.on_drag = self.on_drag
                 self.__dependent_thumbnails.add_canvas_item(thumbnail_canvas_item)
+
+    def set_display(self, display: typing.Optional[Display.Display]) -> None:
+        if self.__display:
+            self.__related_items_changed_listener.close()
+            self.__related_items_changed_listener = None
+
+        self.__display = display
+
+        if self.__display:
+            self.__related_items_changed_listener = self.__document_model.related_items_changed.listen(self.__related_items_changed)
+
+        if self.__display:
+            source_displays = self.__document_model.get_source_displays(self.__display)
+            dependent_displays = self.__document_model.get_dependent_displays(self.__display)
+            self.__related_items_changed(self.__display, source_displays, dependent_displays)
 
 
 class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
@@ -1018,13 +1024,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.on_image_mouse_released = None
         self.on_image_mouse_position_changed = None
 
-        self.__shortcuts_canvas_item = ShortcutsCanvasItem(self.ui, document_model)
-        self.__shortcuts_canvas_item.on_drag = document_controller.drag
+        self.__related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, document_model)
+        self.__related_icons_canvas_item.on_drag = document_controller.drag
 
-        # the data item panel consists of the data item display canvas item and the shortcuts item
+        # the data item panel consists of the data item display canvas item and the related icons canvas item
         self.__data_item_panel_canvas_item = CanvasItem.CanvasItemComposition()
 
-        self.__data_item_panel_canvas_item.add_canvas_item(self.__shortcuts_canvas_item)
+        self.__data_item_panel_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
 
         self.__data_browser_controller = document_controller.create_data_browser_controller_for_display_panel()
 
@@ -1279,7 +1285,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__display_canvas_item = DisplayCanvasItem(display, delegate, self.ui.get_font_metrics, self.document_controller.event_loop)
             self.__data_item_panel_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
 
-        self.__shortcuts_canvas_item.set_data_item(data_item)
+        self.__related_icons_canvas_item.set_display(display)
 
         def description_changed():
             if self.header_canvas_item:  # may be closed

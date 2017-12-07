@@ -1168,6 +1168,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.dependency_added_event = Event.Event()
         self.dependency_removed_event = Event.Event()
+        self.related_items_changed = Event.Event()
 
         self.computation_updated_event = Event.Event()
 
@@ -1553,6 +1554,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if source_item.is_live:
                 self.end_data_item_live(target_item)
         self.dependency_removed_event.fire(source_item, target_item)
+        # fire the display messages
+        if isinstance(source_item, DataItem.DataItem):
+            display = source_item.primary_display_specifier.display
+            source_displays = self.get_source_displays(display) if display else list()
+            dependent_displays = self.get_dependent_displays(display) if display else list()
+            self.related_items_changed.fire(display, source_displays, dependent_displays)
 
     def __add_dependency(self, source_item, target_item):
         # print(f"add dependency {source_item} {target_item}")
@@ -1566,6 +1573,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if source_item.is_live:
                 self.begin_data_item_live(target_item)
         self.dependency_added_event.fire(source_item, target_item)
+        # fire the display messages
+        if isinstance(source_item, DataItem.DataItem):
+            display = source_item.primary_display_specifier.display
+            source_displays = self.get_source_displays(display) if display else list()
+            dependent_displays = self.get_dependent_displays(display) if display else list()
+            self.related_items_changed.fire(display, source_displays, dependent_displays)
 
     def __computation_needs_update(self, data_item):
         with self.__computation_queue_lock:
@@ -1630,6 +1643,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         """Return the list of data items containing data that directly depends on data in this item."""
         with self.__dependency_tree_lock:
             return [data_item for data_item in self.__dependency_tree_source_to_target_map.get(weakref.ref(data_item), list()) if isinstance(data_item, DataItem.DataItem)]
+
+    def get_source_displays(self, display: Display.Display) -> typing.List[Display.Display]:
+        data_item = display.container
+        if isinstance(data_item, DataItem.DataItem):
+            data_items = self.get_source_data_items(data_item)
+            return [data_item.primary_display_specifier.display for data_item in data_items]
+        return list()
+
+    def get_dependent_displays(self, display: Display.Display) -> typing.List[Display.Display]:
+        data_item = display.container
+        if isinstance(data_item, DataItem.DataItem):
+            data_items = self.get_dependent_data_items(data_item)
+            return [data_item.primary_display_specifier.display for data_item in data_items]
+        return list()
 
     def data_item_transaction(self, data_item):
         """ Return a context manager to put the data item under a 'transaction'. """
