@@ -119,10 +119,12 @@ class RecorderDialog(Dialog.ActionDialog):
             if not is_live:
                 self.__stop_recording()
 
-        def data_item_deleted(data_item):
-            if data_item == self.__recording_data_item:
+        # if the item source or recorded data item is removed, stop recording
+        # called when an item is removed from the document
+        def item_removed(key, value, index):
+            if value == self.__recording_data_item:
                 self.__stop_recording()
-            if data_item == self.__data_item:
+            if value == self.__data_item:
                 self.__stop_recording()
                 self.request_close()
 
@@ -137,7 +139,7 @@ class RecorderDialog(Dialog.ActionDialog):
                 self.__recording_error = True
 
         self.__library_item_changed_event_listener = data_item.library_item_changed_event.listen(data_item_content_changed)
-        self.__data_item_deleted_event_listener = self.document_controller.document_model.data_item_deleted_event.listen(data_item_deleted)
+        self.__item_removed_event_listener = self.document_controller.document_model.item_removed_event.listen(item_removed)
         self.__data_item_data_changed_event_listener = self.__data_item.data_changed_event.listen(data_changed)
 
         self.__last_complete_xdata = None
@@ -148,8 +150,8 @@ class RecorderDialog(Dialog.ActionDialog):
     def close(self):
         self.__library_item_changed_event_listener.close()
         self.__library_item_changed_event_listener = None
-        self.__data_item_deleted_event_listener.close()
-        self.__data_item_deleted_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
         self.__data_item_data_changed_event_listener.close()
         self.__data_item_data_changed_event_listener = None
         super().close()

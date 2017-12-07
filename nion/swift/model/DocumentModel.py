@@ -1161,7 +1161,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False, auto_migrations=None):
         super(DocumentModel, self).__init__()
 
-        self.data_item_deleted_event = Event.Event()  # will be called after the item is deleted
         self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
@@ -1469,9 +1468,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item_reference.data_item_removed(data_item)
         self.data_item_removed_event.fire(self, data_item, index, False)
         self.notify_remove_item("data_items", data_item, index)
-        self.data_item_deleted_event.fire(data_item)  # this gets fired before closing to give listeners a chance
         data_item.close()
-
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
