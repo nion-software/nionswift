@@ -997,7 +997,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         ui = document_controller.ui
 
         self.__data_item = None
-        self.__data_item_metadata_changed_event_listener = None
+        self.__display_property_changed_event_listener = None
 
         # if the item displayed in this panel gets deleted, remove it from this panel.
         # called when an item is removed from the document
@@ -1260,9 +1260,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__data_item.decrement_display_ref_count()  # release old data from memory
 
         # un-listen to the old description changed event
-        if self.__data_item_metadata_changed_event_listener:
-            self.__data_item_metadata_changed_event_listener.close()
-            self.__data_item_metadata_changed_event_listener = None
+        if self.__display_property_changed_event_listener:
+            self.__display_property_changed_event_listener.close()
+            self.__display_property_changed_event_listener = None
 
         self.__data_item = data_item
 
@@ -1286,14 +1286,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         # add listener for description changed, which requires updating the header title.
 
-        def description_changed():
-            if self.header_canvas_item:  # may be closed
-                self.header_canvas_item.title = self.__data_item.displayed_title if self.__data_item else None
+        def display_property_changed(key):
+            if key == "title" and self.header_canvas_item:  # may be closed
+                self.header_canvas_item.title = display.title if display else None
 
-        if data_item:
-            self.__data_item_metadata_changed_event_listener = data_item.description_changed_event.listen(description_changed)
+        if display:
+            self.__display_property_changed_event_listener = display.property_changed_event.listen(display_property_changed)
 
-        description_changed()
+        display_property_changed("title")
 
         # update want mouse and selected status.
         if self.__display_panel_canvas_item:  # may be closed

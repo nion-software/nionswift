@@ -372,6 +372,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("display_script", changed=self.__property_changed)
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
 
+        self.__title = None  # not persistent during display panel transition
+
         self.will_close_event = Event.Event()  # for shutting down thumbnails; hopefully temporary.
 
         # # last display values is the last one to be fully displayed.
@@ -464,6 +466,15 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     @property
     def _display_cache(self):
         return self.__cache
+
+    @property
+    def title(self) -> str:
+        return self.__title
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self.__title = value
+        self.notify_property_changed("title")
 
     @property
     def data_and_metadata_for_display_panel(self):

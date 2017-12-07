@@ -599,7 +599,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__session_manager = None
-        self.description_changed_event = Event.Event()
         self.library_item_changed_event = Event.Event()
         self.item_changed_event = Event.Event()  # equivalent to library_item_changed_event
         self.__change_count = 0
@@ -860,11 +859,14 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def __description_property_changed(self, name, value):
         self.__property_changed(name, value)
-        self.__description_changed()
+        self.__notify_description_changed()
 
-    def __description_changed(self):
+    def __notify_description_changed(self):
         self._notify_library_item_content_changed()
-        self.description_changed_event.fire()
+        self._description_changed()
+
+    def _description_changed(self):
+        pass
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -880,7 +882,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         """Used to signal changes to the ref var, which are kept in document controller. ugh."""
         self.r_var = r_var
         if notify_changed:  # set to False to set the r-value at startup; avoid marking it as a change
-            self.__description_changed()
+            self.__notify_description_changed()
 
     def increment_display_ref_count(self):
         """Increment display reference count to indicate this library item is currently displayed."""
@@ -1328,6 +1330,7 @@ class DataItem(LibraryItem):
 
     def __insert_display(self, name, before_index, display):
         display.about_to_be_inserted(self)
+        display.title = self.displayed_title
 
     def __remove_display(self, name, index, display):
         display.about_to_be_removed()
@@ -1398,6 +1401,11 @@ class DataItem(LibraryItem):
         if data_source:
             return DisplaySpecifier(self, self.displays[0])
         return DisplaySpecifier()
+
+    def _description_changed(self):
+        super()._description_changed()
+        for display in self.displays:
+            display.title = self.displayed_title
 
     def _update_timezone(self):
         with self.data_source_changes():
