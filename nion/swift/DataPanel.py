@@ -16,6 +16,7 @@ from nion.swift import Panel
 from nion.swift import Thumbnails
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
@@ -59,15 +60,15 @@ class DisplayItem:
             (event) needs_update_event
     """
 
-    def __init__(self, data_item, ui):
-        self.__data_item = data_item
+    def __init__(self, display: Display.Display, ui):
+        self.__display = display
         self.ui = ui
         self.needs_update_event = Event.Event()
 
-        def data_item_content_changed():
+        def display_changed():
             self.needs_update_event.fire()
 
-        self.__library_item_changed_event_listener = data_item.library_item_changed_event.listen(data_item_content_changed)
+        self.__display_changed_event_listener = display.item_changed_event.listen(display_changed) if display else None
 
         self.__thumbnail_updated_event_listener = None
         self.__thumbnail_source = None
@@ -80,19 +81,19 @@ class DisplayItem:
         if self.__thumbnail_source:
             self.__thumbnail_source.close()
             self.__thumbnail_source = None
-        self.__library_item_changed_event_listener.close()
-        self.__library_item_changed_event_listener = None
+        if self.__display_changed_event_listener:
+            self.__display_changed_event_listener.close()
+            self.__display_changed_event_listener = None
 
     @property
-    def data_item(self):
-        return self.__data_item
+    def data_item(self) -> DataItem.DataItem:
+        data_item = self.__display.container if self.__display else None
+        return data_item if isinstance(data_item, DataItem.DataItem) else None
 
     def __create_thumbnail_source(self):
         # grab the display specifier and if there is a display, handle thumbnail updating.
-        display_specifier = self.__data_item.primary_display_specifier
-        display = display_specifier.display
-        if display and not self.__thumbnail_source:
-            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, display)
+        if self.__display and not self.__thumbnail_source:
+            self.__thumbnail_source = Thumbnails.ThumbnailManager().thumbnail_source_for_display(self.ui, self.__display)
 
             def thumbnail_updated():
                 self.needs_update_event.fire()
@@ -101,8 +102,7 @@ class DisplayItem:
 
     def __create_thumbnail(self, draw_rect):
         drawing_context = DrawingContext.DrawingContext()
-        display = self.__data_item.primary_display_specifier.display
-        if display:
+        if self.__display:
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data
             if thumbnail_data is not None:
@@ -111,24 +111,23 @@ class DisplayItem:
         return drawing_context
 
     @property
-    def title_str(self):
-        data_item = self.__data_item
-        return data_item.displayed_title
+    def title_str(self) -> str:
+        return self.__display.title if self.__display else str()
 
     @property
-    def format_str(self):
-        data_item = self.__data_item
+    def format_str(self) -> str:
+        data_item = self.data_item
         return data_item.size_and_data_format_as_string if data_item else str()
 
     @property
-    def datetime_str(self):
-        data_item = self.__data_item
-        return data_item.date_for_sorting_local_as_string
+    def datetime_str(self) -> str:
+        data_item = self.data_item
+        return data_item.date_for_sorting_local_as_string if data_item else str()
 
     @property
-    def status_str(self):
-        data_item = self.__data_item
-        if data_item.is_live:
+    def status_str(self) -> str:
+        data_item = self.data_item
+        if data_item and data_item.is_live:
             live_metadata = data_item.metadata.get("hardware_source", dict())
             frame_index_str = str(live_metadata.get("frame_index", str()))
             partial_str = "{0:d}/{1:d}".format(live_metadata.get("valid_rows"), data_item.dimensional_shape[0]) if "valid_rows" in live_metadata else str()
@@ -136,12 +135,14 @@ class DisplayItem:
         return str()
 
     def drag_started(self, ui, x, y, modifiers):
-        data_item = self.__data_item
-        mime_data = ui.create_mime_data()
-        mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
-        self.__create_thumbnail_source()
-        thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
-        return mime_data, thumbnail_data
+        data_item = self.data_item
+        if data_item:
+            mime_data = ui.create_mime_data()
+            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+            self.__create_thumbnail_source()
+            thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
+            return mime_data, thumbnail_data
+        return None, None
 
     def draw_list_item(self, drawing_context, rect):
         with drawing_context.saver():
@@ -1174,7 +1175,7 @@ class DataPanel(Panel.Panel):
 
         def data_item_inserted(key, data_item, before_index):
             assert threading.current_thread() == threading.main_thread()
-            display_item = DisplayItem(data_item, ui)
+            display_item = DisplayItem(data_item.primary_display_specifier.display, ui)
             self.__display_items.insert(before_index, display_item)
             self.data_list_controller.display_item_inserted(display_item, before_index)
             self.data_grid_controller.display_item_inserted(display_item, before_index)

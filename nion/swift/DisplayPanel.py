@@ -1051,7 +1051,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         def data_item_inserted(key, data_item, before_index):
             assert threading.current_thread() == threading.main_thread()
             if self.__display_items is not None:  # closed?
-                display_item = DataPanel.DisplayItem(data_item, ui)
+                display_item = DataPanel.DisplayItem(data_item.primary_display_specifier.display, ui)
                 self.__display_items.insert(before_index, display_item)
                 self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
                 self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
