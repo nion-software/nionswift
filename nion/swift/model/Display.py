@@ -375,6 +375,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__title = None  # not persistent during display panel transition
 
         self.will_close_event = Event.Event()  # for shutting down thumbnails; hopefully temporary.
+        self.item_changed_event = Event.Event()  # for indicated this display has mutated somehow
 
         # # last display values is the last one to be fully displayed.
         # # when the current display values makes it all the way to display, it will fire an event.
@@ -475,6 +476,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def title(self, value: str) -> None:
         self.__title = value
         self.notify_property_changed("title")
+
+    # when the data item changes, it will call this method so that item_changed can be fired.
+    def _item_changed(self):
+        self.item_changed_event.fire()
 
     @property
     def data_and_metadata_for_display_panel(self):

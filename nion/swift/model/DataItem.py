@@ -850,6 +850,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         if change_count == 0 and content_changed:
             self.library_item_changed_event.fire()
             self.item_changed_event.fire()
+            self._item_changed()
+
+    def _item_changed(self):
+        pass
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()
@@ -1401,6 +1405,11 @@ class DataItem(LibraryItem):
         if data_source:
             return DisplaySpecifier(self, self.displays[0])
         return DisplaySpecifier()
+
+    def _item_changed(self):
+        super()._item_changed()
+        for display in self.displays:
+            display._item_changed()
 
     def _description_changed(self):
         super()._description_changed()
