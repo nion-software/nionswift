@@ -516,10 +516,10 @@ class TestDataPanelClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             document_controller.periodic()  # changes to filter will be queued. update that here.
-            self.assertEqual(len(document_controller.filtered_data_items_model.items), 3)
+            self.assertEqual(len(document_controller.filtered_displays_model.items), 3)
             document_controller.display_filter = ListModel.TextFilter("title", "Y")
             document_controller.periodic()  # changes to filter will be queued. update that here.
-            self.assertEqual(len(document_controller.filtered_data_items_model.items), 1)
+            self.assertEqual(len(document_controller.filtered_displays_model.items), 1)
 
     def test_changing_display_limits_causes_display_changed_message(self):
         # necessary to make the thumbnails update in the data panel

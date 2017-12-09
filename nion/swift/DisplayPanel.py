@@ -27,6 +27,7 @@ from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ListModel
 
 
 _ = gettext.gettext
@@ -1012,7 +1013,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
             return self.show_context_menu(menu, gx, gy)
 
-        self.__selection = document_controller.filtered_data_items_model.make_selection()
+        self.__selection = document_controller.filtered_displays_model.make_selection()
 
         def data_list_drag_started(mime_data, thumbnail_data):
             self.content_canvas_item.drag(mime_data, thumbnail_data)
@@ -1048,15 +1049,14 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__display_items = list()
 
-        def data_item_inserted(key, data_item, before_index):
+        def display_item_inserted(key, display_item, before_index):
             assert threading.current_thread() == threading.main_thread()
             if self.__display_items is not None:  # closed?
-                display_item = DataPanel.DisplayItem(data_item.primary_display_specifier.display, ui)
                 self.__display_items.insert(before_index, display_item)
                 self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
                 self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
 
-        def data_item_removed(key, data_item, index):
+        def display_item_removed(key, display_item, index):
             assert threading.current_thread() == threading.main_thread()
             if self.__display_items is not None:  # closed?
                 self.__horizontal_data_grid_controller.display_item_removed(index)
@@ -1064,13 +1064,19 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 self.__display_items[index].close()
                 del self.__display_items[index]
 
-        filtered_data_items_model = document_controller.filtered_data_items_model
+        def map_display_to_display_item(display):
+            return DataPanel.DisplayItem(display, ui)
 
-        self.__library_item_inserted_listener = filtered_data_items_model.item_inserted_event.listen(data_item_inserted)
-        self.__library_item_removed_listener = filtered_data_items_model.item_removed_event.listen(data_item_removed)
+        def unmap_display_to_display_item(display_item):
+            display_item.close()
 
-        for index, data_item in enumerate(filtered_data_items_model.data_items):
-            data_item_inserted("data_items", data_item, index)
+        self.__filtered_display_items_model = ListModel.MappedListModel(container=document_controller.filtered_displays_model, master_items_key="displays", items_key="display_items", map_fn=map_display_to_display_item, unmap_fn=unmap_display_to_display_item)
+
+        self.__library_item_inserted_listener = self.__filtered_display_items_model.item_inserted_event.listen(display_item_inserted)
+        self.__library_item_removed_listener = self.__filtered_display_items_model.item_removed_event.listen(display_item_removed)
+
+        for index, display_item in enumerate(self.__filtered_display_items_model.display_items):
+            display_item_inserted("display_items", display_item, index)
 
         self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
         self.__horizontal_browser_canvas_item.sizing.set_fixed_height(80)
@@ -1115,7 +1121,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_items = None
         self.__selected_data_items_changed_event_listener.close()
         self.__selected_data_items_changed_event_listener = None
-        self.document_controller.filtered_data_items_model.release_selection(self.__selection)
+        self.document_controller.filtered_displays_model.release_selection(self.__selection)
+        self.__filtered_display_items_model.close()
+        self.__filtered_display_items_model = None
         self.__selection = None
         super().close()
 
@@ -1326,10 +1334,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_changed = False
 
     def __update_selection_to_data_item(self):
-        data_items = [display_item.data_item for display_item in self.__display_items]
-        data_item = self._data_item
-        if data_item in data_items:
-            self.__selection.set(data_items.index(data_item))
+        displays = [display_item.display for display_item in self.__display_items]
+        if self.__display in displays:
+            self.__selection.set(displays.index(self.__display))
             self.__horizontal_data_grid_controller.make_selection_visible()
             self.__grid_data_grid_controller.make_selection_visible()
 

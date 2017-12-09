@@ -90,18 +90,11 @@ class DocumentController(Window.Window):
         # the user has two ways of filtering data items: first by selecting a data group (or none) in the data panel,
         # and next by applying a custom filter to the items from the items resulting in the first selection.
         # data items model tracks the main list of items selected in the data panel.
-        # filtered data items model tracks the filtered items from those in data items model.
+        # filtered display items model tracks the filtered items from those in data items model.
         self.__data_items_model = ListModel.FilteredListModel(items_key="data_items")
-        self.__filtered_data_items_model = ListModel.FilteredListModel(items_key="data_items", container=self.__data_items_model, selection=self.selection)
+        self.__filtered_data_items_model = ListModel.FilteredListModel(items_key="data_items", container=self.__data_items_model)
+        self.__filtered_displays_model = ListModel.FlattenedListModel(container=self.__filtered_data_items_model, master_items_key="data_items", child_items_key="displays", selection=self.selection)
         self.__last_display_filter = ListModel.Filter(True)
-
-        def data_item_will_be_removed(data_item):
-            if data_item in self.__filtered_data_items_model.data_items:
-                index = self.__filtered_data_items_model.data_items.index(data_item)
-                if self.selection.contains(index):
-                    self.selection.remove(index)
-
-        self.__data_item_will_be_removed_event_listener = self.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
 
         def call_soon(fn):
             self.queue_task(fn)
@@ -167,12 +160,12 @@ class DocumentController(Window.Window):
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
-        self.__data_item_will_be_removed_event_listener.close()
-        self.__data_item_will_be_removed_event_listener = None
         self.__call_soon_event_listener.close()
         self.__call_soon_event_listener = None
         self.__filtered_data_items_model.close()
         self.__filtered_data_items_model = None
+        self.__filtered_displays_model.close()
+        self.__filtered_displays_model = None
         self.filter_controller.close()
         self.filter_controller = None
         self.__data_items_model.close()
@@ -571,8 +564,8 @@ class DocumentController(Window.Window):
         return self.__data_items_model
 
     @property
-    def filtered_data_items_model(self):
-        return self.__filtered_data_items_model
+    def filtered_displays_model(self):
+        return self.__filtered_displays_model
 
     @property
     def data_browser_controller(self):
@@ -633,8 +626,12 @@ class DocumentController(Window.Window):
             self.__filtered_data_items_model.filter = display_filter
 
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-        all_data_items = self.filtered_data_items_model.data_items
-        indexes = [all_data_items.index(data_item) for data_item in data_items]
+        displays = self.filtered_displays_model.displays
+        associated_displays = {data_item.primary_display_specifier.display for data_item in data_items}
+        indexes = set()
+        for index, display in enumerate(displays):
+            if display in associated_displays:
+                indexes.add(index)
         self.selection.set_multiple(indexes)
         self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
         self.__data_browser_controller.focused = True
@@ -1427,8 +1424,6 @@ class DocumentController(Window.Window):
                     for selected_data_item in selected_data_items:
                         if container and selected_data_item in container.data_items:
                             container.remove_data_item(selected_data_item)
-                            # TODO: avoid calling periodic by reworking thread support in data panel
-                            self.periodic()  # keep the display items in data panel consistent.
 
             def show_in_new_window():
                 self.new_window_with_data_item("data", data_item=data_item)

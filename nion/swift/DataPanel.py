@@ -24,6 +24,7 @@ from nion.ui import ListCanvasItem
 from nion.ui import Widgets
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ListModel
 
 _ = gettext.gettext
 
@@ -84,6 +85,10 @@ class DisplayItem:
         if self.__display_changed_event_listener:
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
+
+    @property
+    def display(self) -> Display.Display:
+        return self.__display
 
     @property
     def data_item(self) -> DataItem.DataItem:
@@ -1173,29 +1178,34 @@ class DataPanel(Panel.Panel):
         data_list_widget = DataListWidget(ui, self.data_list_controller)
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
-        def data_item_inserted(key, data_item, before_index):
+        def display_item_inserted(key, display_item, before_index):
             assert threading.current_thread() == threading.main_thread()
-            display_item = DisplayItem(data_item.primary_display_specifier.display, ui)
             self.__display_items.insert(before_index, display_item)
             self.data_list_controller.display_item_inserted(display_item, before_index)
             self.data_grid_controller.display_item_inserted(display_item, before_index)
 
-        def data_item_removed(key, data_item, index):
+        def display_item_removed(key, display_item, index):
             assert threading.current_thread() == threading.main_thread()
             self.data_list_controller.display_item_removed(index)
             self.data_grid_controller.display_item_removed(index)
             self.__display_items[index].close()
             del self.__display_items[index]
 
-        self.__filtered_data_items_model = document_controller.filtered_data_items_model
+        def map_display_to_display_item(display):
+            return DisplayItem(display, ui)
 
-        self.__library_item_inserted_listener = self.__filtered_data_items_model.item_inserted_event.listen(data_item_inserted)
-        self.__library_item_removed_listener = self.__filtered_data_items_model.item_removed_event.listen(data_item_removed)
+        def unmap_display_to_display_item(display_item):
+            display_item.close()
+
+        self.__filtered_display_items_model = ListModel.MappedListModel(container=document_controller.filtered_displays_model, master_items_key="displays", items_key="display_items", map_fn=map_display_to_display_item, unmap_fn=unmap_display_to_display_item)
+
+        self.__library_item_inserted_listener = self.__filtered_display_items_model.item_inserted_event.listen(display_item_inserted)
+        self.__library_item_removed_listener = self.__filtered_display_items_model.item_removed_event.listen(display_item_removed)
 
         self.__display_items = list()
 
-        for index, data_item in enumerate(self.__filtered_data_items_model.data_items):
-            data_item_inserted("data_items", data_item, index)
+        for index, display_item in enumerate(self.__filtered_display_items_model.display_items):
+            display_item_inserted("display_items", display_item, index)
 
         list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/list_icon_20.png")))
         grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/grid_icon_20.png")))
@@ -1284,6 +1294,8 @@ class DataPanel(Panel.Panel):
         self.__filter_changed_event_listener = None
         self.__selected_data_items_changed_event_listener.close()
         self.__selected_data_items_changed_event_listener = None
+        self.__filtered_display_items_model.close()
+        self.__filtered_display_items_model = None
         # button group
         self.__view_button_group.close()
         self.__view_button_group = None
