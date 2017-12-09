@@ -282,6 +282,7 @@ class DataListController:
             changed_display_items = self.__changed_display_items
             self.__changed_display_items = False
         if changed_display_items:
+            self.__list_canvas_item.refresh_layout()
             self.__list_canvas_item.update()
 
     def make_selection_visible(self):
@@ -332,6 +333,7 @@ class DataListController:
         self.__display_items.insert(before_index, display_item)
         self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
         # tell the icon view to update.
+        self.__list_canvas_item.refresh_layout()
         self.__list_canvas_item.update()
 
     # call this method to remove a display item (by index)
@@ -340,6 +342,7 @@ class DataListController:
         self.__display_item_needs_update_listeners[index].close()
         del self.__display_item_needs_update_listeners[index]
         del self.__display_items[index]
+        self.__list_canvas_item.refresh_layout()
         self.__list_canvas_item.update()
 
 
@@ -488,6 +491,7 @@ class DataGridController:
             changed_display_items = self.__changed_display_items
             self.__changed_display_items = False
         if changed_display_items:
+            self.icon_view_canvas_item.refresh_layout()
             self.icon_view_canvas_item.update()
 
     def clear_selection(self):
@@ -545,6 +549,7 @@ class DataGridController:
         self.__display_items.insert(before_index, display_item)
         self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
         # tell the icon view to update.
+        self.icon_view_canvas_item.refresh_layout()
         self.icon_view_canvas_item.update()
 
     # call this method to remove a display item (by index)
@@ -553,6 +558,7 @@ class DataGridController:
         self.__display_item_needs_update_listeners[index].close()
         del self.__display_item_needs_update_listeners[index]
         del self.__display_items[index]
+        self.icon_view_canvas_item.refresh_layout()
         self.icon_view_canvas_item.update()
 
 
