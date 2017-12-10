@@ -1029,41 +1029,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__cycle_display()
             return True
 
-        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
-        self.__horizontal_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
-        self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__horizontal_data_grid_controller.on_data_item_double_clicked = double_clicked
-        self.__horizontal_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.__horizontal_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
-        self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
-        self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
-
-        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.document_model.dispatch_task, document_controller.add_task, document_controller.clear_task, document_controller.ui, self.__selection)
-        self.__grid_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
-        self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__grid_data_grid_controller.on_data_item_double_clicked = double_clicked
-        self.__grid_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.__grid_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
-        self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
-        self.__grid_data_grid_controller.on_key_pressed = key_pressed
-
-        self.__display_items = list()
-
-        def display_item_inserted(key, display_item, before_index):
-            assert threading.current_thread() == threading.main_thread()
-            if self.__display_items is not None:  # closed?
-                self.__display_items.insert(before_index, display_item)
-                self.__horizontal_data_grid_controller.display_item_inserted(display_item, before_index)
-                self.__grid_data_grid_controller.display_item_inserted(display_item, before_index)
-
-        def display_item_removed(key, display_item, index):
-            assert threading.current_thread() == threading.main_thread()
-            if self.__display_items is not None:  # closed?
-                self.__horizontal_data_grid_controller.display_item_removed(index)
-                self.__grid_data_grid_controller.display_item_removed(index)
-                self.__display_items[index].close()
-                del self.__display_items[index]
-
         def map_display_to_display_item(display):
             return DataPanel.DisplayItem(display, ui)
 
@@ -1072,11 +1037,23 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__filtered_display_items_model = ListModel.MappedListModel(container=document_controller.filtered_displays_model, master_items_key="displays", items_key="display_items", map_fn=map_display_to_display_item, unmap_fn=unmap_display_to_display_item)
 
-        self.__library_item_inserted_listener = self.__filtered_display_items_model.item_inserted_event.listen(display_item_inserted)
-        self.__library_item_removed_listener = self.__filtered_display_items_model.item_removed_event.listen(display_item_removed)
+        self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
+        self.__horizontal_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
+        self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
+        self.__horizontal_data_grid_controller.on_data_item_double_clicked = double_clicked
+        self.__horizontal_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.__horizontal_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
+        self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
+        self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
-        for index, display_item in enumerate(self.__filtered_display_items_model.display_items):
-            display_item_inserted("display_items", display_item, index)
+        self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection)
+        self.__grid_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
+        self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
+        self.__grid_data_grid_controller.on_data_item_double_clicked = double_clicked
+        self.__grid_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.__grid_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
+        self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
+        self.__grid_data_grid_controller.on_key_pressed = key_pressed
 
         self.__horizontal_browser_canvas_item = self.__horizontal_data_grid_controller.canvas_item
         self.__horizontal_browser_canvas_item.sizing.set_fixed_height(80)
@@ -1108,17 +1085,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_canvas_item = None
         self.set_display(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
-        self.__library_item_inserted_listener.close()
-        self.__library_item_inserted_listener = None
-        self.__library_item_removed_listener.close()
-        self.__library_item_removed_listener = None
         self.__horizontal_data_grid_controller.close()
         self.__horizontal_data_grid_controller = None
         self.__grid_data_grid_controller.close()
         self.__grid_data_grid_controller = None
-        for display_item in self.__display_items:
-            display_item.close()
-        self.__display_items = None
         self.__selected_data_items_changed_event_listener.close()
         self.__selected_data_items_changed_event_listener = None
         self.document_controller.filtered_displays_model.release_selection(self.__selection)
@@ -1142,7 +1112,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     @property
     def _display_items_for_test(self):
-        return self.__display_items
+        return self.__filtered_display_items_model.display_items
 
     # save and restore the contents of the image panel
 
@@ -1334,7 +1304,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_changed = False
 
     def __update_selection_to_data_item(self):
-        displays = [display_item.display for display_item in self.__display_items]
+        displays = [display_item.display for display_item in self.__filtered_display_items_model.display_items]
         if self.__display in displays:
             self.__selection.set(displays.index(self.__display))
             self.__horizontal_data_grid_controller.make_selection_visible()

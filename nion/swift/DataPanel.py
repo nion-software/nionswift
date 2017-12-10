@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import copy
 import functools
 import gettext
@@ -194,11 +195,10 @@ class DataListController:
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, dispatch_task, add_task, clear_task, ui, selection):
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui, display_items_model, selection):
         super().__init__()
-        self.dispatch_task = dispatch_task
-        self.__add_task = add_task
-        self.__clear_task = clear_task
+        self.__event_loop = event_loop
+        self.__pending_tasks = list()
         self.ui = ui
         self.__selection = selection
         self.on_delete_data_items = None
@@ -206,6 +206,10 @@ class DataListController:
 
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
+
+        self.__display_items_model = display_items_model
+        self.__display_item_inserted_event_listener = self.__display_items_model.item_inserted_event.listen(self.__display_item_inserted)
+        self.__display_item_removed_event_listener = self.__display_items_model.item_removed_event.listen(self.__display_item_removed)
 
         class ListCanvasItemDelegate:
             def __init__(self, data_list_controller):
@@ -266,13 +270,22 @@ class DataListController:
         self.__changed_display_items = False
         self.__changed_display_items_mutex = threading.RLock()
 
+        for index, display_item in enumerate(self.__display_items_model.display_items):
+            self.__display_item_inserted("display_items", display_item, index)
+
     def close(self):
-        self.__clear_task(str(id(self)))
+        for pending_task in self.__pending_tasks:
+            pending_task.cancel()
+        self.__pending_tasks = None
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
         for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
             display_item_needs_update_listener.close()
         self.__display_item_needs_update_listeners = None
+        self.__display_item_inserted_event_listener.close()
+        self.__display_item_inserted_event_listener = None
+        self.__display_item_removed_event_listener.close()
+        self.__display_item_removed_event_listener = None
         self.__display_items = None
         self.on_selection_changed = None
         self.on_context_menu_event = None
@@ -281,7 +294,7 @@ class DataListController:
         self.on_delete_data_items = None
         self.on_key_pressed = None
 
-    def __update_display_items(self):
+    async def __update_display_items(self):
         # handle the 'changed' stuff. a call to this function is scheduled
         # whenever __changed_display_items changes.
         with self.__changed_display_items_mutex:
@@ -290,6 +303,7 @@ class DataListController:
         if changed_display_items:
             self.__list_canvas_item.refresh_layout()
             self.__list_canvas_item.update()
+        self.__pending_tasks.pop(0)
 
     def make_selection_visible(self):
         self.__list_canvas_item.make_selection_visible()
@@ -331,25 +345,27 @@ class DataListController:
     def __display_item_needs_update(self):
         with self.__changed_display_items_mutex:
             self.__changed_display_items = True
-            self.__add_task(str(id(self)), self.__update_display_items)
+            self.__pending_tasks.append(self.__event_loop.create_task(self.__update_display_items()))
 
     # call this method to insert a display item
     # not thread safe
-    def display_item_inserted(self, display_item, before_index):
-        self.__display_items.insert(before_index, display_item)
-        self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
-        # tell the icon view to update.
-        self.__list_canvas_item.refresh_layout()
-        self.__list_canvas_item.update()
+    def __display_item_inserted(self, key, display_item, before_index):
+        if key == "display_items":
+            self.__display_items.insert(before_index, display_item)
+            self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
+            # tell the icon view to update.
+            self.__list_canvas_item.refresh_layout()
+            self.__list_canvas_item.update()
 
     # call this method to remove a display item (by index)
     # not thread safe
-    def display_item_removed(self, index):
-        self.__display_item_needs_update_listeners[index].close()
-        del self.__display_item_needs_update_listeners[index]
-        del self.__display_items[index]
-        self.__list_canvas_item.refresh_layout()
-        self.__list_canvas_item.update()
+    def __display_item_removed(self, key, display_item, index):
+        if key == "display_items":
+            self.__display_item_needs_update_listeners[index].close()
+            del self.__display_item_needs_update_listeners[index]
+            del self.__display_items[index]
+            self.__list_canvas_item.refresh_layout()
+            self.__list_canvas_item.update()
 
 
 class DataGridController:
@@ -384,11 +400,10 @@ class DataGridController:
         (method) drag_started(ui, x, y, modifiers), returns mime_data, thumbnail_data
     """
 
-    def __init__(self, dispatch_task, add_task, clear_task, ui, selection, direction=GridCanvasItem.Direction.Row, wrap=True):
-        super(DataGridController, self).__init__()
-        self.dispatch_task = dispatch_task
-        self.__add_task = add_task
-        self.__clear_task = clear_task
+    def __init__(self, event_loop: asyncio.AbstractEventLoop, ui, display_items_model, selection, direction=GridCanvasItem.Direction.Row, wrap=True):
+        super().__init__()
+        self.__event_loop = event_loop
+        self.__pending_tasks = list()
         self.ui = ui
         self.__selection = selection
         self.on_delete_data_items = None
@@ -401,6 +416,10 @@ class DataGridController:
 
         self.__display_items = list()
         self.__display_item_needs_update_listeners = list()
+
+        self.__display_items_model = display_items_model
+        self.__display_item_inserted_event_listener = self.__display_items_model.item_inserted_event.listen(self.__display_item_inserted)
+        self.__display_item_removed_event_listener = self.__display_items_model.item_removed_event.listen(self.__display_item_removed)
 
         class GridCanvasItemDelegate:
             def __init__(self, data_grid_controller):
@@ -458,11 +477,13 @@ class DataGridController:
             self.scroll_group_canvas_item.add_canvas_item(self.horizontal_scroll_bar_canvas_item, Geometry.IntPoint(x=0, y=1))
 
         self.canvas_item = self.scroll_group_canvas_item
+
         def selection_changed():
             self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed([self.__display_items[index].data_item for index in list(self.__selection.indexes)])
             self.icon_view_canvas_item.make_selection_visible()
+
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
 
@@ -473,12 +494,21 @@ class DataGridController:
         self.__changed_display_items_mutex = threading.RLock()
         self.__closed = False
 
+        for index, display_item in enumerate(self.__display_items_model.display_items):
+            self.__display_item_inserted("display_items", display_item, index)
+
     def close(self):
         assert not self.__closed
-        self.__clear_task(str(id(self)))
+        for pending_task in self.__pending_tasks:
+            pending_task.cancel()
+        self.__pending_tasks = None
         self.icon_view_canvas_item.detach_delegate()
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
+        self.__display_item_inserted_event_listener.close()
+        self.__display_item_inserted_event_listener = None
+        self.__display_item_removed_event_listener.close()
+        self.__display_item_removed_event_listener = None
         for display_item_needs_update_listener in self.__display_item_needs_update_listeners:
             display_item_needs_update_listener.close()
         self.__display_item_needs_update_listeners = None
@@ -492,13 +522,14 @@ class DataGridController:
         self.on_data_item_double_clicked= None
         self.__closed = True
 
-    def __update_display_items(self):
+    async def __update_display_items(self):
         with self.__changed_display_items_mutex:
             changed_display_items = self.__changed_display_items
             self.__changed_display_items = False
         if changed_display_items:
             self.icon_view_canvas_item.refresh_layout()
             self.icon_view_canvas_item.update()
+        self.__pending_tasks.pop(0)
 
     def clear_selection(self):
         self.__selection.clear()
@@ -547,25 +578,27 @@ class DataGridController:
     def __display_item_needs_update(self):
         with self.__changed_display_items_mutex:
             self.__changed_display_items = True
-            self.__add_task(str(id(self)), self.__update_display_items)
+            self.__pending_tasks.append(self.__event_loop.create_task(self.__update_display_items()))
 
     # call this method to insert a display item
     # not thread safe
-    def display_item_inserted(self, display_item, before_index):
-        self.__display_items.insert(before_index, display_item)
-        self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
-        # tell the icon view to update.
-        self.icon_view_canvas_item.refresh_layout()
-        self.icon_view_canvas_item.update()
+    def __display_item_inserted(self, key, display_item, before_index):
+        if key == "display_items":
+            self.__display_items.insert(before_index, display_item)
+            self.__display_item_needs_update_listeners.insert(before_index, display_item.needs_update_event.listen(self.__display_item_needs_update))
+            # tell the icon view to update.
+            self.icon_view_canvas_item.refresh_layout()
+            self.icon_view_canvas_item.update()
 
     # call this method to remove a display item (by index)
     # not thread safe
-    def display_item_removed(self, index):
-        self.__display_item_needs_update_listeners[index].close()
-        del self.__display_item_needs_update_listeners[index]
-        del self.__display_items[index]
-        self.icon_view_canvas_item.refresh_layout()
-        self.icon_view_canvas_item.update()
+    def __display_item_removed(self, key, display_item, index):
+        if key == "display_items":
+            self.__display_item_needs_update_listeners[index].close()
+            del self.__display_item_needs_update_listeners[index]
+            del self.__display_items[index]
+            self.icon_view_canvas_item.refresh_layout()
+            self.icon_view_canvas_item.update()
 
 
 class DataListWidget(Widgets.CompositeWidgetBase):
@@ -1019,7 +1052,6 @@ class DataPanel(Panel.Panel):
     def __init__(self, document_controller, panel_id, properties):
         super().__init__(document_controller, panel_id, _("Data Items"))
 
-        dispatch_task = document_controller.document_model.dispatch_task
         ui = document_controller.ui
 
         self.__data_browser_controller = document_controller.data_browser_controller
@@ -1160,37 +1192,6 @@ class DataPanel(Panel.Panel):
             menu.popup(gx, gy)
             return True
 
-        selection = self.document_controller.selection
-        self.data_list_controller = DataListController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
-        self.data_list_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
-        self.data_list_controller.on_context_menu_event = show_context_menu
-        self.data_list_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
-        self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.data_list_controller.on_delete_data_items = document_controller.delete_data_items
-
-        self.data_grid_controller = DataGridController(dispatch_task, document_controller.add_task, document_controller.clear_task, ui, selection)
-        self.data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
-        self.data_grid_controller.on_context_menu_event = show_context_menu
-        self.data_grid_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
-        self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
-        self.data_grid_controller.on_delete_data_items = document_controller.delete_data_items
-
-        data_list_widget = DataListWidget(ui, self.data_list_controller)
-        data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
-
-        def display_item_inserted(key, display_item, before_index):
-            assert threading.current_thread() == threading.main_thread()
-            self.__display_items.insert(before_index, display_item)
-            self.data_list_controller.display_item_inserted(display_item, before_index)
-            self.data_grid_controller.display_item_inserted(display_item, before_index)
-
-        def display_item_removed(key, display_item, index):
-            assert threading.current_thread() == threading.main_thread()
-            self.data_list_controller.display_item_removed(index)
-            self.data_grid_controller.display_item_removed(index)
-            self.__display_items[index].close()
-            del self.__display_items[index]
-
         def map_display_to_display_item(display):
             return DisplayItem(display, ui)
 
@@ -1199,13 +1200,23 @@ class DataPanel(Panel.Panel):
 
         self.__filtered_display_items_model = ListModel.MappedListModel(container=document_controller.filtered_displays_model, master_items_key="displays", items_key="display_items", map_fn=map_display_to_display_item, unmap_fn=unmap_display_to_display_item)
 
-        self.__library_item_inserted_listener = self.__filtered_display_items_model.item_inserted_event.listen(display_item_inserted)
-        self.__library_item_removed_listener = self.__filtered_display_items_model.item_removed_event.listen(display_item_removed)
+        selection = self.document_controller.selection
+        self.data_list_controller = DataListController(document_controller.event_loop, ui, self.__filtered_display_items_model, selection)
+        self.data_list_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
+        self.data_list_controller.on_context_menu_event = show_context_menu
+        self.data_list_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
+        self.data_list_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.data_list_controller.on_delete_data_items = document_controller.delete_data_items
 
-        self.__display_items = list()
+        self.data_grid_controller = DataGridController(document_controller.event_loop, ui, self.__filtered_display_items_model, selection)
+        self.data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
+        self.data_grid_controller.on_context_menu_event = show_context_menu
+        self.data_grid_controller.on_data_item_double_clicked = document_controller.data_item_double_clicked
+        self.data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.data_grid_controller.on_delete_data_items = document_controller.delete_data_items
 
-        for index, display_item in enumerate(self.__filtered_display_items_model.display_items):
-            display_item_inserted("display_items", display_item, index)
+        data_list_widget = DataListWidget(ui, self.data_list_controller)
+        data_grid_widget = DataGridWidget(ui, self.data_grid_controller)
 
         list_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/list_icon_20.png")))
         grid_icon_button = CanvasItem.BitmapButtonCanvasItem(ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/grid_icon_20.png")))
@@ -1267,11 +1278,6 @@ class DataPanel(Panel.Panel):
     def close(self):
         # data items model should not be closed since it isn't created in this object
         self.splitter.save_state("window/v1/data_panel_splitter")
-        # self.__data_browser_controller.set_data_browser_selection()
-        self.__library_item_inserted_listener.close()
-        self.__library_item_inserted_listener = None
-        self.__library_item_removed_listener.close()
-        self.__library_item_removed_listener = None
         # close the models
         self.data_group_model_controller.close()
         self.data_group_model_controller = None
@@ -1286,10 +1292,6 @@ class DataPanel(Panel.Panel):
         self.data_list_controller = None
         self.data_grid_controller.close()
         self.data_grid_controller = None
-        # display items
-        for display_item in self.__display_items:
-            display_item.close()
-        self.__display_items = None
         self.__filter_changed_event_listener.close()
         self.__filter_changed_event_listener = None
         self.__selected_data_items_changed_event_listener.close()
@@ -1327,8 +1329,9 @@ class DataPanel(Panel.Panel):
     def __data_panel_selected_data_items_changed(self, data_items: typing.Sequence[DataItem.DataItem]):
         # update the data item selection by determining the new index of the item, if any.
         indexes = set()
-        for index in range(len(self.__display_items)):
-            if self.__display_items[index].data_item in data_items:
+        display_items = self.__filtered_display_items_model.display_items
+        for index in range(len(display_items)):
+            if display_items[index].data_item in data_items:
                 indexes.add(index)
         self.document_controller.selection.set_multiple(indexes)
 
