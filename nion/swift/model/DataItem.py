@@ -597,10 +597,12 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
         self.define_property("timezone", Utility.get_local_timezone(), changed=self.__timezone_property_changed)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
+        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__session_manager = None
         self.library_item_changed_event = Event.Event()
         self.item_changed_event = Event.Event()  # equivalent to library_item_changed_event
+        self.__display_ref_count = 0
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
         self.__content_changed = False
@@ -608,6 +610,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.r_var = None
         self._about_to_be_removed = False
         self._closed = False
+        self.add_display(Display.Display())  # always have one display, for now
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
@@ -625,10 +628,17 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         library_item_copy.timezone_offset = self.timezone_offset
         library_item_copy.session_id = self.session_id
         library_item_copy.source_file_path = self.source_file_path
+        # displays
+        for display in copy.copy(library_item_copy.displays):
+            library_item_copy.remove_display(display)
+        for display in self.displays:
+            library_item_copy.add_display(copy.deepcopy(display))
         memo[id(self)] = library_item_copy
         return library_item_copy
 
     def close(self):
+        for display in self.displays:
+            display.close()
         for connection in copy.copy(self.connections):
             connection.close()
         # close the storage handler
@@ -653,6 +663,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
+        for display in self.displays:
+            display.about_to_be_removed()
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -681,6 +693,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def clone(self) -> "LibraryItem":
         library_item = self.__class__()
         library_item.uuid = self.uuid
+        for display in copy.copy(library_item.displays):
+            library_item.remove_display(display)
+        for display in self.displays:
+            library_item.add_display(display.clone())
         for connection in self.connections:
             library_item.add_connection(connection.clone())
         return library_item
@@ -696,6 +712,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         libary_item.timezone_offset = self.timezone_offset
         libary_item.session_id = self.session_id
         libary_item.source_file_path = self.source_file_path
+        for display in copy.copy(libary_item.displays):
+            libary_item.remove_display(display)
+        for display in self.displays:
+            libary_item.add_display(copy.deepcopy(display))
         return libary_item
 
     def connect_data_items(self, data_items, lookup_data_item):
@@ -703,6 +723,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def set_storage_cache(self, storage_cache):
         self.__suspendable_storage_cache = Cache.SuspendableCache(storage_cache)
+        for display in self.displays:
+            display.set_storage_cache(self._suspendable_storage_cache)
 
     @property
     def _suspendable_storage_cache(self):
@@ -783,6 +805,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     # access properties
 
     def read_from_dict(self, properties):
+        for display in copy.copy(self.displays):
+            self.remove_display(display)
         # when reading, handle changes specially. first, put everything into a change
         # block; then make sure that no change notifications actually occur. this makes
         # sure things like cached values are preserved after reading.
@@ -803,6 +827,26 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         if self.persistent_object_context:
             return self.persistent_object_context.get_properties(self)
         return dict()
+
+    def __insert_display(self, name, before_index, display):
+        display.about_to_be_inserted(self)
+        display.title = self.displayed_title
+
+    def __remove_display(self, name, index, display):
+        display.about_to_be_removed()
+        display.close()
+
+    def add_display(self, display):
+        """Add a display, but do it through the container, so dependencies can be tracked."""
+        self.insert_model_item(self, "displays", self.item_count("displays"), display)
+        if self.__display_ref_count > 0:
+            display._become_master()
+
+    def remove_display(self, display):
+        """Remove display, but do it through the container, so dependencies can be tracked."""
+        if self.__display_ref_count > 0:
+            display._relinquish_master()
+        self.remove_model_item(self, "displays", display)
 
     @property
     def is_live(self):
@@ -853,7 +897,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             self._item_changed()
 
     def _item_changed(self):
-        pass
+        for display in self.displays:
+            display._item_changed()
 
     def __validate_source_file_path(self, value):
         value = str(value) if value is not None else str()
@@ -870,7 +915,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self._description_changed()
 
     def _description_changed(self):
-        pass
+        for display in self.displays:
+            display.title = self.displayed_title
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -890,11 +936,18 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     def increment_display_ref_count(self):
         """Increment display reference count to indicate this library item is currently displayed."""
-        pass
+        self.__display_ref_count += 1
+        if self.__display_ref_count == 1:
+            for display in self.displays:
+                display._become_master()
 
     def decrement_display_ref_count(self):
         """Decrement display reference count to indicate this library item is no longer displayed."""
         assert not self._closed
+        self.__display_ref_count -= 1
+        if self.__display_ref_count == 0:
+            for display in self.displays:
+                display._relinquish_master()
 
     @property
     def displayed_title(self):
@@ -1085,14 +1138,12 @@ class DataItem(LibraryItem):
         self.large_format = large_format
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)
         self.define_item("computation", computation_factory)
-        self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.data_item_changed_event = Event.Event()  # anything has changed
         self.data_changed_event = Event.Event()  # data has changed
         self.metadata_changed_event = Event.Event()  # metadata has changed (always if data has changed)
         self.__write_delay_data_changed = False
         self.__data_source_metadata_changed_event_listener = None
         self.__data_source_data_changed_event_listener = None
-        self.__display_ref_count = 0
         self.__change_thread = None
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
@@ -1102,7 +1153,6 @@ class DataItem(LibraryItem):
         self.__pending_xdata = None
         if data is not None:
             self.set_data_source(BufferedDataSource(data))
-        self.add_display(Display.Display())  # always have one display, for now
         self.__update_displays()
 
     def __deepcopy__(self, memo):
@@ -1113,17 +1163,10 @@ class DataItem(LibraryItem):
         data_item_copy.set_data_source(copy.deepcopy(self.data_source))
         # computation
         data_item_copy.set_computation(copy.deepcopy(self.computation))
-        # displays
-        for display in copy.copy(data_item_copy.displays):
-            data_item_copy.remove_display(display)
-        for display in self.displays:
-            data_item_copy.add_display(copy.deepcopy(display))
         data_item_copy.__update_displays()
         return data_item_copy
 
     def close(self):
-        for display in self.displays:
-            display.close()
         data_source = self.data_source
         if data_source:
             self.__disconnect_data_source(data_source)
@@ -1131,8 +1174,6 @@ class DataItem(LibraryItem):
         super().close()
 
     def about_to_be_removed(self):
-        for display in self.displays:
-            display.about_to_be_removed()
         data_source = self.data_source
         if data_source:
             data_source.about_to_be_removed()
@@ -1143,10 +1184,6 @@ class DataItem(LibraryItem):
         data_source = self.data_source
         if data_source:
             data_item.set_data_source(data_source.clone())
-        for display in copy.copy(data_item.displays):
-            data_item.remove_display(display)
-        for display in self.displays:
-            data_item.add_display(display.clone())
         data_item.__update_displays()
         return data_item
 
@@ -1158,17 +1195,8 @@ class DataItem(LibraryItem):
         data_source = self.data_source
         if data_source:
             data_item.set_data_source(data_source.snapshot())
-        for display in copy.copy(data_item.displays):
-            data_item.remove_display(display)
-        for display in self.displays:
-            data_item.add_display(copy.deepcopy(display))
         data_item.__update_displays()
         return data_item
-
-    def set_storage_cache(self, storage_cache):
-        super().set_storage_cache(storage_cache)
-        for display in self.displays:
-            display.set_storage_cache(self._suspendable_storage_cache)
 
     def _enter_transaction_state(self):
         super()._enter_transaction_state()
@@ -1186,8 +1214,6 @@ class DataItem(LibraryItem):
             data_source.decrement_data_ref_count()
 
     def _read_from_dict_inner(self, properties):
-        for display in copy.copy(self.displays):
-            self.remove_display(display)
         super()._read_from_dict_inner(properties)
         self.__update_displays()  # this ensures that the display will validate
 
@@ -1332,26 +1358,6 @@ class DataItem(LibraryItem):
         """Set data source."""
         self.set_item("data_source", data_source)
 
-    def __insert_display(self, name, before_index, display):
-        display.about_to_be_inserted(self)
-        display.title = self.displayed_title
-
-    def __remove_display(self, name, index, display):
-        display.about_to_be_removed()
-        display.close()
-
-    def add_display(self, display):
-        """Add a display, but do it through the container, so dependencies can be tracked."""
-        self.insert_model_item(self, "displays", self.item_count("displays"), display)
-        if self.__display_ref_count > 0:
-            display._become_master()
-
-    def remove_display(self, display):
-        """Remove display, but do it through the container, so dependencies can be tracked."""
-        if self.__display_ref_count > 0:
-            display._relinquish_master()
-        self.remove_model_item(self, "displays", display)
-
     @property
     def computation(self) -> typing.Optional[Symbolic.Computation]:
         return self.get_item("computation")
@@ -1374,18 +1380,10 @@ class DataItem(LibraryItem):
     def increment_display_ref_count(self):
         super().increment_display_ref_count()
         self.increment_data_ref_count()
-        self.__display_ref_count += 1
-        if self.__display_ref_count == 1:
-            for display in self.displays:
-                display._become_master()
 
     def decrement_display_ref_count(self):
         super().decrement_display_ref_count()
         self.decrement_data_ref_count()
-        self.__display_ref_count -= 1
-        if self.__display_ref_count == 0:
-            for display in self.displays:
-                display._relinquish_master()
 
     def increment_data_ref_count(self):
         data_source = self.data_source
@@ -1405,16 +1403,6 @@ class DataItem(LibraryItem):
         if data_source:
             return DisplaySpecifier(self, self.displays[0])
         return DisplaySpecifier()
-
-    def _item_changed(self):
-        super()._item_changed()
-        for display in self.displays:
-            display._item_changed()
-
-    def _description_changed(self):
-        super()._description_changed()
-        for display in self.displays:
-            display.title = self.displayed_title
 
     def _update_timezone(self):
         with self.data_source_changes():

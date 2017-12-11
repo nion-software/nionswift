@@ -980,11 +980,11 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         # if the item displayed in this panel gets deleted, remove it from this panel.
         # called when an item is removed from the document
         def item_removed(key, value, index):
-            if value == self._data_item:
+            if value == self.__display:
                 self.set_display(None)
 
         document_model = self.document_controller.document_model
-        self.__item_removed_event_listener = document_model.item_removed_event.listen(item_removed)
+        self.__item_removed_event_listener = document_model.displays_list_model.item_removed_event.listen(item_removed)
 
         # the display panel controller is an object which adds and controls additional UI on top of this display.
         self.__display_panel_controller = None
@@ -1261,8 +1261,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def _begin_drag(self):
-        data_item = self._data_item
-        if data_item is not None:
+        data_item = self.__display.container
+        if isinstance(data_item, DataItem.DataItem):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))

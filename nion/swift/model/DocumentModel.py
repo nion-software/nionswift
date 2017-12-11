@@ -37,6 +37,7 @@ from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.utils import Converter
 from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Persistence
 from nion.utils import Recorder
@@ -1208,6 +1209,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__library_storage.set_property(self, "uuid", str(self.uuid))
         self.__library_storage.set_property(self, "version", 0)
 
+        self.displays_list_model = ListModel.FlattenedListModel(container=self, master_items_key="data_items", child_items_key="displays")
+
         self.__data_channel_updated_listeners = dict()
         self.__data_channel_start_listeners = dict()
         self.__data_channel_stop_listeners = dict()
@@ -1327,6 +1330,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         self.__thread_pool.close()
         self.__computation_thread_pool.close()
+        self.displays_list_model.close()
+        self.displays_list_model = None
         for data_item in self.data_items:
             data_item.about_to_be_removed()
             data_item.close()
