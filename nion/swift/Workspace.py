@@ -84,9 +84,6 @@ class Workspace:
             display_panel.close()
         self.__canvas_item = None
         self.__workspace = None
-        # closing dock widgets is currently a mess due to the call to self.document_controller.periodic in
-        # DataBrowserController. work in progress. to avoid weird callbacks, copy the dock widgets
-        # before closing, then clear the list, and handle the 'None' case in periodic. not nice.
         dock_widgets_copy = copy.copy(self.dock_widgets)
         self.dock_widgets = None
         for dock_widget in dock_widgets_copy:

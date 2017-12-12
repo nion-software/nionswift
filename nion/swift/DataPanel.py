@@ -173,14 +173,12 @@ class DataListController:
 
     The following methods can be called:
         close()
-        periodic()
-        display_item_inserted(display_item, before_index) - ui thread
-        display_item_removed(index) - ui thread
 
     The controller provides the following callbacks:
         on_delete_display_items(display_items)
         on_key_pressed(key)
         on_selection_changed(data_items)
+        on_display_item_selection_changed(display_items)
         on_data_item_double_clicked(data_item)
         on_focus_changed(focused)
         on_context_menu_event(display_item, x, y, gx, gy)
@@ -256,10 +254,13 @@ class DataListController:
             self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed([self.__display_items[index].data_item for index in list(self.__selection.indexes)])
+            if callable(self.on_display_item_selection_changed):
+                self.on_display_item_selection_changed([self.__display_items[index] for index in list(self.__selection.indexes)])
             self.__list_canvas_item.make_selection_visible()
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
         self.selected_indexes = list()
         self.on_selection_changed = None
+        self.on_display_item_selection_changed = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
         self.on_drag_started = None
@@ -288,6 +289,7 @@ class DataListController:
         self.__display_item_removed_event_listener = None
         self.__display_items = None
         self.on_selection_changed = None
+        self.on_display_item_selection_changed = None
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
@@ -376,15 +378,14 @@ class DataGridController:
 
     The following methods can be called:
         close()
-        periodic()
-        display_item_inserted(display_item, before_index) - ui thread
-        display_item_removed(index) - ui thread
 
     The controller provides the following callbacks:
         on_delete_data_items(data_items)
         on_key_pressed(key)
         on_selection_changed(data_items)
+        on_display_item_selection_changed(display_items)
         on_data_item_double_clicked(data_item)
+        on_display_item_double_clicked(display_item)
         on_focus_changed(focused)
         on_context_menu_event(display_item, x, y, gx, gy)
         on_drag_started(mime_data, thumbnail_data)
@@ -409,7 +410,9 @@ class DataGridController:
         self.on_delete_data_items = None
         self.on_key_pressed = None
         self.on_data_item_double_clicked = None
+        self.on_display_item_double_clicked = None
         self.on_selection_changed = None
+        self.on_display_item_selection_changed = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
         self.on_drag_started = None
@@ -482,6 +485,8 @@ class DataGridController:
             self.selected_indexes = list(self.__selection.indexes)
             if self.on_selection_changed:
                 self.on_selection_changed([self.__display_items[index].data_item for index in list(self.__selection.indexes)])
+            if callable(self.on_display_item_selection_changed):
+                self.on_display_item_selection_changed([self.__display_items[index] for index in list(self.__selection.indexes)])
             self.icon_view_canvas_item.make_selection_visible()
 
         self.__selection_changed_listener = self.__selection.changed_event.listen(selection_changed)
@@ -514,12 +519,14 @@ class DataGridController:
         self.__display_item_needs_update_listeners = None
         self.__display_items = None
         self.on_selection_changed = None
+        self.on_display_item_selection_changed = None
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
         self.on_delete_data_items = None
         self.on_key_pressed = None
-        self.on_data_item_double_clicked= None
+        self.on_data_item_double_clicked = None
+        self.on_display_item_double_clicked = None
         self.__closed = True
 
     async def __update_display_items(self):
@@ -550,9 +557,11 @@ class DataGridController:
 
     # this message comes from the canvas item when a key is pressed
     def _double_clicked(self):
-        if callable(self.on_data_item_double_clicked):
-            if len(self.__selection.indexes) == 1:
+        if len(self.__selection.indexes) == 1:
+            if callable(self.on_data_item_double_clicked):
                 return self.on_data_item_double_clicked(self.__display_items[list(self.__selection.indexes)[0]].data_item)
+            if callable(self.on_display_item_double_clicked):
+                return self.on_display_item_double_clicked(self.__display_items[list(self.__selection.indexes)[0]])
         return False
 
     @property
@@ -670,13 +679,6 @@ class DataBrowserController:
 
     def close(self):
         pass
-
-    def clone_for_display_panel(self) -> 'DataBrowserController':
-        """Used to create a duplicate copy for the display panel."""
-        data_browser_controller = DataBrowserController(self.document_controller)
-        data_browser_controller.__data_group = self.__data_group
-        data_browser_controller.__filter_id = self.__filter_id
-        return data_browser_controller
 
     @property
     def focused(self):

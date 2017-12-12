@@ -1005,15 +1005,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__display_panel_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
 
-        self.__data_browser_controller = document_controller.create_data_browser_controller_for_display_panel()
-
-        self.__selected_data_items_changed_event_listener = self.__data_browser_controller.selected_data_items_changed_event.listen(self.__data_panel_selected_data_items_changed)
-
         def context_menu_event(display_item, x, y, gx, gy):
             menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
             return self.show_context_menu(menu, gx, gy)
 
         self.__selection = document_controller.filtered_displays_model.make_selection()
+
+        self.__selection_changed_event_listener = self.__selection.changed_event.listen(self.__selection_changed)
 
         def data_list_drag_started(mime_data, thumbnail_data):
             self.content_canvas_item.drag(mime_data, thumbnail_data)
@@ -1024,11 +1022,6 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 return True
             return False
 
-        def double_clicked(data_item):
-            self.__data_browser_controller.set_data_browser_selection(data_items=[data_item])
-            self.__cycle_display()
-            return True
-
         def map_display_to_display_item(display):
             return DataPanel.DisplayItem(display, ui)
 
@@ -1037,20 +1030,42 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         self.__filtered_display_items_model = ListModel.MappedListModel(container=document_controller.filtered_displays_model, master_items_key="displays", items_key="display_items", map_fn=map_display_to_display_item, unmap_fn=unmap_display_to_display_item)
 
+        def notify_focus_changed():
+            data_item = self.__display.container if self.__display else None
+            if isinstance(data_item, DataItem.DataItem):
+                self.document_controller.notify_selected_data_item_changed(data_item)
+
+        def display_item_selection_changed(display_items):
+            indexes = set()
+            for index, display_item in enumerate(self.__filtered_display_items_model.display_items):
+                if display_item in display_items:
+                    indexes.add(index)
+            self.__selection.set_multiple(indexes)
+            notify_focus_changed()
+
+        def double_clicked(display_item):
+            display_item_selection_changed([display_item])
+            self.__cycle_display()
+            return True
+
+        def focus_changed(focused):
+            if focused:
+                notify_focus_changed()
+
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
-        self.__horizontal_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
+        self.__horizontal_data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
         self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__horizontal_data_grid_controller.on_data_item_double_clicked = double_clicked
-        self.__horizontal_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.__horizontal_data_grid_controller.on_display_item_double_clicked = double_clicked
+        self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
         self.__horizontal_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
         self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection)
-        self.__grid_data_grid_controller.on_selection_changed = lambda data_items: self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
+        self.__grid_data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
         self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
-        self.__grid_data_grid_controller.on_data_item_double_clicked = double_clicked
-        self.__grid_data_grid_controller.on_focus_changed = lambda focused: setattr(self.__data_browser_controller, "focused", focused)
+        self.__grid_data_grid_controller.on_display_item_double_clicked = double_clicked
+        self.__grid_data_grid_controller.on_focus_changed = focus_changed
         self.__grid_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
         self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
         self.__grid_data_grid_controller.on_key_pressed = key_pressed
@@ -1089,8 +1104,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__horizontal_data_grid_controller = None
         self.__grid_data_grid_controller.close()
         self.__grid_data_grid_controller = None
-        self.__selected_data_items_changed_event_listener.close()
-        self.__selected_data_items_changed_event_listener = None
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = None
         self.document_controller.filtered_displays_model.release_selection(self.__selection)
         self.__filtered_display_items_model.close()
         self.__filtered_display_items_model = None
@@ -1346,9 +1361,13 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__display.graphic_selection.add_range(range(len(self.__display.graphics)))
         return True
 
-    def __data_panel_selected_data_items_changed(self, data_items):
-        data_item = data_items[0] if len(data_items) == 1 else None
-        self.set_displayed_data_item(data_item)
+    def __selection_changed(self):
+        if len(self.__selection.indexes) == 1:
+            index = list(self.__selection.indexes)[0]
+            display = self.__filtered_display_items_model.display_items[index].display
+        else:
+            display = None
+        self.set_display(display)
         self.__display_changed = True
 
 
