@@ -1006,7 +1006,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_panel_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
 
         def context_menu_event(display_item, x, y, gx, gy):
-            menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
+            menu = document_controller.create_context_menu_for_display(display_item.display if display_item else None)
             return self.show_context_menu(menu, gx, gy)
 
         self.__selection = document_controller.filtered_displays_model.make_selection()

@@ -707,12 +707,6 @@ class DocumentController(Window.Window):
         # if not found, check for focused or selected image panel
         return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
 
-    def create_data_item_context_menu(self, data_item: DataItem.DataItem) -> None:
-        if data_item is not None:
-            return self.create_context_menu_for_data_item(data_item)
-        else:
-            return self.create_context_menu()
-
     def delete_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         for data_item in copy.copy(data_items):
             container = self.__data_items_model.container
@@ -1434,9 +1428,10 @@ class DocumentController(Window.Window):
         else:
             return receive_files_on_thread(file_paths, data_group, index, completion_fn)
 
-    def create_context_menu_for_data_item(self, data_item: DataItem.DataItem, container=None):
+    def create_context_menu_for_display(self, display: Display.Display, container=None):
         menu = self.create_context_menu()
-        if data_item:
+        data_item = display.container if display else None
+        if isinstance(data_item, DataItem.DataItem):
             if not container:
                 container = self.data_items_model.container
                 container = DataGroup.get_data_item_container(container, data_item)
@@ -1492,9 +1487,3 @@ class DocumentController(Window.Window):
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Dependent "), dependent_data_item.title),
                                        functools.partial(show_dependent_data_item, dependent_data_item))
         return menu
-
-    def create_context_menu_for_display(self, display: Display.Display, container=None):
-        data_item = display.container
-        if isinstance(data_item, DataItem.DataItem):
-            return self.create_context_menu_for_data_item(data_item, container)
-        return self.create_context_menu()

@@ -1072,7 +1072,7 @@ class DataPanel(Panel.Panel):
         library_section_widget.add_stretch()
 
         def show_context_menu(display_item, x, y, gx, gy):
-            menu = document_controller.create_data_item_context_menu(display_item.data_item if display_item else None)
+            menu = document_controller.create_context_menu_for_display(display_item.display if display_item else None)
             menu.popup(gx, gy)
             return True
 
