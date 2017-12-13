@@ -197,7 +197,7 @@ class DataListController:
         self.__pending_tasks = list()
         self.ui = ui
         self.__selection = selection
-        self.on_delete_data_items = None
+        self.on_delete_display_items = None
         self.on_key_pressed = None
 
         self.__display_items = list()
@@ -287,7 +287,7 @@ class DataListController:
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
-        self.on_delete_data_items = None
+        self.on_delete_display_items = None
         self.on_key_pressed = None
 
     async def __update_display_items(self):
@@ -306,8 +306,8 @@ class DataListController:
 
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
-        if callable(self.on_delete_data_items):
-            self.on_delete_data_items([self.__display_items[index].data_item for index in self.__selection.indexes])
+        if callable(self.on_delete_display_items):
+            self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
 
     # this message comes from the canvas item when a key is pressed
     def _key_pressed(self, key):
@@ -374,7 +374,7 @@ class DataGridController:
         close()
 
     The controller provides the following callbacks:
-        on_delete_data_items(data_items)
+        on_delete_display_items(display_items)
         on_key_pressed(key)
         on_display_item_selection_changed(display_items)
         on_display_item_double_clicked(display_item)
@@ -399,7 +399,7 @@ class DataGridController:
         self.__pending_tasks = list()
         self.ui = ui
         self.__selection = selection
-        self.on_delete_data_items = None
+        self.on_delete_display_items = None
         self.on_key_pressed = None
         self.on_display_item_double_clicked = None
         self.on_display_item_selection_changed = None
@@ -510,7 +510,7 @@ class DataGridController:
         self.on_context_menu_event = None
         self.on_drag_started = None
         self.on_focus_changed = None
-        self.on_delete_data_items = None
+        self.on_delete_display_items = None
         self.on_key_pressed = None
         self.on_display_item_double_clicked = None
         self.__closed = True
@@ -532,8 +532,8 @@ class DataGridController:
 
     # this message comes from the canvas item when delete key is pressed
     def _delete_pressed(self):
-        if callable(self.on_delete_data_items):
-            self.on_delete_data_items([self.__display_items[index].data_item for index in self.__selection.indexes])
+        if callable(self.on_delete_display_items):
+            self.on_delete_display_items([self.__display_items[index] for index in self.__selection.indexes])
 
     # this message comes from the canvas item when a key is pressed
     def _key_pressed(self, key):
@@ -1105,17 +1105,20 @@ class DataPanel(Panel.Panel):
         def focus_changed(focused):
             self.focused = focused
 
+        def delete_display_items(display_items):
+            document_controller.delete_displays([display_item.display for display_item in display_items])
+
         self.data_list_controller = DataListController(document_controller.event_loop, ui, self.__filtered_display_items_model, self.__selection)
         self.data_list_controller.on_display_item_selection_changed = display_item_selection_changed
         self.data_list_controller.on_context_menu_event = show_context_menu
         self.data_list_controller.on_focus_changed = focus_changed
-        self.data_list_controller.on_delete_data_items = document_controller.delete_data_items
+        self.data_list_controller.on_delete_display_items = delete_display_items
 
         self.data_grid_controller = DataGridController(document_controller.event_loop, ui, self.__filtered_display_items_model, self.__selection)
         self.data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
         self.data_grid_controller.on_context_menu_event = show_context_menu
         self.data_grid_controller.on_focus_changed = focus_changed
-        self.data_grid_controller.on_delete_data_items = document_controller.delete_data_items
+        self.data_grid_controller.on_delete_display_items = delete_display_items
 
         data_list_widget = DataListWidget(ui, self.data_list_controller)
         data_grid_widget = DataGridWidget(ui, self.data_grid_controller)

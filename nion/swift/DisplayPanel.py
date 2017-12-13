@@ -1052,12 +1052,15 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             if focused:
                 notify_focus_changed()
 
+        def delete_display_items(display_items):
+            document_controller.delete_displays([display_item.display for display_item in display_items])
+
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
         self.__horizontal_data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
         self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
         self.__horizontal_data_grid_controller.on_display_item_double_clicked = double_clicked
         self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
-        self.__horizontal_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
+        self.__horizontal_data_grid_controller.on_delete_display_items = delete_display_items
         self.__horizontal_data_grid_controller.on_drag_started = data_list_drag_started
         self.__horizontal_data_grid_controller.on_key_pressed = key_pressed
 
@@ -1066,7 +1069,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
         self.__grid_data_grid_controller.on_display_item_double_clicked = double_clicked
         self.__grid_data_grid_controller.on_focus_changed = focus_changed
-        self.__grid_data_grid_controller.on_delete_data_items = document_controller.delete_data_items
+        self.__grid_data_grid_controller.on_delete_display_items = delete_display_items
         self.__grid_data_grid_controller.on_drag_started = data_list_drag_started
         self.__grid_data_grid_controller.on_key_pressed = key_pressed
 
@@ -1154,7 +1157,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
                 data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
                 if data_item:
                     self.set_displayed_data_item(data_item)
-            self.__update_selection_to_data_item()
+            self.__update_selection_to_display()
             if d.get("browser_type") == "horizontal":
                 self.__switch_to_horizontal_browser()
             elif d.get("browser_type") == "grid":
@@ -1201,8 +1204,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return self.ui.get_font_metrics(font, text)
 
     @property
-    def _data_item(self):
-        return self.__display.container if self.__display else None
+    def _display(self):
+        return self.__display
 
     def __set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -1307,18 +1310,18 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__display_panel_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__display_changed):
             if self.__horizontal_browser_canvas_item.visible:
                 self.__switch_to_grid_browser()
-                self.__update_selection_to_data_item()
+                self.__update_selection_to_display()
                 self.__grid_data_grid_controller.icon_view_canvas_item.request_focus()
             else:
                 self.__switch_to_horizontal_browser()
-                self.__update_selection_to_data_item()
+                self.__update_selection_to_display()
                 self.__horizontal_data_grid_controller.icon_view_canvas_item.request_focus()
         else:
             self.__switch_to_no_browser()
             self._select()
         self.__display_changed = False
 
-    def __update_selection_to_data_item(self):
+    def __update_selection_to_display(self):
         displays = [display_item.display for display_item in self.__filtered_display_items_model.display_items]
         if self.__display in displays:
             self.__selection.set(displays.index(self.__display))
@@ -1541,7 +1544,8 @@ class DisplayPanel:
 
     @property
     def data_item(self):
-        return self.__display_panel_content._data_item
+        display = self.__display_panel_content._display
+        return display.container if display else None
 
     def save_contents(self):
         d = self.__display_panel_content.save_contents()

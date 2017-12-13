@@ -707,17 +707,19 @@ class DocumentController(Window.Window):
         # if not found, check for focused or selected image panel
         return DataItem.DisplaySpecifier.from_data_item(self.selected_display_panel.data_item if self.selected_display_panel else None)
 
-    def delete_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
-        for data_item in copy.copy(data_items):
-            container = self.__data_items_model.container
-            container = DataGroup.get_data_item_container(container, data_item)
-            if container and data_item in container.data_items:
-                container.remove_data_item(data_item)
-                # Note: periodic is here because the one in browser display panel is there.
-                # I could not get a test to fail without this statement; but regular use
-                # seems to fail during delete if this isn't here. Argh. Bad design.
-                # TODO: avoid calling periodic by reworking thread support in data panel
-                self.periodic()  # keep the display items in data panel consistent.
+    def delete_displays(self, displays: typing.Sequence[Display.Display]) -> None:
+        for display in displays:
+            data_item = display.container
+            if isinstance(data_item, DataItem.DataItem):
+                container = self.__data_items_model.container
+                container = DataGroup.get_data_item_container(container, data_item)
+                if container and data_item in container.data_items:
+                    container.remove_data_item(data_item)
+                    # Note: periodic is here because the one in browser display panel is there.
+                    # I could not get a test to fail without this statement; but regular use
+                    # seems to fail during delete if this isn't here. Argh. Bad design.
+                    # TODO: avoid calling periodic by reworking thread support in data panel
+                    self.periodic()  # keep the display items in data panel consistent.
 
     def register_display_panel(self, display_panel):
         pass
