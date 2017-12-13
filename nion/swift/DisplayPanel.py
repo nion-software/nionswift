@@ -1033,7 +1033,7 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         def notify_focus_changed():
             data_item = self.__display.container if self.__display else None
             if isinstance(data_item, DataItem.DataItem):
-                self.document_controller.notify_selected_data_item_changed(data_item)
+                self.document_controller.notify_focused_data_item_changed(data_item)
 
         def display_item_selection_changed(display_items):
             indexes = set()
@@ -1471,7 +1471,7 @@ class DisplayPanel:
 
         def focused():
             document_controller.selected_display_panel = self  # MARK
-            document_controller.notify_selected_data_item_changed(self.data_item)
+            document_controller.notify_focused_data_item_changed(self.data_item)
 
         def show_context_menu(menu, gx, gy):
             def split_vertical():
@@ -1516,7 +1516,7 @@ class DisplayPanel:
             self.__display_panel_content.canvas_item.request_focus()
 
         if is_selected:
-            document_controller.notify_selected_data_item_changed(self.data_item)
+            document_controller.notify_focused_data_item_changed(self.data_item)
 
     @property
     def canvas_item(self):

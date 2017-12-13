@@ -235,6 +235,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphics), 1)
         self.assertEqual(display_specifier.display.graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
+        display_panel.set_displayed_data_item(data_item)
         document_controller.remove_selected_graphics()
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)
         self.assertEqual(len(display_specifier.display.graphics), 0)
@@ -259,6 +260,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertTrue(line_profile_data_item in document_model.data_items)
         self.assertTrue(data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
+        display_panel.set_displayed_data_item(data_item)
         document_controller.remove_selected_graphics()
         self.assertTrue(data_item in document_model.data_items)
         # clean up
@@ -266,27 +268,29 @@ class TestDocumentControllerClass(unittest.TestCase):
 
     def test_remove_line_profile_removes_associated_child_data_item(self):
         document_model = DocumentModel.DocumentModel()
-        data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
-        document_model.append_data_item(data_item)
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
-        line_profile_data_item = document_controller.processing_line_profile().data_item
-        document_controller.periodic()  # TODO: remove need to let the inspector catch up
-        self.assertTrue(line_profile_data_item in document_model.data_items)
-        display_specifier.display.graphic_selection.clear()
-        display_specifier.display.graphic_selection.add(0)
-        # make sure assumptions are correct
-        self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
-        self.assertTrue(line_profile_data_item in document_model.data_items)
-        # remove the graphic and make sure things are as expected
-        document_controller.remove_selected_graphics()
-        self.assertEqual(len(display_specifier.display.graphics), 0)
-        self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)  # disabled until test_remove_line_profile_updates_graphic_selection
-        self.assertFalse(line_profile_data_item in document_model.data_items)
-        # clean up
-        document_controller.close()
+        with contextlib.closing(document_controller):
+            # add a data item
+            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            document_model.append_data_item(data_item)
+            display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+            # ensure first data item is displayed
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            # make a line profile
+            line_profile_data_item = document_controller.processing_line_profile().data_item
+            # set up the selection
+            display.graphic_selection.clear()
+            display.graphic_selection.add(0)
+            # make sure assumptions are correct
+            self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
+            self.assertTrue(line_profile_data_item in document_model.data_items)
+            # ensure data item is selected, then remove the graphic
+            display_panel.set_displayed_data_item(data_item)
+            document_controller.remove_selected_graphics()
+            self.assertEqual(0, len(display.graphics))
+            self.assertEqual(0, len(display.graphic_selection.indexes))  # disabled until test_remove_line_profile_updates_graphic_selection
+            self.assertFalse(line_profile_data_item in document_model.data_items)
 
     def test_document_model_closed_only_after_all_document_controllers_closed(self):
         document_model = DocumentModel.DocumentModel()
@@ -610,7 +614,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            self.assertEqual(document_controller.selected_data_item, data_item)
+            self.assertEqual(document_controller.focused_data_item, data_item)
 
 
 if __name__ == '__main__':

@@ -38,15 +38,15 @@ class TestDataPanelClass(unittest.TestCase):
             data_panel = document_controller.find_dock_widget("data-panel").panel
             document_controller.periodic()
             # data items
-            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            self.assertEqual(1, data_panel.data_list_controller.display_item_count)
             # filter
-            self.assertEqual(data_panel.library_widget.parent_id, 0)
-            self.assertEqual(data_panel.library_widget.parent_row, -1)
-            self.assertEqual(data_panel.library_widget.index, 0)
+            self.assertEqual(0, data_panel.library_widget.parent_id)
+            self.assertEqual(-1, data_panel.library_widget.parent_row)
+            self.assertEqual(0, data_panel.library_widget.index)
             # data group
-            self.assertEqual(data_panel.data_group_widget.parent_id, 0)
-            self.assertEqual(data_panel.data_group_widget.parent_row, -1)
-            self.assertEqual(data_panel.data_group_widget.index, -1)
+            self.assertEqual(0, data_panel.data_group_widget.parent_id)
+            self.assertEqual(-1, data_panel.data_group_widget.parent_row)
+            self.assertEqual(-1, data_panel.data_group_widget.index)
 
     # make sure we can delete top level items, and child items
     def test_image_panel_delete(self):
@@ -114,11 +114,11 @@ class TestDataPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_displayed_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
-            self.assertEqual(len(document_model.data_items), 3)
+            self.assertEqual(3, len(document_model.data_items))
             document_controller.selection.set_multiple([0, 1, 2])
             document_controller.periodic()
             data_panel.data_list_controller._delete_pressed()
-            self.assertEqual(len(document_model.data_items), 0)
+            self.assertEqual(0, len(document_model.data_items))
 
     # make sure switching between two views containing data items from the same group
     # switch between those data items in the data panel when switching.
@@ -257,6 +257,63 @@ class TestDataPanelClass(unittest.TestCase):
             self.assertEqual(data_panel.data_group_widget.parent_row, 0)
             self.assertEqual(data_panel.data_group_widget.index, 1)
             self.assertEqual(document_controller.selection.indexes, set([1]))
+
+    def test_data_panel_updates_focused_data_item_when_single_item_selected_when_focused(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel.focused = True
+            document_controller.select_data_item_in_data_panel(document_model.data_items[0])
+            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            document_controller.select_data_item_in_data_panel(document_model.data_items[1])
+            self.assertEqual(document_model.data_items[1], document_controller.focused_data_item)
+
+    def test_data_panel_clears_focused_data_item_when_multiple_items_selected_when_focused(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel.focused = True
+            document_controller.select_data_item_in_data_panel(document_model.data_items[0])
+            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            document_controller.select_data_items_in_data_panel(document_model.data_items)
+            self.assertEqual(None, document_controller.focused_data_item)
+
+    def test_data_panel_clears_focused_data_item_when_clearing_selection_when_focused(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel.focused = True
+            document_controller.select_data_item_in_data_panel(document_model.data_items[0])
+            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            document_controller.select_data_items_in_data_panel([])
+            self.assertEqual(None, document_controller.focused_data_item)
+
+    def test_data_panel_has_no_effect_on_focused_data_item_when_clearing_selection_when_not_focused(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            document_model.append_data_item(DataItem.DataItem(numpy.zeros((2, 2))))
+            data_panel = document_controller.find_dock_widget("data-panel").panel
+            data_panel.focused = True
+            document_controller.select_data_item_in_data_panel(document_model.data_items[0])
+            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            data_panel.focused = False
+            document_controller.select_data_items_in_data_panel(document_model.data_items)
+            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            document_controller.select_data_items_in_data_panel([])
+            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
+            document_controller.select_data_item_in_data_panel(document_model.data_items[1])
+            self.assertEqual(document_model.data_items[0], document_controller.focused_data_item)
 
     def test_selection_during_operations(self):
         document_model = DocumentModel.DocumentModel()
@@ -422,7 +479,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_controller.select_data_items_in_data_panel(document_model.data_items[:-1])
-            self.assertEqual(document_controller.selection.indexes, {1, 2})  # items are ordered newest to oldest
+            self.assertEqual({1, 2}, document_controller.selection.indexes)  # items are ordered newest to oldest
 
     def test_setting_data_browser_selection_to_multiple_items_via_data_list_controller_updates_selection_object(self):
         document_model = DocumentModel.DocumentModel()
@@ -432,7 +489,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             document_model.append_data_item(DataItem.DataItem(numpy.zeros((16, 16))))
             data_panel = document_controller.find_dock_widget("data-panel").panel
-            data_panel.data_list_controller.on_selection_changed(document_model.data_items[:-1])
+            data_panel.data_list_controller.on_display_item_selection_changed(data_panel.data_list_controller.display_items[1:])
             self.assertEqual(document_controller.selection.indexes, {1, 2})  # items are ordered newest to oldest
 
     def test_data_panel_remove_group(self):
@@ -625,13 +682,13 @@ class TestDataPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             # index, parent_row, parent_id
-            data_panel.library_widget.on_selection_changed([(0, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(0, -1, 0)])  # all
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            self.assertEqual(1, data_panel.data_list_controller.display_item_count)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item1)
-            data_panel.library_widget.on_selection_changed([(1, -1, 0)])
+            data_panel.library_widget.on_selection_changed([(1, -1, 0)])  # temp/live
             document_controller.periodic()
-            self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
+            self.assertEqual(1, data_panel.data_list_controller.display_item_count)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item2)
 
     def test_processing_temporary_data_item_keeps_temporary_items_displayed(self):

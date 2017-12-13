@@ -91,10 +91,14 @@ class DocumentController(Window.Window):
         # and next by applying a custom filter to the items from the items resulting in the first selection.
         # data items model tracks the main list of items selected in the data panel.
         # filtered display items model tracks the filtered items from those in data items model.
-        self.__data_items_model = ListModel.FilteredListModel(items_key="data_items")
+        self.__data_items_model = ListModel.FilteredListModel(container=self.document_model, items_key="data_items")
+        self.__data_items_model.filter_id = None  # extra tracking field
         self.__filtered_data_items_model = ListModel.FilteredListModel(items_key="data_items", container=self.__data_items_model)
         self.__filtered_displays_model = ListModel.FlattenedListModel(container=self.__filtered_data_items_model, master_items_key="data_items", child_items_key="displays", selection=self.selection)
         self.__last_display_filter = ListModel.Filter(True)
+        self.filter_changed_event = Event.Event()
+
+        self.__update_data_items_model(self.__data_items_model, None, None)
 
         def call_soon(fn):
             self.queue_task(fn)
@@ -104,11 +108,9 @@ class DocumentController(Window.Window):
 
         self.filter_controller = FilterPanel.FilterController(self)
 
-        self.__data_browser_controller = DataPanel.DataBrowserController(self)
-
         self.selected_data_item_changed_event = Event.Event()
-        self.__selected_data_item = None
-        self.notify_selected_data_item_changed(None)
+        self.__focused_data_item = None
+        self.notify_focused_data_item_changed(None)
 
         self.__consoles = list()
 
@@ -170,8 +172,6 @@ class DocumentController(Window.Window):
         self.filter_controller = None
         self.__data_items_model.close()
         self.__data_items_model = None
-        self.__data_browser_controller.close()
-        self.__data_browser_controller = None
         # document_model may be shared between several DocumentControllers, so use reference counting
         # to determine when to close it.
         self.document_model.remove_ref()
@@ -237,7 +237,7 @@ class DocumentController(Window.Window):
         self._import_folder_action = self._file_menu.add_menu_item(_("Import Folder..."), self.__import_folder)
         self._import_action = self._file_menu.add_menu_item(_("Import Data..."), self.import_file)
         def export_files():
-            selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
+            selected_data_items = self.selected_data_items
             if len(selected_data_items) > 1:
                 self.export_files(selected_data_items)
             elif len(selected_data_items) == 1:
@@ -567,10 +567,6 @@ class DocumentController(Window.Window):
     def filtered_displays_model(self):
         return self.__filtered_displays_model
 
-    @property
-    def data_browser_controller(self):
-        return self.__data_browser_controller
-
     def __update_data_items_model(self, data_items_model: ListModel.FilteredListModel, data_group, filter_id):
         """Update the data item model with a new container, filter, and sorting.
 
@@ -583,35 +579,56 @@ class DocumentController(Window.Window):
                 data_items_model.container = data_group
                 data_items_model.filter = ListModel.Filter(True)
                 data_items_model.sort_key = None
+                data_items_model.filter_id = None
             elif filter_id == "latest-session":
                 data_items_model.container = self.document_model
                 data_items_model.filter = ListModel.EqFilter("session_id", self.document_model.session_id)
                 data_items_model.sort_key = DataItem.sort_by_date_key
                 data_items_model.sort_reverse = True
+                data_items_model.filter_id = filter_id
             elif filter_id == "temporary":
                 data_items_model.container = self.document_model
                 data_items_model.filter = ListModel.NotEqFilter("category", "persistent")
                 data_items_model.sort_key = DataItem.sort_by_date_key
                 data_items_model.sort_reverse = True
+                data_items_model.filter_id = filter_id
             elif filter_id == "none":  # not intended to be used directly
                 data_items_model.container = self.document_model
                 data_items_model.filter = ListModel.Filter(False)
                 data_items_model.sort_key = DataItem.sort_by_date_key
                 data_items_model.sort_reverse = True
+                data_items_model.filter_id = filter_id
             else:  # "all"
                 data_items_model.container = self.document_model
                 data_items_model.filter = ListModel.EqFilter("category", "persistent")
                 data_items_model.sort_key = DataItem.sort_by_date_key
                 data_items_model.sort_reverse = True
+                data_items_model.filter_id = None
 
     def create_data_items_model(self, data_group, filter_id) -> ListModel.FilteredListModel:
         data_items_model = ListModel.FilteredListModel(items_key="data_items")
         self.__update_data_items_model(data_items_model, data_group, filter_id)
         return data_items_model
 
-    def set_data_group_or_filter(self, data_group, filter_id):
+    def set_data_group(self, data_group):
         if self.__data_items_model is not None:
-            self.__update_data_items_model(self.__data_items_model, data_group, filter_id)
+            container = data_group if data_group else self.document_model
+            if container != self.__data_items_model.container:
+                self.__update_data_items_model(self.__data_items_model, data_group, self.__data_items_model.filter_id)
+                self.filter_changed_event.fire(data_group, self.__data_items_model.filter_id)
+
+    def set_filter(self, filter_id):
+        if self.__data_items_model is not None:
+            if filter_id != self.__data_items_model.filter_id:
+                data_group = self.__data_items_model.container if self.__data_items_model.container != self.document_model else None
+                self.__update_data_items_model(self.__data_items_model, data_group, filter_id)
+                self.filter_changed_event.fire(data_group, filter_id)
+
+    def get_data_group_and_filter_id(self):
+        # used for display panel initialization
+        data_group = self.__data_items_model.container if self.__data_items_model.container != self.document_model else None
+        filter_id = self.__data_items_model.filter_id
+        return data_group, filter_id
 
     @property
     def display_filter(self) -> ListModel.Filter:
@@ -622,6 +639,24 @@ class DocumentController(Window.Window):
         if self.__filtered_data_items_model is not None:  # during close
             self.__filtered_data_items_model.filter = display_filter
 
+    @property
+    def selected_displays(self) -> typing.List[Display.Display]:
+        selected_displays = list()
+        displays = self.__filtered_displays_model.displays
+        for index in self.selection.ordered_indexes:
+            selected_displays.append(displays[index])
+        return selected_displays
+
+    @property
+    def selected_data_items(self) -> typing.List[DataItem.DataItem]:
+        selected_displays = self.selected_displays
+        selected_data_items = list()
+        for display in selected_displays:
+            data_item = display.container
+            if isinstance(data_item, DataItem.DataItem) and not data_item in selected_data_items:
+                selected_data_items.append(data_item)
+        return selected_data_items
+
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         displays = self.filtered_displays_model.displays
         associated_displays = {data_item.primary_display_specifier.display for data_item in data_items}
@@ -630,38 +665,34 @@ class DocumentController(Window.Window):
             if display in associated_displays:
                 indexes.add(index)
         self.selection.set_multiple(indexes)
-        self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
-        self.__data_browser_controller.focused = True
+        if len(associated_displays) > 0:
+            self.selection.anchor_index = displays.index(data_items[0].primary_display_specifier.display)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
-    def notify_selected_data_item_changed(self, data_item: DataItem.DataItem) -> None:
-        if self.__selected_data_item != data_item:
-            self.__selected_data_item = data_item
+    def notify_focused_data_item_changed(self, data_item: DataItem.DataItem) -> None:
+        if self.__focused_data_item != data_item:
+            self.__focused_data_item = data_item
             self.selected_data_item_changed_event.fire(data_item)
 
     @property
-    def selected_data_item(self) -> DataItem.DataItem:
-        return self.__selected_data_item
+    def focused_data_item(self) -> DataItem.DataItem:
+        """Return the data item with keyboard focus."""
+        return self.__focused_data_item
 
     def select_data_item_in_data_panel(self, data_item: DataItem.DataItem) -> None:
-        """
-            Select the data item in the data panel. Use the existing group and existing
-            filter if data item appears. Otherwise, remove filter and see if it appears.
-            Otherwise switch to Library group.
-        """
-        data_items = [data_item] if data_item else None
-        self.__data_browser_controller.set_data_browser_selection(data_items=data_items)
+        """Select the data item in the data panel."""
+        self.select_data_items_in_data_panel([data_item] if data_item else [])
 
     def select_data_group_in_data_panel(self, data_group: DataGroup.DataGroup, data_item: DataItem.DataItem=None) -> None:
-        """Select the data group in the data panel."""
-        data_items = [data_item] if data_item else None
-        self.__data_browser_controller.set_data_browser_selection(data_group=data_group, data_items=data_items)
+        # used for testing only
+        self.set_data_group(data_group)
+        self.select_data_item_in_data_panel(data_item)
 
     def select_filter_in_data_panel(self, filter_id: str) -> None:
-        """Select the filter in the data panel."""
-        self.__data_browser_controller.set_data_browser_selection(filter_id=filter_id)
+        # used for testing only
+        self.set_filter(filter_id)
 
     @property
     def selected_display_specifier(self):
@@ -670,7 +701,7 @@ class DocumentController(Window.Window):
         The selected display is the display that has keyboard focus in the data panel or a display panel.
         """
         # first check for the [focused] data browser
-        data_item = self.__data_browser_controller.data_item
+        data_item = self.focused_data_item
         if data_item:
             return DataItem.DisplaySpecifier.from_data_item(data_item)
         # if not found, check for focused or selected image panel
@@ -681,9 +712,6 @@ class DocumentController(Window.Window):
             return self.create_context_menu_for_data_item(data_item)
         else:
             return self.create_context_menu()
-
-    def data_item_double_clicked(self, data_item: DataItem.DataItem) -> bool:
-        return False # self.new_window_with_data_item("data", data_item=data_item)
 
     def delete_data_items(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         for data_item in copy.copy(data_items):
@@ -719,7 +747,7 @@ class DocumentController(Window.Window):
             # notify listeners that the data item has changed. in this case, a changing data item
             # means that which selected data item is selected has changed.
             data_item = selected_display_panel.data_item if selected_display_panel else None
-            self.notify_selected_data_item_changed(data_item)
+            self.notify_focused_data_item_changed(data_item)
 
     def next_result_display_panel(self):
         for display_panel in self.workspace.display_panels:
@@ -1084,7 +1112,7 @@ class DocumentController(Window.Window):
             result_display_panel.set_displayed_data_item(data_item)
             result_display_panel.request_focus()
         self.select_data_item_in_data_panel(data_item)
-        self.notify_selected_data_item_changed(display_specifier.data_item)
+        self.notify_focused_data_item_changed(display_specifier.data_item)
         inspector_panel = self.find_dock_widget("inspector-panel").panel
         if inspector_panel is not None:
             inspector_panel.request_focus = True
@@ -1149,7 +1177,7 @@ class DocumentController(Window.Window):
             new_data_item.category = data_item.category
             self.document_model.append_data_item(new_data_item)
             self.select_data_item_in_data_panel(new_data_item)
-            self.notify_selected_data_item_changed(new_data_item)
+            self.notify_focused_data_item_changed(new_data_item)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1163,7 +1191,7 @@ class DocumentController(Window.Window):
         if data_item:
             data_item_copy = self.document_model.get_snapshot_new(data_item)
             self.select_data_item_in_data_panel(data_item_copy)
-            self.notify_selected_data_item_changed(data_item_copy)
+            self.notify_focused_data_item_changed(data_item_copy)
             inspector_panel = self.find_dock_widget("inspector-panel").panel
             if inspector_panel is not None:
                 inspector_panel.request_focus = True
@@ -1203,7 +1231,7 @@ class DocumentController(Window.Window):
 
     def _get_two_data_sources(self):
         """Get two sensible data sources, which may be the same."""
-        selected_data_items = self.__data_browser_controller.selected_data_items
+        selected_data_items = self.selected_data_items
         if len(selected_data_items) < 2:
             selected_data_items = list()
             data_item = self.selected_display_specifier.data_item
@@ -1414,7 +1442,7 @@ class DocumentController(Window.Window):
                 container = DataGroup.get_data_item_container(container, data_item)
 
             def delete():
-                selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
+                selected_data_items = self.selected_data_items
                 if not data_item in selected_data_items:
                     container.remove_data_item(data_item)
                 else:
@@ -1434,7 +1462,7 @@ class DocumentController(Window.Window):
             menu.add_menu_item(_("Delete Data Item"), delete)
 
             def export_files():
-                selected_data_items = copy.copy(self.__data_browser_controller.selected_data_items)
+                selected_data_items = self.selected_data_items
                 if data_item in selected_data_items:
                     self.export_files(selected_data_items)
                 else:

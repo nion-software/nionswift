@@ -638,15 +638,15 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.periodic()
-            self.assertIsNone(document_controller.selected_data_item)
+            self.assertIsNone(document_controller.focused_data_item)
             modifiers = CanvasItem.KeyboardModifiers()
             display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(True)
             display_panel.canvas_item.root_container.canvas_widget.on_mouse_entered()
             display_panel.canvas_item.root_container.canvas_widget.on_mouse_pressed(40, 40, modifiers)
             display_panel.canvas_item.root_container.canvas_widget.on_mouse_released(40, 40, modifiers)
-            self.assertIsNotNone(document_controller.selected_data_item)
+            self.assertIsNotNone(document_controller.focused_data_item)
             display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(False)
-            self.assertIsNotNone(document_controller.selected_data_item)
+            self.assertIsNotNone(document_controller.focused_data_item)
 
     class DisplayPanelController(object):
         def __init__(self, display_panel_content):

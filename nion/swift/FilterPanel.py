@@ -97,6 +97,9 @@ class FilterController:
         self.__date_filter = None
         self.__text_filter = None
 
+        for index, data_item in enumerate(self.__data_items_model.data_items):
+            data_item_inserted("data_items", data_item, index)
+
     def close(self):
         # Close the data model controller. Un-listen to the data item list model and close the item model controller.
         self.__library_item_inserted_listener.close()
