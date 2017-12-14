@@ -285,202 +285,6 @@ class DisplayPanelOverlayCanvasItem(CanvasItem.CanvasItemComposition):
         return False
 
 
-class BaseDisplayPanelContent:
-    def __init__(self, document_controller):
-        assert document_controller is not None
-
-        self.__weak_document_controller = weakref.ref(document_controller)
-
-        self.ui = document_controller.ui
-        self.__identifier = None
-
-        self.canvas_item = CanvasItem.CanvasItemComposition()
-        self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-
-        def handle_context_menu_event(x, y, gx, gy):
-            menu = document_controller.create_context_menu()
-            return self.show_context_menu(menu, gx, gy)
-
-        self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
-        self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
-        self.__content_canvas_item.focusable = True
-        self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.__content_canvas_item.on_context_menu_event = handle_context_menu_event
-        self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
-        self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
-        self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        self.__footer_canvas_item.sizing.collapsible = True
-
-        self.canvas_item.add_canvas_item(self.__header_canvas_item)
-        self.canvas_item.add_canvas_item(self.__content_canvas_item)
-        self.canvas_item.add_canvas_item(self.__footer_canvas_item)
-
-        self.display_panel_id = None
-
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_mouse_clicked = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_show_context_menu = None
-        self.on_begin_drag = None
-
-        def drag_enter(mime_data):
-            if self.on_drag_enter:
-                return self.on_drag_enter(mime_data)
-            return "ignore"
-
-        def drag_leave():
-            if self.on_drag_leave:
-                return self.on_drag_leave()
-            return False
-
-        def drag_move(mime_data, x, y):
-            if self.on_drag_move:
-                return self.on_drag_move(mime_data, x, y)
-            return "ignore"
-
-        def drop(mime_data, region, x, y):
-            if self.on_drop:
-                return self.on_drop(mime_data, region, x, y)
-            return "ignore"
-
-        # list to the content_canvas_item messages and pass them along to listeners of this class.
-        self.__content_canvas_item.on_drag_enter = drag_enter
-        self.__content_canvas_item.on_drag_leave = drag_leave
-        self.__content_canvas_item.on_drag_move = drag_move
-        self.__content_canvas_item.on_drop = drop
-        self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
-        self.__content_canvas_item.on_key_released = self._handle_key_released
-        self.__content_canvas_item.on_select_all = self.select_all
-
-        self.on_focused = None
-        self.on_close = None
-
-        def close():
-            if self.on_close:
-                self.on_close()
-
-        self.__header_canvas_item.on_select_pressed = self._select
-        self.__header_canvas_item.on_drag_pressed = self._begin_drag
-        self.__header_canvas_item.on_context_menu_clicked = self._context_menu_clicked
-        self.__header_canvas_item.on_close_clicked = close
-
-    def close(self):
-        # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
-        self.canvas_item = None
-        self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
-        # release references
-        self.__weak_document_controller = None
-        self.__content_canvas_item = None
-        self.__header_canvas_item = None
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_mouse_clicked = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_focused = None
-        self.on_close = None
-
-    @property
-    def identifier(self):
-        return self.__identifier
-
-    def set_identifier(self, identifier):
-        self.__identifier = identifier
-        self.header_canvas_item.label = "#" + self.identifier
-
-    @property
-    def document_controller(self):
-        return self.__weak_document_controller()
-
-    @property
-    def header_canvas_item(self):
-        return self.__header_canvas_item
-
-    @property
-    def content_canvas_item(self):
-        return self.__content_canvas_item
-
-    @property
-    def footer_canvas_item(self):
-        return self.__footer_canvas_item
-
-    # save and restore the contents of the image panel
-
-    def save_contents(self):
-        d = dict()
-        if self.display_panel_id:
-            d["display_panel_id"] = str(self.display_panel_id)
-        return d
-
-    def restore_contents(self, d):
-        display_panel_id = d.get("display_panel_id")
-        if display_panel_id:
-            self.display_panel_id = display_panel_id
-
-    # handle selection. selection means that the display panel is the most recent
-    # item to have focus within the workspace, although it can be selected without
-    # having focus. this can happen, for instance, when the user switches focus
-    # to the data panel.
-
-    def set_selected(self, selected):
-        if self.__content_canvas_item:  # may be closed
-            self.__content_canvas_item.selected = selected
-
-    def _is_selected(self):
-        """ Used for testing. """
-        return self.__content_canvas_item.selected
-
-    # this message comes from the canvas items via the on_focus_changed when their focus changes
-    def set_focused(self, focused):
-        self.__content_canvas_item.focused = focused
-        if focused and self.on_focused:
-            self.on_focused()
-
-    def _is_focused(self):
-        """ Used for testing. """
-        return self.__content_canvas_item.focused
-
-    def _select(self):
-        pass
-
-    def _begin_drag(self):
-        raise NotImplementedError()
-
-    def _context_menu_clicked(self, x, y, gx, gy):
-        return False
-
-    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
-    # doesn't handle it, gives the display controller a chance to handle it.
-    def _handle_key_pressed(self, key):
-        if self.on_key_pressed:
-            return self.on_key_pressed(key)
-        return False
-
-    # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
-    # doesn't handle it, gives the display controller a chance to handle it.
-    def _handle_key_released(self, key):
-        if self.on_key_released:
-            return self.on_key_released(key)
-        return False
-
-    def perform_action(self, fn, *args, **keywords):
-        pass
-
-    def show_context_menu(self, menu, gx, gy):
-        if self.on_show_context_menu:
-            return self.on_show_context_menu(menu, gx, gy)
-        return False
-
-    def select_all(self):
-        return False
-
-
 def create_display_canvas_item(display_type: str, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
     if display_type == "line_plot":
         return LinePlotCanvasItem.LinePlotCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
@@ -967,10 +771,88 @@ class DisplayCanvasItemDelegate:
                 self.on_begin_drag(mime_data, thumbnail_data)
 
 
-class DataDisplayPanelContent(BaseDisplayPanelContent):
+class DataDisplayPanelContent:
 
     def __init__(self, document_controller):
-        super().__init__(document_controller)
+        assert document_controller is not None
+
+        self.__weak_document_controller = weakref.ref(document_controller)
+
+        self.ui = document_controller.ui
+        self.__identifier = None
+
+        self.canvas_item = CanvasItem.CanvasItemComposition()
+        self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+
+        def handle_context_menu_event(x, y, gx, gy):
+            menu = document_controller.create_context_menu()
+            return self.show_context_menu(menu, gx, gy)
+
+        self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
+        self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
+        self.__content_canvas_item.focusable = True
+        self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
+        self.__content_canvas_item.on_context_menu_event = handle_context_menu_event
+        self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
+        self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__footer_canvas_item.sizing.collapsible = True
+
+        self.canvas_item.add_canvas_item(self.__header_canvas_item)
+        self.canvas_item.add_canvas_item(self.__content_canvas_item)
+        self.canvas_item.add_canvas_item(self.__footer_canvas_item)
+
+        self.display_panel_id = None
+
+        self.on_key_pressed = None
+        self.on_key_released = None
+        self.on_mouse_clicked = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_show_context_menu = None
+        self.on_begin_drag = None
+
+        def drag_enter(mime_data):
+            if self.on_drag_enter:
+                return self.on_drag_enter(mime_data)
+            return "ignore"
+
+        def drag_leave():
+            if self.on_drag_leave:
+                return self.on_drag_leave()
+            return False
+
+        def drag_move(mime_data, x, y):
+            if self.on_drag_move:
+                return self.on_drag_move(mime_data, x, y)
+            return "ignore"
+
+        def drop(mime_data, region, x, y):
+            if self.on_drop:
+                return self.on_drop(mime_data, region, x, y)
+            return "ignore"
+
+        # list to the content_canvas_item messages and pass them along to listeners of this class.
+        self.__content_canvas_item.on_drag_enter = drag_enter
+        self.__content_canvas_item.on_drag_leave = drag_leave
+        self.__content_canvas_item.on_drag_move = drag_move
+        self.__content_canvas_item.on_drop = drop
+        self.__content_canvas_item.on_key_pressed = self._handle_key_pressed
+        self.__content_canvas_item.on_key_released = self._handle_key_released
+        self.__content_canvas_item.on_select_all = self.select_all
+
+        self.on_focused = None
+        self.on_close = None
+
+        def close():
+            if self.on_close:
+                self.on_close()
+
+        self.__header_canvas_item.on_select_pressed = self._select
+        self.__header_canvas_item.on_drag_pressed = self._begin_drag
+        self.__header_canvas_item.on_close_clicked = close
 
         ui = document_controller.ui
 
@@ -1115,7 +997,23 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__filtered_display_items_model.close()
         self.__filtered_display_items_model = None
         self.__selection = None
-        super().close()
+
+        # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
+        self.canvas_item = None
+        self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
+        # release references
+        self.__weak_document_controller = None
+        self.__content_canvas_item = None
+        self.__header_canvas_item = None
+        self.on_key_pressed = None
+        self.on_key_released = None
+        self.on_mouse_clicked = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_focused = None
+        self.on_close = None
 
     @property
     def _display_panel_controller_for_test(self):
@@ -1134,10 +1032,59 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
     def _display_items_for_test(self):
         return self.__filtered_display_items_model.display_items
 
+    @property
+    def identifier(self):
+        return self.__identifier
+
+    def set_identifier(self, identifier):
+        self.__identifier = identifier
+        self.header_canvas_item.label = "#" + self.identifier
+
+    @property
+    def document_controller(self):
+        return self.__weak_document_controller()
+
+    @property
+    def header_canvas_item(self):
+        return self.__header_canvas_item
+
+    @property
+    def content_canvas_item(self):
+        return self.__content_canvas_item
+
+    @property
+    def footer_canvas_item(self):
+        return self.__footer_canvas_item
+
+    # handle selection. selection means that the display panel is the most recent
+    # item to have focus within the workspace, although it can be selected without
+    # having focus. this can happen, for instance, when the user switches focus
+    # to the data panel.
+
+    def set_selected(self, selected):
+        if self.__content_canvas_item:  # may be closed
+            self.__content_canvas_item.selected = selected
+
+    def _is_selected(self):
+        """ Used for testing. """
+        return self.__content_canvas_item.selected
+
+    # this message comes from the canvas items via the on_focus_changed when their focus changes
+    def set_focused(self, focused):
+        self.__content_canvas_item.focused = focused
+        if focused and self.on_focused:
+            self.on_focused()
+
+    def _is_focused(self):
+        """ Used for testing. """
+        return self.__content_canvas_item.focused
+
     # save and restore the contents of the image panel
 
     def save_contents(self):
-        d = super().save_contents()
+        d = dict()
+        if self.display_panel_id:
+            d["display_panel_id"] = str(self.display_panel_id)
         if self.__display_panel_controller:
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
@@ -1150,7 +1097,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         return d
 
     def restore_contents(self, d):
-        super().restore_contents(d)
+        display_panel_id = d.get("display_panel_id")
+        if display_panel_id:
+            self.display_panel_id = display_panel_id
         controller_type = d.get("controller_type")
         self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
         if not self.__display_panel_controller:
@@ -1310,7 +1259,9 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             if key.text == "v":
                 self.__cycle_display()
                 return True
-        return super()._handle_key_pressed(key)
+        if self.on_key_pressed:
+            return self.on_key_pressed(key)
+        return False
 
     def __cycle_display(self):
         # the second part of the if statement below handles the case where the data item has been changed by
@@ -1359,13 +1310,20 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_released(key):
             return True
-        return super()._handle_key_released(key)
+        if self.on_key_released:
+            return self.on_key_released(key)
+        return False
 
     def perform_action(self, fn, *args, **keywords):
         display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
         target = display_canvas_item
         if hasattr(target, fn):
             getattr(target, fn)(*args, **keywords)
+
+    def show_context_menu(self, menu, gx, gy):
+        if self.on_show_context_menu:
+            return self.on_show_context_menu(menu, gx, gy)
+        return False
 
     def select_all(self):
         if self.__display:
