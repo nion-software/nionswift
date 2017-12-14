@@ -627,22 +627,22 @@ class TargetDataItemStream(Stream.AbstractStream):
         # cached values
         self.__value = None
         # listen for selected data item changes
-        self.__selected_data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
+        self.__focused_data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__focused_data_item_changed)
         # manually send the first data item changed message to set things up.
-        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
+        self.__focused_data_item_changed(document_controller.selected_display_specifier.data_item)
 
     def close(self):
         # disconnect data item binding
-        self.__selected_data_item_changed(None)
-        self.__selected_data_item_changed_event_listener.close()
-        self.__selected_data_item_changed_event_listener = None
+        self.__focused_data_item_changed(None)
+        self.__focused_data_item_changed_event_listener.close()
+        self.__focused_data_item_changed_event_listener = None
         super().close()
 
     @property
     def value(self):
         return self.__value
 
-    def __selected_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
+    def __focused_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
         if data_item != self.__value:
             self.value_stream.fire(data_item)
             self.__value = data_item
@@ -657,22 +657,22 @@ class TargetDisplayStream(Stream.AbstractStream):
         # cached values
         self.__value = None
         # listen for selected data item changes
-        self.__selected_data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__selected_data_item_changed)
+        self.__focused_data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__focused_data_item_changed)
         # manually send the first data item changed message to set things up.
-        self.__selected_data_item_changed(document_controller.selected_display_specifier.data_item)
+        self.__focused_data_item_changed(document_controller.selected_display_specifier.data_item)
 
     def close(self):
         # disconnect data item binding
-        self.__selected_data_item_changed(None)
-        self.__selected_data_item_changed_event_listener.close()
-        self.__selected_data_item_changed_event_listener = None
+        self.__focused_data_item_changed(None)
+        self.__focused_data_item_changed_event_listener.close()
+        self.__focused_data_item_changed_event_listener = None
         super().close()
 
     @property
     def value(self):
         return self.__value
 
-    def __selected_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
+    def __focused_data_item_changed(self, data_item: typing.Optional[DataItem.DataItem]) -> None:
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         display = display_specifier.display
         if display != self.__value:

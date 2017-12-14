@@ -1394,10 +1394,23 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.display_panel.canvas_item.root_container.refresh_layout_immediate()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
-    def disabled_test_corrupt_data_item_only_affects_display_panel_contents(self):
-        # a corrupt display panel (wrong dimensional calibrations, for instance) should not affect the other display
-        # panels; nor should it affect the focus functionality
-        raise Exception()
+    def test_focused_data_item_changes_when_display_changed_directly_in_content(self):
+        # this capability is only used in the camera plug-in when switching image to summed and back.
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            data_item2 = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item2)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_displayed_data_item(data_item)
+            self.assertEqual(data_item, document_controller.focused_data_item)
+            display_panel._content_for_test._select()
+            self.assertEqual(data_item, document_controller.focused_data_item)
+            display_panel._content_for_test.set_displayed_data_item(data_item2)
+            self.assertEqual(data_item2, document_controller.focused_data_item)
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

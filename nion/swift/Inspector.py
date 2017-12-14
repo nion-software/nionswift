@@ -45,7 +45,7 @@ class InspectorPanel(Panel.Panel):
 
         # listen for selected display binding changes
         self.__data_item_will_be_removed_event_listener = None
-        self.__data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(self.__data_item_changed)
+        self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
         def scroll_area_focus_changed(focused):

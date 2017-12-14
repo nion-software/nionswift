@@ -35,7 +35,7 @@ class MetadataModel:
             def update_display_specifier():
                 self.__set_display_specifier(display_specifier)
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__data_item_changed_event_listener = document_controller.selected_data_item_changed_event.listen(data_item_changed)
+        self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
         self.__metadata_changed_event_listener = None
         self.__metadata = None

@@ -974,6 +974,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
 
         ui = document_controller.ui
 
+        self.on_display_changed = None
+
         self.__display = None
         self.__display_property_changed_event_listener = None
 
@@ -1242,6 +1244,8 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
             self.__display_property_changed_event_listener.close()
             self.__display_property_changed_event_listener = None
 
+        did_display_change = self.__display != display
+
         self.__display = display
 
         # remove any existing display canvas item
@@ -1273,6 +1277,10 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         if self.__display_panel_canvas_item:  # may be closed
             self.__display_panel_canvas_item.wants_mouse_events = self.__display_canvas_item is None
             self.__display_panel_canvas_item.selected = display is not None and self._is_selected()
+
+        if did_display_change:
+            if callable(self.on_display_changed):
+                self.on_display_changed()
 
     def _select(self):
         self.content_canvas_item.request_focus()
@@ -1476,6 +1484,10 @@ class DisplayPanel:
             document_controller.selected_display_panel = self  # MARK
             document_controller.notify_focused_data_item_changed(self.data_item)
 
+        def display_changed():
+            if self.__display_panel_content._is_focused:
+                document_controller.notify_focused_data_item_changed(self.data_item)
+
         def show_context_menu(menu, gx, gy):
             def split_vertical():
                 if workspace_controller:
@@ -1509,6 +1521,7 @@ class DisplayPanel:
         self.__display_panel_content.on_drop = drop
         self.__display_panel_content.on_begin_drag = begin_drag
         self.__display_panel_content.on_focused = focused
+        self.__display_panel_content.on_display_changed = display_changed
         self.__display_panel_content.on_close = close
 
         self.__display_panel_content.restore_contents(d)
@@ -1544,8 +1557,13 @@ class DisplayPanel:
 
     @property
     def data_item(self):
-        display = self.__display_panel_content._display
-        return display.container if display else None
+        display = self.display
+        data_item = display.container if display else None
+        return data_item if isinstance(data_item, DataItem.DataItem) else None
+
+    @property
+    def display(self):
+        return self.__display_panel_content._display
 
     def save_contents(self):
         d = self.__display_panel_content.save_contents()
