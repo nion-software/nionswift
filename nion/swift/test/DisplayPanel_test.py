@@ -72,7 +72,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
         self.display_panel.set_displayed_data_item(self.data_item)
         header_height = self.display_panel._content_for_test.header_canvas_item.header_height
-        self.display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+        self.display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
 
     def tearDown(self):
         self.document_controller.close()
@@ -107,17 +107,13 @@ class TestDisplayPanelClass(unittest.TestCase):
         with contextlib.closing(document_controller):
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
             # add some extra refs for fun
-            canvas_item = display_panel.canvas_item
             container = CanvasItem.SplitterCanvasItem()
-            container.add_canvas_item(canvas_item)
+            container.add_canvas_item(display_panel)
             canvas_widget = self.app.ui.create_canvas_widget()
             with contextlib.closing(canvas_widget):
                 canvas_widget.canvas_item.add_canvas_item(container)
                 # now take the weakref
                 display_panel_weak_ref = weakref.ref(display_panel)
-                canvas_item = display_panel.canvas_item
-                display_panel.close()
-                # canvas_item.close()  # this is the order in workspace close
                 display_panel = None
             self.assertIsNone(display_panel_weak_ref())
 
@@ -484,12 +480,12 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.add_rectangle_graphic()
         modifiers = CanvasItem.KeyboardModifiers()
         # focus click
-        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(500, 500, modifiers)  # click on graphic
+        self.display_panel.root_container.canvas_widget.simulate_mouse_click(500, 500, modifiers)  # click on graphic
         # check assumptions
         self.assertEqual(len(self.display_specifier.display.graphics), 1)
         self.assertEqual(len(self.display_specifier.display.graphic_selection.indexes), 1)
         # do focusing click, then delete
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
+        self.display_panel.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
         # check results
         self.assertEqual(len(self.display_specifier.display.graphics), 0)
 
@@ -498,8 +494,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         # check assumptions
         self.assertIsNotNone(self.display_panel.data_item)
         # do focusing click, then delete
-        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
+        self.display_panel.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
+        self.display_panel.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "delete", modifiers))
         # check results
         self.assertIsNotNone(self.display_panel.data_item)
 
@@ -1008,8 +1004,8 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_key_gets_dispatched_to_image_canvas_item(self):
         modifiers = CanvasItem.KeyboardModifiers()
-        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "up", modifiers))
+        self.display_panel.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
+        self.display_panel.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "up", modifiers))
         # self.display_panel.display_canvas_item.key_pressed(TestUI.Key(None, "up", modifiers))  # direct dispatch, should work
         self.assertEqual(self.display_panel.display_canvas_item.scroll_area_canvas_item.content.canvas_rect, ((-10, 0), (1000, 1000)))
 
@@ -1139,29 +1135,29 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertIsNotNone(self.display_specifier.display.display_limits)
         # focus on the display panel, then press the enter key
         modifiers = CanvasItem.KeyboardModifiers()
-        self.display_panel.canvas_item.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
+        self.display_panel.root_container.canvas_widget.simulate_mouse_click(100, 100, modifiers)
+        self.display_panel.root_container.canvas_widget.on_key_pressed(TestUI.Key(None, "enter", modifiers))
         # confirm that display limits were set
         self.assertIsNotNone(self.data_item.displays[0].display_limits)
         self.assertNotEqual(self.data_item.displays[0].display_limits, display_limits)
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count(self):
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
         # show, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_image_display_panel_produces_context_menu_with_correct_item_count_outside_image_area(self):
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(10, 32, 10, 32)  # header + 10
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(10, 32, 10, 32)  # header + 10
         # show, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_image_display_panel_with_no_image_produces_context_menu_with_correct_item_count(self):
         self.display_panel.set_displayed_data_item(None)
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
+        self.display_panel.root_container.refresh_layout_immediate()
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
         # show, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
 
@@ -1169,8 +1165,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         d = {"type": "image", "display-panel-type": "empty-display-panel"}
         self.display_panel.change_display_panel_content(d)
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
+        self.display_panel.root_container.refresh_layout_immediate()
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
         # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
 
@@ -1179,8 +1175,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.change_display_panel_content(d)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
+        self.display_panel.root_container.refresh_layout_immediate()
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         # show, delete, sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
@@ -1189,8 +1185,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.change_display_panel_content(d)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(300, 40, 300, 40)
+        self.display_panel.root_container.refresh_layout_immediate()
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(300, 40, 300, 40)
         # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
 
@@ -1199,8 +1195,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.display_panel.change_display_panel_content(d)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(300, 300, 300, 300)
+        self.display_panel.root_container.refresh_layout_immediate()
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(300, 300, 300, 300)
         # sep, split h, split v, sep, none, sep, data, thumbnails, browser, sep
         self.assertEqual(len(self.document_controller.ui.popup.items), 10)
 
@@ -1215,8 +1211,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.document_controller.select_data_items_in_data_panel(self.document_model.data_items)
         self.document_controller.periodic()
         self.assertIsNone(self.document_controller.ui.popup)
-        self.display_panel.canvas_item.root_container.refresh_layout_immediate()
-        self.display_panel.canvas_item.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
+        self.display_panel.root_container.refresh_layout_immediate()
+        self.display_panel.root_container.canvas_widget.on_context_menu_event(40, 40, 40, 40)
         self.document_controller.periodic()
         # show, reveal, delete, sep, split h, split v, sep, none, sep, browser, sep
         self.document_controller.ui.popup.items[2].callback()
@@ -1306,7 +1302,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item.displays[0].display_type = "line_plot"
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
             document_controller.periodic()
 
     def test_display_2d_collection_with_2d_datum_displays_image(self):
@@ -1321,7 +1317,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
 
@@ -1334,7 +1330,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 240))
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             display = data_item.displays[0]
@@ -1351,7 +1347,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 240))
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             update_count = display_panel.display_canvas_item._update_count
@@ -1369,7 +1365,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 240))
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
             update_count = display_panel.display_canvas_item._update_count
@@ -1385,13 +1381,13 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
-            display_panel.canvas_item.root_container.layout_immediate(Geometry.IntSize(240, 640))
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
             display = data_item.displays[0]
             update_count = display_panel.display_canvas_item._update_count
             document_controller.periodic()
-            self.display_panel.canvas_item.root_container.refresh_layout_immediate()
+            self.display_panel.root_container.refresh_layout_immediate()
             self.assertEqual(update_count, display_panel.display_canvas_item._update_count)
 
     def test_focused_data_item_changes_when_display_changed_directly_in_content(self):

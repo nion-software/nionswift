@@ -78,10 +78,7 @@ class Workspace:
         if self.__workspace:
             # TODO: remove this; it should be updated whenever the workspace changes anyway.
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
-        display_panels = copy.copy(self.display_panels)
         self.display_panels = []
-        for display_panel in display_panels:
-            display_panel.close()
         self.__canvas_item = None
         self.__workspace = None
         dock_widgets_copy = copy.copy(self.dock_widgets)
@@ -194,7 +191,7 @@ class Workspace:
             display_panels.append(display_panel)
             if desc.get("selected", False):
                 selected_display_panel = display_panel
-            item = display_panel.canvas_item
+            item = display_panel
         if container:
             children = desc.get("children", list())
             for child_desc in children:
@@ -207,7 +204,7 @@ class Workspace:
 
     def __get_display_panel_by_canvas_item(self, canvas_item):
         for display_panel in self.display_panels:
-            if display_panel.canvas_item == canvas_item:
+            if display_panel == canvas_item:
                 return display_panel
         return None
 
@@ -215,8 +212,8 @@ class Workspace:
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
             return { "type": "splitter", "orientation": canvas_item.orientation, "splits": copy.copy(canvas_item.splits), "children": children }
-        display_panel = self.__get_display_panel_by_canvas_item(canvas_item)
-        if display_panel:
+        if isinstance(canvas_item, DisplayPanel.DisplayPanel):
+            display_panel = canvas_item
             desc = { "type": "image" }
             if display_panel._is_selected():
                 desc["selected"] = True
@@ -231,10 +228,7 @@ class Workspace:
             self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
             self.__workspace = None
         # remove existing layout and canvas item
-        display_panels = copy.copy(self.display_panels)
         self.display_panels = []
-        for display_panel in display_panels:
-            display_panel.close()
         for child in copy.copy(self.image_row.children):
             self.image_row.remove(child)
         # create new layout and canvas item
@@ -509,18 +503,18 @@ class Workspace:
     def insert_display_panel(self, display_panel, region, data_item=None, d=None):
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
         orientation = "vertical" if region == "right" or region == "left" else "horizontal"
-        container = display_panel.canvas_item.container
+        container = display_panel.container
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             # check if trying to drag on non-axis edge of splitter
             if container.orientation != orientation:
                 splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
-                container.wrap_canvas_item(display_panel.canvas_item, splitter_canvas_item)
+                container.wrap_canvas_item(display_panel, splitter_canvas_item)
                 container = splitter_canvas_item
         if not isinstance(container, CanvasItem.SplitterCanvasItem):  # special case where top level item is the image panel
             splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
-            container.wrap_canvas_item(display_panel.canvas_item, splitter_canvas_item)
+            container.wrap_canvas_item(display_panel, splitter_canvas_item)
             container = splitter_canvas_item
-        index = container.canvas_items.index(display_panel.canvas_item)
+        index = container.canvas_items.index(display_panel)
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             # modify the existing splitter
             old_split = container.splits[index]
@@ -531,7 +525,7 @@ class Workspace:
                 new_display_panel.set_displayed_data_item(data_item, detect_controller=True)
             elif d is not None:
                 new_display_panel.change_display_panel_content(d)
-            container.insert_canvas_item(index + new_index_adj, new_display_panel.canvas_item)
+            container.insert_canvas_item(index + new_index_adj, new_display_panel)
             self.document_controller.selected_display_panel = new_display_panel
             # adjust the splits
             splits = list(container.splits)
@@ -544,13 +538,11 @@ class Workspace:
         # first make sure the display panel has no content
         display_panel.change_display_panel_content({"type": "image", "display-panel-type": "empty-display-panel"})
         # now remove it
-        canvas_item = display_panel.canvas_item
-        container = canvas_item.container
+        container = display_panel.container
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             if len(container.canvas_items) > 0:
                 self.display_panels.remove(display_panel)
-                display_panel.close()
-                container.remove_canvas_item(canvas_item)
+                container.remove_canvas_item(display_panel)
                 if len(container.canvas_items) == 1:
                     container.unwrap_canvas_item(container.canvas_items[0])
 

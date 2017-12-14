@@ -315,11 +315,11 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the sizes were updated
             if region == "left" or region == "right":
-                self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.width, 320)
-                self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect.width, 320)
+                self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_rect.width, 320)
+                self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_rect.width, 320)
             else:
-                self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.height, 240)
-                self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect.height, 240)
+                self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_rect.height, 240)
+                self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_rect.height, 240)
             # check that the data items are in the right spot
             if region == "left" or region == "top":
                 self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
@@ -439,12 +439,12 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(len(root_canvas_item.canvas_items[0].canvas_items[0].canvas_items), 2)
             # check that the sizes were updated
             root_canvas_item.refresh_layout_immediate()
-            self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.width, 320)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect.height, 240)
-            self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect.width, 320)
-            self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect.height, 240)
-            self.assertEqual(document_controller.workspace_controller.display_panels[2].canvas_item.canvas_rect.width, 320)
-            self.assertEqual(document_controller.workspace_controller.display_panels[2].canvas_item.canvas_rect.height, 480)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_rect.width, 320)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_rect.height, 240)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_rect.width, 320)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_rect.height, 240)
+            self.assertEqual(document_controller.workspace_controller.display_panels[2].canvas_rect.width, 320)
+            self.assertEqual(document_controller.workspace_controller.display_panels[2].canvas_rect.height, 480)
 
     def test_removing_left_item_in_2x1_results_in_a_single_top_level_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -487,8 +487,8 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel2 = document_controller.workspace_controller.display_panels[1]
             document_controller.workspace_controller.remove_display_panel(display_panel2)
             root_canvas_item.refresh_layout_immediate()
-            self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 240, 640))
-            self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(240, 0, 480, 640))
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 240, 640))
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].canvas_rect, Geometry.IntRect.from_tlbr(240, 0, 480, 640))
 
     def test_removing_middle_item_in_3x1_results_in_sensible_splits(self):
         document_model = DocumentModel.DocumentModel()
@@ -640,12 +640,12 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.periodic()
             self.assertIsNone(document_controller.focused_data_item)
             modifiers = CanvasItem.KeyboardModifiers()
-            display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(True)
-            display_panel.canvas_item.root_container.canvas_widget.on_mouse_entered()
-            display_panel.canvas_item.root_container.canvas_widget.on_mouse_pressed(40, 40, modifiers)
-            display_panel.canvas_item.root_container.canvas_widget.on_mouse_released(40, 40, modifiers)
+            display_panel.root_container.canvas_widget.on_focus_changed(True)
+            display_panel.root_container.canvas_widget.on_mouse_entered()
+            display_panel.root_container.canvas_widget.on_mouse_pressed(40, 40, modifiers)
+            display_panel.root_container.canvas_widget.on_mouse_released(40, 40, modifiers)
             self.assertIsNotNone(document_controller.focused_data_item)
-            display_panel.canvas_item.root_container.canvas_widget.on_focus_changed(False)
+            display_panel.root_container.canvas_widget.on_focus_changed(False)
             self.assertIsNotNone(document_controller.focused_data_item)
 
     class DisplayPanelController(object):

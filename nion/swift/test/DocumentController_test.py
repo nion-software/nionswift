@@ -125,7 +125,6 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_panel.set_displayed_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
         display_panel.close()
-        display_panel.canvas_item.close()
         document_controller.close()
         document_controller = None
         data_item = None

@@ -33,7 +33,7 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             display_panel.display_canvas_item.mouse_exited()
@@ -48,7 +48,7 @@ class TestInfoPanelClass(unittest.TestCase):
             data_item.displays[0].dimensional_calibration_style = "relative-top-left"
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             display_panel.display_canvas_item.mouse_exited()
@@ -97,7 +97,7 @@ class TestInfoPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             display_panel.display_canvas_item.mouse_exited()
@@ -113,7 +113,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
             info_panel = document_controller.find_dock_widget("info-panel").panel
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
             document_controller.periodic()
@@ -136,7 +136,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
             info_panel = document_controller.find_dock_widget("info-panel").panel
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             document_controller.periodic()
             display_panel.display_canvas_item.mouse_position_changed(500, 500, Graphics.NullModifiers())
@@ -160,7 +160,7 @@ class TestInfoPanelClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
             info_panel = document_controller.find_dock_widget("info-panel").panel
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             display_panel.display_canvas_item.mouse_entered()
             display_panel.display_canvas_item.mouse_position_changed(400, 600, Graphics.NullModifiers())
             document_controller.periodic()

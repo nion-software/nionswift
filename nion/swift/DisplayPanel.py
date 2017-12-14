@@ -1382,14 +1382,15 @@ class DataDisplayPanelContent(BaseDisplayPanelContent):
         self.__display_changed = True
 
 
-class DisplayPanel:
+class DisplayPanel(CanvasItem.CanvasItemComposition):
+    """A canvas item to display a library item. Allows library item to be changed."""
 
     def __init__(self, document_controller, d):
+        super().__init__()
         self.__weak_document_controller = weakref.ref(document_controller)
         document_controller.register_display_panel(self)
         self.__display_panel_content = None
-        self.__canvas_item = CanvasItem.CanvasItemComposition()
-        self.__canvas_item.wants_mouse_events = True
+        self.wants_mouse_events = True
         self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
         self.identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
         self.__change_display_panel_content(document_controller, d)
@@ -1400,6 +1401,7 @@ class DisplayPanel:
             self.__display_panel_content = None
         self.__document_controller.unregister_display_panel(self)
         self.__weak_document_controller = None
+        super().close()
 
     @property
     def __document_controller(self):
@@ -1419,7 +1421,7 @@ class DisplayPanel:
             canvas_item = self.__display_panel_content.canvas_item
             self.__display_panel_content.close()
             self.__display_panel_content = None
-            self.__canvas_item.remove_canvas_item(canvas_item)
+            self.remove_canvas_item(canvas_item)
 
         self.__display_panel_content = DataDisplayPanelContent(document_controller)
 
@@ -1430,7 +1432,7 @@ class DisplayPanel:
             d["browser_type"] = "grid"
 
         self.__display_panel_content.set_identifier(self.identifier)
-        self.__canvas_item.insert_canvas_item(0, self.__display_panel_content.canvas_item)
+        self.insert_canvas_item(0, self.__display_panel_content.canvas_item)
 
         workspace_controller = document_controller.workspace_controller
 
@@ -1506,7 +1508,7 @@ class DisplayPanel:
             return True
 
         def begin_drag(mime_data, thumbnail_data):
-            self.__canvas_item.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, document_controller))
+            self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, document_controller))
 
         self.__display_panel_content.on_key_pressed = key_pressed
         self.__display_panel_content.on_key_released = key_released
@@ -1533,10 +1535,6 @@ class DisplayPanel:
 
         if is_selected:
             document_controller.notify_focused_data_item_changed(self.data_item)
-
-    @property
-    def canvas_item(self):
-        return self.__canvas_item
 
     @property
     def display_canvas_item(self):

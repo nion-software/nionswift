@@ -37,7 +37,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((100 + header_height, 100))
+            display_panel.root_container.layout_immediate((100 + header_height, 100))
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
@@ -54,7 +54,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((100 + header_height, 100))
+            display_panel.root_container.layout_immediate((100 + header_height, 100))
             # run test
             document_controller.tool_mode = "line-profile"
             display_panel.display_canvas_item.simulate_drag((20,25), (65,85))
@@ -71,7 +71,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "x")
 
@@ -86,7 +86,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(display_panel.display_canvas_item._info_overlay_canvas_item_for_test._dimension_calibration_for_test.units, "x")
 
@@ -100,7 +100,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
             for tool_mode in ["rectangle", "point", "ellipse", "line"]:
@@ -122,7 +122,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region = Graphics.RectangleGraphic()
             rect_region.bounds = (0.25, 0.25), (0.5, 0.5)
@@ -148,7 +148,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region = Graphics.RectangleGraphic()
             rect_region.bounds = (0.25, 0.25), (0.5, 0.5)
@@ -173,7 +173,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region1 = Graphics.RectangleGraphic()
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
@@ -199,7 +199,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_displayed_data_item(data_item)
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             rect_region1 = Graphics.RectangleGraphic()
             rect_region1.bounds = (0.2, 0.2), (0.4, 0.4)
@@ -222,7 +222,7 @@ class TestImageCanvasItemClass(unittest.TestCase):
             display_panel.set_displayed_data_item(data_item)
             DataItem.DisplaySpecifier.from_data_item(data_item).display.display_type = "image"
             header_height = display_panel._content_for_test.header_canvas_item.header_height
-            display_panel.canvas_item.root_container.layout_immediate((1000 + header_height, 1000))
+            display_panel.root_container.layout_immediate((1000 + header_height, 1000))
 
 
 if __name__ == '__main__':

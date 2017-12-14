@@ -100,7 +100,6 @@ class TestDataPanelClass(unittest.TestCase):
                 # document_controller.selection.set(2)  # set above by date_item instead
                 data_panel.data_list_controller._delete_pressed()
                 self.assertEqual(len(data_group.data_items), 2)
-                canvas_item = display_panel.canvas_item
 
     def test_data_panel_deletes_all_selected_items(self):
         document_model = DocumentModel.DocumentModel()
@@ -784,7 +783,7 @@ class TestDataPanelClass(unittest.TestCase):
             # create display panel
             data_panel = document_controller.find_dock_widget("data-panel").panel
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
-            with contextlib.closing(display_panel.canvas_item), contextlib.closing(display_panel):
+            with contextlib.closing(display_panel):
                 document_controller.selected_display_panel = display_panel
                 # create a temporary data item
                 data_item = DataItem.DataItem(numpy.zeros((4, 4)))
