@@ -291,7 +291,7 @@ class Application:
         if welcome_message:
             logging.info("Welcome to Nion Swift.")
         if create_new_document and len(document_model.data_items) > 0:
-            document_controller.selected_display_panel.set_displayed_data_item(document_model.data_items[0])
+            document_controller.selected_display_panel.set_display_panel_data_item(document_model.data_items[0])
             document_controller.selected_display_panel.perform_action("set_fill_mode")
 
     def stop(self):
@@ -584,7 +584,7 @@ class Application:
         if data_item:
             display_panel = document_controller.selected_display_panel
             if display_panel:
-                display_panel.set_displayed_data_item(data_item)
+                display_panel.set_display_panel_data_item(data_item)
         document_controller.show()
         return document_controller
 

@@ -82,7 +82,7 @@ class TestDataPanelClass(unittest.TestCase):
             data_group.append_data_item(data_item3)
             display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
             with contextlib.closing(display_panel):
-                display_panel.set_displayed_data_item(data_item1)
+                display_panel.set_display_panel_data_item(data_item1)
                 data_panel = document_controller.find_dock_widget("data-panel").panel
                 document_controller.select_data_item_in_data_panel(data_item=data_item1)
                 document_controller.periodic()
@@ -111,7 +111,7 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.periodic()
             data_item = document_model.data_items[0]
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             data_panel = document_controller.find_dock_widget("data-panel").panel
             self.assertEqual(3, len(document_model.data_items))
             document_controller.selection.set_multiple([0, 1, 2])
@@ -703,7 +703,7 @@ class TestDataPanelClass(unittest.TestCase):
             # index, parent_row, parent_id
             data_panel.library_widget.on_selection_changed([(1, -1, 0)])
             document_controller.periodic()
-            document_controller.selected_display_panel.set_displayed_data_item(data_item1)
+            document_controller.selected_display_panel.set_display_panel_data_item(data_item1)
             self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
             self.assertEqual(data_panel.data_list_controller._test_get_display_item(0).data_item, data_item1)
             data_item3 = document_model.get_invert_new(data_item1)
@@ -789,7 +789,7 @@ class TestDataPanelClass(unittest.TestCase):
                 data_item = DataItem.DataItem(numpy.zeros((4, 4)))
                 data_item.category = "temporary"
                 document_model.append_data_item(data_item)
-                display_panel.set_displayed_data_item(data_item)
+                display_panel.set_display_panel_data_item(data_item)
                 # check that changing display updates to the one temporary data item in the data panel
                 self.assertEqual(data_panel.data_list_controller.display_item_count, 1)
                 # filter

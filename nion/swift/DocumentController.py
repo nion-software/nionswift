@@ -826,7 +826,7 @@ class DocumentController(Window.Window):
             if len(data_items) > 0:
                 result_display_panel = self.next_result_display_panel()
                 if result_display_panel:
-                    result_display_panel.set_displayed_data_item(data_items[-1])
+                    result_display_panel.set_display_panel_data_item(data_items[-1])
                     result_display_panel.request_focus()
         def import_complete_on_thread(data_items):
             self.queue_task(functools.partial(import_complete, data_items))
@@ -1105,7 +1105,7 @@ class DocumentController(Window.Window):
         assert data_item is not None
         result_display_panel = self.next_result_display_panel()
         if result_display_panel:
-            result_display_panel.set_displayed_data_item(data_item)
+            result_display_panel.set_display_panel_data_item(data_item)
             result_display_panel.request_focus()
         self.select_data_item_in_data_panel(data_item)
         self.notify_focused_data_item_changed(display_specifier.data_item)

@@ -423,7 +423,7 @@ class RunScriptDialog(Dialog.ActionDialog):
             data_item = self.document_controller.add_data(data, title)
             result_display_panel = self.document_controller.next_result_display_panel()
             if result_display_panel:
-                result_display_panel.set_displayed_data_item(data_item)
+                result_display_panel.set_display_panel_data_item(data_item)
                 result_display_panel.request_focus()
             accept_event.set()
 

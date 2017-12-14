@@ -248,12 +248,12 @@ class TestInspectrorClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((32, 32, 16)))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
             document_controller.processing_slice()
             document_model.recompute_all()
-            display_panel.set_displayed_data_item(document_model.data_items[1])
+            display_panel.set_display_panel_data_item(document_model.data_items[1])
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertTrue(len(inspector_panel._get_inspector_sections()) > 0)
@@ -346,7 +346,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
@@ -360,7 +360,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((1024, )))
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
             document_controller.add_point_graphic()
@@ -381,7 +381,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((256, 256)))
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
             document_controller.add_point_graphic()
@@ -402,7 +402,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((5, 5, 5)))
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
             document_controller.add_point_graphic()
@@ -425,7 +425,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item = DataItem.DataItem(d)
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.selected_display_panel = None
             document_controller.selected_display_panel = display_panel
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -549,7 +549,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10, 10)))
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertIn(Inspector.SliceInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
@@ -567,7 +567,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item.displays[0].display_type = "line_plot"
             document_model.append_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.periodic()
             data_item.set_data(numpy.zeros((10, )))
 
@@ -586,7 +586,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             # print("data_item {}".format(data_item))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
@@ -610,7 +610,7 @@ class TestInspectrorClass(unittest.TestCase):
             data_item.ensure_data_source()
             data_item.displays[0].display_type = "line_plot"
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
 
@@ -621,7 +621,7 @@ class TestInspectrorClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((16, 16, 64)))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             expected_inspector_section_count = len(inspector_panel._get_inspector_sections())
@@ -649,7 +649,7 @@ class TestInspectrorClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((16, 16)))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             self.assertNotIn(Inspector.LinePlotDisplayInspectorSection, (type(i) for i in inspector_panel._get_inspector_sections()))
@@ -705,7 +705,7 @@ class TestInspectrorClass(unittest.TestCase):
             x = computation.create_variable("x", "integral", 0)
             data_item.set_computation(computation)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
             document_controller.periodic()
             inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))

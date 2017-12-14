@@ -135,7 +135,7 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             line_profile_display_specifier = document_controller.processing_line_profile()
             interval_region = Graphics.IntervalGraphic()
             interval = 0.2, 0.3
@@ -154,7 +154,7 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             line_profile_display_specifier = document_controller.processing_line_profile()
             interval_region = Graphics.IntervalGraphic()
             line_profile_display_specifier.display.add_graphic(interval_region)

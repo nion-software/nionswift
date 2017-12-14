@@ -307,7 +307,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             document_model.append_data_item(data_item2)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_displayed_data_item(data_item1)
+            display_panel.set_display_panel_data_item(data_item1)
             mime_data = MimeData("text/data_item_uuid", str(data_item2.uuid))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, region, 160, 240)
             root_canvas_item.refresh_layout_immediate()
@@ -343,7 +343,7 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
@@ -362,14 +362,14 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "horizontal"}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the data items are in the right spot
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, None)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_type, "horizontal")
+            self.assertEqual(document_controller.workspace_controller.display_panels[0]._display_panel_type, "horizontal")
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
 
     def test_grid_browser_on_1x1_top(self):
@@ -381,14 +381,14 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"browser_type": "grid"}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the data items are in the right spot
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, None)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_type, "grid")
+            self.assertEqual(document_controller.workspace_controller.display_panels[0]._display_panel_type, "grid")
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
 
     def test_horizontal_browser_with_data_item_on_1x1_top(self):
@@ -400,14 +400,14 @@ class TestWorkspaceClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((256), numpy.double))
             document_model.append_data_item(data_item)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             mime_data = MimeData(DisplayPanel.DISPLAY_PANEL_MIME_TYPE, json.dumps({"data_item_uuid": str(data_item.uuid), "browser_type": "horizontal"}))
             document_controller.workspace_controller.handle_drop(display_panel, mime_data, "top", 160, 240)
             # check that there are now two image panels
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the data items are in the right spot
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_type, "horizontal")
+            self.assertEqual(document_controller.workspace_controller.display_panels[0]._display_panel_type, "horizontal")
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item)
 
     def test_workspace_splits_when_new_item_dropped_on_non_axis_edge_of_2x1_item(self):
@@ -535,7 +535,7 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[0].set_displayed_data_item(data_item1)
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
             root_canvas_item.refresh_layout_immediate()
-            document_controller.workspace_controller.display_panels[0]._content_for_test.header_canvas_item.simulate_click((12, 308))
+            document_controller.workspace_controller.display_panels[0].header_canvas_item.simulate_click((12, 308))
 
     def test_dragging_header_to_swap_works(self):
         document_model = DocumentModel.DocumentModel()
@@ -560,8 +560,8 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[1]._drag_finished(document_controller, "move")
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item1)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0]._content_for_test._display_canvas_item_delegate._display.container, data_item2)
-            self.assertEqual(document_controller.workspace_controller.display_panels[1]._content_for_test._display_canvas_item_delegate._display.container, data_item1)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0]._display_canvas_item_delegate._display.container, data_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1]._display_canvas_item_delegate._display.container, data_item1)
 
     def test_clicking_in_header_selects_and_focuses_display_panel(self):
         document_model = DocumentModel.DocumentModel()
@@ -579,14 +579,14 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[1].set_displayed_data_item(data_item2)
             document_controller.workspace_controller.display_panels[0].request_focus()
             root_canvas_item.refresh_layout_immediate()
-            self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.selected)
-            self.assertTrue(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.focused)
+            self.assertTrue(document_controller.workspace_controller.display_panels[0].content_canvas_item.selected)
+            self.assertTrue(document_controller.workspace_controller.display_panels[0].content_canvas_item.focused)
             # drag header. can't really test dragging without more test harness support. but make sure it gets this far.
-            document_controller.workspace_controller.display_panels[1]._content_for_test.header_canvas_item.simulate_click(Geometry.IntPoint(y=12, x=12))
-            self.assertFalse(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.selected)
-            self.assertFalse(document_controller.workspace_controller.display_panels[0]._content_for_test.content_canvas_item.focused)
-            self.assertTrue(document_controller.workspace_controller.display_panels[1]._content_for_test.content_canvas_item.selected)
-            self.assertTrue(document_controller.workspace_controller.display_panels[1]._content_for_test.content_canvas_item.focused)
+            document_controller.workspace_controller.display_panels[1].header_canvas_item.simulate_click(Geometry.IntPoint(y=12, x=12))
+            self.assertFalse(document_controller.workspace_controller.display_panels[0].content_canvas_item.selected)
+            self.assertFalse(document_controller.workspace_controller.display_panels[0].content_canvas_item.focused)
+            self.assertTrue(document_controller.workspace_controller.display_panels[1].content_canvas_item.selected)
+            self.assertTrue(document_controller.workspace_controller.display_panels[1].content_canvas_item.focused)
 
     def test_creating_invalid_workspace_fails_gracefully(self):
         document_model = DocumentModel.DocumentModel()
@@ -616,14 +616,14 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel1.set_displayed_data_item(None)
             display_panel1.request_focus()
             # check assumptions
-            self.assertFalse(display_panel0._content_for_test.content_canvas_item.focused)
-            self.assertTrue(display_panel1._content_for_test.content_canvas_item.focused)
+            self.assertFalse(display_panel0.content_canvas_item.focused)
+            self.assertTrue(display_panel1.content_canvas_item.focused)
             # do drop
             mime_data = MimeData("text/data_item_uuid", str(data_item.uuid))
             document_controller.workspace_controller.handle_drop(display_panel0, mime_data, "middle", 160, 240)
             # check focus
-            self.assertTrue(display_panel0._content_for_test.content_canvas_item.focused)
-            self.assertFalse(display_panel1._content_for_test.content_canvas_item.focused)
+            self.assertTrue(display_panel0.content_canvas_item.focused)
+            self.assertFalse(display_panel1.content_canvas_item.focused)
 
     def test_browser_does_not_reset_selected_display_specifier_when_root_loses_focus(self):
         # make sure the inspector doesn't disappear when focus changes to one of its fields
@@ -649,16 +649,16 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertIsNotNone(document_controller.focused_data_item)
 
     class DisplayPanelController(object):
-        def __init__(self, display_panel_content):
+        def __init__(self, display_panel):
             self.type = "test"
-            self.__display_panel_content = display_panel_content
+            self.__display_panel = display_panel
             self.__composition = CanvasItem.CanvasItemComposition()
             self.__composition.add_canvas_item(CanvasItem.TextButtonCanvasItem("ABC"))
-            self.__display_panel_content.footer_canvas_item.insert_canvas_item(0, self.__composition)
+            self.__display_panel.footer_canvas_item.insert_canvas_item(0, self.__composition)
             self.closed = False
         def close(self):
-            self.__display_panel_content.footer_canvas_item.remove_canvas_item(self.__composition)
-            self.__display_panel_content = None
+            self.__display_panel.footer_canvas_item.remove_canvas_item(self.__composition)
+            self.__display_panel = None
             self.closed = True
         def save(self, d):
             pass
@@ -667,9 +667,9 @@ class TestWorkspaceClass(unittest.TestCase):
         def __init__(self, match=None):
             self.priority = 1
             self._match = match
-        def make_new(self, controller_type, display_panel_content, d):
+        def make_new(self, controller_type, display_panel, d):
             if controller_type == "test":
-                return TestWorkspaceClass.DisplayPanelController(display_panel_content)
+                return TestWorkspaceClass.DisplayPanelController(display_panel)
             return None
         def match(self, data_item):
             if data_item == self._match:
@@ -692,7 +692,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertEqual(len(document_controller.workspace_controller.display_panels), 2)
             # check that the data items are in the right spot
             self.assertEqual(document_controller.workspace_controller.display_panels[1].save_contents().get("display-panel-type"), None)  # uninitialized
-            self.assertTrue(isinstance(document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
+            self.assertTrue(isinstance(document_controller.workspace_controller.display_panels[0]._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
             # check that it closes properly too
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 
@@ -727,7 +727,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel_controller = display_panel._content_for_test._display_panel_controller_for_test
+            display_panel_controller = display_panel._display_panel_controller_for_test
             self.assertFalse(display_panel_controller.closed)
             document_controller.workspace_controller.remove_display_panel(display_panel)
             self.assertTrue(display_panel_controller.closed)
@@ -746,7 +746,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
             display_panel = document_controller.workspace_controller.display_panels[0]
-            display_panel_controller = display_panel._content_for_test._display_panel_controller_for_test
+            display_panel_controller = display_panel._display_panel_controller_for_test
             self.assertFalse(display_panel_controller.closed)
             document_controller.workspace_controller.change_workspace(workspace2)
             self.assertTrue(display_panel_controller.closed)
@@ -764,7 +764,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
-            display_panel_controller = document_controller.workspace_controller.display_panels[0]._content_for_test._display_panel_controller_for_test
+            display_panel_controller = document_controller.workspace_controller.display_panels[0]._display_panel_controller_for_test
             self.assertFalse(display_panel_controller.closed)
             document_controller.workspace_controller.change_to_previous_workspace()
             self.assertTrue(display_panel_controller.closed)
@@ -796,12 +796,12 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             document_controller.workspace_controller.change_workspace(workspace1)
-            display_panel_content = document_controller.workspace_controller.display_panels[0]._content_for_test
-            self.assertTrue(isinstance(display_panel_content._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
-            display_panel_controller = display_panel_content._display_panel_controller_for_test
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            self.assertTrue(isinstance(display_panel._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
+            display_panel_controller = display_panel._display_panel_controller_for_test
             self.assertFalse(display_panel_controller.closed)
-            display_panel_content.restore_contents({"type": "image"})
-            self.assertIsNone(display_panel_content._display_panel_controller_for_test)
+            display_panel.restore_contents({"type": "image"})
+            self.assertIsNone(display_panel._display_panel_controller_for_test)
             self.assertTrue(display_panel_controller.closed)  # the old one
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
 

@@ -122,7 +122,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         weak_data_item = weakref.ref(data_item)
         display_panel = DisplayPanel.DisplayPanel(document_controller, dict())
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         self.assertIsNotNone(weak_data_item())
         display_panel.close()
         document_controller.close()
@@ -226,7 +226,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         line_graphic = document_controller.add_line_graphic()
         # make sure assumptions are correct
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 1)
@@ -234,7 +234,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertEqual(len(display_specifier.display.graphics), 1)
         self.assertEqual(display_specifier.display.graphics[0], line_graphic)
         # remove the graphic and make sure things are as expected
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         document_controller.remove_selected_graphics()
         self.assertEqual(len(display_specifier.display.graphic_selection.indexes), 0)
         self.assertEqual(len(display_specifier.display.graphics), 0)
@@ -248,10 +248,10 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         line_profile_data_item = document_controller.processing_line_profile().data_item
         document_controller.periodic()  # TODO: remove need to let the inspector catch up
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         display_specifier.display.graphic_selection.clear()
         display_specifier.display.graphic_selection.add(0)
         # make sure assumptions are correct
@@ -259,7 +259,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         self.assertTrue(line_profile_data_item in document_model.data_items)
         self.assertTrue(data_item in document_model.data_items)
         # remove the graphic and make sure things are as expected
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         document_controller.remove_selected_graphics()
         self.assertTrue(data_item in document_model.data_items)
         # clean up
@@ -275,7 +275,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             display = DataItem.DisplaySpecifier.from_data_item(data_item).display
             # ensure first data item is displayed
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             # make a line profile
             line_profile_data_item = document_controller.processing_line_profile().data_item
             # set up the selection
@@ -285,7 +285,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertEqual(document_model.get_source_data_items(line_profile_data_item)[0], data_item)
             self.assertTrue(line_profile_data_item in document_model.data_items)
             # ensure data item is selected, then remove the graphic
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             document_controller.remove_selected_graphics()
             self.assertEqual(0, len(display.graphics))
             self.assertEqual(0, len(display.graphic_selection.indexes))  # disabled until test_remove_line_profile_updates_graphic_selection
@@ -315,7 +315,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier.display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model.recompute_all()
         self.assertEqual(new_data_item.data_shape, (h//2, w//2))
@@ -393,7 +393,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         data_item_result = document_model.get_invert_new(data_item, crop_region)
         document_model.remove_data_item(data_item_result)
         document_model.recompute_all()
@@ -536,7 +536,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         document_controller.processing_duplicate()
         document_controller.close()
 
@@ -549,7 +549,7 @@ class TestDocumentControllerClass(unittest.TestCase):
         display_specifier.display.add_graphic(crop_region)
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
         display_panel = document_controller.selected_display_panel
-        display_panel.set_displayed_data_item(data_item)
+        display_panel.set_display_panel_data_item(data_item)
         document_controller.processing_duplicate()
         document_controller.close()
 
@@ -561,7 +561,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(source_data_item)
             data_item = document_model.get_invert_new(source_data_item)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             data_item_dup = document_controller.processing_duplicate().data_item
             self.assertIsNotNone(data_item_dup.computation)
             self.assertNotEqual(data_item_dup.computation, data_item.computation)
@@ -612,7 +612,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((10, 10)))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             self.assertEqual(document_controller.focused_data_item, data_item)
 
 

@@ -70,8 +70,8 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
-            header_height = display_panel._content_for_test.header_canvas_item.header_height
+            display_panel.set_display_panel_data_item(data_item)
+            header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate((1000 + header_height, 1000))
             # run test
             self.assertEqual(document_controller.tool_mode, "pointer")
@@ -92,7 +92,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.zeros((100,)))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
@@ -112,7 +112,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.end = 0.95
             data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             # test
             document_controller.tool_mode = "pointer"
@@ -132,7 +132,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             region.end = 0.9
             data_item.displays[0].add_graphic(region)
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
             display_panel.display_canvas_item.prepare_display()  # force layout
             # test

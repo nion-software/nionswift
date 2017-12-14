@@ -70,8 +70,8 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.data_item = DataItem.DataItem(numpy.zeros((10, 10)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-        self.display_panel.set_displayed_data_item(self.data_item)
-        header_height = self.display_panel._content_for_test.header_canvas_item.header_height
+        self.display_panel.set_display_panel_data_item(self.data_item)
+        header_height = self.display_panel.header_canvas_item.header_height
         self.display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
 
     def tearDown(self):
@@ -81,7 +81,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         canvas_shape = canvas_shape if canvas_shape else (480, 640)  # yes I know these are backwards
         data_item_1d = DataItem.DataItem(create_1d_data(data_min=data_min, data_max=data_max))
         self.document_model.append_data_item(data_item_1d)
-        self.display_panel.set_displayed_data_item(data_item_1d)
+        self.display_panel.set_display_panel_data_item(data_item_1d)
         self.display_panel.display_canvas_item.layout_immediate(canvas_shape)
         self.display_panel_drawing_context = DrawingContext.DrawingContext()
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
@@ -93,7 +93,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         canvas_shape = canvas_shape if canvas_shape else (640, 480)  # yes I know these are backwards
         data_item_3d = DataItem.DataItem(numpy.ones((5, 5, 5)))
         self.document_model.append_data_item(data_item_3d)
-        self.display_panel.set_displayed_data_item(data_item_3d)
+        self.display_panel.set_display_panel_data_item(data_item_3d)
         self.display_panel.display_canvas_item.layout_immediate(canvas_shape)
         self.display_panel_drawing_context = DrawingContext.DrawingContext()
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
@@ -123,7 +123,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(self.display_specifier.data_item, self.data_item)
         self.document_controller.processing_invert()
         self.document_controller.periodic()
-        self.display_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.set_display_panel_data_item(self.data_item)
         self.assertEqual(self.display_panel.data_item, self.data_item)
         self.document_model.remove_data_item(self.data_item)
         self.assertIsNone(self.display_panel.data_item)
@@ -134,7 +134,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(self.display_panel.data_item, self.data_item)
         inverted_data_item = self.document_controller.processing_invert().data_item
         self.document_controller.periodic()
-        self.display_panel.set_displayed_data_item(inverted_data_item)
+        self.display_panel.set_display_panel_data_item(inverted_data_item)
         self.assertEqual(self.display_panel.data_item, inverted_data_item)
         self.document_model.remove_data_item(self.data_item)
         self.assertIsNone(self.display_panel.data_item)
@@ -418,7 +418,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.data_item = DataItem.DataItem(numpy.zeros((20, 10)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-        self.display_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.set_display_panel_data_item(self.data_item)
         self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=2000, width=1000))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_rectangle_graphic()
@@ -442,7 +442,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.data_item = DataItem.DataItem(numpy.zeros((20, 10)))
         self.document_model.append_data_item(self.data_item)
         self.display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-        self.display_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.set_display_panel_data_item(self.data_item)
         self.display_panel.display_canvas_item.layout_immediate(Geometry.IntSize(height=2000, width=1000))
         # add rect (0.25, 0.25), (0.5, 0.5)
         self.document_controller.add_ellipse_graphic()
@@ -1025,10 +1025,10 @@ class TestDisplayPanelClass(unittest.TestCase):
 
     def test_replacing_display_actually_does_it(self):
         self.assertEqual(self.display_panel.data_item, self.data_item)
-        self.display_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.set_display_panel_data_item(self.data_item)
         data_item_1d = DataItem.DataItem(create_1d_data())
         self.document_model.append_data_item(data_item_1d)
-        self.display_panel.set_displayed_data_item(data_item_1d)
+        self.display_panel.set_display_panel_data_item(data_item_1d)
         self.assertEqual(self.display_panel.data_item, data_item_1d)
 
     def test_drop_on_overlay_edge_triggers_split_image_panel_action(self):
@@ -1046,7 +1046,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(display_panel.drop_region, "left")
 
     def test_replace_displayed_data_item_and_display_detects_default_raster_display(self):
-        self.display_panel.set_displayed_data_item(self.data_item)
+        self.display_panel.set_display_panel_data_item(self.data_item)
         self.assertEqual(self.display_panel.data_item, self.data_item)
 
     def test_1d_data_with_zero_dimensions_display_fails_without_exception(self):
@@ -1154,7 +1154,7 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.document_controller.ui.popup.items), 14)
 
     def test_image_display_panel_with_no_image_produces_context_menu_with_correct_item_count(self):
-        self.display_panel.set_displayed_data_item(None)
+        self.display_panel.set_display_panel_data_item(None)
         self.assertIsNone(self.document_controller.ui.popup)
         self.display_panel.root_container.refresh_layout_immediate()
         self.display_panel.root_container.canvas_widget.on_context_menu_event(500, 500, 500, 500)
@@ -1219,16 +1219,16 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertEqual(len(self.document_model.data_items), 0)
 
     def test_display_panel_title_gets_updated_when_data_item_title_is_changed(self):
-        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
+        self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.displayed_title)
         self.data_item.title = "New Title"
         self.document_controller.periodic()
-        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
+        self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.displayed_title)
 
     def test_display_panel_title_gets_updated_when_data_item_r_value_is_changed(self):
-        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
+        self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.displayed_title)
         self.data_item.set_r_value("r111")
         self.document_controller.periodic()
-        self.assertEqual(self.display_panel._content_for_test.header_canvas_item.title, self.data_item.displayed_title)
+        self.assertEqual(self.display_panel.header_canvas_item.title, self.data_item.displayed_title)
 
     def test_all_graphic_types_repaint_on_1d_display(self):
         display_canvas_item = self.setup_line_plot()
@@ -1300,8 +1300,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.append_data_item(data_item1)
             data_item = document_model.get_crop_new(data_item1)
             data_item.displays[0].display_type = "line_plot"
-            display_panel.set_displayed_data_item(data_item)
-            header_height = display_panel._content_for_test.header_canvas_item.header_height
+            display_panel.set_display_panel_data_item(data_item)
+            header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
             document_controller.periodic()
 
@@ -1315,8 +1315,8 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item.ensure_data_source()
             data_item.set_xdata(DataAndMetadata.new_data_and_metadata(numpy.ones((2, 2, 8, 8)), data_descriptor=DataAndMetadata.DataDescriptor(False, 2, 2)))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
-            header_height = display_panel._content_for_test.header_canvas_item.header_height
+            display_panel.set_display_panel_data_item(data_item)
+            header_height = display_panel.header_canvas_item.header_height
             display_panel.root_container.layout_immediate(Geometry.IntSize(1000 + header_height, 1000))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
@@ -1329,7 +1329,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
@@ -1346,7 +1346,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8, 8))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
@@ -1364,7 +1364,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             graphic = Graphics.RectangleGraphic()
             data_item.displays[0].add_graphic(graphic)
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 240))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, ImageCanvasItem.ImageCanvasItem)
@@ -1380,7 +1380,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             data_item = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item)
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
             document_controller.periodic()
             self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
@@ -1401,11 +1401,11 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item2 = DataItem.DataItem(numpy.random.randn(8))
             document_model.append_data_item(data_item2)
             display_panel = document_controller.selected_display_panel
-            display_panel.set_displayed_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
             self.assertEqual(data_item, document_controller.focused_data_item)
-            display_panel._content_for_test._select()
+            display_panel._select()
             self.assertEqual(data_item, document_controller.focused_data_item)
-            display_panel._content_for_test.set_displayed_data_item(data_item2)
+            display_panel.set_displayed_data_item(data_item2)
             self.assertEqual(data_item2, document_controller.focused_data_item)
 
 if __name__ == '__main__':

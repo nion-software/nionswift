@@ -169,7 +169,7 @@ class Workspace:
     def display_data_item_in_display_panel(self, data_item, display_panel_id):
         for display_panel in self.display_panels:
             if display_panel.display_panel_id == display_panel_id:
-                display_panel.set_displayed_data_item(data_item)
+                display_panel.set_display_panel_data_item(data_item)
 
     def _construct(self, desc, display_panels, lookup_data_item):
         selected_display_panel = None
@@ -495,7 +495,7 @@ class Workspace:
         """ Used in drag/drop support. """
         self.document_controller.replaced_display_panel_content = display_panel.save_contents()
         if data_item:
-            display_panel.set_displayed_data_item(data_item, detect_controller=True)
+            display_panel.set_display_panel_data_item(data_item, detect_controller=True)
         elif d is not None:
             display_panel.change_display_panel_content(d)
         display_panel.request_focus()
@@ -522,7 +522,7 @@ class Workspace:
             new_display_panel = self.__create_display_panel(dict())
             self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
             if data_item:
-                new_display_panel.set_displayed_data_item(data_item, detect_controller=True)
+                new_display_panel.set_display_panel_data_item(data_item, detect_controller=True)
             elif d is not None:
                 new_display_panel.change_display_panel_content(d)
             container.insert_canvas_item(index + new_index_adj, new_display_panel)

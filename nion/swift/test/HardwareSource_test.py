@@ -873,7 +873,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
-            display_panel.set_displayed_data_item(document_model.data_items[0])
+            display_panel.set_display_panel_data_item(document_model.data_items[0])
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             repaint_count = display_panel.display_canvas_item._repaint_count
             self.__acquire_one(document_controller, hardware_source)
@@ -888,7 +888,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
-            display_panel.set_displayed_data_item(document_model.data_items[0])
+            display_panel.set_display_panel_data_item(document_model.data_items[0])
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             self.__acquire_one(document_controller, hardware_source)
             update_count = display_panel.display_canvas_item._update_count
@@ -903,7 +903,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
-            display_panel.set_displayed_data_item(document_model.data_items[0])
+            display_panel.set_display_panel_data_item(document_model.data_items[0])
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
             repaint_count = display_panel.display_canvas_item._repaint_count
             hardware_source.sleep = 0.03  # each partial will sleep for this long
@@ -922,7 +922,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.image = numpy.ones((4, ))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
-            display_panel.set_displayed_data_item(document_model.data_items[0])
+            display_panel.set_display_panel_data_item(document_model.data_items[0])
             repaint_count = display_panel.display_canvas_item._repaint_count
             self.__acquire_one(document_controller, hardware_source)
             display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
@@ -934,7 +934,7 @@ class TestHardwareSourceClass(unittest.TestCase):
             hardware_source.image = numpy.ones((4, 4))
             display_panel = document_controller.selected_display_panel
             self.__acquire_one(document_controller, hardware_source)
-            display_panel.set_displayed_data_item(document_model.data_items[0])
+            display_panel.set_display_panel_data_item(document_model.data_items[0])
             document_controller.periodic()
             self.assertEqual(document_model._get_pending_data_item_updates_count(), 0)
             hardware_source.start_playing(sync_timeout=3.0)

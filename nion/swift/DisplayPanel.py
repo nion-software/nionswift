@@ -694,45 +694,45 @@ class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
 
 
 class DisplayCanvasItemDelegate:
-    def __init__(self, ui, display_panel_content, on_begin_drag):
+    def __init__(self, ui, display_panel, on_begin_drag):
         self.__ui = ui
-        self.__display_panel_content = display_panel_content
+        self.__display_panel = display_panel
         self.on_begin_drag = on_begin_drag
 
     @property
     def tool_mode(self):
-        return self.__display_panel_content.document_controller.tool_mode
+        return self.__display_panel.document_controller.tool_mode
 
     @tool_mode.setter
     def tool_mode(self, value):
-        self.__display_panel_content.document_controller.tool_mode = value
+        self.__display_panel.document_controller.tool_mode = value
 
     def show_context_menu(self, display, gx, gy):
-        document_controller = self.__display_panel_content.document_controller
+        document_controller = self.__display_panel.document_controller
         document_model = document_controller.document_model
         menu = document_controller.create_context_menu_for_display(display, container=document_model)
-        return self.__display_panel_content.show_context_menu(menu, gx, gy)
+        return self.__display_panel.show_context_menu(menu, gx, gy)
 
     def begin_display_transaction(self, display: Display.Display) -> None:
-        self.__display_panel_content.document_controller.document_model.begin_display_transaction(display)
+        self.__display_panel.document_controller.document_model.begin_display_transaction(display)
 
     def end_display_transaction(self, display: Display.Display) -> None:
-        self.__display_panel_content.document_controller.document_model.end_display_transaction(display)
+        self.__display_panel.document_controller.document_model.end_display_transaction(display)
 
     def image_clicked(self, image_position, modifiers):
-        return self.__display_panel_content.image_clicked(image_position, modifiers)
+        return self.__display_panel.image_clicked(image_position, modifiers)
 
     def image_mouse_pressed(self, image_position, modifiers):
-        return self.__display_panel_content.image_mouse_pressed(image_position, modifiers)
+        return self.__display_panel.image_mouse_pressed(image_position, modifiers)
 
     def image_mouse_released(self, image_position, modifiers):
-        return self.__display_panel_content.image_mouse_released(image_position, modifiers)
+        return self.__display_panel.image_mouse_released(image_position, modifiers)
 
     def image_mouse_position_changed(self, image_position, modifiers):
-        return self.__display_panel_content.image_mouse_position_changed(image_position, modifiers)
+        return self.__display_panel.image_mouse_position_changed(image_position, modifiers)
 
     def remove_selected_graphic(self):
-        if self.__display_panel_content.document_controller.remove_selected_graphics():
+        if self.__display_panel.document_controller.remove_selected_graphics():
             return True
         return False
 
@@ -744,14 +744,14 @@ class DisplayCanvasItemDelegate:
             import traceback
             traceback.print_exc()
         if position_text and value_text:
-            self.__display_panel_content.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
+            self.__display_panel.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
         else:
-            self.__display_panel_content.document_controller.cursor_changed(None)
+            self.__display_panel.document_controller.cursor_changed(None)
 
     def display_line_profile(self, display: Display.Display, line_profile_region: Graphics.LineTypeGraphic):
         data_item = display.container
         if isinstance(data_item, DataItem.DataItem):
-            document_controller = self.__display_panel_content.document_controller
+            document_controller = self.__display_panel.document_controller
             document_model = document_controller.document_model
             line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
             new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
@@ -771,67 +771,57 @@ class DisplayCanvasItemDelegate:
                 self.on_begin_drag(mime_data, thumbnail_data)
 
 
-class DataDisplayPanelContent:
+class DisplayPanel(CanvasItem.CanvasItemComposition):
+    """A canvas item to display a library item. Allows library item to be changed."""
 
-    def __init__(self, document_controller):
-        assert document_controller is not None
-
+    def __init__(self, document_controller, d):
+        super().__init__()
         self.__weak_document_controller = weakref.ref(document_controller)
-
+        document_controller.register_display_panel(self)
+        self.wants_mouse_events = True
+        self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
+        self.__identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
         self.ui = document_controller.ui
-        self.__identifier = None
-
-        self.canvas_item = CanvasItem.CanvasItemComposition()
-        self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-
-        def handle_context_menu_event(x, y, gx, gy):
-            menu = document_controller.create_context_menu()
-            return self.show_context_menu(menu, gx, gy)
+        self.layout = CanvasItem.CanvasItemColumnLayout()
 
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
         self.__content_canvas_item.on_focus_changed = lambda focused: self.set_focused(focused)
-        self.__content_canvas_item.on_context_menu_event = handle_context_menu_event
+        self.__content_canvas_item.on_context_menu_event = self.__handle_context_menu_event
+
         self.__header_canvas_item = Panel.HeaderCanvasItem(document_controller, display_close_control=True)
+
         self.__footer_canvas_item = CanvasItem.CanvasItemComposition()
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
 
-        self.canvas_item.add_canvas_item(self.__header_canvas_item)
-        self.canvas_item.add_canvas_item(self.__content_canvas_item)
-        self.canvas_item.add_canvas_item(self.__footer_canvas_item)
+        self.add_canvas_item(self.__header_canvas_item)
+        self.add_canvas_item(self.__content_canvas_item)
+        self.add_canvas_item(self.__footer_canvas_item)
 
-        self.display_panel_id = None
+        self.__display_panel_id = None
 
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_mouse_clicked = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_show_context_menu = None
-        self.on_begin_drag = None
+        workspace_controller = self.__document_controller.workspace_controller
 
         def drag_enter(mime_data):
-            if self.on_drag_enter:
-                return self.on_drag_enter(mime_data)
+            if workspace_controller:
+                return workspace_controller.handle_drag_enter(self, mime_data)
             return "ignore"
 
         def drag_leave():
-            if self.on_drag_leave:
-                return self.on_drag_leave()
+            if workspace_controller:
+                return workspace_controller.handle_drag_leave(self)
             return False
 
         def drag_move(mime_data, x, y):
-            if self.on_drag_move:
-                return self.on_drag_move(mime_data, x, y)
+            if workspace_controller:
+                return workspace_controller.handle_drag_move(self, mime_data, x, y)
             return "ignore"
 
         def drop(mime_data, region, x, y):
-            if self.on_drop:
-                return self.on_drop(mime_data, region, x, y)
+            if workspace_controller:
+                return workspace_controller.handle_drop(self, mime_data, region, x, y)
             return "ignore"
 
         # list to the content_canvas_item messages and pass them along to listeners of this class.
@@ -843,20 +833,15 @@ class DataDisplayPanelContent:
         self.__content_canvas_item.on_key_released = self._handle_key_released
         self.__content_canvas_item.on_select_all = self.select_all
 
-        self.on_focused = None
-        self.on_close = None
-
         def close():
-            if self.on_close:
-                self.on_close()
+            if len(workspace_controller.display_panels) > 1:
+                workspace_controller.remove_display_panel(self)
 
         self.__header_canvas_item.on_select_pressed = self._select
-        self.__header_canvas_item.on_drag_pressed = self._begin_drag
+        self.__header_canvas_item.on_drag_pressed = self.__handle_begin_drag
         self.__header_canvas_item.on_close_clicked = close
 
         ui = document_controller.ui
-
-        self.on_display_changed = None
 
         self.__display = None
         self.__display_property_changed_event_listener = None
@@ -867,7 +852,7 @@ class DataDisplayPanelContent:
             if value == self.__display:
                 self.set_display(None)
 
-        document_model = self.document_controller.document_model
+        document_model = self.__document_controller.document_model
         self.__item_removed_event_listener = document_model.displays_list_model.item_removed_event.listen(item_removed)
 
         # the display panel controller is an object which adds and controls additional UI on top of this display.
@@ -876,11 +861,6 @@ class DataDisplayPanelContent:
         # the display canvas item delegate is an object that provides the canvas item displaying the data item.
         self.__display_canvas_item = None
 
-        self.on_image_clicked = None
-        self.on_image_mouse_pressed = None
-        self.on_image_mouse_released = None
-        self.on_image_mouse_position_changed = None
-
         self.__related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, document_model)
         self.__related_icons_canvas_item.on_drag = document_controller.drag
 
@@ -888,10 +868,6 @@ class DataDisplayPanelContent:
         self.__display_panel_canvas_item = CanvasItem.CanvasItemComposition()
 
         self.__display_panel_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
-
-        def context_menu_event(display_item, x, y, gx, gy):
-            menu = document_controller.create_context_menu_for_display(display_item.display if display_item else None)
-            return self.show_context_menu(menu, gx, gy)
 
         self.__selection = document_controller.filtered_displays_model.make_selection()
 
@@ -917,7 +893,7 @@ class DataDisplayPanelContent:
         def notify_focus_changed():
             data_item = self.__display.container if self.__display else None
             if isinstance(data_item, DataItem.DataItem):
-                self.document_controller.notify_focused_data_item_changed(data_item)
+                self.__document_controller.notify_focused_data_item_changed(data_item)
 
         def display_item_selection_changed(display_items):
             indexes = set()
@@ -941,7 +917,7 @@ class DataDisplayPanelContent:
 
         self.__horizontal_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection, direction=GridCanvasItem.Direction.Row, wrap=False)
         self.__horizontal_data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
-        self.__horizontal_data_grid_controller.on_context_menu_event = context_menu_event
+        self.__horizontal_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__horizontal_data_grid_controller.on_display_item_double_clicked = double_clicked
         self.__horizontal_data_grid_controller.on_focus_changed = focus_changed
         self.__horizontal_data_grid_controller.on_delete_display_items = delete_display_items
@@ -950,7 +926,7 @@ class DataDisplayPanelContent:
 
         self.__grid_data_grid_controller = DataPanel.DataGridController(document_controller.event_loop, document_controller.ui, self.__filtered_display_items_model, self.__selection)
         self.__grid_data_grid_controller.on_display_item_selection_changed = display_item_selection_changed
-        self.__grid_data_grid_controller.on_context_menu_event = context_menu_event
+        self.__grid_data_grid_controller.on_context_menu_event = self.__handle_context_menu_for_display
         self.__grid_data_grid_controller.on_display_item_double_clicked = double_clicked
         self.__grid_data_grid_controller.on_focus_changed = focus_changed
         self.__grid_data_grid_controller.on_delete_display_items = delete_display_items
@@ -972,16 +948,16 @@ class DataDisplayPanelContent:
         self.__combo_canvas_item.add_canvas_item(self.__horizontal_browser_canvas_item)
         self.__combo_canvas_item.add_canvas_item(self.__grid_browser_canvas_item)
 
-        self.content_canvas_item.add_canvas_item(self.__combo_canvas_item)
+        self.__content_canvas_item.add_canvas_item(self.__combo_canvas_item)
 
         self.__display_changed = False  # put this at end of init to avoid transient initialization states
 
+        self.__header_canvas_item.label = "#" + self.identifier
+
+        self.__change_display_panel_content(document_controller, d)
+
     def close(self):
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
-        self.on_image_clicked = None
-        self.on_image_mouse_pressed = None
-        self.on_image_mouse_released = None
-        self.on_image_mouse_position_changed = None
         self.__item_removed_event_listener.close()
         self.__item_removed_event_listener = None
         self.__display_canvas_item = None
@@ -993,27 +969,28 @@ class DataDisplayPanelContent:
         self.__grid_data_grid_controller = None
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = None
-        self.document_controller.filtered_displays_model.release_selection(self.__selection)
+        self.__document_controller.filtered_displays_model.release_selection(self.__selection)
         self.__filtered_display_items_model.close()
         self.__filtered_display_items_model = None
         self.__selection = None
 
-        # self.canvas_item.close()  # the creator of the image panel is responsible for closing the canvas item
-        self.canvas_item = None
         self.__content_canvas_item.on_focus_changed = None  # only necessary during tests
+
         # release references
-        self.__weak_document_controller = None
         self.__content_canvas_item = None
         self.__header_canvas_item = None
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_mouse_clicked = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_focused = None
-        self.on_close = None
+
+        self.__document_controller.unregister_display_panel(self)
+        self.__weak_document_controller = None
+        super().close()
+
+    @property
+    def __document_controller(self):
+        return self.__weak_document_controller()
+
+    @property
+    def document_controller(self):
+        return self.__weak_document_controller()
 
     @property
     def _display_panel_controller_for_test(self):
@@ -1025,24 +1002,11 @@ class DataDisplayPanelContent:
 
     @property
     def _display_canvas_item(self):
-        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
-        return display_canvas_item
+        return self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
 
     @property
     def _display_items_for_test(self):
         return self.__filtered_display_items_model.display_items
-
-    @property
-    def identifier(self):
-        return self.__identifier
-
-    def set_identifier(self, identifier):
-        self.__identifier = identifier
-        self.header_canvas_item.label = "#" + self.identifier
-
-    @property
-    def document_controller(self):
-        return self.__weak_document_controller()
 
     @property
     def header_canvas_item(self):
@@ -1056,30 +1020,57 @@ class DataDisplayPanelContent:
     def footer_canvas_item(self):
         return self.__footer_canvas_item
 
-    # handle selection. selection means that the display panel is the most recent
-    # item to have focus within the workspace, although it can be selected without
-    # having focus. this can happen, for instance, when the user switches focus
-    # to the data panel.
+    @property
+    def identifier(self) -> str:
+        return self.__identifier
 
-    def set_selected(self, selected):
-        if self.__content_canvas_item:  # may be closed
-            self.__content_canvas_item.selected = selected
+    def change_display_panel_content(self, d):
+        assert self.__document_controller is not None
+        self.__change_display_panel_content(self.__document_controller, d)
 
-    def _is_selected(self):
-        """ Used for testing. """
-        return self.__content_canvas_item.selected
+    def __change_display_panel_content(self, document_controller, d):
+        is_selected = self._is_selected()
+        is_focused = self._is_focused()
 
-    # this message comes from the canvas items via the on_focus_changed when their focus changes
-    def set_focused(self, focused):
-        self.__content_canvas_item.focused = focused
-        if focused and self.on_focused:
-            self.on_focused()
+        display_panel_type = d.get("display-panel-type", "data-display-panel")
+        if display_panel_type == "thumbnail-browser-display-panel":
+            d["browser_type"] = "horizontal"
+        elif display_panel_type == "browser-display-panel":
+            d["browser_type"] = "grid"
+        elif display_panel_type == "empty-display-panel":
+            d["browser_type"] = "empty"
 
-    def _is_focused(self):
-        """ Used for testing. """
-        return self.__content_canvas_item.focused
+        self.restore_contents(d)
 
-    # save and restore the contents of the image panel
+        self.set_selected(is_selected)
+
+        if is_focused:
+            self.request_focus()
+
+        if is_selected:
+            document_controller.notify_focused_data_item_changed(self.data_item)
+
+    @property
+    def display_canvas_item(self):
+        return self._display_canvas_item
+
+    @property
+    def display_panel_type(self):
+        return self._display_panel_type
+
+    @property
+    def display_panel_id(self):
+        return self.__display_panel_id
+
+    @property
+    def data_item(self):
+        display = self.display
+        data_item = display.container if display else None
+        return data_item if isinstance(data_item, DataItem.DataItem) else None
+
+    @property
+    def display(self):
+        return self.__display
 
     def save_contents(self):
         d = dict()
@@ -1094,20 +1085,22 @@ class DataDisplayPanelContent:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
             d["browser_type"] = "grid"
+        d["uuid"] = str(self.uuid)
+        d["identifier"] = self.identifier
         return d
 
     def restore_contents(self, d):
         display_panel_id = d.get("display_panel_id")
         if display_panel_id:
-            self.display_panel_id = display_panel_id
+            self.__display_panel_id = display_panel_id
         controller_type = d.get("controller_type")
         self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
         if not self.__display_panel_controller:
+            data_item = None
             data_item_uuid_str = d.get("data_item_uuid")
             if data_item_uuid_str:
-                data_item = self.document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
-                if data_item:
-                    self.set_displayed_data_item(data_item)
+                data_item = self.__document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
+            self.set_displayed_data_item(data_item)
             self.__update_selection_to_display()
             if d.get("browser_type") == "horizontal":
                 self.__switch_to_horizontal_browser()
@@ -1131,32 +1124,30 @@ class DataDisplayPanelContent:
         else:
             return "empty"
 
+    def _drag_finished(self, document_controller, action):
+        if action == "move" and document_controller.replaced_display_panel_content is not None:
+            d = document_controller.replaced_display_panel_content
+            self.__change_display_panel_content(document_controller, d)
+            document_controller.replaced_display_panel_content = None
+
     def image_clicked(self, image_position, modifiers):
-        if callable(self.on_image_clicked):
-            return self.on_image_clicked(image_position, modifiers)
-        return False
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+        return DisplayPanelManager().image_display_clicked(self, display_specifier, image_position, modifiers)
 
     def image_mouse_pressed(self, image_position, modifiers):
-        if callable(self.on_image_mouse_pressed):
-            return self.on_image_mouse_pressed(image_position, modifiers)
-        return False
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+        return DisplayPanelManager().image_display_mouse_pressed(self, display_specifier, image_position, modifiers)
 
     def image_mouse_released(self, image_position, modifiers):
-        if callable(self.on_image_mouse_released):
-            return self.on_image_mouse_released(image_position, modifiers)
-        return False
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+        return DisplayPanelManager().image_display_mouse_released(self, display_specifier, image_position, modifiers)
 
     def image_mouse_position_changed(self, image_position, modifiers):
-        if callable(self.on_image_mouse_position_changed):
-            return self.on_image_mouse_position_changed(image_position, modifiers)
-        return False
+        display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
+        return DisplayPanelManager().image_display_mouse_position_changed(self, display_specifier, image_position, modifiers)
 
     def image_panel_get_font_metrics(self, font, text):
         return self.ui.get_font_metrics(font, text)
-
-    @property
-    def _display(self):
-        return self.__display
 
     def __set_display_panel_controller(self, display_panel_controller):
         if self.__display_panel_controller:
@@ -1176,7 +1167,7 @@ class DataDisplayPanelContent:
 
     # sets the data item that this panel displays
     # not thread safe
-    def set_display(self, display: Display.Display) -> None:
+    def set_display(self, display: typing.Optional[Display.Display]) -> None:
         # listen for changes to display content and parameters, metadata, or the selection
         # changes to the underlying data will trigger changes in the display content
 
@@ -1204,8 +1195,8 @@ class DataDisplayPanelContent:
 
         # if there is a new display, create a canvas item for it and add it to the container canvas item.
         if display:
-            delegate = DisplayCanvasItemDelegate(self.ui, self, self.on_begin_drag)
-            self.__display_canvas_item = DisplayCanvasItem(display, delegate, self.ui.get_font_metrics, self.document_controller.event_loop)
+            delegate = DisplayCanvasItemDelegate(self.ui, self, self.__begin_drag)
+            self.__display_canvas_item = DisplayCanvasItem(display, delegate, self.ui.get_font_metrics, self.__document_controller.event_loop)
             self.__display_panel_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
 
         # update the related icons canvas item with the new display.
@@ -1228,23 +1219,66 @@ class DataDisplayPanelContent:
             self.__display_panel_canvas_item.selected = display is not None and self._is_selected()
 
         if did_display_change:
-            if callable(self.on_display_changed):
-                self.on_display_changed()
+            if self._is_focused:
+                self.__document_controller.notify_focused_data_item_changed(self.data_item)
 
     def _select(self):
         self.content_canvas_item.request_focus()
 
+    # handle selection. selection means that the display panel is the most recent
+    # item to have focus within the workspace, although it can be selected without
+    # having focus. this can happen, for instance, when the user switches focus
+    # to the data panel.
+
+    def set_selected(self, selected):
+        if self.__content_canvas_item:  # may be closed
+            self.__content_canvas_item.selected = selected
+
+    def _is_selected(self):
+        """ Used for testing. """
+        return self.__content_canvas_item.selected
+
+    # this message comes from the canvas items via the on_focus_changed when their focus changes
+    def set_focused(self, focused):
+        self.__content_canvas_item.focused = focused
+        if focused:
+            self.__document_controller.selected_display_panel = self  # MARK
+            self.__document_controller.notify_focused_data_item_changed(self.data_item)
+
+    def _is_focused(self):
+        """ Used for testing. """
+        return self.__content_canvas_item.focused
+
+    def request_focus(self):
+        self.__content_canvas_item.request_focus()
+
+    def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
+        if data_item is not None:
+            d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
+            if detect_controller:
+                d2 = DisplayPanelManager().detect_controller(data_item)
+                if d2:
+                    d.update(d2)
+        else:
+            d = {"type": "image"}
+        self.change_display_panel_content(d)
+
+    @property
+    def is_result_panel(self):
+        return self._is_result_panel
+
     # this gets called when the user initiates a drag in the drag control to move the panel around
-    def _begin_drag(self):
+    def __handle_begin_drag(self):
         data_item = self.__display.container
         if isinstance(data_item, DataItem.DataItem):
             mime_data = self.ui.create_mime_data()
             mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__display)
-            on_begin_drag = self.on_begin_drag
-            if callable(on_begin_drag):
-                on_begin_drag(mime_data, thumbnail_data)
+            self.__begin_drag(mime_data, thumbnail_data)
+
+    def __begin_drag(self, mime_data, thumbnail_data):
+        self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, self.__document_controller))
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
@@ -1259,9 +1293,7 @@ class DataDisplayPanelContent:
             if key.text == "v":
                 self.__cycle_display()
                 return True
-        if self.on_key_pressed:
-            return self.on_key_pressed(key)
-        return False
+        return DisplayPanelManager().key_pressed(self, key)
 
     def __cycle_display(self):
         # the second part of the if statement below handles the case where the data item has been changed by
@@ -1310,20 +1342,41 @@ class DataDisplayPanelContent:
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_released(key):
             return True
-        if self.on_key_released:
-            return self.on_key_released(key)
-        return False
+        return DisplayPanelManager().key_released(self, key)
+
+    def show_context_menu(self, menu, gx, gy):
+
+        workspace_controller = self.__document_controller.workspace_controller
+
+        def split_vertical():
+            if workspace_controller:
+                return workspace_controller.insert_display_panel(self, "bottom")
+
+        def split_horizontal():
+            if workspace_controller:
+                return workspace_controller.insert_display_panel(self, "right")
+
+        menu.add_separator()
+        menu.add_menu_item(_("Split Into Top and Bottom"), split_vertical)
+        menu.add_menu_item(_("Split Into Left and Right"), split_horizontal)
+        menu.add_separator()
+        DisplayPanelManager().build_menu(menu, self)
+        menu.popup(gx, gy)
+        return True
+
+    def __handle_context_menu_event(self, x, y, gx, gy):
+        menu = self.__document_controller.create_context_menu()
+        return self.show_context_menu(menu, gx, gy)
+
+    def __handle_context_menu_for_display(self, display_item, x, y, gx, gy):
+        menu = self.__document_controller.create_context_menu_for_display(display_item.display if display_item else None)
+        return self.show_context_menu(menu, gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
         display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
         target = display_canvas_item
         if hasattr(target, fn):
             getattr(target, fn)(*args, **keywords)
-
-    def show_context_menu(self, menu, gx, gy):
-        if self.on_show_context_menu:
-            return self.on_show_context_menu(menu, gx, gy)
-        return False
 
     def select_all(self):
         if self.__display:
@@ -1338,235 +1391,6 @@ class DataDisplayPanelContent:
             display = None
         self.set_display(display)
         self.__display_changed = True
-
-
-class DisplayPanel(CanvasItem.CanvasItemComposition):
-    """A canvas item to display a library item. Allows library item to be changed."""
-
-    def __init__(self, document_controller, d):
-        super().__init__()
-        self.__weak_document_controller = weakref.ref(document_controller)
-        document_controller.register_display_panel(self)
-        self.__display_panel_content = None
-        self.wants_mouse_events = True
-        self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
-        self.identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
-        self.__change_display_panel_content(document_controller, d)
-
-    def close(self):
-        if self.__display_panel_content:
-            self.__display_panel_content.close()
-            self.__display_panel_content = None
-        self.__document_controller.unregister_display_panel(self)
-        self.__weak_document_controller = None
-        super().close()
-
-    @property
-    def __document_controller(self):
-        return self.__weak_document_controller()
-
-    def change_display_panel_content(self, d):
-        assert self.__document_controller is not None
-        self.__change_display_panel_content(self.__document_controller, d)
-
-    def __change_display_panel_content(self, document_controller, d):
-        is_selected = False
-        is_focused = False
-
-        if self.__display_panel_content:
-            is_selected = self._is_selected()
-            is_focused = self._is_focused()
-            canvas_item = self.__display_panel_content.canvas_item
-            self.__display_panel_content.close()
-            self.__display_panel_content = None
-            self.remove_canvas_item(canvas_item)
-
-        self.__display_panel_content = DataDisplayPanelContent(document_controller)
-
-        display_panel_type = d.get("display-panel-type", "data-display-panel")
-        if display_panel_type == "thumbnail-browser-display-panel":
-            d["browser_type"] = "horizontal"
-        elif display_panel_type == "browser-display-panel":
-            d["browser_type"] = "grid"
-
-        self.__display_panel_content.set_identifier(self.identifier)
-        self.insert_canvas_item(0, self.__display_panel_content.canvas_item)
-
-        workspace_controller = document_controller.workspace_controller
-
-        def drag_enter(mime_data):
-            if workspace_controller:
-                return workspace_controller.handle_drag_enter(self, mime_data)
-            return "ignore"
-
-        def drag_leave():
-            if workspace_controller:
-                return workspace_controller.handle_drag_leave(self)
-            return False
-
-        def drag_move(mime_data, x, y):
-            if workspace_controller:
-                return workspace_controller.handle_drag_move(self, mime_data, x, y)
-            return "ignore"
-
-        def drop(mime_data, region, x, y):
-            if workspace_controller:
-                return workspace_controller.handle_drop(self, mime_data, region, x, y)
-            return "ignore"
-
-        def close():
-            if len(workspace_controller.display_panels) > 1:
-                workspace_controller.remove_display_panel(self)
-
-        def key_pressed(key):
-            return DisplayPanelManager().key_pressed(self, key)
-
-        def key_released(key):
-            return DisplayPanelManager().key_released(self, key)
-
-        def image_clicked(image_position, modifiers):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-            return DisplayPanelManager().image_display_clicked(self, display_specifier, image_position, modifiers)
-
-        def image_mouse_pressed(image_position, modifiers):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-            return DisplayPanelManager().image_display_mouse_pressed(self, display_specifier, image_position, modifiers)
-
-        def image_mouse_released(image_position, modifiers):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-            return DisplayPanelManager().image_display_mouse_released(self, display_specifier, image_position, modifiers)
-
-        def image_mouse_position_changed(image_position, modifiers):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(self.data_item)
-            return DisplayPanelManager().image_display_mouse_position_changed(self, display_specifier, image_position, modifiers)
-
-        def focused():
-            document_controller.selected_display_panel = self  # MARK
-            document_controller.notify_focused_data_item_changed(self.data_item)
-
-        def display_changed():
-            if self.__display_panel_content._is_focused:
-                document_controller.notify_focused_data_item_changed(self.data_item)
-
-        def show_context_menu(menu, gx, gy):
-            def split_vertical():
-                if workspace_controller:
-                    return workspace_controller.insert_display_panel(self, "bottom")
-            def split_horizontal():
-                if workspace_controller:
-                    return workspace_controller.insert_display_panel(self, "right")
-            menu.add_separator()
-            menu.add_menu_item(_("Split Into Top and Bottom"), split_vertical)
-            menu.add_menu_item(_("Split Into Left and Right"), split_horizontal)
-
-            menu.add_separator()
-            DisplayPanelManager().build_menu(menu, self)
-
-            menu.popup(gx, gy)
-            return True
-
-        def begin_drag(mime_data, thumbnail_data):
-            self.drag(mime_data, thumbnail_data, drag_finished_fn=functools.partial(self._drag_finished, document_controller))
-
-        self.__display_panel_content.on_key_pressed = key_pressed
-        self.__display_panel_content.on_key_released = key_released
-        self.__display_panel_content.on_image_clicked = image_clicked
-        self.__display_panel_content.on_image_mouse_pressed = image_mouse_pressed
-        self.__display_panel_content.on_image_mouse_released = image_mouse_released
-        self.__display_panel_content.on_image_mouse_position_changed = image_mouse_position_changed
-        self.__display_panel_content.on_show_context_menu = show_context_menu
-        self.__display_panel_content.on_drag_enter = drag_enter
-        self.__display_panel_content.on_drag_leave = drag_leave
-        self.__display_panel_content.on_drag_move = drag_move
-        self.__display_panel_content.on_drop = drop
-        self.__display_panel_content.on_begin_drag = begin_drag
-        self.__display_panel_content.on_focused = focused
-        self.__display_panel_content.on_display_changed = display_changed
-        self.__display_panel_content.on_close = close
-
-        self.__display_panel_content.restore_contents(d)
-
-        self.__display_panel_content.set_selected(is_selected)
-
-        if is_focused:
-            self.__display_panel_content.canvas_item.request_focus()
-
-        if is_selected:
-            document_controller.notify_focused_data_item_changed(self.data_item)
-
-    @property
-    def display_canvas_item(self):
-        return self.__display_panel_content._display_canvas_item
-
-    @property
-    def _content_for_test(self):
-        """Used for testing."""
-        return self.__display_panel_content
-
-    @property
-    def display_panel_type(self):
-        return self.__display_panel_content._display_panel_type
-
-    @property
-    def display_panel_id(self):
-        return self.__display_panel_content.display_panel_id
-
-    @property
-    def data_item(self):
-        display = self.display
-        data_item = display.container if display else None
-        return data_item if isinstance(data_item, DataItem.DataItem) else None
-
-    @property
-    def display(self):
-        return self.__display_panel_content._display
-
-    def save_contents(self):
-        d = self.__display_panel_content.save_contents()
-        d["uuid"] = str(self.uuid)
-        d["identifier"] = self.identifier
-        return d
-
-    def _drag_finished(self, document_controller, action):
-        if action == "move" and document_controller.replaced_display_panel_content is not None:
-            d = document_controller.replaced_display_panel_content
-            self.__change_display_panel_content(document_controller, d)
-            document_controller.replaced_display_panel_content = None
-
-    def set_selected(self, selected):
-        self.__display_panel_content.set_selected(selected)
-
-    def _is_selected(self):
-        return self.__display_panel_content._is_selected()
-
-    def set_focused(self, focused):
-        self.__display_panel_content.set_focused(focused)
-
-    def _is_focused(self):
-        return self.__display_panel_content._is_focused()
-
-    def request_focus(self):
-        if self.__display_panel_content:
-            self.__display_panel_content.content_canvas_item.request_focus()
-
-    def set_displayed_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
-        if data_item is not None:
-            d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
-            if detect_controller:
-                d2 = DisplayPanelManager().detect_controller(data_item)
-                if d2:
-                    d.update(d2)
-        else:
-            d = {"type": "image"}
-        self.change_display_panel_content(d)
-
-    @property
-    def is_result_panel(self):
-        return self.__display_panel_content and self.__display_panel_content._is_result_panel
-
-    def perform_action(self, fn, *args, **keywords):
-        if self.__display_panel_content:
-            self.__display_panel_content.perform_action(fn, *args, **keywords)
 
 
 class DisplayPanelManager(metaclass=Utility.Singleton):
@@ -1623,9 +1447,9 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
                 result = controller_type
         return result
 
-    def make_display_panel_controller(self, controller_type, display_panel_content, d):
+    def make_display_panel_controller(self, controller_type, display_panel, d):
         for factory in self.__display_controller_factories.values():
-            display_panel_controller = factory.make_new(controller_type, display_panel_content, d)
+            display_panel_controller = factory.make_new(controller_type, display_panel, d)
             if display_panel_controller:
                 return display_panel_controller
         return None
