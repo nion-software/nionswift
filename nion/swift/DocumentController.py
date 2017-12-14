@@ -153,9 +153,6 @@ class DocumentController(Window.Window):
                 except Exception as e:
                     pass
         # menus
-        self._display_type_menu.on_about_to_show = None
-        self._view_menu.on_about_to_show = None
-        self._window_menu.on_about_to_show = None
         self._file_menu = None
         self._edit_menu = None
         self._processing_menu = None
@@ -163,6 +160,9 @@ class DocumentController(Window.Window):
         self._window_menu = None
         self._help_menu = None
         self._library_menu = None
+        self._processing_sequence_menu = None
+        self._display_type_menu = None
+
         if self.__workspace_controller:
             self.__workspace_controller.close()
             self.__workspace_controller = None
