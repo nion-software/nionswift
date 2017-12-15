@@ -729,17 +729,18 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         return listener
 
     def __send_next_calculated_display_values(self) -> None:
-        """Start thread to send next display values, if necessary.
-
-        If the thread is already running, set the display values pending flag.
-
-        Otherwise, start the thread to calculate the display values.
-        """
+        """Fire event to signal new display values are available."""
         self.__current_display_values = None
         self.__calculated_display_values_available_event.fire()
 
     def get_calculated_display_values(self, immediate: bool = False) -> DisplayValues:
-        """Return the display values, optionally forcing calculation."""
+        """Return the display values.
+
+        Return the current (possibly uncalculated) display values unless 'immediate' is specified.
+
+        If 'immediate', return the existing (calculated) values if they exist. Using the 'immediate' values
+        avoids calculation except in cases where the display values haven't already been calculated.
+        """
         secondary = immediate
 
         if not secondary or not self.__is_master or not self.__last_display_values:
