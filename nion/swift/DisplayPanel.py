@@ -300,258 +300,6 @@ def is_valid_display_type(display_type: str) -> bool:
     return display_type in ("image", "line_plot", "display_script")
 
 
-class DisplayCanvasItem(CanvasItem.CanvasItemComposition):
-
-    def __init__(self, display: Display.Display, delegate, get_font_metrics_fn, event_loop):
-        super().__init__()
-
-        assert display is not None
-
-        self.__closing_lock = threading.RLock()
-        self.__delegate = delegate
-        self.__get_font_metrics_fn = get_font_metrics_fn
-        self.__event_loop = event_loop
-        self.__display_changed_event_listener = None
-        self.__display_graphic_selection_changed_event_listener = None
-        self.__next_calculated_display_values_listener = None
-        self.__display_type_changed_event_listener = None
-        self.__display_type_monitor = None
-        self.__display = display
-
-        self.__display.increment_display_ref_count()  # ensure data stays in memory while displayed
-
-        # safe to call 'close' now -- so put the rest in an exception handler
-        try:
-            display_type = display.actual_display_type if display else None
-            self.__display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics_fn, self, self.__event_loop)
-            self.add_canvas_item(self.__display_canvas_item)
-
-            def display_type_changed(display_type):
-                # called when the display type of the data item changes.
-                old_display_canvas_item = self.__display_canvas_item
-                new_display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics_fn, self, self.__event_loop)
-                self.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
-                self.__display_canvas_item = new_display_canvas_item
-
-            self.__display_type_monitor = DisplayTypeMonitor(display)
-            self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
-
-            if display:
-                def display_graphic_selection_changed(graphic_selection):
-                    # this message comes from the display when the graphic selection changes
-                    self.__display_canvas_item.update_regions(display, graphic_selection)
-
-                def display_rgba_changed(display_values):
-                    with self.__closing_lock:
-                        self.__display_canvas_item.display_rgba_changed(display, display_values)
-
-                def display_data_and_metadata_changed(display_values):
-                    with self.__closing_lock:
-                        self.__display_canvas_item.display_data_and_metadata_changed(display, display_values)
-
-                def display_changed():
-                    # called when anything in the data item changes, including things like graphics or the data itself.
-                    # update the display canvas, etc.
-                    # thread safe
-                    display_values = display.get_calculated_display_values()
-                    display_data_and_metadata_changed(display_values)
-                    display_graphic_selection_changed(display.graphic_selection)
-                    # note: rgba data will be handled separately in next calculated display values
-
-                def handle_next_calculated_display_values():
-                    display_values = display.get_calculated_display_values()
-                    display_rgba_changed(display_values)
-                    display_data_and_metadata_changed(display_values)
-
-                self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
-                self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
-                self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
-
-                # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
-                # layer items (image/line plot) get shut down.
-                display_changed()
-
-        except Exception as e:
-            self.close()
-            raise
-
-    def close(self):
-        with self.__closing_lock:
-            if self.__display_changed_event_listener:
-                self.__display_changed_event_listener.close()
-                self.__display_changed_event_listener = None
-            if self.__display_graphic_selection_changed_event_listener:
-                self.__display_graphic_selection_changed_event_listener.close()
-                self.__display_graphic_selection_changed_event_listener = None
-            if self.__next_calculated_display_values_listener:
-                self.__next_calculated_display_values_listener.close()
-                self.__next_calculated_display_values_listener = None
-            if self.__display_type_changed_event_listener:
-                self.__display_type_changed_event_listener.close()
-                self.__display_type_changed_event_listener = None
-            if self.__display_type_monitor:
-                self.__display_type_monitor.close()
-                self.__display_type_monitor = None
-            self.__display.decrement_display_ref_count()  # ensure data stays in memory while displayed
-        super().close()
-
-    @property
-    def _display(self):
-        return self.__display
-
-    @property
-    def display_canvas_item(self):
-        return self.__display_canvas_item
-
-    def add_index_to_selection(self, index):
-        self.__display.graphic_selection.add(index)
-
-    def remove_index_from_selection(self, index):
-        self.__display.graphic_selection.remove(index)
-
-    def set_selection(self, index):
-        self.__display.graphic_selection.set(index)
-
-    def clear_selection(self):
-        self.__display.graphic_selection.clear()
-
-    def add_and_select_region(self, region: Graphics.Graphic):
-        self.__display.add_graphic(region)  # this will also make a drawn graphic
-        # hack to select it. it will be the last item.
-        self.__display.graphic_selection.set(len(self.__display.graphics) - 1)
-
-    def nudge_selected_graphics(self, mapping, delta):
-        all_graphics = self.__display.graphics
-        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
-        for graphic in graphics:
-            graphic.nudge(mapping, delta)
-
-    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
-        with self.__display._changes():
-            for graphic in graphic_drag_items:
-                index = self.__display.graphics.index(graphic)
-                part_data = (graphic_drag_part, ) + graphic_part_data[index]
-                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
-
-    @property
-    def tool_mode(self):
-        return self.__delegate.tool_mode
-
-    @tool_mode.setter
-    def tool_mode(self, value):
-        self.__delegate.tool_mode = value
-
-    def show_context_menu(self, gx, gy):
-        return self.__delegate.show_context_menu(self.__display, gx, gy)
-
-    def begin_mouse_tracking(self):
-        self.__delegate.begin_display_transaction(self.__display)
-
-    def end_mouse_tracking(self):
-        self.__delegate.end_display_transaction(self.__display)
-
-    def image_clicked(self, image_position, modifiers):
-        return self.__delegate.image_clicked(image_position, modifiers)
-
-    def image_mouse_pressed(self, image_position, modifiers):
-        return self.__delegate.image_mouse_pressed(image_position, modifiers)
-
-    def image_mouse_released(self, image_position, modifiers):
-        return self.__delegate.image_mouse_released(image_position, modifiers)
-
-    def image_mouse_position_changed(self, image_position, modifiers):
-        return self.__delegate.image_mouse_position_changed(image_position, modifiers)
-
-    def delete_key_pressed(self):
-        return self.__delegate.remove_selected_graphic()
-
-    def enter_key_pressed(self):
-        return self.__display_canvas_item.handle_auto_display(self.__display)
-
-    def cursor_changed(self, pos):
-        self.__delegate.cursor_changed(self.__display, pos)
-
-    def drag_graphics(self, graphics):
-        self.__delegate.drag_graphics(self.__display, graphics)
-
-    def update_display_properties(self, display_properties):
-        for key, value in iter(display_properties.items()):
-            setattr(self.__display, key, value)
-
-    def create_rectangle(self, pos):
-        bounds = tuple(pos), (0, 0)
-        self.__display.graphic_selection.clear()
-        region = Graphics.RectangleGraphic()
-        region.bounds = bounds
-        self.__display.add_graphic(region)
-        self.__display.graphic_selection.set(self.__display.graphics.index(region))
-        return region
-
-    def create_ellipse(self, pos):
-        bounds = tuple(pos), (0, 0)
-        self.__display.graphic_selection.clear()
-        region = Graphics.EllipseGraphic()
-        region.bounds = bounds
-        self.__display.add_graphic(region)
-        self.__display.graphic_selection.set(self.__display.graphics.index(region))
-        return region
-
-    def create_line(self, pos):
-        pos = tuple(pos)
-        self.__display.graphic_selection.clear()
-        region = Graphics.LineGraphic()
-        region.start = pos
-        region.end = pos
-        self.__display.add_graphic(region)
-        self.__display.graphic_selection.set(self.__display.graphics.index(region))
-        return region
-
-    def create_point(self, pos):
-        pos = tuple(pos)
-        self.__display.graphic_selection.clear()
-        region = Graphics.PointGraphic()
-        region.position = pos
-        self.__display.add_graphic(region)
-        self.__display.graphic_selection.set(self.__display.graphics.index(region))
-        return region
-
-    def create_line_profile(self, pos):
-        pos = tuple(pos)
-        self.__display.graphic_selection.clear()
-        line_profile_region = Graphics.LineProfileGraphic()
-        line_profile_region.start = pos
-        line_profile_region.end = pos
-        self.__display.add_graphic(line_profile_region)
-        self.__delegate.display_line_profile(self.__display, line_profile_region)
-        return line_profile_region
-
-    def create_spot(self, pos):
-        bounds = tuple(pos), (0, 0)
-        self.__display.graphic_selection.clear()
-        region = Graphics.SpotGraphic()
-        region.bounds = bounds
-        self.__display.add_graphic(region)
-        self.__display.graphic_selection.set(self.__display.graphics.index(region))
-        return region
-
-    def create_wedge(self, angle):
-        self.__display.graphic_selection.clear()
-        region = Graphics.WedgeGraphic()
-        region.end_angle = angle
-        region.start_angle = angle + math.pi
-        self.__display.add_graphic(region)
-        self.__display.graphic_selection.set(self.__display.graphics.index(region))
-        return region
-
-    def create_ring(self, radius):
-        self.__display.graphic_selection.clear()
-        region = Graphics.RingGraphic()
-        region.radius_1 = radius
-        self.__display.add_graphic(region)
-        self.__display.graphic_selection.set(self.__display.graphics.index(region))
-        return region
-
-
 class DisplayTypeMonitor:
     """Monitor a display for changes to the display type.
 
@@ -637,11 +385,11 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
 
         if self.__display:
             self.__related_items_changed_listener = self.__document_model.related_items_changed.listen(self.__related_items_changed)
-
-        if self.__display:
             source_displays = self.__document_model.get_source_displays(self.__display)
             dependent_displays = self.__document_model.get_dependent_displays(self.__display)
             self.__related_items_changed(self.__display, source_displays, dependent_displays)
+        else:
+            self.__related_items_changed(self.__display, [], [])
 
 
 class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
@@ -651,7 +399,7 @@ class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
         self.__delegate = delegate
 
     def context_menu_event(self, x, y, gx, gy):
-        self.__delegate.show_context_menu(gx, gy)
+        self.__delegate.show_display_context_menu(gx, gy)
 
     @property
     def default_aspect_ratio(self):
@@ -693,84 +441,6 @@ class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
         drawing_context.restore()
 
 
-class DisplayCanvasItemDelegate:
-    def __init__(self, ui, display_panel, on_begin_drag):
-        self.__ui = ui
-        self.__display_panel = display_panel
-        self.on_begin_drag = on_begin_drag
-
-    @property
-    def tool_mode(self):
-        return self.__display_panel.document_controller.tool_mode
-
-    @tool_mode.setter
-    def tool_mode(self, value):
-        self.__display_panel.document_controller.tool_mode = value
-
-    def show_context_menu(self, display, gx, gy):
-        document_controller = self.__display_panel.document_controller
-        document_model = document_controller.document_model
-        menu = document_controller.create_context_menu_for_display(display, container=document_model)
-        return self.__display_panel.show_context_menu(menu, gx, gy)
-
-    def begin_display_transaction(self, display: Display.Display) -> None:
-        self.__display_panel.document_controller.document_model.begin_display_transaction(display)
-
-    def end_display_transaction(self, display: Display.Display) -> None:
-        self.__display_panel.document_controller.document_model.end_display_transaction(display)
-
-    def image_clicked(self, image_position, modifiers):
-        return self.__display_panel.image_clicked(image_position, modifiers)
-
-    def image_mouse_pressed(self, image_position, modifiers):
-        return self.__display_panel.image_mouse_pressed(image_position, modifiers)
-
-    def image_mouse_released(self, image_position, modifiers):
-        return self.__display_panel.image_mouse_released(image_position, modifiers)
-
-    def image_mouse_position_changed(self, image_position, modifiers):
-        return self.__display_panel.image_mouse_position_changed(image_position, modifiers)
-
-    def remove_selected_graphic(self):
-        if self.__display_panel.document_controller.remove_selected_graphics():
-            return True
-        return False
-
-    def cursor_changed(self, display: Display.Display, pos):
-        position_text, value_text = str(), str()
-        try:
-            position_text, value_text = display.get_value_and_position_text(pos)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-        if position_text and value_text:
-            self.__display_panel.document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
-        else:
-            self.__display_panel.document_controller.cursor_changed(None)
-
-    def display_line_profile(self, display: Display.Display, line_profile_region: Graphics.LineTypeGraphic):
-        data_item = display.container
-        if isinstance(data_item, DataItem.DataItem):
-            document_controller = self.__display_panel.document_controller
-            document_model = document_controller.document_model
-            line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
-            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
-            document_controller.display_data_item(new_display_specifier)
-
-    def drag_graphics(self, display: Display.Display, graphics):
-        data_item = display.container
-        if isinstance(data_item, DataItem.DataItem):
-            mime_data = self.__ui.create_mime_data()
-            mime_data_content = dict()
-            mime_data_content["data_item_uuid"] = str(data_item.uuid)
-            if graphics and len(graphics) == 1:
-                mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
-            mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
-            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.displays[0])
-            if callable(self.on_begin_drag):
-                self.on_begin_drag(mime_data, thumbnail_data)
-
-
 class DisplayPanel(CanvasItem.CanvasItemComposition):
     """A canvas item to display a library item. Allows library item to be changed."""
 
@@ -782,7 +452,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
         self.__identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
         self.ui = document_controller.ui
-        self.layout = CanvasItem.CanvasItemColumnLayout()
 
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
@@ -796,6 +465,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__footer_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         self.__footer_canvas_item.sizing.collapsible = True
 
+        self.layout = CanvasItem.CanvasItemColumnLayout()
         self.add_canvas_item(self.__header_canvas_item)
         self.add_canvas_item(self.__content_canvas_item)
         self.add_canvas_item(self.__footer_canvas_item)
@@ -844,6 +514,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         ui = document_controller.ui
 
         self.__display = None
+        self.__delegate = None
         self.__display_property_changed_event_listener = None
 
         # if the item displayed in this panel gets deleted, remove it from this panel.
@@ -858,16 +529,22 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         # the display panel controller is an object which adds and controls additional UI on top of this display.
         self.__display_panel_controller = None
 
-        # the display canvas item delegate is an object that provides the canvas item displaying the data item.
+        # used for the (optional) display canvas item
+        self.__closing_lock = threading.RLock()
+        self.__display_changed_event_listener = None
+        self.__display_graphic_selection_changed_event_listener = None
+        self.__next_calculated_display_values_listener = None
+        self.__display_type_changed_event_listener = None
+        self.__display_type_monitor = None
         self.__display_canvas_item = None
 
         self.__related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, document_model)
         self.__related_icons_canvas_item.on_drag = document_controller.drag
 
         # the data item panel consists of the data item display canvas item and the related icons canvas item
-        self.__display_panel_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__display_composition_canvas_item = CanvasItem.CanvasItemComposition()
 
-        self.__display_panel_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
+        self.__display_composition_canvas_item.add_canvas_item(self.__related_icons_canvas_item)
 
         self.__selection = document_controller.filtered_displays_model.make_selection()
 
@@ -942,13 +619,13 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         # the column composition layout permits displaying data item and horizontal browser simultaneously and also the
         # data item and grid as the only items just by selecting hiding/showing individual canvas items.
-        self.__combo_canvas_item = CanvasItem.CanvasItemComposition()
-        self.__combo_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
-        self.__combo_canvas_item.add_canvas_item(self.__display_panel_canvas_item)
-        self.__combo_canvas_item.add_canvas_item(self.__horizontal_browser_canvas_item)
-        self.__combo_canvas_item.add_canvas_item(self.__grid_browser_canvas_item)
+        self.__browser_composition_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__browser_composition_canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__browser_composition_canvas_item.add_canvas_item(self.__display_composition_canvas_item)
+        self.__browser_composition_canvas_item.add_canvas_item(self.__horizontal_browser_canvas_item)
+        self.__browser_composition_canvas_item.add_canvas_item(self.__grid_browser_canvas_item)
 
-        self.__content_canvas_item.add_canvas_item(self.__combo_canvas_item)
+        self.__content_canvas_item.add_canvas_item(self.__browser_composition_canvas_item)
 
         self.__display_changed = False  # put this at end of init to avoid transient initialization states
 
@@ -957,10 +634,25 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
+        with self.__closing_lock:  # ensures that display pipeline finishes
+            if self.__display_changed_event_listener:
+                self.__display_changed_event_listener.close()
+                self.__display_changed_event_listener = None
+            if self.__display_graphic_selection_changed_event_listener:
+                self.__display_graphic_selection_changed_event_listener.close()
+                self.__display_graphic_selection_changed_event_listener = None
+            if self.__next_calculated_display_values_listener:
+                self.__next_calculated_display_values_listener.close()
+                self.__next_calculated_display_values_listener = None
+            if self.__display_type_changed_event_listener:
+                self.__display_type_changed_event_listener.close()
+                self.__display_type_changed_event_listener = None
+            if self.__display_type_monitor:
+                self.__display_type_monitor.close()
+                self.__display_type_monitor = None
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
         self.__item_removed_event_listener.close()
         self.__item_removed_event_listener = None
-        self.__display_canvas_item = None
         self.set_display(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
         self.__horizontal_data_grid_controller.close()
@@ -997,12 +689,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.__display_panel_controller
 
     @property
-    def _display_canvas_item_delegate(self):
-        return self.__display_canvas_item
-
-    @property
     def _display_canvas_item(self):
-        return self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
+        return self.display_canvas_item
 
     @property
     def _display_items_for_test(self):
@@ -1052,7 +740,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     @property
     def display_canvas_item(self):
-        return self._display_canvas_item
+        return self.__display_canvas_item
 
     @property
     def display_panel_type(self):
@@ -1187,17 +875,22 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         did_display_change = self.__display != display
 
         self.__display = display
+        self.__delegate = None
 
         # remove any existing display canvas item
-        if len(self.__display_panel_canvas_item.canvas_items) > 1:
-            self.__display_panel_canvas_item.remove_canvas_item(self.__display_panel_canvas_item.canvas_items[0])
+        if len(self.__display_composition_canvas_item.canvas_items) > 1:
+            self.__display_composition_canvas_item.remove_canvas_item(self.__display_composition_canvas_item.canvas_items[0])
             self.__display_canvas_item = None
 
         # if there is a new display, create a canvas item for it and add it to the container canvas item.
         if display:
-            delegate = DisplayCanvasItemDelegate(self.ui, self, self.__begin_drag)
-            self.__display_canvas_item = DisplayCanvasItem(display, delegate, self.ui.get_font_metrics, self.__document_controller.event_loop)
-            self.__display_panel_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
+            display_type = display.actual_display_type if display else None
+
+            self.__display_canvas_item = create_display_canvas_item(display_type, self.ui.get_font_metrics, self, self.__document_controller.event_loop)
+
+            self.__display_composition_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
+
+            self.__configure_display()  # setup data connections
 
         # update the related icons canvas item with the new display.
         self.__related_icons_canvas_item.set_display(display)
@@ -1214,13 +907,60 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         display_property_changed("title")
 
         # update want mouse and selected status.
-        if self.__display_panel_canvas_item:  # may be closed
-            self.__display_panel_canvas_item.wants_mouse_events = self.__display_canvas_item is None
-            self.__display_panel_canvas_item.selected = display is not None and self._is_selected()
+        if self.__display_composition_canvas_item:  # may be closed
+            self.__display_composition_canvas_item.wants_mouse_events = self.__display_canvas_item is None
+            self.__display_composition_canvas_item.selected = display is not None and self._is_selected()
 
         if did_display_change:
             if self._is_focused:
                 self.__document_controller.notify_focused_data_item_changed(self.data_item)
+
+    def __configure_display(self):
+        display = self.__display
+
+        def display_type_changed(display_type):
+            # called when the display type of the data item changes.
+            old_display_canvas_item = self.__display_canvas_item
+            new_display_canvas_item = create_display_canvas_item(display_type, self.ui.get_font_metrics, self, self.__document_controller.event_loop)
+            self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
+            self.__display_canvas_item = new_display_canvas_item
+
+        self.__display_type_monitor = DisplayTypeMonitor(display)
+        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
+
+        def display_graphic_selection_changed(graphic_selection):
+            # this message comes from the display when the graphic selection changes
+            self.__display_canvas_item.update_regions(display, graphic_selection)
+
+        def display_rgba_changed(display_values):
+            with self.__closing_lock:
+                self.__display_canvas_item.display_rgba_changed(display, display_values)
+
+        def display_data_and_metadata_changed(display_values):
+            with self.__closing_lock:
+                self.__display_canvas_item.display_data_and_metadata_changed(display, display_values)
+
+        def display_changed():
+            # called when anything in the data item changes, including things like graphics or the data itself.
+            # update the display canvas, etc.
+            # thread safe
+            display_values = display.get_calculated_display_values()
+            display_data_and_metadata_changed(display_values)
+            display_graphic_selection_changed(display.graphic_selection)
+            # note: rgba data will be handled separately in next calculated display values
+
+        def handle_next_calculated_display_values():
+            display_values = display.get_calculated_display_values()
+            display_rgba_changed(display_values)
+            display_data_and_metadata_changed(display_values)
+
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
+        self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+        self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
+
+        # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
+        # layer items (image/line plot) get shut down.
+        display_changed()
 
     def _select(self):
         self.content_canvas_item.request_focus()
@@ -1283,7 +1023,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_pressed(self, key):
-        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
+        display_canvas_item = self.__display_canvas_item
         if display_canvas_item and display_canvas_item.key_pressed(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
@@ -1298,7 +1038,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def __cycle_display(self):
         # the second part of the if statement below handles the case where the data item has been changed by
         # the user so the cycle should go back to the main display.
-        if self.__display_panel_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__display_changed):
+        if self.__display_composition_canvas_item.visible and (not self.__horizontal_browser_canvas_item.visible or not self.__display_changed):
             if self.__horizontal_browser_canvas_item.visible:
                 self.__switch_to_grid_browser()
                 self.__update_selection_to_display()
@@ -1320,24 +1060,24 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__grid_data_grid_controller.make_selection_visible()
 
     def __switch_to_no_browser(self):
-        self.__display_panel_canvas_item.visible = True
+        self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = False
 
     def __switch_to_horizontal_browser(self):
-        self.__display_panel_canvas_item.visible = True
+        self.__display_composition_canvas_item.visible = True
         self.__horizontal_browser_canvas_item.visible = True
         self.__grid_browser_canvas_item.visible = False
 
     def __switch_to_grid_browser(self):
-        self.__display_panel_canvas_item.visible = False
+        self.__display_composition_canvas_item.visible = False
         self.__horizontal_browser_canvas_item.visible = False
         self.__grid_browser_canvas_item.visible = True
 
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_released(self, key):
-        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
+        display_canvas_item = self.__display_canvas_item
         if display_canvas_item and display_canvas_item.key_released(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_released(key):
@@ -1373,7 +1113,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
-        display_canvas_item = self.__display_canvas_item.display_canvas_item if self.__display_canvas_item else None
+        display_canvas_item = self.__display_canvas_item
         target = display_canvas_item
         if hasattr(target, fn):
             getattr(target, fn)(*args, **keywords)
@@ -1391,6 +1131,171 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             display = None
         self.set_display(display)
         self.__display_changed = True
+
+    # messages from the display canvas item
+
+    def add_index_to_selection(self, index):
+        self.__display.graphic_selection.add(index)
+
+    def remove_index_from_selection(self, index):
+        self.__display.graphic_selection.remove(index)
+
+    def set_selection(self, index):
+        self.__display.graphic_selection.set(index)
+
+    def clear_selection(self):
+        self.__display.graphic_selection.clear()
+
+    def add_and_select_region(self, region: Graphics.Graphic):
+        self.__display.add_graphic(region)  # this will also make a drawn graphic
+        # hack to select it. it will be the last item.
+        self.__display.graphic_selection.set(len(self.__display.graphics) - 1)
+
+    def nudge_selected_graphics(self, mapping, delta):
+        all_graphics = self.__display.graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
+        for graphic in graphics:
+            graphic.nudge(mapping, delta)
+
+    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
+        with self.__display._changes():
+            for graphic in graphic_drag_items:
+                index = self.__display.graphics.index(graphic)
+                part_data = (graphic_drag_part, ) + graphic_part_data[index]
+                graphic.adjust_part(widget_mapping, graphic_drag_start_pos, Geometry.IntPoint.make(pos), part_data, modifiers)
+
+    @property
+    def tool_mode(self):
+        return self.__document_controller.tool_mode
+
+    @tool_mode.setter
+    def tool_mode(self, value):
+        self.__document_controller.tool_mode = value
+
+    def show_display_context_menu(self, gx, gy):
+        document_controller = self.__document_controller
+        menu = document_controller.create_context_menu_for_display(self.__display, container=document_controller.document_model)
+        return self.show_context_menu(menu, gx, gy)
+
+    def begin_mouse_tracking(self):
+        self.__document_controller.document_model.begin_display_transaction(self.__display)
+
+    def end_mouse_tracking(self):
+        self.__document_controller.document_model.end_display_transaction(self.__display)
+
+    def delete_key_pressed(self):
+        return self.__document_controller.remove_selected_graphics()
+
+    def enter_key_pressed(self):
+        return self.__display_canvas_item.handle_auto_display(self.__display)
+
+    def cursor_changed(self, pos):
+        position_text, value_text = str(), str()
+        try:
+            position_text, value_text = self.__display.get_value_and_position_text(pos)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        if position_text and value_text:
+            self.__document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
+        else:
+            self.__document_controller.cursor_changed(None)
+
+    def drag_graphics(self, graphics):
+        data_item = self.__display.container
+        if isinstance(data_item, DataItem.DataItem):
+            mime_data = self.ui.create_mime_data()
+            mime_data_content = dict()
+            mime_data_content["data_item_uuid"] = str(data_item.uuid)
+            if graphics and len(graphics) == 1:
+                mime_data_content["graphic_uuid"] = str(graphics[0].uuid)
+            mime_data.set_data_as_string(DataItem.DataSource.DATA_SOURCE_MIME_TYPE, json.dumps(mime_data_content))
+            thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(data_item.displays[0])
+            self.__begin_drag(mime_data, thumbnail_data)
+
+    def update_display_properties(self, display_properties):
+        for key, value in iter(display_properties.items()):
+            setattr(self.__display, key, value)
+
+    def create_rectangle(self, pos):
+        bounds = tuple(pos), (0, 0)
+        self.__display.graphic_selection.clear()
+        region = Graphics.RectangleGraphic()
+        region.bounds = bounds
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
+
+    def create_ellipse(self, pos):
+        bounds = tuple(pos), (0, 0)
+        self.__display.graphic_selection.clear()
+        region = Graphics.EllipseGraphic()
+        region.bounds = bounds
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
+
+    def create_line(self, pos):
+        pos = tuple(pos)
+        self.__display.graphic_selection.clear()
+        region = Graphics.LineGraphic()
+        region.start = pos
+        region.end = pos
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
+
+    def create_point(self, pos):
+        pos = tuple(pos)
+        self.__display.graphic_selection.clear()
+        region = Graphics.PointGraphic()
+        region.position = pos
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
+
+    def create_line_profile(self, pos):
+        data_item = self.__display.container
+        if isinstance(data_item, DataItem.DataItem):
+            pos = tuple(pos)
+            self.__display.graphic_selection.clear()
+            line_profile_region = Graphics.LineProfileGraphic()
+            line_profile_region.start = pos
+            line_profile_region.end = pos
+            self.__display.add_graphic(line_profile_region)
+            document_controller = self.__document_controller
+            document_model = document_controller.document_model
+            line_profile_data_item = document_model.get_line_profile_new(data_item, None, line_profile_region)
+            new_display_specifier = DataItem.DisplaySpecifier.from_data_item(line_profile_data_item)
+            document_controller.display_data_item(new_display_specifier)
+            return line_profile_region
+        return None
+
+    def create_spot(self, pos):
+        bounds = tuple(pos), (0, 0)
+        self.__display.graphic_selection.clear()
+        region = Graphics.SpotGraphic()
+        region.bounds = bounds
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
+
+    def create_wedge(self, angle):
+        self.__display.graphic_selection.clear()
+        region = Graphics.WedgeGraphic()
+        region.end_angle = angle
+        region.start_angle = angle + math.pi
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
+
+    def create_ring(self, radius):
+        self.__display.graphic_selection.clear()
+        region = Graphics.RingGraphic()
+        region.radius_1 = radius
+        self.__display.add_graphic(region)
+        self.__display.graphic_selection.set(self.__display.graphics.index(region))
+        return region
 
 
 class DisplayPanelManager(metaclass=Utility.Singleton):

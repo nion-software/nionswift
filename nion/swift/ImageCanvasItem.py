@@ -271,7 +271,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         nudge_selected_graphics(mapping, delta)
         update_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers)
         tool_mode (property)
-        show_context_menu(gx, gy)
+        show_display_context_menu(gx, gy)
         begin_mouse_tracking(self)
         end_mouse_tracking()
         mouse_clicked(image_position, modifiers)
@@ -927,7 +927,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         return True
 
     def context_menu_event(self, x, y, gx, gy):
-        return self.delegate.show_context_menu(gx, gy)
+        return self.delegate.show_display_context_menu(gx, gy)
 
     # ths message comes from the widget
     def key_pressed(self, key):

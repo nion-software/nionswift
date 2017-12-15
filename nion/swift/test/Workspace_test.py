@@ -560,8 +560,8 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.display_panels[1]._drag_finished(document_controller, "move")
             self.assertEqual(document_controller.workspace_controller.display_panels[0].data_item, data_item2)
             self.assertEqual(document_controller.workspace_controller.display_panels[1].data_item, data_item1)
-            self.assertEqual(document_controller.workspace_controller.display_panels[0]._display_canvas_item_delegate._display.container, data_item2)
-            self.assertEqual(document_controller.workspace_controller.display_panels[1]._display_canvas_item_delegate._display.container, data_item1)
+            self.assertEqual(document_controller.workspace_controller.display_panels[0].display.container, data_item2)
+            self.assertEqual(document_controller.workspace_controller.display_panels[1].display.container, data_item1)
 
     def test_clicking_in_header_selects_and_focuses_display_panel(self):
         document_model = DocumentModel.DocumentModel()
@@ -800,7 +800,7 @@ class TestWorkspaceClass(unittest.TestCase):
             self.assertTrue(isinstance(display_panel._display_panel_controller_for_test, TestWorkspaceClass.DisplayPanelController))
             display_panel_controller = display_panel._display_panel_controller_for_test
             self.assertFalse(display_panel_controller.closed)
-            display_panel.restore_contents({"type": "image"})
+            display_panel.change_display_panel_content({"type": "image"})
             self.assertIsNone(display_panel._display_panel_controller_for_test)
             self.assertTrue(display_panel_controller.closed)  # the old one
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
