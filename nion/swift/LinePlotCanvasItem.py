@@ -36,6 +36,44 @@ class LinePlotCanvasItemMapping(object):
         return x * self.__data_size[-1]
 
 
+class LinePlotCanvasItemDelegate:
+    # interface must be implemented by the delegate
+
+    def begin_mouse_tracking(self) -> None: ...
+
+    def end_mouse_tracking(self) -> None: ...
+
+    def delete_key_pressed(self) -> None: ...
+
+    def enter_key_pressed(self) -> None: ...
+
+    def cursor_changed(self, pos): ...
+
+    def update_display_properties(self, display_properties: dict) -> None: ...
+
+    def add_index_to_selection(self, index: int) -> None: ...
+
+    def remove_index_from_selection(self, index: int) -> None: ...
+
+    def set_selection(self, index: int) -> None: ...
+
+    def clear_selection(self) -> None: ...
+
+    def add_and_select_region(self, region: Graphics.Graphic) -> None: ...
+
+    def nudge_selected_graphics(self, mapping, delta) -> None: ...
+
+    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
+
+    def show_display_context_menu(self, gx, gy) -> bool: ...
+
+    @property
+    def tool_mode(self) -> str: return str()
+
+    @tool_mode.setter
+    def tool_mode(self, value: str) ->None: ...
+
+
 class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     """Display a line plot.
 
@@ -67,7 +105,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     not trigger another repaint from within the existing repaint.
     """
 
-    def __init__(self, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
+    def __init__(self, get_font_metrics_fn, delegate: LinePlotCanvasItemDelegate, event_loop, draw_background: bool=True):
         super(LinePlotCanvasItem, self).__init__()
 
         self.__get_font_metrics_fn = get_font_metrics_fn
@@ -165,7 +203,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__legend_labels = None
 
         self.__graphics = list()
-        self.__graphic_selection = set()
+        self.__graphic_selection = None
 
         # frame rate
         self.__display_frame_rate_id = None

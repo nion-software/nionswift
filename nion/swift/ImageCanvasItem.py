@@ -253,6 +253,66 @@ class InfoOverlayCanvasItem(CanvasItem.AbstractCanvasItem):
                         drawing_context.fill_text(self.__info_text, origin[1], origin[0] - scale_marker_height - 4 - 20)
 
 
+class ImageCanvasItemDelegate:
+    # interface must be implemented by the delegate
+
+    def begin_mouse_tracking(self) -> None: ...
+
+    def end_mouse_tracking(self) -> None: ...
+
+    def delete_key_pressed(self) -> None: ...
+
+    def enter_key_pressed(self) -> None: ...
+
+    def cursor_changed(self, pos): ...
+
+    def add_index_to_selection(self, index: int) -> None: ...
+
+    def remove_index_from_selection(self, index: int) -> None: ...
+
+    def set_selection(self, index: int) -> None: ...
+
+    def clear_selection(self) -> None: ...
+
+    def nudge_selected_graphics(self, mapping, delta) -> None: ...
+
+    def drag_graphics(self, graphics) -> None: ...
+
+    def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers) -> None: ...
+
+    def image_clicked(self, image_position, modifiers) -> bool: ...
+
+    def image_mouse_pressed(self, image_position, modifiers) -> bool: ...
+
+    def image_mouse_released(self, image_position, modifiers) -> bool: ...
+
+    def image_mouse_position_changed(self, image_position, modifiers) -> bool: ...
+
+    def show_display_context_menu(self, gx, gy) -> bool: ...
+
+    def create_rectangle(self, pos): ...
+
+    def create_ellipse(self, pos): ...
+
+    def create_line(self, pos): ...
+
+    def create_point(self, pos): ...
+
+    def create_line_profile(self, pos): ...
+
+    def create_spot(self, pos): ...
+
+    def create_wedge(self, angle): ...
+
+    def create_ring(self, radius): ...
+
+    @property
+    def tool_mode(self) -> str: return str()
+
+    @tool_mode.setter
+    def tool_mode(self, value: str) ->None: ...
+
+
 class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     """A canvas item to paint an image.
 
@@ -278,10 +338,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         delete_key_pressed()
         enter_key_pressed()
         cursor_changed(pos)
-        update_display_properties(display_properties)
     """
 
-    def __init__(self, get_font_metrics_fn, delegate, event_loop, draw_background: bool=True):
+    def __init__(self, get_font_metrics_fn, delegate: ImageCanvasItemDelegate, event_loop, draw_background: bool=True):
         super().__init__()
 
         self.__get_font_metrics_fn = get_font_metrics_fn
@@ -333,7 +392,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_values = None
         self.__data_shape = None
         self.__graphics = list()
-        self.__graphic_selection = set()
+        self.__graphic_selection = None
 
         # used for dragging graphic items
         self.__graphic_drag_items = []

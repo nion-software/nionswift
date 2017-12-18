@@ -11,6 +11,25 @@ from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 
+class DisplayScriptCanvasItemDelegate:
+    # interface must be implemented by the delegate
+
+    def begin_mouse_tracking(self) -> None: ...
+
+    def end_mouse_tracking(self) -> None: ...
+
+    def delete_key_pressed(self) -> None: ...
+
+    def enter_key_pressed(self) -> None: ...
+
+    def cursor_changed(self, pos): ...
+
+    def show_display_context_menu(self, gx, gy) -> bool: ...
+
+    @property
+    def tool_mode(self) -> str: return str()
+
+
 class DisplayScriptCanvasItem(CanvasItem.LayerCanvasItem):
     """Display a custom display using a script.
 
