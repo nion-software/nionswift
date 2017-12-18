@@ -204,7 +204,7 @@ class ThumbnailSource(ReferenceCounting.ReferenceCounted):
                 self.__thumbnail_processor.close()
                 self.__thumbnail_processor = None
 
-        self.__display_will_close_listener = display.will_close_event.listen(display_will_close)
+        self.__display_will_close_listener = display.about_to_be_removed_event.listen(display_will_close)
 
     def close(self):
         self.remove_ref()

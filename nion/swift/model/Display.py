@@ -343,9 +343,24 @@ class DisplayValues:
 
 
 class Display(Observable.Observable, Persistence.PersistentObject):
-    """Display information for a DataItem.
+    """The display properties for a DataItem.
 
     Also handles conversion of raw data to formats suitable for display such as raster RGBA.
+
+    Display data is the associated data item data after it has been reduced to basic form (1d, 2d) by slicing and/or
+    conversion to scalar.
+
+    RGB data is the display data after it has been converted to RGB for raster display.
+
+    In order to be able to efficiently route data in a thread, and also to make the data consistent with a snapshot
+    in time, display data and RGB data is managed via a DisplayValues object.
+
+    In addition to regular observable events, this class also generates the following events:
+        - about_to_be_removed_event: fired when about to be removed from parent container.
+        - display_changed_event: fired when display changes in a way to affect drawing.
+        - display_data_will_change_event: fired when display data changes.
+        - display_type_changed_event: fired when the display type changes.
+        - display_graphic_selection_changed_event: fired when the graphic selection changes.
     """
 
     def __init__(self):
@@ -353,28 +368,35 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__container_weak_ref = None
         self.__cache = Cache.ShadowCache()
         self.__color_map_data = None
+        # display type to use
         self.define_property("display_type", changed=self.__display_type_changed)
+        # conversion to scalar
         self.define_property("complex_display_type", changed=self.__property_changed)
+        # calibration display
         self.define_property("display_calibrated_values", True, changed=self.__property_changed)
         self.define_property("dimensional_calibration_style", None, changed=self.__property_changed)
+        # data scaling and color (raster)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__property_changed)
+        self.define_property("color_map_id", changed=self.__color_map_id_changed)
+        # line plot axes and labels
         self.define_property("y_min", changed=self.__property_changed)
         self.define_property("y_max", changed=self.__property_changed)
         self.define_property("y_style", "linear", changed=self.__property_changed)
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("legend_labels", changed=self.__property_changed)
+        # slicing data to 1d or 2d
         self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
         self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__property_changed)
         self.define_property("slice_center", 0, validate=self.__validate_slice_center, changed=self.__slice_interval_changed)
         self.define_property("slice_width", 1, validate=self.__validate_slice_width, changed=self.__slice_interval_changed)
-        self.define_property("color_map_id", changed=self.__color_map_id_changed)
+        # display script
         self.define_property("display_script", changed=self.__property_changed)
+        # graphics
         self.define_relationship("graphics", Graphics.factory, insert=self.__insert_graphic, remove=self.__remove_graphic)
 
         self.__title = None  # not persistent during display panel transition
 
-        self.will_close_event = Event.Event()  # for shutting down thumbnails; hopefully temporary.
         self.item_changed_event = Event.Event()  # for indicated this display has mutated somehow
 
         # # last display values is the last one to be fully displayed.
@@ -405,7 +427,6 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
 
     def close(self):
-        self.will_close_event.fire()
         self.__graphic_selection_changed_event_listener.close()
         self.__graphic_selection_changed_event_listener = None
         for graphic in copy.copy(self.graphics):
