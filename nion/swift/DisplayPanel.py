@@ -516,15 +516,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display = None
         self.__delegate = None
         self.__display_property_changed_event_listener = None
-
-        # if the item displayed in this panel gets deleted, remove it from this panel.
-        # called when an item is removed from the document
-        def item_removed(key, value, index):
-            if value == self.__display:
-                self.set_display(None)
+        self.__display_about_to_be_removed_event_listener = None
 
         document_model = self.__document_controller.document_model
-        self.__item_removed_event_listener = document_model.displays_list_model.item_removed_event.listen(item_removed)
 
         # the display panel controller is an object which adds and controls additional UI on top of this display.
         self.__display_panel_controller = None
@@ -651,8 +645,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 self.__display_type_monitor.close()
                 self.__display_type_monitor = None
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
-        self.__item_removed_event_listener.close()
-        self.__item_removed_event_listener = None
+        if self.__display_about_to_be_removed_event_listener:
+            self.__display_about_to_be_removed_event_listener.close()
+            self.__display_about_to_be_removed_event_listener = None
         self.set_display(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
         self.__horizontal_data_grid_controller.close()
@@ -872,6 +867,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__display_property_changed_event_listener.close()
             self.__display_property_changed_event_listener = None
 
+        # un-listen to the old about to remove event
+        if self.__display_about_to_be_removed_event_listener:
+            self.__display_about_to_be_removed_event_listener.close()
+            self.__display_about_to_be_removed_event_listener = None
+
         did_display_change = self.__display != display
 
         self.__display = display
@@ -884,6 +884,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         # if there is a new display, create a canvas item for it and add it to the container canvas item.
         if display:
+            def clear_display():
+                self.set_display(None)
+
+            self.__display_about_to_be_removed_event_listener = display.about_to_be_removed_event.listen(clear_display)
+
             display_type = display.actual_display_type if display else None
 
             self.__display_canvas_item = create_display_canvas_item(display_type, self.ui.get_font_metrics, self, self.__document_controller.event_loop)
