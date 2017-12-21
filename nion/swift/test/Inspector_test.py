@@ -54,9 +54,9 @@ class TestInspectrorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # configure the inspectors
-            document_controller.notify_focused_data_item_changed(data_item)
+            document_controller.notify_focused_display_changed(data_item.primary_display_specifier.display)
             document_controller.periodic()  # force UI to update
-            document_controller.notify_focused_data_item_changed(None)
+            document_controller.notify_focused_display_changed(None)
 
     def test_calibration_value_and_size_float_to_string_converter_works_with_display(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))

@@ -199,6 +199,19 @@ class TestDocumentModelClass(unittest.TestCase):
         self.assertEqual(data_item.displays[0].display_type, new_data_item.displays[0].display_type)
         self.assertEqual(new_data_item.displays[0].graphics[0].position, point_graphic.position)
 
+    def test_creating_r_var_on_library_items(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item)
+            data_item_r = document_model.assign_variable_to_library_item(data_item)
+            composite_item_r = document_model.assign_variable_to_library_item(composite_item)
+            self.assertEqual(data_item_r, "r01")
+            self.assertEqual(composite_item_r, "r02")
+
 
 if __name__ == '__main__':
     unittest.main()

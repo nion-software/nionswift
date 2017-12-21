@@ -1482,8 +1482,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def remove_model_item(self, container, name, item):
         self.__cascade_delete(item)
 
-    def assign_variable_to_data_item(self, data_item: DataItem.DataItem) -> str:
-        if not data_item.r_var:
+    def assign_variable_to_library_item(self, library_item: DataItem.LibraryItem) -> str:
+        if not library_item.r_var:
             data_item_variables = self._get_persistent_property_value("data_item_variables")
             def find_var() -> str:
                 for r in range(1, 1000000):
@@ -1492,10 +1492,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         return r_var
                 return str()
             data_item_var = find_var()
-            data_item_variables[data_item_var] = str(data_item.uuid)
-            data_item.set_r_value(data_item_var)
+            data_item_variables[data_item_var] = str(library_item.uuid)
+            library_item.set_r_value(data_item_var)
             self._set_persistent_property_value("data_item_variables", data_item_variables)
-        return data_item.r_var
+        return library_item.r_var
 
     def variable_to_data_item_map(self) -> typing.Mapping[str, DataItem.DataItem]:
         m = dict()

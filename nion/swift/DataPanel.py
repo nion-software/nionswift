@@ -1209,13 +1209,10 @@ class DataPanel(Panel.Panel):
     def __notify_focus_changed(self):
         if self.__focused:
             if len(self.__selection.indexes) == 1:
-                data_item = self.__filtered_display_items_model.display_items[list(self.__selection.indexes)[0]].data_item
-                if isinstance(data_item, DataItem.DataItem):
-                    self.document_controller.notify_focused_data_item_changed(data_item)
-                else:
-                    self.document_controller.notify_focused_data_item_changed(None)
+                display = self.__filtered_display_items_model.display_items[list(self.__selection.indexes)[0]].display
+                self.document_controller.notify_focused_display_changed(display)
             else:
-                self.document_controller.notify_focused_data_item_changed(None)
+                self.document_controller.notify_focused_display_changed(None)
 
     @property
     def focused(self):

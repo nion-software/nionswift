@@ -359,7 +359,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data = ((numpy.random.randn(2, 2) + 1) * 10).astype(numpy.int32)
             data_item = DataItem.DataItem(data)
             document_model.append_data_item(data_item)
-            data_item_r = document_model.assign_variable_to_data_item(data_item)
+            data_item_r = document_model.assign_variable_to_library_item(data_item)
             computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2".format(data_item_r))
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, data*2))
@@ -375,9 +375,9 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             data_item3 = DataItem.DataItem(numpy.copy(data))
             document_model.append_data_item(data_item3)
-            data_item_r = document_model.assign_variable_to_data_item(data_item)
-            data_item_r2 = document_model.assign_variable_to_data_item(data_item2)
-            document_model.assign_variable_to_data_item(data_item3)
+            data_item_r = document_model.assign_variable_to_library_item(data_item)
+            data_item_r2 = document_model.assign_variable_to_library_item(data_item2)
+            document_model.assign_variable_to_library_item(data_item3)
             computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2 + {1}.xdata".format(data_item_r, data_item_r2))
             self.assertEqual(len(computed_data_item.computation.variables), 2)
             document_model.recompute_all()
@@ -614,6 +614,31 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
             self.assertEqual(document_controller.focused_data_item, data_item)
+
+    def test_creating_r_var_on_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(data_item)
+            document_controller.prepare_data_item_script(do_log=False)
+            self.assertEqual(data_item.r_var, "r01")
+
+    def test_creating_r_var_on_composite_item(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            document_controller.prepare_data_item_script(do_log=False)
+            self.assertEqual(composite_item.r_var, "r01")
 
 
 if __name__ == '__main__':

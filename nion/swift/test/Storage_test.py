@@ -1246,7 +1246,7 @@ class TestStorageClass(unittest.TestCase):
                 document_model.append_data_item(data_item)
                 inverted_data_item = document_model.get_invert_new(data_item)
                 document_model.recompute_all()
-                document_model.assign_variable_to_data_item(data_item)
+                document_model.assign_variable_to_library_item(data_item)
                 file_path = data_item._test_get_file_path()
             file_path_base, file_path_ext = os.path.splitext(file_path)
             shutil.copyfile(file_path, file_path_base + "_" + file_path_ext)
