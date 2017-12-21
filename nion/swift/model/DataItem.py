@@ -610,7 +610,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.r_var = None
         self._about_to_be_removed = False
         self._closed = False
-        self.add_display(Display.Display())  # always have one display, for now
 
     def __str__(self):
         return "{0} {1} ({2}, {3})".format(self.__repr__(), (self.title if self.title else _("Untitled")), str(self.uuid), self.date_for_sorting_local_as_string)
@@ -717,6 +716,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         for display in self.displays:
             libary_item.add_display(copy.deepcopy(display))
         return libary_item
+
+    @property
+    def data_items(self):
+        return tuple()
 
     def connect_data_items(self, data_items, lookup_data_item):
         pass
@@ -1079,10 +1082,13 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
 
 class CompositeLibraryItem(LibraryItem):
+    """Composite library item consists of references to other library items."""
+
     def __init__(self, item_uuid=None):
         super().__init__(item_uuid=item_uuid)
-        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.__data_items = list()
+        self.add_display(Display.Display())  # always have one display, for now
+        self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -1096,7 +1102,9 @@ class CompositeLibraryItem(LibraryItem):
         for data_item_uuid in self.data_item_uuids:
             data_item = lookup_data_item(data_item_uuid)
             if data_item in data_items:
+                before_index = len(self.__data_items)
                 self.__data_items.append(data_item)
+                self.notify_insert_item("data_items", data_item, before_index)
 
     def append_data_item(self, data_item):
         self.insert_data_item(len(self.__data_items), data_item)
@@ -1108,9 +1116,12 @@ class CompositeLibraryItem(LibraryItem):
         data_item_uuids.insert(before_index, data_item.uuid)
         self.data_item_uuids = data_item_uuids
         self.notify_property_changed("data_item_uuids")
+        self.notify_insert_item("data_items", data_item, before_index)
 
     def remove_data_item(self, data_item):
         # index = self.__data_items.index(data_item)
+        index = self.__data_items.index(data_item)
+        self.notify_remove_item("data_items", data_item, index)
         self.__data_items.remove(data_item)
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
@@ -1136,6 +1147,7 @@ class DataItem(LibraryItem):
 
     def __init__(self, data=None, item_uuid=None, large_format=False):
         super().__init__(item_uuid)
+        self.add_display(Display.Display())  # always have one display, for now
         self.large_format = large_format
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)
         self.define_item("computation", computation_factory)

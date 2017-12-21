@@ -24,6 +24,7 @@ from nion.swift.model import Cache
 from nion.swift.model import ColorMaps
 from nion.swift.model import Graphics
 from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Observable
 from nion.utils import Persistence
 
@@ -457,12 +458,15 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def about_to_be_inserted(self, container):
         assert self.__container_weak_ref is None
         self.__container_weak_ref = weakref.ref(container)
+        self.__child_displays_model = ListModel.FlattenedListModel(container=container, master_items_key="data_items", child_items_key="displays")
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
         for graphic in self.graphics:
             graphic.about_to_be_removed()
         self.about_to_be_removed_event.fire()
+        self.__child_displays_model.close()
+        self.__child_displays_model = None
         assert not self._about_to_be_removed
         self._about_to_be_removed = True
 
@@ -488,6 +492,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     @property
     def _display_cache(self):
         return self.__cache
+
+    @property
+    def child_displays_model(self):
+        return self.__child_displays_model
 
     @property
     def title(self) -> str:
@@ -665,6 +673,9 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             # override
             if self.display_script:
                 display_type = "display_script"
+        if not valid_data and len(self.__child_displays_model.items) > 0:
+            if display_type not in ("line_plot", ):
+                display_type = "composite-image"
         return display_type
 
     @property

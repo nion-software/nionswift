@@ -292,6 +292,8 @@ def create_display_canvas_item(display_type: str, get_font_metrics_fn, delegate,
         return ImageCanvasItem.ImageCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
     elif display_type == "display_script":
         return DisplayScriptCanvasItem.DisplayScriptCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
+    elif display_type == "composite-image":
+        return CompositeDisplayCanvasItem(get_font_metrics_fn, delegate, event_loop, draw_background)
     else:
         return MissingDataCanvasItem(delegate)
 
@@ -405,6 +407,12 @@ class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
     def default_aspect_ratio(self):
         return 1.0
 
+    def display_inserted(self, display, index):
+        pass
+
+    def display_removed(self, display, index):
+        pass
+
     def display_rgba_changed(self, display, display_values):
         pass
 
@@ -439,6 +447,206 @@ class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
         drawing_context.stroke_style = "#444"
         drawing_context.stroke()
         drawing_context.restore()
+
+
+class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
+    """ Canvas item to draw background_color. """
+    def __init__(self, get_font_metrics, delegate, event_loop, draw_background):
+        super().__init__()
+        self.__get_font_metrics = get_font_metrics
+        self.__delegate = delegate
+        self.__event_loop = event_loop
+        self.__draw_background = draw_background
+        self.__displays = list()
+        self.__display_trackers = list()
+        self.layout = CanvasItem.CanvasItemColumnLayout()
+        self.__closed = False
+
+    def close(self):
+        self.__closed = True
+        super().close()
+
+    def context_menu_event(self, x, y, gx, gy):
+        self.__delegate.show_display_context_menu(gx, gy)
+
+    @property
+    def default_aspect_ratio(self):
+        return 1.0
+
+    def display_inserted(self, display, index):
+        self.__displays.insert(index, display)
+        display_tracker = DisplayTracker(display, self.__get_font_metrics, self, self.__event_loop)
+        self.__display_trackers.insert(index, display_tracker)
+        self.insert_canvas_item(index, display_tracker.display_canvas_item)
+
+    def display_removed(self, display, index):
+        if not self.__closed:
+            self.remove_canvas_item(self.__display_trackers[index].display_canvas_item)
+            self.__display_trackers[index].close()
+            del self.__displays[index]
+            del self.__display_trackers[index]
+
+    def display_rgba_changed(self, display, display_values):
+        pass
+
+    def display_data_and_metadata_changed(self, display, display_values):
+        pass
+
+    def update_display_values(self, display, display_values):
+        pass
+
+    def update_regions(self, display, graphic_selection):
+        pass
+
+    def handle_auto_display(self, display) -> bool:
+        # enter key has been pressed
+        return False
+
+    @property
+    def _displays(self):
+        return tuple(self.__displays)
+
+
+class DisplayTracker:
+    """Tracks messages from a display and passes them to associated display canvas item."""
+
+    def __init__(self, display, get_font_metrics, delegate, event_loop):
+        self.__display = display
+        self.__get_font_metrics = get_font_metrics
+        self.__delegate = delegate
+        self.__event_loop = event_loop
+
+        self.__closing_lock = threading.RLock()
+
+        self.__display_canvas_item = None
+
+        # callbacks
+        self.on_clear_display = None
+        self.on_title_changed = None
+        self.on_replace_display_canvas_item = None
+
+        def clear_display():
+            if callable(self.on_clear_display):
+                self.on_clear_display()
+
+        def display_property_changed(key):
+            if key == "title":
+                if callable(self.on_title_changed):
+                    self.on_title_changed(display.title)
+
+        self.__display_about_to_be_removed_event_listener = display.about_to_be_removed_event.listen(clear_display)
+        self.__display_property_changed_event_listener = display.property_changed_event.listen(display_property_changed)
+
+        # ensure data stays in memory while displayed
+        display.increment_display_ref_count()
+
+        # create a canvas item and add it to the container canvas item.
+
+        self.__display_canvas_item = create_display_canvas_item(display.actual_display_type, get_font_metrics, delegate, event_loop)
+
+        def child_display_inserted(key, display, index):
+            self.__display_canvas_item.display_inserted(display, index)
+
+        def child_display_removed(key, display, index):
+            self.__display_canvas_item.display_removed(display, index)
+
+        self.__child_display_inserted_event_listener = display.child_displays_model.item_inserted_event.listen(child_display_inserted)
+        self.__child_display_removed_event_listener = display.child_displays_model.item_removed_event.listen(child_display_removed)
+
+        for index, child_display in enumerate(display.child_displays_model.displays):
+            child_display_inserted("displays", child_display, index)
+
+        def display_type_changed(display_type):
+            # called when the display type of the data item changes.
+
+            child_display_count = len(display.child_displays_model.displays)
+            for index, child_display in enumerate(display.child_displays_model.displays):
+                self.__display_canvas_item.display_removed(child_display, child_display_count - 1 - index)
+
+            old_display_canvas_item = self.__display_canvas_item
+            new_display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics, self.__delegate, self.__event_loop)
+            if callable(self.on_replace_display_canvas_item):
+                self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
+            self.__display_canvas_item = new_display_canvas_item
+
+            for index, child_display in enumerate(display.child_displays_model.displays):
+                self.__display_canvas_item.display_inserted(child_display, index)
+
+        self.__display_type_monitor = DisplayTypeMonitor(display)
+        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
+
+        def display_graphic_selection_changed(graphic_selection):
+            # this message comes from the display when the graphic selection changes
+            self.__display_canvas_item.update_regions(display, graphic_selection)
+
+        def display_rgba_changed(display_values):
+            with self.__closing_lock:
+                self.__display_canvas_item.display_rgba_changed(display, display_values)
+
+        def display_data_and_metadata_changed(display_values):
+            with self.__closing_lock:
+                self.__display_canvas_item.display_data_and_metadata_changed(display, display_values)
+
+        def display_changed():
+            # called when anything in the data item changes, including things like graphics or the data itself.
+            # update the display canvas, etc.
+            # thread safe
+            display_values = display.get_calculated_display_values()
+            display_data_and_metadata_changed(display_values)
+            display_graphic_selection_changed(display.graphic_selection)
+            # note: rgba data will be handled separately in next calculated display values
+
+        def handle_next_calculated_display_values():
+            display_values = display.get_calculated_display_values()
+            display_rgba_changed(display_values)
+            display_data_and_metadata_changed(display_values)
+
+        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
+        self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
+        self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
+
+        # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
+        # layer items (image/line plot) get shut down.
+        display_changed()
+
+    def close(self):
+        child_display_count = len(self.__display.child_displays_model.displays)
+        for index, child_display in enumerate(self.__display.child_displays_model.displays):
+            self.__display_canvas_item.display_removed(child_display, child_display_count - 1 - index)
+        with self.__closing_lock:  # ensures that display pipeline finishes
+            self.__display_changed_event_listener.close()
+            self.__display_changed_event_listener = None
+            self.__display_graphic_selection_changed_event_listener.close()
+            self.__display_graphic_selection_changed_event_listener = None
+            self.__next_calculated_display_values_listener.close()
+            self.__next_calculated_display_values_listener = None
+        self.__display_type_changed_event_listener.close()
+        self.__display_type_changed_event_listener = None
+        self.__display_type_monitor.close()
+        self.__display_type_monitor = None
+        self.__child_display_inserted_event_listener.close()
+        self.__child_display_inserted_event_listener = None
+        self.__child_display_removed_event_listener.close()
+        self.__child_display_removed_event_listener = None
+        # decrement the ref count on the old item to release it from memory if no longer used.
+        self.__display.decrement_display_ref_count()
+        self.__display_about_to_be_removed_event_listener.close()
+        self.__display_about_to_be_removed_event_listener = None
+        self.__display_property_changed_event_listener.close()
+        self.__display_property_changed_event_listener = None
+        self.__display_canvas_item = None
+
+    @property
+    def display(self):
+        return self.__display
+
+    @property
+    def display_canvas_item(self):
+        return self.__display_canvas_item
+
+    @display_canvas_item.setter
+    def display_canvas_item(self, value):
+        self.__display_canvas_item = value
 
 
 class DisplayPanel(CanvasItem.CanvasItemComposition):
@@ -514,9 +722,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         ui = document_controller.ui
 
         self.__display = None
-        self.__delegate = None
-        self.__display_property_changed_event_listener = None
-        self.__display_about_to_be_removed_event_listener = None
+        self.__display_tracker = None
 
         document_model = self.__document_controller.document_model
 
@@ -528,9 +734,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display_changed_event_listener = None
         self.__display_graphic_selection_changed_event_listener = None
         self.__next_calculated_display_values_listener = None
-        self.__display_type_changed_event_listener = None
-        self.__display_type_monitor = None
-        self.__display_canvas_item = None
 
         self.__related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, document_model)
         self.__related_icons_canvas_item.on_drag = document_controller.drag
@@ -629,26 +832,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     def close(self):
         with self.__closing_lock:  # ensures that display pipeline finishes
-            if self.__display_changed_event_listener:
-                self.__display_changed_event_listener.close()
-                self.__display_changed_event_listener = None
-            if self.__display_graphic_selection_changed_event_listener:
-                self.__display_graphic_selection_changed_event_listener.close()
-                self.__display_graphic_selection_changed_event_listener = None
-            if self.__next_calculated_display_values_listener:
-                self.__next_calculated_display_values_listener.close()
-                self.__next_calculated_display_values_listener = None
-            if self.__display_type_changed_event_listener:
-                self.__display_type_changed_event_listener.close()
-                self.__display_type_changed_event_listener = None
-            if self.__display_type_monitor:
-                self.__display_type_monitor.close()
-                self.__display_type_monitor = None
+            self.set_display(None)  # required before destructing display thread
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
-        if self.__display_about_to_be_removed_event_listener:
-            self.__display_about_to_be_removed_event_listener.close()
-            self.__display_about_to_be_removed_event_listener = None
-        self.set_display(None)  # required before destructing display thread
         self.__set_display_panel_controller(None)
         self.__horizontal_data_grid_controller.close()
         self.__horizontal_data_grid_controller = None
@@ -735,7 +920,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     @property
     def display_canvas_item(self):
-        return self.__display_canvas_item
+        return self.__display_tracker.display_canvas_item if self.__display_tracker else None
 
     @property
     def display_panel_type(self):
@@ -854,118 +1039,52 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         # listen for changes to display content and parameters, metadata, or the selection
         # changes to the underlying data will trigger changes in the display content
 
-        # increment ref count on new item first to ensure if it is the same as the old item, it stays in memory.
-        if display:
-            display.increment_display_ref_count()  # ensure data stays in memory while displayed
-
-        # decrement the ref count on the old item to release it if no longer used.
-        if self.__display:
-            self.__display.decrement_display_ref_count()  # release old data from memory
-
-        # un-listen to the old description changed event
-        if self.__display_property_changed_event_listener:
-            self.__display_property_changed_event_listener.close()
-            self.__display_property_changed_event_listener = None
-
-        # un-listen to the old about to remove event
-        if self.__display_about_to_be_removed_event_listener:
-            self.__display_about_to_be_removed_event_listener.close()
-            self.__display_about_to_be_removed_event_listener = None
-
         did_display_change = self.__display != display
 
+        if did_display_change:
+
+            # remove any existing display canvas item
+            if len(self.__display_composition_canvas_item.canvas_items) > 1:
+                self.__display_composition_canvas_item.remove_canvas_item(self.__display_composition_canvas_item.canvas_items[0])
+
+            old_display_tracker = self.__display_tracker
+            self.__display_tracker = None
+
+            if display:
+                def clear_display() -> None:
+                    self.set_display(None)
+
+                def handle_title_changed(title: str) -> None:
+                    self.header_canvas_item.title = title
+
+                def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):
+                    self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
+
+                self.__display_tracker = DisplayTracker(display, self.ui.get_font_metrics, self, self.__document_controller.event_loop)
+                self.__display_tracker.on_clear_display = clear_display
+                self.__display_tracker.on_title_changed = handle_title_changed
+                self.__display_tracker.on_replace_display_canvas_item = replace_display_canvas_item
+
+                self.__display_composition_canvas_item.insert_canvas_item(0, self.__display_tracker.display_canvas_item)
+
+            if old_display_tracker:
+                old_display_tracker.close()
+
         self.__display = display
-        self.__delegate = None
-
-        # remove any existing display canvas item
-        if len(self.__display_composition_canvas_item.canvas_items) > 1:
-            self.__display_composition_canvas_item.remove_canvas_item(self.__display_composition_canvas_item.canvas_items[0])
-            self.__display_canvas_item = None
-
-        # if there is a new display, create a canvas item for it and add it to the container canvas item.
-        if display:
-            def clear_display():
-                self.set_display(None)
-
-            self.__display_about_to_be_removed_event_listener = display.about_to_be_removed_event.listen(clear_display)
-
-            display_type = display.actual_display_type if display else None
-
-            self.__display_canvas_item = create_display_canvas_item(display_type, self.ui.get_font_metrics, self, self.__document_controller.event_loop)
-
-            self.__display_composition_canvas_item.insert_canvas_item(0, self.__display_canvas_item)
-
-            self.__configure_display()  # setup data connections
 
         # update the related icons canvas item with the new display.
         self.__related_icons_canvas_item.set_display(display)
 
-        # add listener for description changed, which requires updating the header title.
-
-        def display_property_changed(key):
-            if key == "title" and self.header_canvas_item:  # may be closed
-                self.header_canvas_item.title = display.title if display else None
-
-        if display:
-            self.__display_property_changed_event_listener = display.property_changed_event.listen(display_property_changed)
-
-        display_property_changed("title")
+        self.header_canvas_item.title = display.title if display else None
 
         # update want mouse and selected status.
         if self.__display_composition_canvas_item:  # may be closed
-            self.__display_composition_canvas_item.wants_mouse_events = self.__display_canvas_item is None
+            self.__display_composition_canvas_item.wants_mouse_events = self.display_canvas_item is None
             self.__display_composition_canvas_item.selected = display is not None and self._is_selected()
 
         if did_display_change:
             if self._is_focused:
                 self.__document_controller.notify_focused_data_item_changed(self.data_item)
-
-    def __configure_display(self):
-        display = self.__display
-
-        def display_type_changed(display_type):
-            # called when the display type of the data item changes.
-            old_display_canvas_item = self.__display_canvas_item
-            new_display_canvas_item = create_display_canvas_item(display_type, self.ui.get_font_metrics, self, self.__document_controller.event_loop)
-            self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
-            self.__display_canvas_item = new_display_canvas_item
-
-        self.__display_type_monitor = DisplayTypeMonitor(display)
-        self.__display_type_changed_event_listener =  self.__display_type_monitor.display_type_changed_event.listen(display_type_changed)
-
-        def display_graphic_selection_changed(graphic_selection):
-            # this message comes from the display when the graphic selection changes
-            self.__display_canvas_item.update_regions(display, graphic_selection)
-
-        def display_rgba_changed(display_values):
-            with self.__closing_lock:
-                self.__display_canvas_item.display_rgba_changed(display, display_values)
-
-        def display_data_and_metadata_changed(display_values):
-            with self.__closing_lock:
-                self.__display_canvas_item.display_data_and_metadata_changed(display, display_values)
-
-        def display_changed():
-            # called when anything in the data item changes, including things like graphics or the data itself.
-            # update the display canvas, etc.
-            # thread safe
-            display_values = display.get_calculated_display_values()
-            display_data_and_metadata_changed(display_values)
-            display_graphic_selection_changed(display.graphic_selection)
-            # note: rgba data will be handled separately in next calculated display values
-
-        def handle_next_calculated_display_values():
-            display_values = display.get_calculated_display_values()
-            display_rgba_changed(display_values)
-            display_data_and_metadata_changed(display_values)
-
-        self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
-        self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
-        self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
-
-        # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
-        # layer items (image/line plot) get shut down.
-        display_changed()
 
     def _select(self):
         self.content_canvas_item.request_focus()
@@ -1028,7 +1147,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_pressed(self, key):
-        display_canvas_item = self.__display_canvas_item
+        display_canvas_item = self.display_canvas_item
         if display_canvas_item and display_canvas_item.key_pressed(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_pressed(key):
@@ -1082,7 +1201,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # from the canvas item directly. dispatches to the display canvas item. if the display canvas item
     # doesn't handle it, gives the display controller a chance to handle it.
     def _handle_key_released(self, key):
-        display_canvas_item = self.__display_canvas_item
+        display_canvas_item = self.display_canvas_item
         if display_canvas_item and display_canvas_item.key_released(key):
             return True
         if self.__display_panel_controller and self.__display_panel_controller.key_released(key):
@@ -1118,7 +1237,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def perform_action(self, fn, *args, **keywords):
-        display_canvas_item = self.__display_canvas_item
+        display_canvas_item = self.display_canvas_item
         target = display_canvas_item
         if hasattr(target, fn):
             getattr(target, fn)(*args, **keywords)
@@ -1192,7 +1311,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.__document_controller.remove_selected_graphics()
 
     def enter_key_pressed(self):
-        return self.__display_canvas_item.handle_auto_display(self.__display)
+        return self.display_canvas_item.handle_auto_display(self.__display)
 
     def cursor_changed(self, pos):
         position_text, value_text = str(), str()

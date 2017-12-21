@@ -48,7 +48,7 @@ def create_1d_data(length=1024, data_min=0.0, data_max=1.0):
     return data
 
 
-class TestDisplayPanel(object):
+class TestDisplayPanel:
     def __init__(self):
         self.drop_region = None
     def handle_drag_enter(self, mime_data):
@@ -1407,6 +1407,63 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertEqual(data_item, document_controller.focused_data_item)
             display_panel.set_displayed_data_item(data_item2)
             self.assertEqual(data_item2, document_controller.focused_data_item)
+
+    def test_composite_library_item_produces_composite_display(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item1)
+            data_item2 = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item2)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item1)
+            composite_item.append_data_item(data_item2)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            self.assertIsInstance(display_panel._display_canvas_item, DisplayPanel.CompositeDisplayCanvasItem)
+
+    def test_changing_display_type_of_composite_updates_displays_in_canvas_item(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item1)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item1)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            composite_display = display_panel._display_canvas_item
+            self.assertSequenceEqual(data_item1.displays, composite_display._displays)
+            composite_item.displays[0].display_type = "line_plot"
+            self.assertNotEqual(composite_display, display_panel._display_canvas_item)
+            composite_item.displays[0].display_type = None
+            composite_display = display_panel._display_canvas_item
+            self.assertSequenceEqual(data_item1.displays, composite_display._displays)
+
+    def test_changing_display_type_of_child_updates_composite_display(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.random.randn(8, 8))
+            data_item1.displays[0].display_type = "image"
+            document_model.append_data_item(data_item1)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item1)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            composite_display = display_panel._display_canvas_item
+            self.assertSequenceEqual(data_item1.displays, composite_display._displays)
+            data_item1.displays[0].display_type = "line_plot"
+            composite_display = display_panel._display_canvas_item
+            self.assertSequenceEqual(data_item1.displays, composite_display._displays)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
