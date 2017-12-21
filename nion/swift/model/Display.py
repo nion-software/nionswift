@@ -343,6 +343,39 @@ class DisplayValues:
         return self.__display_rgba_timestamp
 
 
+class ObservableListEventObserver:
+
+    def __init__(self, container, key, event, fn):
+        self.__event_listeners = list()
+
+        def item_inserted(key_, value, index):
+            if key == key_:
+                def handle_event(*args, **kwargs):
+                    fn(value, *args, **kwargs)
+
+                self.__event_listeners.insert(index, getattr(value, event).listen(handle_event))
+
+        def item_removed(key_, value, index):
+            if key_ == key:
+                self.__event_listeners[index].close()
+                del self.__event_listeners[index]
+
+        self.__item_inserted_event_listener = container.item_inserted_event.listen(item_inserted)
+        self.__item_removed_event_listener = container.item_removed_event.listen(item_removed)
+
+        for index, item in enumerate(getattr(container, key)):
+            item_inserted(key, item, index)
+
+    def close(self):
+        self.__item_inserted_event_listener.close()
+        self.__item_inserted_event_listener = None
+        self.__item_removed_event_listener.close()
+        self.__item_removed_event_listener = None
+        for event_listener in self.__event_listeners:
+            event_listener.close()
+        self.__event_listeners = None
+
+
 class Display(Observable.Observable, Persistence.PersistentObject):
     """The display properties for a DataItem.
 
@@ -460,11 +493,19 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__container_weak_ref = weakref.ref(container)
         self.__child_displays_model = ListModel.FlattenedListModel(container=container, master_items_key="data_items", child_items_key="displays")
 
+        def handle_display_changed(display):
+            self.display_changed_event.fire()
+
+        # watch the child display model for insert/removes from displays; and passes on the display_changed_event for each active display
+        self.__child_display_observer = ObservableListEventObserver(self.__child_displays_model, "displays", "display_changed_event", handle_display_changed)
+
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
         for graphic in self.graphics:
             graphic.about_to_be_removed()
         self.about_to_be_removed_event.fire()
+        self.__child_display_observer.close()
+        self.__child_display_observer = None
         self.__child_displays_model.close()
         self.__child_displays_model = None
         assert not self._about_to_be_removed

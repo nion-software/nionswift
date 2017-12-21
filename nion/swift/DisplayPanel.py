@@ -394,7 +394,7 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
             self.__related_items_changed(self.__display, [], [])
 
 
-class MissingDataCanvasItem(CanvasItem.LayerCanvasItem):
+class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
     """ Canvas item to draw background_color. """
     def __init__(self, delegate):
         super().__init__()
@@ -475,7 +475,7 @@ class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
 
     def display_inserted(self, display, index):
         self.__displays.insert(index, display)
-        display_tracker = DisplayTracker(display, self.__get_font_metrics, self, self.__event_loop)
+        display_tracker = DisplayTracker(display, self.__get_font_metrics, self, self.__event_loop, self.__draw_background)
         self.__display_trackers.insert(index, display_tracker)
         self.insert_canvas_item(index, display_tracker.display_canvas_item)
 
@@ -510,11 +510,12 @@ class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
 class DisplayTracker:
     """Tracks messages from a display and passes them to associated display canvas item."""
 
-    def __init__(self, display, get_font_metrics, delegate, event_loop):
+    def __init__(self, display, get_font_metrics, delegate, event_loop, draw_background):
         self.__display = display
         self.__get_font_metrics = get_font_metrics
         self.__delegate = delegate
         self.__event_loop = event_loop
+        self.__draw_background = draw_background
 
         self.__closing_lock = threading.RLock()
 
@@ -542,7 +543,7 @@ class DisplayTracker:
 
         # create a canvas item and add it to the container canvas item.
 
-        self.__display_canvas_item = create_display_canvas_item(display.actual_display_type, get_font_metrics, delegate, event_loop)
+        self.__display_canvas_item = create_display_canvas_item(display.actual_display_type, get_font_metrics, delegate, event_loop, draw_background=self.__draw_background)
 
         def child_display_inserted(key, display, index):
             self.__display_canvas_item.display_inserted(display, index)
@@ -564,7 +565,7 @@ class DisplayTracker:
                 self.__display_canvas_item.display_removed(child_display, child_display_count - 1 - index)
 
             old_display_canvas_item = self.__display_canvas_item
-            new_display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics, self.__delegate, self.__event_loop)
+            new_display_canvas_item = create_display_canvas_item(display_type, self.__get_font_metrics, self.__delegate, self.__event_loop, draw_background=self.__draw_background)
             if callable(self.on_replace_display_canvas_item):
                 self.on_replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item)
             self.__display_canvas_item = new_display_canvas_item
@@ -1058,7 +1059,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                 def replace_display_canvas_item(old_display_canvas_item, new_display_canvas_item):
                     self.__display_composition_canvas_item.replace_canvas_item(old_display_canvas_item, new_display_canvas_item)
 
-                self.__display_tracker = DisplayTracker(display, self.ui.get_font_metrics, self, self.__document_controller.event_loop)
+                self.__display_tracker = DisplayTracker(display, self.ui.get_font_metrics, self, self.__document_controller.event_loop, True)
                 self.__display_tracker.on_clear_display = clear_display
                 self.__display_tracker.on_title_changed = handle_title_changed
                 self.__display_tracker.on_replace_display_canvas_item = replace_display_canvas_item
@@ -1533,6 +1534,8 @@ def preview(ui, display: Display.Display, width: int, height: int) -> DrawingCon
     display_canvas_item = create_display_canvas_item(display_type, ui.get_font_metrics, None, None, draw_background=False)
     if display_canvas_item:
         with contextlib.closing(display_canvas_item):
+            for index, display_ in enumerate(display.child_displays_model.displays):
+                display_canvas_item.display_inserted(display_, index)
             display_canvas_item.update_display_values(display, display_values)
             display_canvas_item.update_regions(display, Display.GraphicSelection())
 
