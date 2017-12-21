@@ -3169,6 +3169,29 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items[1].data_items), 1)
             self.assertEqual(document_model.data_items[1].data_items[0], document_model.data_items[0])
 
+    def test_composite_data_item_saves_to_file_storage(self):
+        current_working_directory = os.getcwd()
+        workspace_dir = os.path.join(current_working_directory, "__Test")
+        Cache.db_make_directory_if_needed(workspace_dir)
+        file_persistent_storage_system = DocumentModel.FileStorageSystem([workspace_dir])
+        lib_name = os.path.join(workspace_dir, "Data.nslib")
+        try:
+            library_storage = DocumentModel.FilePersistentStorage(lib_name)
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage)
+            with contextlib.closing(document_model):
+                data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
+                document_model.append_data_item(data_item0)
+                data_item = DataItem.CompositeLibraryItem()
+                data_item.append_data_item(data_item0)
+                document_model.append_data_item(data_item)
+            # read it back
+            document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, log_migrations=False)
+            with contextlib.closing(document_model):
+                self.assertEqual(len(document_model.data_items), 2)
+        finally:
+            #logging.debug("rmtree %s", workspace_dir)
+            shutil.rmtree(workspace_dir)
+
     def test_data_item_with_corrupt_created_still_loads(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])

@@ -369,7 +369,8 @@ class FileStorageSystem:
     def make_storage_handler(self, data_item, file_handler=None):
         # if there are two handlers, first is small, second is large
         # if there is only one handler, it is used in all cases
-        file_handler = file_handler if file_handler else (self.__file_handlers[-1] if data_item.large_format else self.__file_handlers[0])
+        large_format = hasattr(data_item, "large_format") and data_item.large_format
+        file_handler = file_handler if file_handler else (self.__file_handlers[-1] if large_format else self.__file_handlers[0])
         return file_handler.make(os.path.join(self.__directories[0], self.__get_default_path(data_item)))
 
 
