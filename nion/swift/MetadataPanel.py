@@ -28,24 +28,23 @@ class MetadataModel:
 
     def __init__(self, document_controller):
         self.__weak_document_controller = weakref.ref(document_controller)
-        self.__display_specifier = DataItem.DisplaySpecifier()
+        self.__library_item = None
         # thread safe.
-        def data_item_changed(data_item):
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+        def library_item_changed(library_item):
             def update_display_specifier():
-                self.__set_display_specifier(display_specifier)
+                self.__set_library_item(library_item)
             self.document_controller.add_task("update_display_specifier" + str(id(self)), update_display_specifier)
-        self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(data_item_changed)
-        self.__set_display_specifier(DataItem.DisplaySpecifier())
+        self.__library_item_changed_event_listener = document_controller.focused_library_item_changed_event.listen(library_item_changed)
+        self.__set_library_item(None)
         self.__metadata_changed_event_listener = None
         self.__metadata = None
         self.metadata_changed_event = Event.Event()
 
     def close(self):
         self.document_controller.clear_task("update_display_specifier" + str(id(self)))
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
-        self.__set_display_specifier(DataItem.DisplaySpecifier())
+        self.__library_item_changed_event_listener.close()
+        self.__library_item_changed_event_listener = None
+        self.__set_library_item(None)
 
     @property
     def document_controller(self):
@@ -55,33 +54,26 @@ class MetadataModel:
     def metadata(self):
         return self.__metadata
 
-    @metadata.setter
-    def metadata(self, metadata):
-        data_item = self.__display_specifier.data_item
-        if data_item:
-            data_item.metadata = metadata
-
-    def __metadata_changed(self, data_item):
-        metadata = data_item.metadata if data_item else dict()
+    def __metadata_changed(self, library_item):
+        metadata = library_item.metadata if library_item else dict()
         assert isinstance(metadata, dict)
         if self.__metadata != metadata:
             self.__metadata = metadata if metadata is not None else dict()
             self.metadata_changed_event.fire(self.__metadata)
 
     # not thread safe
-    def __set_display_specifier(self, display_specifier):
-        if self.__display_specifier != display_specifier:
+    def __set_library_item(self, library_item):
+        if self.__library_item != library_item:
             if self.__metadata_changed_event_listener:
                 self.__metadata_changed_event_listener.close()
                 self.__metadata_changed_event_listener = None
-            self.__display_specifier = copy.copy(display_specifier)
+            self.__library_item = library_item
             # update the expression text
-            data_item = self.__display_specifier.data_item
-            if data_item:
+            if library_item:
                 def metadata_changed():
-                    self.__metadata_changed(data_item)
-                self.__metadata_changed_event_listener = data_item.metadata_changed_event.listen(metadata_changed)
-            self.__metadata_changed(data_item)
+                    self.__metadata_changed(library_item)
+                self.__metadata_changed_event_listener = library_item.metadata_changed_event.listen(metadata_changed)
+            self.__metadata_changed(library_item)
 
 
 class MetadataEditorTreeDelegate:
@@ -157,7 +149,7 @@ class MetadataPanel(Panel.Panel):
     """Provide a panel to edit metadata."""
 
     def __init__(self, document_controller, panel_id, properties):
-        super(MetadataPanel, self).__init__(document_controller, panel_id, _("Metadata"))
+        super().__init__(document_controller, panel_id, _("Metadata"))
 
         ui = self.ui
 
@@ -208,7 +200,7 @@ class MetadataPanel(Panel.Panel):
         self.__metadata_changed_event_listener = None
         self.__metadata_model.close()
         self.__metadata_model = None
-        super(MetadataPanel, self).close()
+        super().close()
 
     @property
     def _metadata_editor_canvas_item_for_testing(self):

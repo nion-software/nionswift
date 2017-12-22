@@ -108,7 +108,9 @@ class DocumentController(Window.Window):
 
         self.filter_controller = FilterPanel.FilterController(self)
 
+        self.focused_library_item_changed_event = Event.Event()
         self.focused_data_item_changed_event = Event.Event()
+        self.__focused_library_item = None
         self.__focused_data_item = None
         self.__focused_display = None
         self.notify_focused_display_changed(None)
@@ -672,9 +674,13 @@ class DocumentController(Window.Window):
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui
     # element gets focus or the data item is removed from the document.
-    def notify_focused_display_changed(self, display: Display.Display) -> None:
+    def notify_focused_display_changed(self, display: typing.Optional[Display.Display]) -> None:
         if self.__focused_display != display:
             self.__focused_display = display
+        library_item = display.container if display and isinstance(display.container, DataItem.LibraryItem) else None
+        if self.__focused_library_item != library_item:
+            self.__focused_library_item = library_item
+            self.focused_library_item_changed_event.fire(library_item)
         data_item = display.container if display and isinstance(display.container, DataItem.DataItem) else None
         if self.__focused_data_item != data_item:
             self.__focused_data_item = data_item
@@ -683,7 +689,7 @@ class DocumentController(Window.Window):
     @property
     def focused_library_item(self) -> DataItem.LibraryItem:
         """Return the library item with keyboard focus."""
-        return self.__focused_display.container if self.__focused_display and isinstance(self.__focused_display.container, DataItem.LibraryItem) else None
+        return self.__focused_library_item
 
     @property
     def focused_data_item(self) -> DataItem.DataItem:
