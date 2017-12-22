@@ -46,7 +46,7 @@ class InspectorPanel(Panel.Panel):
 
         # listen for selected display binding changes
         self.__library_item_will_be_removed_event_listener = None
-        self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__data_item_changed)
+        self.__library_item_changed_event_listener = document_controller.focused_library_item_changed_event.listen(self.__library_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
         def scroll_area_focus_changed(focused):
@@ -72,8 +72,8 @@ class InspectorPanel(Panel.Panel):
 
     def close(self):
         # disconnect self as listener
-        self.__data_item_changed_event_listener.close()
-        self.__data_item_changed_event_listener = None
+        self.__library_item_changed_event_listener.close()
+        self.__library_item_changed_event_listener = None
         # close the property controller. note: this will close and create
         # a new data item inspector; so it should go before the final
         # data item inspector close, which is below.
@@ -100,7 +100,7 @@ class InspectorPanel(Panel.Panel):
                 self.__display_graphic_selection_changed_event_listener = None
             self.__display_inspector = None
 
-        self.__display_inspector = DataItemInspector(self.ui, self.document_controller, self.__display_specifier.display)
+        self.__display_inspector = DisplayInspector(self.ui, self.document_controller, self.__display_specifier.display)
 
         data_item = self.__display_specifier.data_item
         display = self.__display_specifier.display
@@ -155,10 +155,10 @@ class InspectorPanel(Panel.Panel):
     # this message is received from the data item binding.
     # mark the data item as needing updating.
     # thread safe.
-    def __data_item_changed(self, data_item):
-        display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        def data_item_will_be_removed(data_item_to_be_removed):
-            if data_item_to_be_removed == data_item:
+    def __library_item_changed(self, library_item):
+        display_specifier = DataItem.DisplaySpecifier.from_library_item(library_item)
+        def library_item_will_be_removed(library_item_to_be_removed):
+            if library_item_to_be_removed == library_item:
                 self.document_controller.clear_task("update_display" + str(id(self)))
                 self.document_controller.clear_task("update_display_inspector" + str(id(self)))
                 if self.__library_item_will_be_removed_event_listener:
@@ -176,7 +176,7 @@ class InspectorPanel(Panel.Panel):
             if self.__library_item_will_be_removed_event_listener:
                 self.__library_item_will_be_removed_event_listener.close()
                 self.__library_item_will_be_removed_event_listener = None
-            self.__library_item_will_be_removed_event_listener = self.document_controller.document_model.library_item_will_be_removed_event.listen(data_item_will_be_removed)
+            self.__library_item_will_be_removed_event_listener = self.document_controller.document_model.library_item_will_be_removed_event.listen(library_item_will_be_removed)
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
@@ -1766,7 +1766,7 @@ class ComputationInspectorSection(InspectorSection):
         super().close()
 
 
-class DataItemInspector(Widgets.CompositeWidgetBase):
+class DisplayInspector(Widgets.CompositeWidgetBase):
     """A class to manage creation of a widget representing an inspector for a display specifier.
 
     A new data item inspector is created whenever the display specifier changes, but not when the content of the items
@@ -1776,19 +1776,18 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
     def __init__(self, ui, document_controller, display: Display.Display):
         super().__init__(ui.create_column_widget())
 
-        document_model = document_controller.document_model
-
         self.ui = ui
 
         display_specifier = DataItem.DisplaySpecifier.from_display(display)
+        library_item = display_specifier.library_item
         data_item = display_specifier.data_item
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)
-        if data_item:
+        if library_item:
             title_row = self.ui.create_row_widget()
             title_label_widget = self.ui.create_label_widget(properties={"stylesheet": "font-weight: bold"})
-            title_label_widget.bind_text(Binding.PropertyBinding(data_item, "title"))
+            title_label_widget.bind_text(Binding.PropertyBinding(library_item, "title"))
             title_row.add_spacing(20)
             title_row.add(title_label_widget)
             title_row.add_stretch()
@@ -1799,12 +1798,12 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
         inspector_sections = list()
         display_data_shape = display.preview_2d_shape if display else ()
         display_data_shape = display_data_shape if display_data_shape is not None else ()
-        if display and display.graphic_selection.has_selection:
+        if data_item and display and display.graphic_selection.has_selection:
             inspector_sections.append(GraphicsInspectorSection(self.ui, data_item, display, selected_only=True))
             def focus_default():
                 pass
             self.__focus_default = focus_default
-        elif display and (len(display_data_shape) == 1 or display.display_type == "line_plot"):
+        elif data_item and display and (len(display_data_shape) == 1 or display.display_type == "line_plot"):
             inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, display))
@@ -1822,7 +1821,7 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
-        elif display and (len(display_data_shape) == 2 or display.display_type == "image"):
+        elif data_item and display and (len(display_data_shape) == 2 or display.display_type == "image"):
             inspector_sections.append(InfoInspectorSection(self.ui, data_item))
             inspector_sections.append(SessionInspectorSection(self.ui, data_item))
             inspector_sections.append(CalibrationsInspectorSection(self.ui, data_item, display))
@@ -1840,9 +1839,9 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
             self.__focus_default = focus_default
-        elif data_item:
-            inspector_sections.append(InfoInspectorSection(self.ui, data_item))
-            inspector_sections.append(SessionInspectorSection(self.ui, data_item))
+        elif library_item:
+            inspector_sections.append(InfoInspectorSection(self.ui, library_item))
+            inspector_sections.append(SessionInspectorSection(self.ui, library_item))
             def focus_default():
                 inspector_sections[0].info_title_label.focused = True
                 inspector_sections[0].info_title_label.request_refocus()
