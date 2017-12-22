@@ -509,7 +509,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
         return self.__data_and_metadata.get_data_value(pos) if self.__data_and_metadata else None
 
     @property
-    def size_and_data_format_as_string(self):
+    def size_and_data_format_as_string(self) -> str:
         return self.__data_and_metadata.size_and_data_format_as_string if self.__data_and_metadata else _("No Data")
 
 
@@ -1141,6 +1141,10 @@ class CompositeLibraryItem(LibraryItem):
         for data_item in self.data_items:
             data_item.decrement_display_ref_count()
 
+    @property
+    def size_and_data_format_as_string(self) -> str:
+        return "{0} ({1})".format(_("Composite"), len(self.__data_items))
+
 
 def computation_factory(lookup_id):
     return Symbolic.Computation()
@@ -1384,14 +1388,6 @@ class DataItem(LibraryItem):
     @property
     def data_source(self) -> typing.Optional[BufferedDataSource]:
         return self.get_item("data_source")
-
-    @property
-    def size_and_data_format_as_string(self):
-        data_source = self.data_source
-        if data_source:
-            return data_source.size_and_data_format_as_string
-        else:
-            return _("No Data")
 
     def increment_display_ref_count(self):
         super().increment_display_ref_count()
@@ -1695,7 +1691,7 @@ class DataItem(LibraryItem):
         return self.data_source.get_data_value(pos) if self.data_source else None
 
     @property
-    def size_and_data_format_as_string(self):
+    def size_and_data_format_as_string(self) -> str:
         return self.data_source.size_and_data_format_as_string if self.data_source else _("No Data")
 
     def has_metadata_value(self, key: str) -> bool:

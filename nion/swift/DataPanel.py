@@ -92,6 +92,16 @@ class DisplayItem:
         return self.__display
 
     @property
+    def composite_library_item(self) -> DataItem.CompositeLibraryItem:
+        composite_library_item = self.__display.container if self.__display else None
+        return composite_library_item if isinstance(composite_library_item, DataItem.CompositeLibraryItem) else None
+
+    @property
+    def library_item(self) -> DataItem.LibraryItem:
+        library_item = self.__display.container if self.__display else None
+        return library_item if isinstance(library_item, DataItem.LibraryItem) else None
+
+    @property
     def data_item(self) -> DataItem.DataItem:
         data_item = self.__display.container if self.__display else None
         return data_item if isinstance(data_item, DataItem.DataItem) else None
@@ -122,13 +132,13 @@ class DisplayItem:
 
     @property
     def format_str(self) -> str:
-        data_item = self.data_item
-        return data_item.size_and_data_format_as_string if data_item else str()
+        library_item = self.library_item
+        return library_item.size_and_data_format_as_string if library_item else str()
 
     @property
     def datetime_str(self) -> str:
-        data_item = self.data_item
-        return data_item.date_for_sorting_local_as_string if data_item else str()
+        library_item = self.library_item
+        return library_item.date_for_sorting_local_as_string if library_item else str()
 
     @property
     def status_str(self) -> str:
