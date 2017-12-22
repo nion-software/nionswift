@@ -506,6 +506,61 @@ class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
     def _displays(self):
         return tuple(self.__displays)
 
+    # delegate for image canvas items
+
+    def show_display_context_menu(self, gx, gy):
+        return self.__delegate.show_display_context_menu(gx, gy)
+
+    def begin_mouse_tracking(self):
+        self.__delegate.begin_mouse_tracking()
+
+    def end_mouse_tracking(self):
+        self.__delegate.end_mouse_tracking()
+
+    def delete_key_pressed(self):
+        self.__delegate.delete_key_pressed()
+
+    def enter_key_pressed(self):
+        self.__delegate.enter_key_pressed()
+
+    def cursor_changed(self, pos):
+        self.__delegate.cursor_changed(pos)
+
+    def add_index_to_selection(self, index):
+        self.__delegate.add_index_to_selection(index)
+
+    def remove_index_from_selection(self, index):
+        self.__delegate.remove_index_from_selection(index)
+
+    def set_selection(self, index):
+        self.__delegate.set_selection(index)
+
+    def clear_selection(self):
+        self.__delegate.clear_selection()
+
+    def image_clicked(self, image_position, modifiers):
+        return False
+
+    def image_mouse_pressed(self, image_position, modifiers):
+        return False
+
+    def image_mouse_released(self, image_position, modifiers):
+        return False
+
+    def image_mouse_position_changed(self, image_position, modifiers):
+        return False
+
+    def image_panel_get_font_metrics(self, font, text):
+        return self.__get_font_metrics(font, text)
+
+    @property
+    def tool_mode(self):
+        return self.__delegate.tool_mode
+
+    @tool_mode.setter
+    def tool_mode(self, value):
+        self.__delegate.tool_mode = value
+
 
 class DisplayTracker:
     """Tracks messages from a display and passes them to associated display canvas item."""
@@ -1115,10 +1170,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def request_focus(self):
         self.__content_canvas_item.request_focus()
 
-    def set_display_panel_data_item(self, data_item: DataItem.DataItem, detect_controller: bool=False) -> None:
-        if data_item is not None:
-            d = {"type": "image", "data_item_uuid": str(data_item.uuid)}
-            if detect_controller:
+    def set_display_panel_data_item(self, library_item: DataItem.LibraryItem, detect_controller: bool=False) -> None:
+        if library_item:
+            d = {"type": "image", "data_item_uuid": str(library_item.uuid)}
+            if detect_controller and isinstance(library_item, DataItem.DataItem):
+                data_item = library_item
                 d2 = DisplayPanelManager().detect_controller(data_item)
                 if d2:
                     d.update(d2)
@@ -1132,10 +1188,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def __handle_begin_drag(self):
-        data_item = self.__display.container
-        if isinstance(data_item, DataItem.DataItem):
+        if self.__display:
             mime_data = self.ui.create_mime_data()
-            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+            if isinstance(self.__display.container, DataItem.LibraryItem):
+                mime_data.set_data_as_string("text/library_item_uuid", str(self.__display.container.uuid))
+            if isinstance(self.__display.container, DataItem.DataItem):
+                mime_data.set_data_as_string("text/data_item_uuid", str(self.__display.container.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__display)
             self.__begin_drag(mime_data, thumbnail_data)

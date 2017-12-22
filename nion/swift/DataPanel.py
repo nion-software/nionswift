@@ -141,10 +141,12 @@ class DisplayItem:
         return str()
 
     def drag_started(self, ui, x, y, modifiers):
-        data_item = self.data_item
-        if data_item:
-            mime_data = ui.create_mime_data()
-            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+        if self.__display:
+            mime_data = self.ui.create_mime_data()
+            if isinstance(self.__display.container, DataItem.LibraryItem):
+                mime_data.set_data_as_string("text/library_item_uuid", str(self.__display.container.uuid))
+            if isinstance(self.__display.container, DataItem.DataItem):
+                mime_data.set_data_as_string("text/data_item_uuid", str(self.__display.container.uuid))
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
             return mime_data, thumbnail_data
@@ -646,7 +648,7 @@ class LibraryModelController:
         self.item_model_controller = self.ui.create_item_model_controller(["display"])
         self.item_model_controller.on_item_drop_mime_data = lambda mime_data, action, row, parent_row, parent_id: self.item_drop_mime_data(mime_data, action, row, parent_row, parent_id)
         self.item_model_controller.supported_drop_actions = self.item_model_controller.DRAG | self.item_model_controller.DROP
-        self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/data_item_uuid"]
+        self.item_model_controller.mime_types_for_drop = ["text/uri-list", "text/library_item_uuid", "text/data_item_uuid"]
         self.on_receive_files = None
         self.__item_controllers = list()
         self.__item_count = 0
@@ -867,13 +869,14 @@ class DataGroupModelController:
         data_group = self.get_data_group_of_parent(parent_row, parent_id)
         if data_group and mime_data.has_file_paths:
             return row < 0  # only accept drops ONTO items, not BETWEEN items
-        if data_group and mime_data.has_format("text/data_item_uuid"):
+        if data_group and (mime_data.has_format("text/data_item_uuid") or mime_data.has_format("text/library_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return False
             # if the data item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            library_item_uuid = uuid.UUID(mime_data.data_as_string("text/library_item_uuid"))
+            data_item_uuid = library_item_uuid if library_item_uuid else uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 return True
@@ -893,13 +896,14 @@ class DataGroupModelController:
                 return self.item_model_controller.NONE
             if self.on_receive_files and self.on_receive_files(mime_data.file_paths, data_group, len(data_group.data_items)):
                 return self.item_model_controller.COPY
-        if data_group and mime_data.has_format("text/data_item_uuid"):
+        if data_group and (mime_data.has_format("text/data_item_uuid") or mime_data.has_format("text/library_item_uuid")):
             if row >= 0:  # only accept drops ONTO items, not BETWEEN items
                 return self.item_model_controller.NONE
             # if the data item exists in this document, then it is copied to the
             # target group. if it doesn't exist in this document, then it is coming
             # from another document and can't be handled here.
-            data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
+            library_item_uuid = uuid.UUID(mime_data.data_as_string("text/library_item_uuid"))
+            data_item_uuid = library_item_uuid if library_item_uuid else uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = self.__document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 data_group.append_data_item(data_item)

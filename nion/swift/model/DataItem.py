@@ -797,6 +797,9 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def update_and_bind_computation(self, computation_context):
         pass
 
+    def rebind_computations(self, context) -> None:
+        pass
+
     def data_item_was_inserted(self, computation_context):
         pass
 

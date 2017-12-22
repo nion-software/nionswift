@@ -442,6 +442,8 @@ class Workspace:
         return message_box_widget
 
     def handle_drag_enter(self, display_panel, mime_data):
+        if mime_data.has_format("text/library_item_uuid"):
+            return "copy"
         if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -454,6 +456,8 @@ class Workspace:
         return False
 
     def handle_drag_move(self, display_panel, mime_data, x, y):
+        if mime_data.has_format("text/library_item_uuid"):
+            return "copy"
         if mime_data.has_format("text/data_item_uuid"):
             return "copy"
         if mime_data.has_format("text/uri-list"):
@@ -471,6 +475,15 @@ class Workspace:
             else:
                 self.__replace_displayed_data_item(display_panel, None, d)
             return "move"
+        if mime_data.has_format("text/library_item_uuid"):
+            library_item_uuid = uuid.UUID(mime_data.data_as_string("text/library_item_uuid"))
+            library_item = document_model.get_data_item_by_key(library_item_uuid)
+            if library_item:
+                if region == "right" or region == "left" or region == "top" or region == "bottom":
+                    self.insert_display_panel(display_panel, region, library_item)
+                else:
+                    self.__replace_displayed_data_item(display_panel, library_item)
+                return "copy"
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = document_model.get_data_item_by_key(data_item_uuid)

@@ -298,11 +298,13 @@ class DataItemThumbnailSource(AbstractThumbnailSource):
         self.__update_thumbnail()
 
     def populate_mime_data_for_drag(self, mime_data, size: Geometry.IntSize):
-        data_item = self.__display.container if self.__display else None
-        if isinstance(data_item, DataItem.DataItem):
-            mime_data.set_data_as_string("text/data_item_uuid", str(data_item.uuid))
+        if self.__display:
+            if isinstance(self.__display.container, DataItem.LibraryItem):
+                mime_data.set_data_as_string("text/library_item_uuid", str(self.__display.container.uuid))
+            if isinstance(self.__display.container, DataItem.DataItem):
+                mime_data.set_data_as_string("text/data_item_uuid", str(self.__display.container.uuid))
             rgba_image_data = self.__thumbnail_source.thumbnail_data
-            thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height)))
+            thumbnail = Image.get_rgba_data_from_rgba(Image.scaled(Image.get_rgba_view_from_rgba_data(rgba_image_data), (size.width, size.height))) if rgba_image_data is not None else None
             return True, thumbnail
         return False, None
 
