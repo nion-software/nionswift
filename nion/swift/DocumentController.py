@@ -655,8 +655,8 @@ class DocumentController(Window.Window):
         selected_displays = self.selected_displays
         selected_data_items = list()
         for display in selected_displays:
-            data_item = display.container
-            if isinstance(data_item, DataItem.DataItem) and not data_item in selected_data_items:
+            data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+            if data_item and not data_item in selected_data_items:
                 selected_data_items.append(data_item)
         return selected_data_items
 
@@ -677,11 +677,12 @@ class DocumentController(Window.Window):
     def notify_focused_display_changed(self, display: typing.Optional[Display.Display]) -> None:
         if self.__focused_display != display:
             self.__focused_display = display
-        library_item = display.container if display and isinstance(display.container, DataItem.LibraryItem) else None
+        display_specifier = DataItem.DisplaySpecifier.from_display(display)
+        library_item = display_specifier.library_item
         if self.__focused_library_item != library_item:
             self.__focused_library_item = library_item
             self.focused_library_item_changed_event.fire(library_item)
-        data_item = display.container if display and isinstance(display.container, DataItem.DataItem) else None
+        data_item = display_specifier.data_item
         if self.__focused_data_item != data_item:
             self.__focused_data_item = data_item
             self.focused_data_item_changed_event.fire(data_item)
@@ -729,8 +730,8 @@ class DocumentController(Window.Window):
 
     def delete_displays(self, displays: typing.Sequence[Display.Display]) -> None:
         for display in displays:
-            data_item = display.container
-            if isinstance(data_item, DataItem.DataItem):
+            data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+            if data_item:
                 container = self.__data_items_model.container
                 container = DataGroup.get_data_item_container(container, data_item)
                 if container and data_item in container.data_items:
@@ -1453,8 +1454,8 @@ class DocumentController(Window.Window):
 
     def create_context_menu_for_display(self, display: Display.Display, container=None):
         menu = self.create_context_menu()
-        data_item = display.container if display else None
-        if isinstance(data_item, DataItem.DataItem):
+        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        if data_item:
             if not container:
                 container = self.data_items_model.container
                 container = DataGroup.get_data_item_container(container, data_item)

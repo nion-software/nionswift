@@ -15,6 +15,7 @@ from nion.data import Calibration
 from nion.swift import DataItemThumbnailWidget
 from nion.swift import Panel
 from nion.swift.model import DataItem
+from nion.swift.model import Display
 from nion.swift.model import Graphics
 from nion.swift.model import Symbolic
 from nion.ui import Widgets
@@ -44,7 +45,7 @@ class InspectorPanel(Panel.Panel):
         self.request_focus = False
 
         # listen for selected display binding changes
-        self.__data_item_will_be_removed_event_listener = None
+        self.__library_item_will_be_removed_event_listener = None
         self.__data_item_changed_event_listener = document_controller.focused_data_item_changed_event.listen(self.__data_item_changed)
         self.__set_display_specifier(DataItem.DisplaySpecifier())
 
@@ -99,7 +100,7 @@ class InspectorPanel(Panel.Panel):
                 self.__display_graphic_selection_changed_event_listener = None
             self.__display_inspector = None
 
-        self.__display_inspector = DataItemInspector(self.ui, self.document_controller, self.__display_specifier)
+        self.__display_inspector = DataItemInspector(self.ui, self.document_controller, self.__display_specifier.display)
 
         data_item = self.__display_specifier.data_item
         display = self.__display_specifier.display
@@ -160,22 +161,22 @@ class InspectorPanel(Panel.Panel):
             if data_item_to_be_removed == data_item:
                 self.document_controller.clear_task("update_display" + str(id(self)))
                 self.document_controller.clear_task("update_display_inspector" + str(id(self)))
-                if self.__data_item_will_be_removed_event_listener:
-                    self.__data_item_will_be_removed_event_listener.close()
-                    self.__data_item_will_be_removed_event_listener = None
+                if self.__library_item_will_be_removed_event_listener:
+                    self.__library_item_will_be_removed_event_listener.close()
+                    self.__library_item_will_be_removed_event_listener = None
         def update_display():
             self.__set_display_specifier(display_specifier)
-            if self.__data_item_will_be_removed_event_listener:
-                self.__data_item_will_be_removed_event_listener.close()
-                self.__data_item_will_be_removed_event_listener = None
+            if self.__library_item_will_be_removed_event_listener:
+                self.__library_item_will_be_removed_event_listener.close()
+                self.__library_item_will_be_removed_event_listener = None
         # handle the case where the selected display binding changes and then the item is removed before periodic has
         # had a chance to update display. in that case, when periodic finally gets called, we need to make sure that
         # update display has been canceled somehow. this barely passes the smell test.
         if display_specifier.data_item:
-            if self.__data_item_will_be_removed_event_listener:
-                self.__data_item_will_be_removed_event_listener.close()
-                self.__data_item_will_be_removed_event_listener = None
-            self.__data_item_will_be_removed_event_listener = self.document_controller.document_model.data_item_will_be_removed_event.listen(data_item_will_be_removed)
+            if self.__library_item_will_be_removed_event_listener:
+                self.__library_item_will_be_removed_event_listener.close()
+                self.__library_item_will_be_removed_event_listener = None
+            self.__library_item_will_be_removed_event_listener = self.document_controller.document_model.library_item_will_be_removed_event.listen(data_item_will_be_removed)
         self.document_controller.add_task("update_display" + str(id(self)), update_display)
 
 
@@ -1772,14 +1773,15 @@ class DataItemInspector(Widgets.CompositeWidgetBase):
     within the display specifier mutate.
     """
 
-    def __init__(self, ui, document_controller, display_specifier: DataItem.DisplaySpecifier):
+    def __init__(self, ui, document_controller, display: Display.Display):
         super().__init__(ui.create_column_widget())
 
         document_model = document_controller.document_model
 
         self.ui = ui
 
-        data_item, display = display_specifier.data_item, display_specifier.display
+        display_specifier = DataItem.DisplaySpecifier.from_display(display)
+        data_item = display_specifier.data_item
 
         content_widget = self.content_widget
         content_widget.add_spacing(4)

@@ -1733,15 +1733,33 @@ class DataItem(LibraryItem):
 class DisplaySpecifier:
     """Specify a Display contained within a DataItem."""
 
-    def __init__(self, data_item: DataItem=None, display: Display.Display=None):
-        self.data_item = data_item
+    def __init__(self, library_item: LibraryItem=None, display: Display.Display=None):
+        self.library_item = library_item
         self.display = display
 
     def __eq__(self, other):
-        return self.data_item == other.data_item and self.display == other.display
+        return self.library_item == other.library_item and self.display == other.display
 
     def __ne__(self, other):
-        return self.data_item != other.data_item or self.display != other.display
+        return self.library_item != other.library_item or self.display != other.display
+
+    @property
+    def data_item(self):
+        return self.library_item if isinstance(self.library_item, DataItem) else None
+
+    @property
+    def composite_library_item(self):
+        return self.library_item if isinstance(self.library_item, CompositeLibraryItem) else None
+
+    @classmethod
+    def from_display(cls, display):
+        library_item = display.container if display else None
+        return cls(library_item, display)
+
+    @classmethod
+    def from_library_item(cls, library_item):
+        display = library_item.displays[0] if library_item and len(library_item.displays) > 0 else None
+        return cls(library_item, display)
 
     @classmethod
     def from_data_item(cls, data_item):

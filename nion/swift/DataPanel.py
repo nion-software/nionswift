@@ -93,18 +93,15 @@ class DisplayItem:
 
     @property
     def composite_library_item(self) -> DataItem.CompositeLibraryItem:
-        composite_library_item = self.__display.container if self.__display else None
-        return composite_library_item if isinstance(composite_library_item, DataItem.CompositeLibraryItem) else None
+        return DataItem.DisplaySpecifier.from_display(self.__display).composite_library_item
 
     @property
     def library_item(self) -> DataItem.LibraryItem:
-        library_item = self.__display.container if self.__display else None
-        return library_item if isinstance(library_item, DataItem.LibraryItem) else None
+        return DataItem.DisplaySpecifier.from_display(self.__display).library_item
 
     @property
     def data_item(self) -> DataItem.DataItem:
-        data_item = self.__display.container if self.__display else None
-        return data_item if isinstance(data_item, DataItem.DataItem) else None
+        return DataItem.DisplaySpecifier.from_display(self.__display).data_item
 
     def __create_thumbnail_source(self):
         # grab the display specifier and if there is a display, handle thumbnail updating.
@@ -152,11 +149,12 @@ class DisplayItem:
 
     def drag_started(self, ui, x, y, modifiers):
         if self.__display:
+            display_specifier = DataItem.DisplaySpecifier.from_display(self.__display)
             mime_data = self.ui.create_mime_data()
-            if isinstance(self.__display.container, DataItem.LibraryItem):
-                mime_data.set_data_as_string("text/library_item_uuid", str(self.__display.container.uuid))
-            if isinstance(self.__display.container, DataItem.DataItem):
-                mime_data.set_data_as_string("text/data_item_uuid", str(self.__display.container.uuid))
+            if display_specifier.library_item:
+                mime_data.set_data_as_string("text/library_item_uuid", str(display_specifier.library_item.uuid))
+            if display_specifier.data_item:
+                mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             self.__create_thumbnail_source()
             thumbnail_data = self.__thumbnail_source.thumbnail_data if self.__thumbnail_source else None
             return mime_data, thumbnail_data

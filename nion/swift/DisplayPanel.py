@@ -986,9 +986,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
     @property
     def data_item(self):
-        display = self.display
-        data_item = display.container if display else None
-        return data_item if isinstance(data_item, DataItem.DataItem) else None
+        return DataItem.DisplaySpecifier.from_display(self.display).data_item
+
+    @property
+    def library_item(self):
+        return DataItem.DisplaySpecifier.from_display(self.display).library_item
 
     @property
     def display(self):
@@ -1002,7 +1004,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             d["controller_type"] = self.__display_panel_controller.type
             self.__display_panel_controller.save(d)
         if self.__display:
-            d["data_item_uuid"] = str(self.__display.container.uuid)
+            d["data_item_uuid"] = str(self.library_item.uuid)
         if self.__display_panel_controller is None and self.__horizontal_browser_canvas_item.visible:
             d["browser_type"] = "horizontal"
         if self.__display_panel_controller is None and self.__grid_browser_canvas_item.visible:
@@ -1189,11 +1191,12 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     # this gets called when the user initiates a drag in the drag control to move the panel around
     def __handle_begin_drag(self):
         if self.__display:
+            display_specifier = DataItem.DisplaySpecifier.from_display(self.__display)
             mime_data = self.ui.create_mime_data()
-            if isinstance(self.__display.container, DataItem.LibraryItem):
-                mime_data.set_data_as_string("text/library_item_uuid", str(self.__display.container.uuid))
-            if isinstance(self.__display.container, DataItem.DataItem):
-                mime_data.set_data_as_string("text/data_item_uuid", str(self.__display.container.uuid))
+            if display_specifier.library_item:
+                mime_data.set_data_as_string("text/library_item_uuid", str(display_specifier.library_item.uuid))
+            if display_specifier.data_item:
+                mime_data.set_data_as_string("text/data_item_uuid", str(display_specifier.data_item.uuid))
             mime_data.set_data_as_string(DISPLAY_PANEL_MIME_TYPE, json.dumps(self.save_contents()))
             thumbnail_data = Thumbnails.ThumbnailManager().thumbnail_data_for_display(self.__display)
             self.__begin_drag(mime_data, thumbnail_data)
@@ -1383,8 +1386,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__document_controller.cursor_changed(None)
 
     def drag_graphics(self, graphics):
-        data_item = self.__display.container
-        if isinstance(data_item, DataItem.DataItem):
+        data_item = DataItem.DisplaySpecifier.from_display(self.__display).data_item
+        if data_item:
             mime_data = self.ui.create_mime_data()
             mime_data_content = dict()
             mime_data_content["data_item_uuid"] = str(data_item.uuid)
@@ -1436,8 +1439,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return region
 
     def create_line_profile(self, pos):
-        data_item = self.__display.container
-        if isinstance(data_item, DataItem.DataItem):
+        data_item = DataItem.DisplaySpecifier.from_display(self.__display).data_item
+        if data_item:
             pos = tuple(pos)
             self.__display.graphic_selection.clear()
             line_profile_region = Graphics.LineProfileGraphic()

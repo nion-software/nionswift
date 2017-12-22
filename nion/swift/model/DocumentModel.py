@@ -1163,7 +1163,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False, auto_migrations=None):
         super(DocumentModel, self).__init__()
 
-        self.data_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
+        self.library_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
         self.data_item_inserted_event = Event.Event()
         self.data_item_removed_event = Event.Event()
 
@@ -1442,7 +1442,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if computation_queue_item.data_item is data_item:
                     computation_queue_item.valid = False
         # remove data item from any selections
-        self.data_item_will_be_removed_event.fire(data_item)
+        self.library_item_will_be_removed_event.fire(data_item)
         # remove the data item from any groups
         for data_group in self.get_flat_data_group_generator():
             if data_item in data_group.data_items:
@@ -1648,15 +1648,15 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             return [data_item for data_item in self.__dependency_tree_source_to_target_map.get(weakref.ref(data_item), list()) if isinstance(data_item, DataItem.DataItem)]
 
     def get_source_displays(self, display: Display.Display) -> typing.List[Display.Display]:
-        data_item = display.container
-        if isinstance(data_item, DataItem.DataItem):
+        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        if data_item:
             data_items = self.get_source_data_items(data_item)
             return [data_item.primary_display_specifier.display for data_item in data_items]
         return list()
 
     def get_dependent_displays(self, display: Display.Display) -> typing.List[Display.Display]:
-        data_item = display.container
-        if isinstance(data_item, DataItem.DataItem):
+        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        if data_item:
             data_items = self.get_dependent_data_items(data_item)
             return [data_item.primary_display_specifier.display for data_item in data_items]
         return list()
@@ -1721,13 +1721,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_item._exit_transaction_state()
 
     def begin_display_transaction(self, display: Display.Display) -> None:
-        data_item = display.container
-        if isinstance(data_item, DataItem.DataItem):
+        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        if data_item:
             self.begin_data_item_transaction(data_item)
 
     def end_display_transaction(self, display: Display.Display) -> None:
-        data_item = display.container
-        if isinstance(data_item, DataItem.DataItem):
+        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+        if data_item:
             self.end_data_item_transaction(data_item)
 
     def data_item_live(self, data_item):
