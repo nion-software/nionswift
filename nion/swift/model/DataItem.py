@@ -401,7 +401,7 @@ class BufferedDataSource(Observable.Observable, Persistence.PersistentObject):
 
     @metadata.setter
     def metadata(self, metadata):
-        assert metadata is not None
+        assert isinstance(metadata, dict)
         self.__data_and_metadata._set_metadata(metadata)
         self.__metadata = copy.deepcopy(metadata)
         self._set_persistent_property_value("metadata", self.__metadata)
@@ -571,7 +571,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     Properties.
 
-    Metadata.
+    Metadata Note: Until data source is merged into data item, metadata access cannot be done in this base class;
+    instead it is implemented in the derived classes. It is a regular field in the composite library item; but in
+    the data item, it is stored in the data source. When data source is merged, it will become a regular field
+    and can be moved into this class.
     """
 
     writer_version = 11
@@ -602,6 +605,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.__session_manager = None
         self.library_item_changed_event = Event.Event()
         self.item_changed_event = Event.Event()  # equivalent to library_item_changed_event
+        self.metadata_changed_event = Event.Event()  # see Metadata Note above
         self.__display_ref_count = 0
         self.__change_count = 0
         self.__change_count_lock = threading.RLock()
@@ -1092,13 +1096,26 @@ class CompositeLibraryItem(LibraryItem):
         self.__data_items = list()
         self.add_display(Display.Display())  # always have one display, for now
         self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
+        self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
+        self.__metadata = dict()
 
-    def __property_changed(self, name, value):
-        self.notify_property_changed(name)
+    def read_from_dict(self, properties):
+        super().read_from_dict(properties)
+        self.__metadata = self._get_persistent_property_value("metadata", dict())
 
     @property
     def data_items(self):
         return tuple(self.__data_items)
+
+    @property
+    def metadata(self):
+        return copy.deepcopy(self.__metadata)
+
+    @metadata.setter
+    def metadata(self, metadata):
+        assert isinstance(metadata, dict)
+        self.__metadata = copy.deepcopy(metadata)
+        self._set_persistent_property_value("metadata", self.__metadata)
 
     def connect_data_items(self, data_items, lookup_data_item):
         super().connect_data_items(data_items, lookup_data_item)
@@ -1141,6 +1158,13 @@ class CompositeLibraryItem(LibraryItem):
         for data_item in self.data_items:
             data_item.decrement_display_ref_count()
 
+    def __property_changed(self, name, value):
+        self.notify_property_changed(name)
+
+    def __metadata_property_changed(self, name, value):
+        self.__property_changed(name, value)
+        self.metadata_changed_event.fire()
+
     @property
     def size_and_data_format_as_string(self) -> str:
         return "{0} ({1})".format(_("Composite"), len(self.__data_items))
@@ -1160,7 +1184,6 @@ class DataItem(LibraryItem):
         self.define_item("computation", computation_factory)
         self.data_item_changed_event = Event.Event()  # anything has changed
         self.data_changed_event = Event.Event()  # data has changed
-        self.metadata_changed_event = Event.Event()  # metadata has changed (always if data has changed)
         self.__write_delay_data_changed = False
         self.__data_source_metadata_changed_event_listener = None
         self.__data_source_data_changed_event_listener = None

@@ -3160,14 +3160,31 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
             document_model.append_data_item(data_item0)
-            data_item = DataItem.CompositeLibraryItem()
-            data_item.append_data_item(data_item0)
-            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            composite_item.append_data_item(data_item0)
+            document_model.append_data_item(composite_item)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_items), 2)
             self.assertEqual(len(document_model.data_items[1].data_items), 1)
             self.assertEqual(document_model.data_items[1].data_items[0], document_model.data_items[0])
+
+    def test_composite_library_item_reloads_metadata(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item0)
+            composite_item = DataItem.CompositeLibraryItem()
+            composite_item.append_data_item(data_item0)
+            composite_item.metadata = {"abc": 1}
+            document_model.append_data_item(composite_item)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            self.assertEqual(len(document_model.data_items), 2)
+            self.assertEqual(len(document_model.data_items[1].data_items), 1)
+            self.assertEqual(document_model.data_items[1].data_items[0], document_model.data_items[0])
+            self.assertEqual(document_model.data_items[1].metadata, {"abc": 1})
 
     def test_composite_data_item_saves_to_file_storage(self):
         current_working_directory = os.getcwd()
@@ -3181,9 +3198,9 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 data_item0 = DataItem.DataItem(numpy.zeros((8, 8)))
                 document_model.append_data_item(data_item0)
-                data_item = DataItem.CompositeLibraryItem()
-                data_item.append_data_item(data_item0)
-                document_model.append_data_item(data_item)
+                composite_item = DataItem.CompositeLibraryItem()
+                composite_item.append_data_item(data_item0)
+                document_model.append_data_item(composite_item)
             # read it back
             document_model = DocumentModel.DocumentModel(persistent_storage_systems=[file_persistent_storage_system], library_storage=library_storage, log_migrations=False)
             with contextlib.closing(document_model):
