@@ -9,10 +9,10 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import LineGraphCanvasItem
-from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
@@ -43,24 +43,28 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             irow, icol = numpy.ogrid[0:16, 0:16]
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
-            data_info = LineGraphCanvasItem.LineGraphDataInfo(data, None, None)
-            self.assertEqual(data_info.y_properties.uncalibrated_data_min, expected_uncalibrated_data_min)
-            self.assertEqual(data_info.y_properties.uncalibrated_data_max, expected_uncalibrated_data_max)
+            data_info = LineGraphCanvasItem.LineGraphDataInfo(data)
+            self.assertEqual(data_info.uncalibrated_data_min, expected_uncalibrated_data_min)
+            self.assertEqual(data_info.uncalibrated_data_max, expected_uncalibrated_data_max)
 
     def test_display_limits_are_reasonable_when_using_log_scale(self):
-        data_info = LineGraphCanvasItem.LineGraphDataInfo(numpy.linspace(-0.1, 10.0, 10), data_style="log")
-        self.assertAlmostEqual(data_info.y_properties.uncalibrated_data_min, 1.0)
-        self.assertAlmostEqual(data_info.y_properties.uncalibrated_data_max, 10.0)
-        self.assertAlmostEqual(numpy.amin(data_info.data), math.log10(1.0))
-        self.assertAlmostEqual(numpy.amax(data_info.data), math.log10(10.0))
+        data = numpy.linspace(-0.1, 10.0, 10)
+        data_info = LineGraphCanvasItem.LineGraphDataInfo(data, data_style="log")
+        self.assertAlmostEqual(data_info.uncalibrated_data_min, 1.0)
+        self.assertAlmostEqual(data_info.uncalibrated_data_max, 10.0)
+        calibrated_data = data_info.calculate_calibrated_data(data)
+        self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
+        self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(10.0))
 
     def test_display_limits_are_reasonable_when_using_calibrated_log_scale(self):
         intensity_calibration = Calibration.Calibration(-5, 2)
-        data_info = LineGraphCanvasItem.LineGraphDataInfo(numpy.linspace(-0.1, 10.0, 10), intensity_calibration=intensity_calibration, data_style="log")
-        self.assertAlmostEqual(data_info.y_properties.calibrated_data_min, 0.0)
-        self.assertAlmostEqual(data_info.y_properties.calibrated_data_max, 1.5)  # empirically mesaured
-        self.assertAlmostEqual(numpy.amin(data_info.data), math.log10(1.0))
-        self.assertAlmostEqual(numpy.amax(data_info.data), math.log10(15.0))
+        data = numpy.linspace(-0.1, 10.0, 10)
+        data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_calibration=intensity_calibration, data_style="log")
+        self.assertAlmostEqual(data_info.calibrated_data_min, 0.0)
+        self.assertAlmostEqual(data_info.calibrated_data_max, 1.5)  # empirically mesaured
+        calibrated_data = data_info.calculate_calibrated_data(data)
+        self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
+        self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(15.0))
 
     def test_tool_returns_to_pointer_after_but_not_during_creating_interval(self):
         # setup
@@ -143,6 +147,41 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             self.assertTrue(interval_region.start < 0.1)
             self.assertTrue(interval_region.end < 0.9)
             self.assertAlmostEqual(interval_region.end - interval_region.start, 0.8)
+
+    def test_line_plot_auto_scales_uncalibrated_y_axis(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data = numpy.zeros((100,))
+            data[50] = 75
+            data_item = DataItem.DataItem(data)
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            data_info = display_panel.display_canvas_item._data_info
+            self.assertAlmostEqual(data_info.calibrated_data_min, 0.0)
+            self.assertAlmostEqual(data_info.calibrated_data_max, 80.0)
+            self.assertAlmostEqual(data_info.uncalibrated_data_min, 0.0)
+            self.assertAlmostEqual(data_info.uncalibrated_data_max, 80.0)
+
+    def test_line_plot_auto_scales_calibrated_y_axis(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data = numpy.zeros((10,))
+            data[5] = 75
+            data_item = DataItem.DataItem(data)
+            data_item.set_xdata(DataAndMetadata.new_data_and_metadata(data, Calibration.Calibration(0, 0.5, "x")))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            data_info = display_panel.display_canvas_item._data_info
+            self.assertAlmostEqual(data_info.calibrated_data_min, 0.0)
+            self.assertAlmostEqual(data_info.calibrated_data_max, 40.0)
+            self.assertAlmostEqual(data_info.uncalibrated_data_min, 0.0)
+            self.assertAlmostEqual(data_info.uncalibrated_data_max, 80.0)
 
 
 if __name__ == '__main__':
