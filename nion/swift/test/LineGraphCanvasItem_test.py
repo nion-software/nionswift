@@ -43,26 +43,31 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             irow, icol = numpy.ogrid[0:16, 0:16]
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
-            data_info = LineGraphCanvasItem.LineGraphDataInfo(data)
-            self.assertEqual(data_info.uncalibrated_data_min, expected_uncalibrated_data_min)
-            self.assertEqual(data_info.uncalibrated_data_max, expected_uncalibrated_data_max)
+            calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(data, None, None, None, None)
+            axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, y_ticker=y_ticker)
+            self.assertEqual(axes.uncalibrated_data_min, expected_uncalibrated_data_min)
+            self.assertEqual(axes.uncalibrated_data_max, expected_uncalibrated_data_max)
 
     def test_display_limits_are_reasonable_when_using_log_scale(self):
         data = numpy.linspace(-0.1, 10.0, 10)
-        data_info = LineGraphCanvasItem.LineGraphDataInfo(data, data_style="log")
-        self.assertAlmostEqual(data_info.uncalibrated_data_min, 1.0)
-        self.assertAlmostEqual(data_info.uncalibrated_data_max, 10.0)
-        calibrated_data = data_info.calculate_calibrated_data(data)
+        data_style = "log"
+        calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(data, None, None, None, data_style)
+        axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, data_style=data_style, y_ticker=y_ticker)
+        self.assertAlmostEqual(axes.uncalibrated_data_min, 1.0)
+        self.assertAlmostEqual(axes.uncalibrated_data_max, 10.0)
+        calibrated_data = axes.calculate_calibrated_data(data)
         self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
         self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(10.0))
 
     def test_display_limits_are_reasonable_when_using_calibrated_log_scale(self):
         intensity_calibration = Calibration.Calibration(-5, 2)
         data = numpy.linspace(-0.1, 10.0, 10)
-        data_info = LineGraphCanvasItem.LineGraphDataInfo(data, y_calibration=intensity_calibration, data_style="log")
-        self.assertAlmostEqual(data_info.calibrated_data_min, 0.0)
-        self.assertAlmostEqual(data_info.calibrated_data_max, 1.5)  # empirically mesaured
-        calibrated_data = data_info.calculate_calibrated_data(data)
+        data_style = "log"
+        calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(data, None, None, intensity_calibration, data_style)
+        axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, y_calibration=intensity_calibration, data_style=data_style, y_ticker=y_ticker)
+        self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
+        self.assertAlmostEqual(axes.calibrated_data_max, 1.5)  # empirically mesaured
+        calibrated_data = axes.calculate_calibrated_data(data)
         self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
         self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(15.0))
 
@@ -159,11 +164,11 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
-            data_info = display_panel.display_canvas_item._data_info
-            self.assertAlmostEqual(data_info.calibrated_data_min, 0.0)
-            self.assertAlmostEqual(data_info.calibrated_data_max, 80.0)
-            self.assertAlmostEqual(data_info.uncalibrated_data_min, 0.0)
-            self.assertAlmostEqual(data_info.uncalibrated_data_max, 80.0)
+            axes = display_panel.display_canvas_item._axes
+            self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
+            self.assertAlmostEqual(axes.calibrated_data_max, 80.0)
+            self.assertAlmostEqual(axes.uncalibrated_data_min, 0.0)
+            self.assertAlmostEqual(axes.uncalibrated_data_max, 80.0)
 
     def test_line_plot_auto_scales_calibrated_y_axis(self):
         document_model = DocumentModel.DocumentModel()
@@ -177,11 +182,24 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
-            data_info = display_panel.display_canvas_item._data_info
-            self.assertAlmostEqual(data_info.calibrated_data_min, 0.0)
-            self.assertAlmostEqual(data_info.calibrated_data_max, 40.0)
-            self.assertAlmostEqual(data_info.uncalibrated_data_min, 0.0)
-            self.assertAlmostEqual(data_info.uncalibrated_data_max, 80.0)
+            axes = display_panel.display_canvas_item._axes
+            self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
+            self.assertAlmostEqual(axes.calibrated_data_max, 40.0)
+            self.assertAlmostEqual(axes.uncalibrated_data_min, 0.0)
+            self.assertAlmostEqual(axes.uncalibrated_data_max, 80.0)
+
+    def test_line_plot_with_no_data_displays_gracefully(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            document_model.append_data_item(data_item)
+            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
+            display_specifier.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
+            display_specifier.display.display_type = "line_plot"
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
 
 
 if __name__ == '__main__':

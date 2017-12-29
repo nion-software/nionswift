@@ -305,19 +305,6 @@ class TestDisplayClass(unittest.TestCase):
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
-    def test_line_plot_with_no_data_displays_gracefully(self):
-        document_model = DocumentModel.DocumentModel()
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
-            data_item = DataItem.DataItem(numpy.ones((8,), numpy.float))
-            document_model.append_data_item(data_item)
-            display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            display_specifier.data_item.set_xdata(DataAndMetadata.DataAndMetadata(lambda: None, ((8, 0), numpy.float)))
-            display_specifier.display.display_type = "line_plot"
-            display_panel = document_controller.selected_display_panel
-            display_panel.set_display_panel_data_item(data_item)
-            display_panel.display_canvas_item.layout_immediate((640, 480))
-
     def test_setting_color_map_id_to_none_works(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

@@ -199,10 +199,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__tracking_horizontal = False
         self.__tracking_vertical = False
 
-        self.__data_info = None
+        self.__axes = None
 
-        self.__last_data_info = None
-        self.__last_data_info_data = None
+        self.__last_axes = None
+        self.__last_axes_data = None
         self.__data_fn = None
         self.__data_shape = None
         self.__dimensional_calibration = None
@@ -229,8 +229,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     # for testing
     @property
-    def _data_info(self) -> LineGraphCanvasItem.LineGraphDataInfo:
-        return self.__data_info
+    def _axes(self) -> LineGraphCanvasItem.LineGraphAxes:
+        return self.__axes
 
     @property
     def default_aspect_ratio(self):
@@ -409,19 +409,20 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 scalar_data = Image.convert_to_grayscale(scalar_data)
                 assert scalar_data is not None
 
-                if not numpy.array_equal(self.__last_data_info_data, scalar_data) or self.__last_data_info != (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style):
-                    data_info = LineGraphCanvasItem.LineGraphDataInfo(scalar_data, y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style)
-                    self.__update_data_info(data_info, scalar_data, legend_labels)
-                    self.__last_data_info = (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style)
-                    self.__last_data_info_data = numpy.copy(scalar_data)
+                if not numpy.array_equal(self.__last_axes_data, scalar_data) or self.__last_axes != (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style):
+                    calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(scalar_data, y_min, y_max, intensity_calibration, y_style)
+                    axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style, y_ticker)
+                    self.__update_axes(axes, scalar_data, legend_labels)
+                    self.__last_axes = (y_min, y_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style)
+                    self.__last_axes_data = numpy.copy(scalar_data)
             else:
-                self.__update_data_info(LineGraphCanvasItem.LineGraphDataInfo(), None, None)
-                self.__last_data_info = None
-                self.__last_data_info_data = None
+                self.__update_axes(LineGraphCanvasItem.LineGraphAxes(), None, None)
+                self.__last_axes = None
+                self.__last_axes_data = None
         else:
-            self.__update_data_info(LineGraphCanvasItem.LineGraphDataInfo(), None, None)
-            self.__last_data_info = None
-            self.__last_data_info_data = None
+            self.__update_axes(LineGraphCanvasItem.LineGraphAxes(), None, None)
+            self.__last_axes = None
+            self.__last_axes_data = None
 
     def _inserted(self, container):
         # make sure we get 'prepare_render' calls
@@ -469,17 +470,17 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             finally:
                 drawing_context.restore()
 
-    def __update_data_info(self, data_info, uncalibrated_data, legend_labels):
+    def __update_axes(self, axes, uncalibrated_data, legend_labels):
         # the display has been changed, so this method has been called. it must be called on the ui thread.
-        # data_info is a new copy of data info. it will be owned by this line plot after calling this method.
-        # this method stores the data_info into each line plot canvas item and updates the canvas item.
+        # axes is a new copy of axes. it will be owned by this line plot after calling this method.
+        # this method stores the axes into each line plot canvas item and updates the canvas item.
         # thread safe. no UI.
 
-        calibrated_data = data_info.calculate_calibrated_data(uncalibrated_data)
+        calibrated_data = axes.calculate_calibrated_data(uncalibrated_data)
 
         if Image.is_data_1d(calibrated_data):
             if len(self.line_graph_canvas_item.line_graph_data_list) != 1:
-                self.line_graph_canvas_item.line_graph_data_list = [LineGraphCanvasItem.LineGraphData(data_info, calibrated_data)]
+                self.line_graph_canvas_item.line_graph_data_list = [LineGraphCanvasItem.LineGraphData(axes, calibrated_data)]
             self.line_graph_canvas_item.line_graph_data_list[0].data = calibrated_data
         elif Image.is_data_2d(calibrated_data):
             rows = min(16, calibrated_data.shape[0])
@@ -488,42 +489,31 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 filled = True
                 line_graph_data_list = list()
                 for row in range(rows):
-                    line_graph_data_list.append(LineGraphCanvasItem.LineGraphData(data_info, calibrated_data, filled, colors[row]))
+                    line_graph_data_list.append(LineGraphCanvasItem.LineGraphData(axes, calibrated_data, filled, colors[row]))
                     filled = False
                 self.line_graph_canvas_item.line_graph_data_list = line_graph_data_list
             for row in range(rows):
                 self.line_graph_canvas_item.line_graph_data_list[row].data = calibrated_data[row:row + 1, :].reshape((calibrated_data.shape[-1], ))
 
-        # update the data info for each item; also call update so that they're forced to be drawn.
+        # update the axes for each item; also call update so that they're forced to be drawn.
 
         for line_graph_data in self.line_graph_canvas_item.line_graph_data_list:
-            line_graph_data.data_info = data_info
+            line_graph_data.axes = axes
         self.line_graph_canvas_item.update()
 
-        self.__line_graph_background_canvas_item.data_info = data_info
-        self.__line_graph_background_canvas_item.update()
-        self.__line_graph_regions_canvas_item.set_data_info(data_info)
+        self.__line_graph_background_canvas_item.set_axes(axes)
+        self.__line_graph_regions_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_calibrated_data(calibrated_data)
-        self.__line_graph_frame_canvas_item.data_info = data_info
-        self.__line_graph_frame_canvas_item.update()
+        self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
         self.__line_graph_legend_canvas_item.set_legend_labels(legend_labels)
-        self.__line_graph_vertical_axis_label_canvas_item.data_info = data_info
-        self.__line_graph_vertical_axis_label_canvas_item.size_to_content()
-        self.__line_graph_vertical_axis_label_canvas_item.update()
-        self.__line_graph_vertical_axis_scale_canvas_item.data_info = data_info
-        self.__line_graph_vertical_axis_scale_canvas_item.size_to_content(self.__get_font_metrics_fn)
-        self.__line_graph_vertical_axis_scale_canvas_item.update()
-        self.__line_graph_vertical_axis_ticks_canvas_item.data_info = data_info
-        self.__line_graph_vertical_axis_ticks_canvas_item.update()
-        self.__line_graph_horizontal_axis_label_canvas_item.data_info = data_info
-        self.__line_graph_horizontal_axis_label_canvas_item.size_to_content()
-        self.__line_graph_horizontal_axis_label_canvas_item.update()
-        self.__line_graph_horizontal_axis_scale_canvas_item.data_info = data_info
-        self.__line_graph_horizontal_axis_scale_canvas_item.update()
-        self.__line_graph_horizontal_axis_ticks_canvas_item.data_info = data_info
-        self.__line_graph_horizontal_axis_ticks_canvas_item.update()
+        self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
+        self.__line_graph_vertical_axis_scale_canvas_item.set_axes(axes, self.__get_font_metrics_fn)
+        self.__line_graph_vertical_axis_ticks_canvas_item.set_axes(axes)
+        self.__line_graph_horizontal_axis_label_canvas_item.set_axes(axes)
+        self.__line_graph_horizontal_axis_scale_canvas_item.set_axes(axes)
+        self.__line_graph_horizontal_axis_ticks_canvas_item.set_axes(axes)
 
-        self.__data_info = data_info
+        self.__axes = axes
 
     def mouse_entered(self):
         if super(LinePlotCanvasItem, self).mouse_entered():
@@ -656,8 +646,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def __get_mouse_mapping(self):
         plot_origin = self.__line_graph_regions_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_regions_canvas_item.canvas_bounds.translated(plot_origin)
-        left_channel = self.__data_info.drawn_left_channel
-        right_channel = self.__data_info.drawn_right_channel
+        left_channel = self.__axes.drawn_left_channel
+        right_channel = self.__axes.drawn_right_channel
         return LinePlotCanvasItemMapping(self.__data_shape, plot_rect, left_channel, right_channel)
 
     def begin_tracking_regions(self, pos, modifiers):
@@ -704,8 +694,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__tracking_horizontal = True
         self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
-        self.__tracking_start_left_channel = self.__data_info.drawn_left_channel
-        self.__tracking_start_right_channel = self.__data_info.drawn_right_channel
+        self.__tracking_start_left_channel = self.__axes.drawn_left_channel
+        self.__tracking_start_right_channel = self.__axes.drawn_right_channel
         self.__tracking_start_drawn_channel_per_pixel = float(self.__tracking_start_right_channel - self.__tracking_start_left_channel) / plot_rect.width
         self.__tracking_start_origin_pixel = self.__tracking_start_pos.x - plot_rect.left
         self.__tracking_start_channel = self.__tracking_start_left_channel + self.__tracking_start_origin_pixel * self.__tracking_start_drawn_channel_per_pixel
@@ -715,8 +705,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__tracking_vertical = True
         self.__tracking_rescale = rescale
         self.__tracking_start_pos = pos
-        self.__tracking_start_calibrated_data_min = self.__data_info.calibrated_data_min
-        self.__tracking_start_calibrated_data_max = self.__data_info.calibrated_data_max
+        self.__tracking_start_calibrated_data_min = self.__axes.calibrated_data_min
+        self.__tracking_start_calibrated_data_max = self.__axes.calibrated_data_max
         self.__tracking_start_calibrated_data_per_pixel = (self.__tracking_start_calibrated_data_max - self.__tracking_start_calibrated_data_min) / plot_height
         plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
         plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
@@ -791,16 +781,16 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 new_calibrated_data_per_pixel = calibrated_offset / pixel_offset
                 calibrated_data_min = self.__tracking_start_calibrated_origin - new_calibrated_data_per_pixel * self.__tracking_start_origin_y
                 calibrated_data_max = self.__tracking_start_calibrated_origin + new_calibrated_data_per_pixel * (plot_rect.height - 1 - self.__tracking_start_origin_y)
-                uncalibrated_data_min = self.__data_info.uncalibrate_y(calibrated_data_min)
-                uncalibrated_data_max = self.__data_info.uncalibrate_y(calibrated_data_max)
+                uncalibrated_data_min = self.__axes.uncalibrate_y(calibrated_data_min)
+                uncalibrated_data_max = self.__axes.uncalibrate_y(calibrated_data_max)
                 self.delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                 return True
             else:
                 delta = pos - self.__tracking_start_pos
                 calibrated_data_min = self.__tracking_start_calibrated_data_min + self.__tracking_start_calibrated_data_per_pixel * delta.y
                 calibrated_data_max = self.__tracking_start_calibrated_data_max + self.__tracking_start_calibrated_data_per_pixel * delta.y
-                uncalibrated_data_min = self.__data_info.uncalibrate_y(calibrated_data_min)
-                uncalibrated_data_max = self.__data_info.uncalibrate_y(calibrated_data_max)
+                uncalibrated_data_min = self.__axes.uncalibrate_y(calibrated_data_min)
+                uncalibrated_data_max = self.__axes.uncalibrate_y(calibrated_data_max)
                 self.delegate.update_display_properties({"y_min": uncalibrated_data_min, "y_max": uncalibrated_data_max})
                 return True
         return False
