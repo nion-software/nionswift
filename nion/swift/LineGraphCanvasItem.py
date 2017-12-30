@@ -208,6 +208,10 @@ def are_axes_equal(axes1: LineGraphAxes, axes2: LineGraphAxes) -> bool:
         return False
     if axes1 is None:
         return True
+    if axes1.is_valid != axes2.is_valid:
+        return False
+    if not axes1.is_valid:
+        return True
     if axes1.drawn_left_channel != axes2.drawn_left_channel:
         return False
     if axes1.drawn_right_channel != axes2.drawn_right_channel:
