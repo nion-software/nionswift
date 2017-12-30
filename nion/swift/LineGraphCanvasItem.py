@@ -1,9 +1,6 @@
 """
     A collection of classes facilitating drawing line graphs.
 
-    LineGraphDataInfo is used to pass data, drawing limits, and calibrations to
-    various canvas items.
-
     Several canvas items including the line graph itself, and tick marks, scale,
     and label are also available. All canvas items except for the canvas item
     are auto sizing in the appropriate direction. Canvas items are meant to be
@@ -206,6 +203,28 @@ class LineGraphAxes:
         return calibrated_data
 
 
+def are_axes_equal(axes1: LineGraphAxes, axes2: LineGraphAxes) -> bool:
+    if (axes1 is None) != (axes2 is None):
+        return False
+    if axes1 is None:
+        return True
+    if axes1.drawn_left_channel != axes2.drawn_left_channel:
+        return False
+    if axes1.drawn_right_channel != axes2.drawn_right_channel:
+        return False
+    if axes1.calibrated_data_min != axes2.calibrated_data_min:
+        return False
+    if axes1.calibrated_data_max != axes2.calibrated_data_max:
+        return False
+    if axes1.x_calibration != axes2.x_calibration:
+        return False
+    if axes1.y_calibration != axes2.y_calibration:
+        return False
+    if axes1.data_style != axes2.data_style:
+        return False
+    return True
+
+
 def draw_background(drawing_context, plot_rect, background_color):
     with drawing_context.saver():
         drawing_context.begin_path()
@@ -319,8 +338,9 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
         self.background_color = "#FFF"
 
     def set_axes(self, axes):
-        self.__axes = axes
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.update()
 
     def _repaint(self, drawing_context):
         # draw the data, if any
@@ -347,74 +367,77 @@ class LineGraphBackgroundCanvasItem(CanvasItem.AbstractCanvasItem):
                 draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_ticks)
 
 
-class LineGraphData:
-
-    def __init__(self, axes, data, filled=True, color=None):
-        self.axes = axes
-        self.data = data
-        self.filled = filled
-        self.color = color if color is not None else '#1E90FF'  # dodger blue
-        self.retained_rebin_1d = dict()
-
-
 class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     """Canvas item to draw the line plot itself."""
 
     def __init__(self):
         super().__init__()
         self.__drawing_context = None
-        self.__line_graph_data_list = list()  # type: typing.List[LineGraphData]
+        self.__axes = None
+        self.__is_filled = True
+        self.__color = '#1E90FF'  # dodger blue
+        self.__uncalibrated_data = None
+        self.__calibrated_data = None
+        self.__retained_rebin_1d = dict()
+
+    def set_is_filled(self, is_filled):
+        if self.__is_filled != is_filled:
+            self.__is_filled = is_filled
+            self.update()
+
+    def set_color(self, color):
+        color = color if color is not None else '#1E90FF'  # dodger blue
+        if self.__color != color:
+            self.__color = color
+            self.update()
+
+    def set_uncalibrated_data(self, uncalibrated_data):
+        if not numpy.array_equal(uncalibrated_data, self.__uncalibrated_data):
+            self.__uncalibrated_data = uncalibrated_data
+            self.__calibrated_data = None
+            self.update()
 
     @property
-    def line_graph_data_list(self):
-        return self.__line_graph_data_list
-
-    @line_graph_data_list.setter
-    def line_graph_data_list(self, value):
-        self.__line_graph_data_list = value
+    def calibrated_data(self):
+        if self.__calibrated_data is None and self.__uncalibrated_data is not None:
+            self.__calibrated_data = self.__axes.calculate_calibrated_data(self.__uncalibrated_data)
+        return self.__calibrated_data
 
     @property
     def _axes(self):  # for testing only
-        return self.__line_graph_data_list[0].axes if len(self.__line_graph_data_list) > 0 else None
+        return self.__axes
 
-    def map_mouse_to_position(self, mouse, data_size):
-        """ Map the mouse to the 1-d position within the line graph. """
-        axes = self.__line_graph_data_list[0].axes if len(self.__line_graph_data_list) > 0 else None
-        if axes and axes.is_valid:
-            mouse = Geometry.IntPoint.make(mouse)
-            plot_rect = self.canvas_bounds
-            if plot_rect.contains_point(mouse):
-                mouse = mouse - plot_rect.origin
-                x = float(mouse.x) / plot_rect.width
-                px = axes.drawn_left_channel + x * (axes.drawn_right_channel - axes.drawn_left_channel)
-                return px,
-        # not in bounds
-        return None
+    def set_axes(self, axes):
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.__calibrated_data = None
+            self.update()
 
     def _repaint(self, drawing_context):
         # draw the data, if any
-        for line_graph_data in self.__line_graph_data_list:
-            axes = line_graph_data.axes
-            data = line_graph_data.data
-            if axes and axes.is_valid and data is not None:
+        axes = self.__axes
+        calibrated_data = self.calibrated_data
+        is_filled = self.__is_filled
+        color = self.__color
+        if axes and axes.is_valid and calibrated_data is not None:
 
-                plot_rect = self.canvas_bounds
-                plot_width = int(plot_rect[1][1]) - 1
-                plot_height = int(plot_rect[1][0]) - 1
-                plot_origin_x = int(plot_rect[0][1])
-                plot_origin_y = int(plot_rect[0][0])
+            plot_rect = self.canvas_bounds
+            plot_width = int(plot_rect[1][1]) - 1
+            plot_height = int(plot_rect[1][0]) - 1
+            plot_origin_x = int(plot_rect[0][1])
+            plot_origin_y = int(plot_rect[0][0])
 
-                # extract the data we need for drawing y-axis
-                calibrated_data_min = axes.calibrated_data_min
-                calibrated_data_max = axes.calibrated_data_max
-                calibrated_data_range = calibrated_data_max - calibrated_data_min
+            # extract the data we need for drawing y-axis
+            calibrated_data_min = axes.calibrated_data_min
+            calibrated_data_max = axes.calibrated_data_max
+            calibrated_data_range = calibrated_data_max - calibrated_data_min
 
-                # extract the data we need for drawing x-axis
-                data_left = axes.drawn_left_channel
-                data_width = axes.drawn_right_channel - axes.drawn_left_channel
+            # extract the data we need for drawing x-axis
+            data_left = axes.drawn_left_channel
+            data_width = axes.drawn_right_channel - axes.drawn_left_channel
 
-                # draw the line plot itself
-                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, data, calibrated_data_min, calibrated_data_range, data_left, data_width, line_graph_data.filled, line_graph_data.color, line_graph_data.retained_rebin_1d)
+            # draw the line plot itself
+            draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_data, calibrated_data_min, calibrated_data_range, data_left, data_width, is_filled, color, self.__retained_rebin_1d)
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -428,12 +451,14 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__regions = list()
 
     def set_axes(self, axes):
-        self.__axes = axes
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.update()
 
-    def set_calibrated_data(self, data):
-        self.__calibrated_data = data
-        self.update()
+    def set_calibrated_data(self, calibrated_data):
+        if not numpy.array_equal(calibrated_data, self.__calibrated_data):
+            self.__calibrated_data = calibrated_data
+            self.update()
 
     def set_regions(self, regions):
         if (self.__regions is None and regions is not None) or (self.__regions != regions):
@@ -606,8 +631,9 @@ class LineGraphHorizontalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.maximum_height = self.tick_height
 
     def set_axes(self, axes):
-        self.__axes = axes
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.update()
 
     def _repaint(self, drawing_context):
 
@@ -643,8 +669,9 @@ class LineGraphHorizontalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.maximum_height = self.font_size + 4
 
     def set_axes(self, axes):
-        self.__axes = axes
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.update()
 
     def _repaint(self, drawing_context):
 
@@ -692,9 +719,10 @@ class LineGraphHorizontalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes):
-        self.__axes = axes
-        self.size_to_content()
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.size_to_content()
+            self.update()
 
     def _repaint(self, drawing_context):
 
@@ -729,8 +757,9 @@ class LineGraphVerticalAxisTicksCanvasItem(CanvasItem.AbstractCanvasItem):
         self.sizing.maximum_width = self.tick_width
 
     def set_axes(self, axes):
-        self.__axes = axes
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.update()
 
     def _repaint(self, drawing_context):
 
@@ -791,9 +820,10 @@ class LineGraphVerticalAxisScaleCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes, get_font_metrics_fn):
-        self.__axes = axes
-        self.size_to_content(get_font_metrics_fn)
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.size_to_content(get_font_metrics_fn)
+            self.update()
 
     def _repaint(self, drawing_context):
 
@@ -845,9 +875,10 @@ class LineGraphVerticalAxisLabelCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_sizing(new_sizing)
 
     def set_axes(self, axes):
-        self.__axes = axes
-        self.size_to_content()
-        self.update()
+        if not are_axes_equal(self.__axes, axes):
+            self.__axes = axes
+            self.size_to_content()
+            self.update()
 
     def _repaint(self, drawing_context):
 
