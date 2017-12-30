@@ -645,17 +645,17 @@ class DisplayTracker:
 
         def display_changed():
             # called when anything in the data item changes, including things like graphics or the data itself.
-            # update the display canvas, etc.
+            # this notification does not cover the rgba data, which is handled in the function below.
             # thread safe
             display_values = display.get_calculated_display_values()
             display_data_and_metadata_changed(display_values)
             display_graphic_selection_changed(display.graphic_selection)
-            # note: rgba data will be handled separately in next calculated display values
 
         def handle_next_calculated_display_values():
+            # this notification is for the rgba values only
+            # thread safe
             display_values = display.get_calculated_display_values()
             display_rgba_changed(display_values)
-            display_data_and_metadata_changed(display_values)
 
         self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
         self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
