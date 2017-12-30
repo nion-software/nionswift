@@ -307,7 +307,6 @@ class DataListController:
             changed_display_items = self.__changed_display_items
             self.__changed_display_items = False
         if changed_display_items:
-            self.__list_canvas_item.refresh_layout()
             self.__list_canvas_item.update()
         self.__pending_tasks.pop(0)
 
@@ -530,7 +529,6 @@ class DataGridController:
             changed_display_items = self.__changed_display_items
             self.__changed_display_items = False
         if changed_display_items:
-            self.icon_view_canvas_item.refresh_layout()
             self.icon_view_canvas_item.update()
         self.__pending_tasks.pop(0)
 
