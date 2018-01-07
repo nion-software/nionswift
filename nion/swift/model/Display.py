@@ -890,6 +890,18 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.display_changed_event.fire()
 
     @property
+    def displayed_dimensional_scales(self) -> typing.Sequence[float]:
+        """Determines the scale of the fractional coordinate system.
+
+        For displays associated with a single data item, this matches the size of the data.
+
+        For displays assocaited with a composite data item, this must be stored in this class.
+        """
+        if self.__data_and_metadata:
+            return self.__data_and_metadata.dimensional_shape
+        return [1, 1]
+
+    @property
     def displayed_dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
         dimensional_calibration_style = self.dimensional_calibration_style
         calibration_style = self.__get_calibration_style_for_id(dimensional_calibration_style)
