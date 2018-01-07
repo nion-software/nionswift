@@ -71,7 +71,7 @@ class LinePlotCanvasItemDelegate:
     def tool_mode(self) -> str: return str()
 
     @tool_mode.setter
-    def tool_mode(self, value: str) ->None: ...
+    def tool_mode(self, value: str) -> None: ...
 
 
 class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
