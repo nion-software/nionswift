@@ -17,6 +17,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.ui import CanvasItem
 from nion.utils import Geometry
@@ -149,6 +150,16 @@ class LineGraphAxes:
         assert self.is_valid
         return self.__uncalibrated_right_channel
 
+    @property
+    def calibrated_left_channel(self):
+        assert self.is_valid
+        return self.x_calibration.convert_to_calibrated_value(self.drawn_left_channel)
+
+    @property
+    def calibrated_right_channel(self):
+        assert self.is_valid
+        return self.x_calibration.convert_to_calibrated_value(self.drawn_right_channel)
+
     def calculate_y_ticks(self, plot_height):
         """Calculate the y-axis items dependent on the plot height."""
 
@@ -208,21 +219,21 @@ class LineGraphAxes:
 
         return x_ticks
 
-    def calculate_calibrated_data(self, uncalibrated_data):
+    def calculate_calibrated_xdata(self, uncalibrated_xdata):
         calibrated_data = None
-        if uncalibrated_data is not None:
+        if uncalibrated_xdata is not None:
             y_calibration = self.y_calibration
             if y_calibration:
                 if self.data_style == "log":
-                    calibrated_data = numpy.log10(numpy.maximum(y_calibration.offset + y_calibration.scale * uncalibrated_data, 1.0))
+                    calibrated_data = numpy.log10(numpy.maximum(y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data, 1.0))
                 else:
-                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_data
+                    calibrated_data = y_calibration.offset + y_calibration.scale * uncalibrated_xdata.data
             else:
                 if self.data_style == "log":
-                    calibrated_data = numpy.log10(numpy.maximum(uncalibrated_data, 1.0))
+                    calibrated_data = numpy.log10(numpy.maximum(uncalibrated_xdata.data, 1.0))
                 else:
-                    calibrated_data = uncalibrated_data
-        return calibrated_data
+                    calibrated_data = uncalibrated_xdata.data
+        return DataAndMetadata.new_data_and_metadata(calibrated_data, dimensional_calibrations=uncalibrated_xdata.dimensional_calibrations)
 
 
 def are_axes_equal(axes1: LineGraphAxes, axes2: LineGraphAxes) -> bool:
@@ -281,19 +292,43 @@ def draw_vertical_grid_lines(drawing_context, plot_height, plot_origin_y, x_tick
         drawing_context.stroke()
 
 
-def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, data, calibrated_data_min, calibrated_data_range, data_left, data_width, fill: bool, color: str, rebin_cache):
+def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, fill: bool, color: str, rebin_cache):
+    # calculate how the data is displayed
+    xdata_calibration = calibrated_xdata.dimensional_calibrations[-1]
+    assert xdata_calibration.units == x_calibration.units
+    displayed_calibrated_left_channel = max(calibrated_left_channel, xdata_calibration.convert_to_calibrated_value(0))
+    displayed_calibrated_right_channel = min(calibrated_right_channel, xdata_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1]))
+    if displayed_calibrated_left_channel >= calibrated_right_channel or displayed_calibrated_right_channel <= calibrated_left_channel:
+        return  # data is outside drawing area
+    data_left_channel = int(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_left_channel))
+    data_right_channel = int(xdata_calibration.convert_from_calibrated_value(displayed_calibrated_right_channel))
+    left = int((displayed_calibrated_left_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
+    right = int((displayed_calibrated_right_channel - calibrated_left_channel) / (calibrated_right_channel - calibrated_left_channel) * plot_width + plot_origin_x)
+
+    # update input parameters, then fall back to old algorithm
+    plot_width = right - left
+    plot_origin_x = left
+    calibrated_xdata = calibrated_xdata[data_left_channel:data_right_channel]
+    x_calibration = calibrated_xdata.dimensional_calibrations[-1]
+    calibrated_left_channel = x_calibration.convert_to_calibrated_value(0)
+    calibrated_right_channel = x_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1])
+
     # TODO: optimize filled case using not-filled drawing. be careful to handle baseline crossings.
+    uncalibrated_left_channel = x_calibration.convert_from_calibrated_value(calibrated_left_channel)
+    uncalibrated_right_channel = x_calibration.convert_from_calibrated_value(calibrated_right_channel)
+    uncalibrated_width = uncalibrated_right_channel - uncalibrated_left_channel
     with drawing_context.saver():
         drawing_context.begin_path()
-        if calibrated_data_range != 0.0 and data_width > 0.0:
+        if calibrated_data_range != 0.0 and uncalibrated_width > 0.0:
             baseline = plot_origin_y + plot_height - (plot_height * float(0.0 - calibrated_data_min) / calibrated_data_range)
             baseline = min(plot_origin_y + plot_height, baseline)
             baseline = max(plot_origin_y, baseline)
-            # rebin so that data_width corresponds to plot width
-            binned_length = int(data.shape[-1] * plot_width / data_width)
+            # rebin so that uncalibrated_width corresponds to plot width
+            calibrated_data = calibrated_xdata.data
+            binned_length = int(calibrated_data.shape[-1] * plot_width / uncalibrated_width)
             if binned_length > 0:
-                binned_data = Image.rebin_1d(data, binned_length, rebin_cache)
-                binned_left = int(data_left * plot_width / data_width)
+                binned_data = Image.rebin_1d(calibrated_data, binned_length, rebin_cache)
+                binned_left = int(uncalibrated_left_channel * plot_width / uncalibrated_width)
                 # draw the plot
                 last_py = baseline
                 for i in range(0, plot_width):
@@ -402,8 +437,8 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__axes = None
         self.__is_filled = True
         self.__color = '#1E90FF'  # dodger blue
-        self.__uncalibrated_data = None
-        self.__calibrated_data = None
+        self.__uncalibrated_xdata = None
+        self.__calibrated_xdata = None
         self.__retained_rebin_1d = dict()
 
     def set_is_filled(self, is_filled):
@@ -417,17 +452,17 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             self.__color = color
             self.update()
 
-    def set_uncalibrated_data(self, uncalibrated_data):
-        if not numpy.array_equal(uncalibrated_data, self.__uncalibrated_data):
-            self.__uncalibrated_data = uncalibrated_data
-            self.__calibrated_data = None
+    def set_uncalibrated_xdata(self, uncalibrated_xdata):
+        if not DataAndMetadata.is_equal(uncalibrated_xdata, self.__uncalibrated_xdata):
+            self.__uncalibrated_xdata = uncalibrated_xdata
+            self.__calibrated_xdata = None
             self.update()
 
     @property
-    def calibrated_data(self):
-        if self.__calibrated_data is None and self.__uncalibrated_data is not None:
-            self.__calibrated_data = self.__axes.calculate_calibrated_data(self.__uncalibrated_data)
-        return self.__calibrated_data
+    def calibrated_xdata(self):
+        if self.__calibrated_xdata is None and self.__uncalibrated_xdata is not None:
+            self.__calibrated_xdata = self.__axes.calculate_calibrated_xdata(self.__uncalibrated_xdata)
+        return self.__calibrated_xdata
 
     @property
     def _axes(self):  # for testing only
@@ -442,10 +477,10 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def _repaint(self, drawing_context):
         # draw the data, if any
         axes = self.__axes
-        calibrated_data = self.calibrated_data
+        calibrated_xdata = self.calibrated_xdata
         is_filled = self.__is_filled
         color = self.__color
-        if axes and axes.is_valid and calibrated_data is not None:
+        if axes and axes.is_valid and calibrated_xdata is not None:
 
             plot_rect = self.canvas_bounds
             plot_width = int(plot_rect[1][1]) - 1
@@ -459,11 +494,13 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
             calibrated_data_range = calibrated_data_max - calibrated_data_min
 
             # extract the data we need for drawing x-axis
-            data_left = axes.drawn_left_channel
-            data_width = axes.drawn_right_channel - axes.drawn_left_channel
+            calibrated_left_channel = axes.calibrated_left_channel
+            calibrated_right_channel = axes.calibrated_right_channel
+            x_calibration = axes.x_calibration
 
             # draw the line plot itself
-            draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_data, calibrated_data_min, calibrated_data_range, data_left, data_width, is_filled, color, self.__retained_rebin_1d)
+            if x_calibration.units == calibrated_xdata.dimensional_calibrations[-1].units:
+                draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plot_origin_x, calibrated_xdata, calibrated_data_min, calibrated_data_range, calibrated_left_channel, calibrated_right_channel, x_calibration, is_filled, color, self.__retained_rebin_1d)
 
 
 class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):

@@ -55,7 +55,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, data_style=data_style, y_ticker=y_ticker)
         self.assertAlmostEqual(axes.uncalibrated_data_min, 1.0)
         self.assertAlmostEqual(axes.uncalibrated_data_max, 10.0)
-        calibrated_data = axes.calculate_calibrated_data(data)
+        calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
         self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
         self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(10.0))
 
@@ -67,7 +67,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, y_calibration=intensity_calibration, data_style=data_style, y_ticker=y_ticker)
         self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
         self.assertAlmostEqual(axes.calibrated_data_max, 1.5)  # empirically mesaured
-        calibrated_data = axes.calculate_calibrated_data(data)
+        calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
         self.assertAlmostEqual(numpy.amin(calibrated_data), math.log10(1.0))
         self.assertAlmostEqual(numpy.amax(calibrated_data), math.log10(15.0))
 
@@ -216,6 +216,27 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(composite_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
+
+    def test_composite_line_plot_calculates_calibrated_data_of_two_data_items_with_same_units_but_different_scales_properly(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            xdata1 = DataAndMetadata.new_data_and_metadata(numpy.ones((8,)), dimensional_calibrations=[Calibration.Calibration(offset=0, scale=1, units="nm")])
+            xdata2 = DataAndMetadata.new_data_and_metadata(numpy.ones((4,)), dimensional_calibrations=[Calibration.Calibration(offset=2, scale=2, units="nm")])
+            data_item1 = DataItem.new_data_item(xdata1)
+            data_item2 = DataItem.new_data_item(xdata2)
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            composite_item = DataItem.CompositeLibraryItem()
+            composite_item.append_data_item(data_item1)
+            composite_item.append_data_item(data_item2)
+            composite_item.displays[0].display_type = "line_plot"
+            document_model.append_data_item(composite_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            # print(display_panel.display_canvas_item.line_graph_stack.canvas_items[0].calibrated_data)
+            # print(display_panel.display_canvas_item.line_graph_stack.canvas_items[1].calibrated_data)
 
 
 if __name__ == '__main__':

@@ -32,6 +32,32 @@ from nion.utils import Persistence
 _ = gettext.gettext
 
 
+class CalibrationList:
+
+    def __init__(self, calibrations=None):
+        self.list = list() if calibrations is None else copy.deepcopy(calibrations)
+
+    def __len__(self):
+        return len(self.list)
+
+    def __getitem__(self, item):
+        return self.list[item]
+
+    def read_dict(self, storage_list):
+        # storage_list will be whatever is returned by write_dict.
+        new_list = list()
+        for calibration_dict in storage_list:
+            new_list.append(Calibration.Calibration().read_dict(calibration_dict))
+        self.list = new_list
+        return self  # for convenience
+
+    def write_dict(self):
+        list = []
+        for calibration in self.list:
+            list.append(calibration.write_dict())
+        return list
+
+
 class GraphicSelection:
     def __init__(self, indexes=None, anchor_index=None):
         super().__init__()
@@ -419,6 +445,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("legend_labels", changed=self.__property_changed)
+        self.define_property("intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__property_changed)
+        self.define_property("dimensional_calibrations", CalibrationList(), make=CalibrationList, changed=self.__property_changed)
         # slicing data to 1d or 2d
         self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
         self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__property_changed)
@@ -773,7 +801,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
             self.display_data_will_change_event.fire()
             self.__send_next_calculated_display_values()
-        if property_name in ("dimensional_calibration_style", ):
+        if property_name in ("dimensional_calibration_style", "dimensional_calibrations", "intensity_calibration"):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
             calibration_style = self.__get_calibration_style_for_id(value)
@@ -906,7 +934,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         dimensional_calibration_style = self.dimensional_calibration_style
         calibration_style = self.__get_calibration_style_for_id(dimensional_calibration_style)
         if calibration_style is None or self.__data_and_metadata is None:
-            return self.__data_and_metadata.dimensional_calibrations if self.__data_and_metadata else list()
+            if self.__data_and_metadata:
+                return self.__data_and_metadata.dimensional_calibrations
+            if self.dimensional_calibrations:
+                return self.dimensional_calibrations
+            return list()
         return calibration_style.get_dimensional_calibrations(self.__data_and_metadata)
 
     @property
@@ -914,7 +946,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         dimensional_calibration_style = self.dimensional_calibration_style
         calibration_style = self.__get_calibration_style_for_id(dimensional_calibration_style)
         if calibration_style is None or self.__data_and_metadata is None:
-            return self.__data_and_metadata.intensity_calibration if self.__data_and_metadata else Calibration.Calibration()
+            if self.__data_and_metadata:
+                return self.__data_and_metadata.intensity_calibration
+            if self.intensity_calibration:
+                return self.intensity_calibration
+            return Calibration.Calibration()
         return calibration_style.get_intensity_calibration(self.__data_and_metadata)
 
     @property

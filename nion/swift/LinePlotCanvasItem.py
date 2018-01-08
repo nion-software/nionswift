@@ -9,6 +9,7 @@ import numpy
 
 # local libraries
 from nion.data import Calibration
+from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import LineGraphCanvasItem
 from nion.swift.model import Graphics
@@ -106,10 +107,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
-        self.__line_graph_data_list = list()
+        self.__line_graph_xdata_list = list()
 
         self.__is_data1 = False
-        self.__data_list = list()
+        self.__xdata_list = list()
         self.__last_data_list = list()
 
         # frame rate
@@ -205,8 +206,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         super().close()
 
     @property
+    def line_graph_stack(self):
+        return self.__line_graph_stack
+
+    @property
     def line_graph_canvas_item(self):
-        return self.__line_graph_stack.canvas_items[0] if len(self.__line_graph_data_list) > 0 else None
+        return self.__line_graph_stack.canvas_items[0] if len(self.__line_graph_xdata_list) > 0 else None
 
     # for testing
     @property
@@ -224,21 +229,21 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             display_values = display.get_calculated_display_values()
             display_data_and_metadata = display_values.display_data_and_metadata
             if display_data_and_metadata:
-                self.__data_list[index] = display_data_and_metadata.data
+                self.__xdata_list[index] = display_data_and_metadata
             else:
-                self.__data_list[index] = None
+                self.__xdata_list[index] = None
             # update the cursor info
             self.__update_cursor_info()
             # mark for update. prepare display will mark children for update if necesssary.
             self.update()
 
-        self.__data_list.insert(index, None)
+        self.__xdata_list.insert(index, None)
         self.__display_listeners.insert(index, display.display_changed_event.listen(display_changed))
 
         display_changed()
 
     def display_removed(self, display, index):
-        del self.__data_list[index]
+        del self.__xdata_list[index]
         self.__display_listeners[index].close()
         del self.__display_listeners[index]
         # update the cursor info
@@ -289,12 +294,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if display_data_and_metadata:
                 # store the pending display parameters
                 self.__is_data1 = True
-                self.__data_list = [display_data_and_metadata.data]
+                self.__xdata_list = [display_data_and_metadata]
                 self.__update_frame(display.data_and_metadata_for_display_panel.metadata)
             else:
                 if self.__is_data1:
                     self.__is_data1 = False
-                    self.__data_list = list()
+                    self.__xdata_list = list()
 
             # update the cursor info
             self.__update_cursor_info()
@@ -312,9 +317,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     def update(self):
         if self.__display_frame_rate_id:
-            if len(self.__data_list) != len(self.__last_data_list) or not all([a is b for a, b in zip(self.__data_list, self.__last_data_list)]):
+            if len(self.__xdata_list) != len(self.__last_data_list) or not all([a is b for a, b in zip(self.__xdata_list, self.__last_data_list)]):
                 Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                self.__last_data_list = copy.copy(self.__data_list)
+                self.__last_data_list = copy.copy(self.__xdata_list)
         super().update()
 
     def update_regions(self, display, graphic_selection):
@@ -380,18 +385,18 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         right_channel = self.__right_channel
         legend_labels = self.__legend_labels
 
-        scalar_data_list = None
+        scalar_xdata_list = None
 
-        def calculate_scalar_data(data_list):
-            scalar_data_list = list()
-            for data in data_list:
-                scalar_data = Image.scalar_from_array(data)
+        def calculate_scalar_xdata(xdata_list):
+            scalar_xdata_list = list()
+            for xdata in xdata_list:
+                scalar_data = Image.scalar_from_array(xdata.data)
                 scalar_data = Image.convert_to_grayscale(scalar_data)
-                scalar_data_list.append(scalar_data)
-            return scalar_data_list
+                scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, xdata.intensity_calibration, xdata.dimensional_calibrations))
+            return scalar_xdata_list
 
         data_scale = self.__data_scale
-        data_list = self.__data_list
+        xdata_list = self.__xdata_list
 
         if data_scale is not None:
             # update the line graph data
@@ -399,50 +404,55 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             right_channel = right_channel if right_channel is not None else data_scale
             left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
 
-            if y_min is None or y_max is None and len(data_list) > 0:
-                scalar_data_list = calculate_scalar_data(data_list)
+            scalar_data_list = None
+            if y_min is None or y_max is None and len(xdata_list) > 0:
+                scalar_xdata_list = calculate_scalar_xdata(xdata_list)
+                scalar_data_list = [xdata.data if xdata else None for xdata in scalar_xdata_list]
             calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(scalar_data_list, y_min, y_max, intensity_calibration, y_style)
             axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style, y_ticker)
 
-            if scalar_data_list is None and len(data_list) > 0:
-                scalar_data_list = calculate_scalar_data(data_list)
+            if scalar_xdata_list is None and len(xdata_list) > 0:
+                scalar_xdata_list = calculate_scalar_xdata(xdata_list)
 
-            line_graph_data_list = list()
+            line_graph_xdata_list = list()
 
             if self.__display_frame_rate_id:
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
 
-            for scalar_data in scalar_data_list:
-                if Image.is_data_1d(scalar_data):
-                    line_graph_data_list.append(scalar_data)
-                elif Image.is_data_2d(scalar_data):
-                    rows = min(16, scalar_data.shape[0])
+            for scalar_xdata in scalar_xdata_list:
+                if scalar_xdata.is_data_1d:
+                    line_graph_xdata_list.append(scalar_xdata)
+                elif scalar_xdata.is_data_2d:
+                    rows = min(16, scalar_xdata.dimensional_shape[0])
+                    intensity_calibration = scalar_xdata.intensity_calibration
+                    dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
                     for row in range(rows):
-                        scalar_data_row = scalar_data[row:row + 1, :].reshape((scalar_data.shape[-1],))
-                        line_graph_data_list.append(scalar_data_row)
+                        scalar_data_row = scalar_xdata.data[row:row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
+                        scalar_xdata_row = DataAndMetadata.new_data_and_metadata(scalar_data_row, intensity_calibration, [dimensional_calibration])
+                        line_graph_xdata_list.append(scalar_xdata_row)
 
-            line_graph_data_list = line_graph_data_list[0:16]
+            line_graph_xdata_list = line_graph_xdata_list[0:16]
 
             colors = ('#1E90FF', "#F00", "#0F0", "#00F", "#FF0", "#0FF", "#F0F", "#888", "#800", "#080", "#008", "#CCC", "#880", "#088", "#808", "#964B00")
 
             for index, line_graph_canvas_item in enumerate(self.__line_graph_stack.canvas_items):
-                if index < len(line_graph_data_list):
+                if index < len(line_graph_xdata_list):
                     line_graph_canvas_item.set_is_filled(index == 0)
                     line_graph_canvas_item.set_color(colors[index])
                     line_graph_canvas_item.set_axes(axes)
-                    line_graph_canvas_item.set_uncalibrated_data(line_graph_data_list[index])
+                    line_graph_canvas_item.set_uncalibrated_xdata(line_graph_xdata_list[index])
                 else:
                     line_graph_canvas_item.set_axes(None)
-                    line_graph_canvas_item.set_uncalibrated_data(None)
+                    line_graph_canvas_item.set_uncalibrated_xdata(None)
 
-            self.__line_graph_data_list = line_graph_data_list
+            self.__line_graph_xdata_list = line_graph_xdata_list
 
             self.__update_canvas_items(axes, legend_labels)
         else:
             for line_graph_canvas_item in self.__line_graph_stack.canvas_items:
                 line_graph_canvas_item.set_axes(None)
-                line_graph_canvas_item.set_uncalibrated_data(None)
-            self.__line_graph_data_list = list()
+                line_graph_canvas_item.set_uncalibrated_xdata(None)
+            self.__line_graph_xdata_list = list()
             self.__update_canvas_items(LineGraphCanvasItem.LineGraphAxes(), None)
 
     def _inserted(self, container):
@@ -493,7 +503,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def __update_canvas_items(self, axes, legend_labels):
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
-        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_data if self.line_graph_canvas_item else None)
+        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
         self.__line_graph_legend_canvas_item.set_legend_labels(legend_labels)
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
