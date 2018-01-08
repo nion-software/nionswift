@@ -1094,6 +1094,16 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(document_model.data_items[0].is_data_loaded)
             self.assertFalse(document_model.data_items[1].is_data_loaded)
 
+    def test_adding_data_item_twice_to_composite_item_fails(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            master_data_item = DataItem.CompositeLibraryItem()
+            master_data_item.append_data_item(data_item)
+            with self.assertRaises(Exception):
+                master_data_item.append_data_item(data_item)
+
     def test_dependent_calibration(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

@@ -200,6 +200,23 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             display_panel.set_display_panel_data_item(data_item)
             display_panel.display_canvas_item.layout_immediate((640, 480))
 
+    def test_composite_line_plot_initializes_properly(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item1 = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            data_item2 = DataItem.DataItem(numpy.ones((8,), numpy.float))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            composite_item = DataItem.CompositeLibraryItem()
+            composite_item.append_data_item(data_item1)
+            composite_item.append_data_item(data_item2)
+            composite_item.displays[0].display_type = "line_plot"
+            document_model.append_data_item(composite_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

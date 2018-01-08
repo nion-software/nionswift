@@ -42,7 +42,7 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
     else:
         uncalibrated_data_min = None
         for uncalibrated_data in uncalibrated_data_list:
-            if uncalibrated_data.shape[-1] > 0:
+            if uncalibrated_data is not None and uncalibrated_data.shape[-1] > 0:
                 partial_uncalibrated_data_min = numpy.amin(uncalibrated_data)
                 if uncalibrated_data_min is not None:
                     uncalibrated_data_min = min(uncalibrated_data_min, partial_uncalibrated_data_min)
@@ -56,7 +56,7 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
     else:
         uncalibrated_data_max = None
         for uncalibrated_data in uncalibrated_data_list:
-            if uncalibrated_data.shape[-1] > 0:
+            if uncalibrated_data is not None and uncalibrated_data.shape[-1] > 0:
                 partial_uncalibrated_data_max = numpy.amax(uncalibrated_data)
                 if uncalibrated_data_max is not None:
                     uncalibrated_data_max = max(uncalibrated_data_max, partial_uncalibrated_data_max)

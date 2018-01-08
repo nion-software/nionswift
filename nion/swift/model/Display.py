@@ -891,7 +891,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def displayed_dimensional_scales(self) -> typing.Sequence[float]:
-        """Determines the scale of the fractional coordinate system.
+        """The scale of the fractional coordinate system.
 
         For displays associated with a single data item, this matches the size of the data.
 

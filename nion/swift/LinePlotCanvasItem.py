@@ -108,6 +108,17 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__line_graph_data_list = list()
 
+        self.__is_data1 = False
+        self.__data_list = list()
+        self.__last_data_list = list()
+
+        # frame rate
+        self.__display_frame_rate_id = None
+        self.__display_frame_rate_last_index = 0
+
+        # child displays
+        self.__display_listeners = list()
+
         self.__line_graph_area_stack = CanvasItem.CanvasItemComposition()
         self.__line_graph_background_canvas_item = LineGraphCanvasItem.LineGraphBackgroundCanvasItem()
         self.__line_graph_stack = CanvasItem.CanvasItemComposition()
@@ -174,8 +185,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__axes = None
 
-        self.__data = None
-        self.__last_data = None
         self.__data_scale = None
         self.__dimensional_calibration = None
         self.__intensity_calibration = None
@@ -188,10 +197,6 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__graphics = list()
         self.__graphic_selection = None
-
-        # frame rate
-        self.__display_frame_rate_id = None
-        self.__display_frame_rate_last_index = 0
 
     def close(self):
         # call super
@@ -213,10 +218,33 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return (1 + 5 ** 0.5) / 2  # golden ratio
 
     def display_inserted(self, display, index):
-        pass
+
+        def display_changed():
+            # update the data
+            display_values = display.get_calculated_display_values()
+            display_data_and_metadata = display_values.display_data_and_metadata
+            if display_data_and_metadata:
+                self.__data_list[index] = display_data_and_metadata.data
+            else:
+                self.__data_list[index] = None
+            # update the cursor info
+            self.__update_cursor_info()
+            # mark for update. prepare display will mark children for update if necesssary.
+            self.update()
+
+        self.__data_list.insert(index, None)
+        self.__display_listeners.insert(index, display.display_changed_event.listen(display_changed))
+
+        display_changed()
 
     def display_removed(self, display, index):
-        pass
+        del self.__data_list[index]
+        self.__display_listeners[index].close()
+        del self.__display_listeners[index]
+        # update the cursor info
+        self.__update_cursor_info()
+        # mark for update. prepare display will mark children for update if necesssary.
+        self.update()
 
     def display_rgba_changed(self, display, display_values):
         # when the display rgba data changes, no need to do anything
@@ -238,6 +266,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         The inefficiencies in this process are that the layer must re-render on each call to this function. There is
         also a cost within the constituent canvas items to check whether the axes or their data has changed.
+
+        When the display is associated with a single data item, the data will be
         """
 
         # may be called from thread; prevent a race condition with closing.
@@ -245,47 +275,47 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if self.__closed:
                 return
 
+            self.__data_scale = display.displayed_dimensional_scales[-1] if len(display.displayed_dimensional_scales) > 0 else 1
+            self.__dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
+            self.__intensity_calibration = display.displayed_intensity_calibration
+            self.__y_min = display.y_min
+            self.__y_max = display.y_max
+            self.__y_style = display.y_style
+            self.__left_channel = display.left_channel
+            self.__right_channel = display.right_channel
+            self.__legend_labels = display.legend_labels
+
             display_data_and_metadata = display_values.display_data_and_metadata
             if display_data_and_metadata:
                 # store the pending display parameters
-                self.__data = display_data_and_metadata.data
-                self.__data_scale = display.displayed_dimensional_scales[-1] if len(display.displayed_dimensional_scales) > 0 else 1
-                self.__dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
-                self.__intensity_calibration = display_data_and_metadata.intensity_calibration
-                self.__y_min = display.y_min
-                self.__y_max = display.y_max
-                self.__y_style = display.y_style
-                self.__left_channel = display.left_channel
-                self.__right_channel = display.right_channel
-                self.__legend_labels = display.legend_labels
-
-                # update frame rate info
-                if self.__display_frame_rate_id:
-                    metadata = display.data_and_metadata_for_display_panel.metadata
-                    frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
-                    if frame_index != self.__display_frame_rate_last_index:
-                        Utility.fps_tick("frame_"+self.__display_frame_rate_id)
-                        self.__display_frame_rate_last_index = frame_index
-                    if not self.__data is self.__last_data:
-                        Utility.fps_tick("update_"+self.__display_frame_rate_id)
-                        self.__last_data = self.__data
+                self.__is_data1 = True
+                self.__data_list = [display_data_and_metadata.data]
+                self.__update_frame(display.data_and_metadata_for_display_panel.metadata)
             else:
-                self.__data = None
-                self.__data_scale = None
-                self.__dimensional_calibration = None
-                self.__intensity_calibration = None
-                self.__y_min = None
-                self.__y_max = None
-                self.__y_style = None
-                self.__left_channel = None
-                self.__right_channel = None
-                self.__legend_labels = None
+                if self.__is_data1:
+                    self.__is_data1 = False
+                    self.__data_list = list()
 
             # update the cursor info
             self.__update_cursor_info()
 
             # mark for update. prepare display will mark children for update if necesssary.
             self.update()
+
+    def __update_frame(self, metadata):
+        # update frame rate info
+        if self.__display_frame_rate_id:
+            frame_index = metadata.get("hardware_source", dict()).get("frame_index", 0)
+            if frame_index != self.__display_frame_rate_last_index:
+                Utility.fps_tick("frame_"+self.__display_frame_rate_id)
+                self.__display_frame_rate_last_index = frame_index
+
+    def update(self):
+        if self.__display_frame_rate_id:
+            if len(self.__data_list) != len(self.__last_data_list) or not all([a is b for a, b in zip(self.__data_list, self.__last_data_list)]):
+                Utility.fps_tick("update_"+self.__display_frame_rate_id)
+                self.__last_data_list = copy.copy(self.__data_list)
+        super().update()
 
     def update_regions(self, display, graphic_selection):
         displayed_shape = display.preview_2d_shape
@@ -361,7 +391,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return scalar_data_list
 
         data_scale = self.__data_scale
-        data = self.__data
+        data_list = self.__data_list
 
         if data_scale is not None:
             # update the line graph data
@@ -369,13 +399,13 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             right_channel = right_channel if right_channel is not None else data_scale
             left_channel, right_channel = min(left_channel, right_channel), max(left_channel, right_channel)
 
-            if y_min is None or y_max is None and data is not None:
-                scalar_data_list = calculate_scalar_data([data])
+            if y_min is None or y_max is None and len(data_list) > 0:
+                scalar_data_list = calculate_scalar_data(data_list)
             calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(scalar_data_list, y_min, y_max, intensity_calibration, y_style)
             axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style, y_ticker)
 
-            if scalar_data_list is None and data is not None:
-                scalar_data_list = calculate_scalar_data([data])
+            if scalar_data_list is None and len(data_list) > 0:
+                scalar_data_list = calculate_scalar_data(data_list)
 
             line_graph_data_list = list()
 
