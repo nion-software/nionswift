@@ -284,5 +284,5 @@ class ConsoleDialog(Dialog.ActionDialog):
         self.__document_controller.unregister_console(self)
         super().close()
 
-    def assign_data_item_var(self, data_item_var, data_item):
-        self.__console_widget.insert_lines(["{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(data_item_var, data_item.uuid)])
+    def assign_library_item_var(self, library_item_var, library_item):
+        self.__console_widget.insert_lines(["{} = api.library.get_data_item_by_uuid(uuid.UUID(\"{}\"))".format(library_item_var, library_item.uuid)])
