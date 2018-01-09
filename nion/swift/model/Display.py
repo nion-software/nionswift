@@ -447,6 +447,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("legend_labels", changed=self.__property_changed)
         self.define_property("intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), make=CalibrationList, changed=self.__property_changed)
+        self.define_property("dimensional_scales", None, changed=self.__property_changed)
         # slicing data to 1d or 2d
         self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
         self.define_property("collection_index", (0, 0, 0), validate=self.__validate_collection_index, changed=self.__property_changed)
@@ -801,7 +802,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
             self.display_data_will_change_event.fire()
             self.__send_next_calculated_display_values()
-        if property_name in ("dimensional_calibration_style", "dimensional_calibrations", "intensity_calibration"):
+        if property_name in ("dimensional_calibration_style", "dimensional_calibrations", "intensity_calibration", "dimensional_scales"):
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
             calibration_style = self.__get_calibration_style_for_id(value)
@@ -927,6 +928,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         """
         if self.__data_and_metadata:
             return self.__data_and_metadata.dimensional_shape
+        if self.dimensional_scales:
+            return self.dimensional_scales
         return [1, 1]
 
     @property

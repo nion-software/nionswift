@@ -983,6 +983,32 @@ class TestGraphicsClass(unittest.TestCase):
             display_specifier.display.remove_graphic(crop_region1)
             self.assertIn(crop_region2, display_specifier.display.graphics)
 
+    def test_changing_data_length_does_not_update_graphics(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
+            document_model.append_data_item(data_item)
+            interval_graphic = Graphics.IntervalGraphic()
+            interval_graphic.interval = (0.25, 0.75)
+            data_item.displays[0].add_graphic(interval_graphic)
+            self.assertEqual(data_item.displays[0].displayed_dimensional_scales[-1], 100)
+            data_item.set_data(numpy.zeros((50, ), numpy.uint32))
+            self.assertEqual(interval_graphic.interval, (0.25, 0.75))
+
+    def test_changing_data_scale_does_not_update_graphics(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((100, ), numpy.uint32))
+            document_model.append_data_item(data_item)
+            interval_graphic = Graphics.IntervalGraphic()
+            interval_graphic.interval = (0.25, 0.75)
+            data_item.displays[0].add_graphic(interval_graphic)
+            self.assertEqual(data_item.displays[0].displayed_dimensional_scales[-1], 100)
+            data_item.displays[0].dimensional_scales = (1, )
+            self.assertEqual(interval_graphic.interval, (0.25, 0.75))
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

@@ -44,7 +44,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             data[:] = data_min + (data_max - data_min) * (irow / 15.0)
             # auto on min/max
             calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, None, None)
-            axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, y_ticker=y_ticker)
+            axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, y_ticker=y_ticker)
             self.assertEqual(axes.uncalibrated_data_min, expected_uncalibrated_data_min)
             self.assertEqual(axes.uncalibrated_data_max, expected_uncalibrated_data_max)
 
@@ -52,7 +52,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data = numpy.linspace(-0.1, 10.0, 10)
         data_style = "log"
         calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, None, data_style)
-        axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, data_style=data_style, y_ticker=y_ticker)
+        axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, data_style=data_style, y_ticker=y_ticker)
         self.assertAlmostEqual(axes.uncalibrated_data_min, 1.0)
         self.assertAlmostEqual(axes.uncalibrated_data_max, 10.0)
         calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data
@@ -64,7 +64,7 @@ class TestLineGraphCanvasItem(unittest.TestCase):
         data = numpy.linspace(-0.1, 10.0, 10)
         data_style = "log"
         calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis([data], None, None, intensity_calibration, data_style)
-        axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, y_calibration=intensity_calibration, data_style=data_style, y_ticker=y_ticker)
+        axes = LineGraphCanvasItem.LineGraphAxes(1.0, calibrated_data_min, calibrated_data_max, y_calibration=intensity_calibration, data_style=data_style, y_ticker=y_ticker)
         self.assertAlmostEqual(axes.calibrated_data_min, 0.0)
         self.assertAlmostEqual(axes.calibrated_data_max, 1.5)  # empirically mesaured
         calibrated_data = axes.calculate_calibrated_xdata(DataAndMetadata.new_data_and_metadata(data)).data

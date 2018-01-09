@@ -95,8 +95,9 @@ def calculate_y_axis(uncalibrated_data_list, data_min, data_max, y_calibration, 
 class LineGraphAxes:
     """Track information about line graph axes."""
 
-    def __init__(self, calibrated_data_min=None, calibrated_data_max=None, data_left=None, data_right=None, x_calibration=None, y_calibration=None, data_style=None, y_ticker=None):
+    def __init__(self, data_scale=None, calibrated_data_min=None, calibrated_data_max=None, data_left=None, data_right=None, x_calibration=None, y_calibration=None, data_style=None, y_ticker=None):
         # these items are considered to be input items
+        self.data_scale = data_scale
         self.__uncalibrated_left_channel = data_left
         self.__uncalibrated_right_channel = data_right
         self.x_calibration = x_calibration
@@ -108,7 +109,7 @@ class LineGraphAxes:
 
     @property
     def is_valid(self):
-        return self.__uncalibrated_left_channel is not None and self.__uncalibrated_right_channel is not None and self.__calibrated_data_min is not None and self.__calibrated_data_max is not None
+        return self.data_scale is not None and self.__uncalibrated_left_channel is not None and self.__uncalibrated_right_channel is not None and self.__calibrated_data_min is not None and self.__calibrated_data_max is not None
 
     @property
     def y_ticker(self):
@@ -471,7 +472,7 @@ class LineGraphCanvasItem(CanvasItem.AbstractCanvasItem):
     def set_axes(self, axes):
         if not are_axes_equal(self.__axes, axes):
             self.__axes = axes
-            self.__calibrated_data = None
+            self.__calibrated_xdata = None
             self.update()
 
     def _repaint(self, drawing_context):
@@ -534,7 +535,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
         axes = self.__axes
         data = self.__calibrated_data
         regions = self.__regions
-        if axes and axes.is_valid and data is not None:
+        if axes and axes.is_valid:
 
             plot_rect = self.canvas_bounds
             plot_height = int(plot_rect[1][0]) - 1
@@ -545,17 +546,19 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
             calibrated_data_max = axes.calibrated_data_max
             calibrated_data_range = calibrated_data_max - calibrated_data_min
 
-            if len(data.shape) > 1:
+            if data is not None and len(data.shape) > 1:
                 data = data[0, ...]
 
             data_left = axes.drawn_left_channel
             data_right = axes.drawn_right_channel
 
+            data_scale = axes.data_scale
+
             if data_right <= data_left:
                 return
 
             def convert_coordinate_to_pixel(c):
-                px = c * data.shape[-1]
+                px = c * data_scale
                 return plot_rect.width * (px - data_left) / (data_right - data_left)
 
             canvas_width = self.canvas_size.width
@@ -568,7 +571,7 @@ class LineGraphRegionsCanvasItem(CanvasItem.AbstractCanvasItem):
                 level = plot_rect.bottom - plot_rect.height * 0.8 + index * 8
                 with drawing_context.saver():
                     drawing_context.clip_rect(0, 0, canvas_width, canvas_height)
-                    if region.style == "tag":
+                    if region.style == "tag" and data is not None:
                         if calibrated_data_range != 0.0:
                             channel = (left_channel + right_channel) / 2
                             data_value = data[int(channel * data.shape[0])]

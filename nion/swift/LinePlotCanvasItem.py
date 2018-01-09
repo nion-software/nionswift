@@ -211,7 +211,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
     @property
     def line_graph_canvas_item(self):
-        return self.__line_graph_stack.canvas_items[0] if len(self.__line_graph_xdata_list) > 0 else None
+        return self.__line_graph_stack.canvas_items[0] if (self.__line_graph_stack and len(self.__line_graph_xdata_list) > 0) else None
 
     # for testing
     @property
@@ -323,31 +323,31 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         super().update()
 
     def update_regions(self, display, graphic_selection):
-        displayed_shape = display.preview_2d_shape
+        dimensional_scales = display.displayed_dimensional_scales
         graphics = display.graphics
 
         self.__graphics = copy.copy(graphics)
         self.__graphic_selection = copy.copy(graphic_selection)
 
-        if displayed_shape is None or len(displayed_shape) == 0:
+        if dimensional_scales is None or len(dimensional_scales) == 0:
             return
 
-        data_length = displayed_shape[-1]
-        dimensional_calibration = display.displayed_dimensional_calibrations[-1]
+        data_scale = dimensional_scales[-1]
+        dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
 
         def convert_to_calibrated_value_str(f):
-            return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_length), samples=data_length, include_units=False))
+            return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))
 
         def convert_to_calibrated_size_str(f):
-            return u"{0}".format(dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_length), samples=data_length, include_units=False))
+            return u"{0}".format(dimensional_calibration.convert_to_calibrated_size_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))
 
         regions = list()
         for graphic_index, graphic in enumerate(graphics):
             if isinstance(graphic, Graphics.IntervalGraphic):
                 graphic_start, graphic_end = graphic.start, graphic.end
                 graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
-                left_channel = graphic_start * data_length
-                right_channel = graphic_end * data_length
+                left_channel = graphic_start * data_scale
+                right_channel = graphic_end * data_scale
                 left_text = convert_to_calibrated_value_str(left_channel)
                 right_text = convert_to_calibrated_value_str(right_channel)
                 middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
@@ -357,8 +357,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             elif isinstance(graphic, Graphics.ChannelGraphic):
                 graphic_start, graphic_end = graphic.position, graphic.position
                 graphic_start, graphic_end = min(graphic_start, graphic_end), max(graphic_start, graphic_end)
-                left_channel = graphic_start * data_length
-                right_channel = graphic_end * data_length
+                left_channel = graphic_start * data_scale
+                right_channel = graphic_end * data_scale
                 left_text = convert_to_calibrated_value_str(left_channel)
                 right_text = convert_to_calibrated_value_str(right_channel)
                 middle_text = convert_to_calibrated_size_str(right_channel - left_channel)
@@ -409,7 +409,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 scalar_xdata_list = calculate_scalar_xdata(xdata_list)
                 scalar_data_list = [xdata.data if xdata else None for xdata in scalar_xdata_list]
             calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(scalar_data_list, y_min, y_max, intensity_calibration, y_style)
-            axes = LineGraphCanvasItem.LineGraphAxes(calibrated_data_min, calibrated_data_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style, y_ticker)
+            axes = LineGraphCanvasItem.LineGraphAxes(data_scale, calibrated_data_min, calibrated_data_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style, y_ticker)
 
             if scalar_xdata_list is None and len(xdata_list) > 0:
                 scalar_xdata_list = calculate_scalar_xdata(xdata_list)
