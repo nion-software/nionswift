@@ -445,7 +445,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("left_channel", changed=self.__property_changed)
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("legend_labels", changed=self.__property_changed)
-        self.define_property("intensity_calibration", Calibration.Calibration(), make=Calibration.Calibration, changed=self.__property_changed)
+        self.define_property("intensity_calibration", None, make=Calibration.Calibration, changed=self.__property_changed)
         self.define_property("dimensional_calibrations", CalibrationList(), make=CalibrationList, changed=self.__property_changed)
         self.define_property("dimensional_scales", None, changed=self.__property_changed)
         # slicing data to 1d or 2d
@@ -802,11 +802,16 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if property_name in ("sequence_index", "collection_index", "slice_center", "slice_width", "complex_display_type", "display_limits", "color_map_data"):
             self.display_data_will_change_event.fire()
             self.__send_next_calculated_display_values()
-        if property_name in ("dimensional_calibration_style", "dimensional_calibrations", "intensity_calibration", "dimensional_scales"):
+        if property_name in ("dimensional_calibration_style", ):
+            self.notify_property_changed("displayed_dimensional_scales")
             self.notify_property_changed("displayed_dimensional_calibrations")
             self.notify_property_changed("displayed_intensity_calibration")
             calibration_style = self.__get_calibration_style_for_id(value)
             self._get_persistent_property("display_calibrated_values").value = calibration_style.is_calibrated if calibration_style else None
+        if property_name in ("dimensional_calibrations", "intensity_calibration", "dimensional_scales"):
+            self.notify_property_changed("displayed_dimensional_scales")
+            self.notify_property_changed("displayed_dimensional_calibrations")
+            self.notify_property_changed("displayed_intensity_calibration")
 
     # message sent when data changes.
     # thread safe

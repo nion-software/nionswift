@@ -984,6 +984,21 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(vector[0], (0.11, 0.22))
             self.assertEqual(vector[1], (0.3, 0.4))
 
+    def test_reloaded_line_plot_has_valid_calibration_style(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, ), numpy.uint32))
+            document_model.append_data_item(data_item)
+            self.assertEqual(data_item.displays[0].display_calibrated_values, True)
+            self.assertIsNone(data_item.displays[0].dimensional_calibration_style)
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = document_model.data_items[0]
+            self.assertEqual(data_item.displays[0].display_calibrated_values, True)
+            self.assertEqual(data_item.displays[0].dimensional_calibration_style, "calibrated")
+
     def test_reloaded_graphics_load_properly(self):
         cache_name = ":memory:"
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
