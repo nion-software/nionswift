@@ -550,6 +550,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             compiled = compile(code, "expr", "exec")
             exec(compiled, g, l)
         except Exception as e:
+            # print(code)
             # import sys, traceback
             # traceback.print_exc()
             # traceback.format_exception(*sys.exc_info())
