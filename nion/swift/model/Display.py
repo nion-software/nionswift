@@ -446,7 +446,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.define_property("right_channel", changed=self.__property_changed)
         self.define_property("legend_labels", changed=self.__property_changed)
         self.define_property("intensity_calibration", None, make=Calibration.Calibration, changed=self.__property_changed)
-        self.define_property("dimensional_calibrations", CalibrationList(), make=CalibrationList, changed=self.__property_changed)
+        self.define_property("dimensional_calibrations", CalibrationList(), hidden=True, make=CalibrationList, changed=self.__property_changed)
         self.define_property("dimensional_scales", None, changed=self.__property_changed)
         # slicing data to 1d or 2d
         self.define_property("sequence_index", 0, validate=self.__validate_sequence_index, changed=self.__property_changed)
@@ -575,6 +575,15 @@ class Display(Observable.Observable, Persistence.PersistentObject):
     def title(self, value: str) -> None:
         self.__title = value
         self.notify_property_changed("title")
+
+    @property
+    def dimensional_calibrations(self) -> typing.Sequence[Calibration.Calibration]:
+        return copy.deepcopy(self._get_persistent_property_value("dimensional_calibrations", CalibrationList()).list)
+
+    @dimensional_calibrations.setter
+    def dimensional_calibrations(self, dimensional_calibrations: typing.Sequence[Calibration.Calibration]) -> None:
+        """ Set the dimensional calibrations. """
+        self._set_persistent_property_value("dimensional_calibrations", CalibrationList(dimensional_calibrations))
 
     # when the data item changes, it will call this method so that item_changed can be fired.
     def _item_changed(self):
