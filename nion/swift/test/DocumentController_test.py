@@ -601,7 +601,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_model.append_data_item(source_data_item)
             context_menu = document_controller.create_context_menu_for_display(source_data_item.primary_display_specifier.display)
             context_menu_items = context_menu.items
-            delete_item = next(x for x in context_menu_items if x.title == "Delete Data Item")
+            delete_item = next(x for x in context_menu_items if x.title == "Delete Library Item")
             delete_item.callback()
             self.assertEqual(len(document_model.data_items), 0)
 

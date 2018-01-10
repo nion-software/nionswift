@@ -660,6 +660,16 @@ class DocumentController(Window.Window):
                 selected_data_items.append(data_item)
         return selected_data_items
 
+    @property
+    def selected_library_items(self) -> typing.List[DataItem.LibraryItem]:
+        selected_displays = self.selected_displays
+        selected_library_items = list()
+        for display in selected_displays:
+            library_item = DataItem.DisplaySpecifier.from_display(display).library_item
+            if library_item and not library_item in selected_library_items:
+                selected_library_items.append(library_item)
+        return selected_library_items
+
     def select_data_items_in_data_panel(self, data_items: typing.Sequence[DataItem.DataItem]) -> None:
         displays = self.filtered_displays_model.displays
         associated_displays = {data_item.primary_display_specifier.display for data_item in data_items}
@@ -730,12 +740,12 @@ class DocumentController(Window.Window):
 
     def delete_displays(self, displays: typing.Sequence[Display.Display]) -> None:
         for display in displays:
-            data_item = DataItem.DisplaySpecifier.from_display(display).data_item
-            if data_item:
+            library_item = DataItem.DisplaySpecifier.from_display(display).library_item
+            if library_item:
                 container = self.__data_items_model.container
-                container = DataGroup.get_data_item_container(container, data_item)
-                if container and data_item in container.data_items:
-                    container.remove_data_item(data_item)
+                container = DataGroup.get_data_item_container(container, library_item)
+                if container and library_item in container.data_items:
+                    container.remove_data_item(library_item)
                     # Note: periodic is here because the one in browser display panel is there.
                     # I could not get a test to fail without this statement; but regular use
                     # seems to fail during delete if this isn't here. Argh. Bad design.
@@ -1454,44 +1464,50 @@ class DocumentController(Window.Window):
 
     def create_context_menu_for_display(self, display: Display.Display, container=None):
         menu = self.create_context_menu()
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
-        if data_item:
+        library_item = DataItem.DisplaySpecifier.from_display(display).library_item
+        if library_item:
+            data_item = DataItem.DisplaySpecifier.from_display(display).data_item
+
             if not container:
                 container = self.data_items_model.container
-                container = DataGroup.get_data_item_container(container, data_item)
+                container = DataGroup.get_data_item_container(container, library_item)
 
             def delete():
-                selected_data_items = self.selected_data_items
-                if not data_item in selected_data_items:
-                    container.remove_data_item(data_item)
+                selected_library_items = self.selected_library_items
+                if not library_item in selected_library_items:
+                    container.remove_data_item(library_item)
                 else:
-                    for selected_data_item in selected_data_items:
-                        if container and selected_data_item in container.data_items:
-                            container.remove_data_item(selected_data_item)
+                    for selected_library_item in selected_library_items:
+                        if container and selected_library_item in container.data_items:
+                            container.remove_data_item(selected_library_item)
 
-            def show_in_new_window():
-                self.new_window_with_data_item("data", data_item=data_item)
+            if data_item is not None:
 
-            menu.add_menu_item(_("Open in New Window"), show_in_new_window)
+                def show_in_new_window():
+                    self.new_window_with_data_item("data", data_item=data_item)
+
+                menu.add_menu_item(_("Open in New Window"), show_in_new_window)
 
             def show():
-                self.select_data_item_in_data_panel(data_item)
+                self.select_data_item_in_data_panel(library_item)
             menu.add_menu_item(_("Reveal"), show)
 
-            menu.add_menu_item(_("Delete Data Item"), delete)
-
-            def export_files():
-                selected_data_items = self.selected_data_items
-                if data_item in selected_data_items:
-                    self.export_files(selected_data_items)
-                else:
-                    self.export_file(data_item)
+            menu.add_menu_item(_("Delete Library Item"), delete)
 
             # when exporting, queue the task so that the pop-up is allowed to close before the dialog appears.
             # without queueing, it originally led to a crash (tested in Qt 5.4.1 on Windows 7).
-            menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
+            if data_item is not None:
 
-            source_data_items = self.document_model.get_source_data_items(data_item)
+                def export_files():
+                    selected_data_items = self.selected_data_items
+                    if data_item in selected_data_items:
+                        self.export_files(selected_data_items)
+                    else:
+                        self.export_file(data_item)
+
+                menu.add_menu_item(_("Export..."), functools.partial(self.queue_task, export_files))  # queued to avoid pop-up menu issue
+
+            source_data_items = self.document_model.get_source_data_items(library_item)
             if len(source_data_items) > 0:
                 menu.add_separator()
                 for source_data_item in source_data_items:
@@ -1501,7 +1517,7 @@ class DocumentController(Window.Window):
                     menu.add_menu_item("{0} \"{1}\"".format(_("Go to Source "), source_data_item.title),
                                        functools.partial(show_source_data_item, source_data_item))
 
-            dependent_data_items = self.document_model.get_dependent_data_items(data_item)
+            dependent_data_items = self.document_model.get_dependent_data_items(library_item)
             if len(dependent_data_items) > 0:
                 menu.add_separator()
                 for dependent_data_item in dependent_data_items:
