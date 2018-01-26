@@ -309,7 +309,10 @@ def draw_line_graph(drawing_context, plot_height, plot_width, plot_origin_y, plo
     # update input parameters, then fall back to old algorithm
     plot_width = right - left
     plot_origin_x = left
-    calibrated_xdata = calibrated_xdata[data_left_channel:data_right_channel]
+    if 0 <= data_left_channel < data_right_channel and data_right_channel <= calibrated_xdata.dimensional_shape[-1]:
+        calibrated_xdata = calibrated_xdata[data_left_channel:data_right_channel]
+    else:
+        return
     x_calibration = calibrated_xdata.dimensional_calibrations[-1]
     calibrated_left_channel = x_calibration.convert_to_calibrated_value(0)
     calibrated_right_channel = x_calibration.convert_to_calibrated_value(calibrated_xdata.dimensional_shape[-1])

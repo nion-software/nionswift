@@ -188,7 +188,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
 
         self.__data_scale = None
         self.__dimensional_calibration = None
+        self.__displayed_dimensional_calibration = None
         self.__intensity_calibration = None
+        self.__dimensional_calibration_style = None
         self.__y_min = None
         self.__y_max = None
         self.__y_style = None
@@ -281,8 +283,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 return
 
             self.__data_scale = display.displayed_dimensional_scales[-1] if len(display.displayed_dimensional_scales) > 0 else 1
-            self.__dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
+            self.__dimensional_calibration = display.dimensional_calibrations[-1] if display.dimensional_calibrations else None
+            self.__displayed_dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display.displayed_dimensional_scales[-1])
             self.__intensity_calibration = display.displayed_intensity_calibration
+            self.__dimensional_calibration_style = display.get_calibration_style_for_id(display.dimensional_calibration_style)
             self.__y_min = display.y_min
             self.__y_max = display.y_max
             self.__y_style = display.y_style
@@ -333,7 +337,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return
 
         data_scale = dimensional_scales[-1]
-        dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration()
+        dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display.displayed_dimensional_scales[-1])
 
         def convert_to_calibrated_value_str(f):
             return u"{0}".format(dimensional_calibration.convert_to_calibrated_value_str(f, value_range=(0, data_scale), samples=data_scale, include_units=False))
@@ -375,9 +379,18 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         return True
 
     def prepare_display(self):
-        # thread safe. no UI.
-        dimensional_calibration = self.__dimensional_calibration
+        """Prepare the display.
+
+        This method gets called by the canvas layout/draw engine after being triggered by a call to `update`.
+
+        When data or display parameters change, the internal state of the line plot gets updated. This method takes
+        that internal state and updates the child canvas items.
+
+        This method is always run on a thread and should be fast but doesn't need to be instant.
+        """
+        displayed_dimensional_calibration = self.__displayed_dimensional_calibration
         intensity_calibration = self.__intensity_calibration
+        dimensional_calibration_style = self.__dimensional_calibration_style
         y_min = self.__y_min
         y_max = self.__y_max
         y_style = self.__y_style
@@ -392,7 +405,13 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             for xdata in xdata_list:
                 scalar_data = Image.scalar_from_array(xdata.data)
                 scalar_data = Image.convert_to_grayscale(scalar_data)
-                scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, xdata.intensity_calibration, xdata.dimensional_calibrations))
+                scalar_intensity_calibration = dimensional_calibration_style.get_intensity_calibration(xdata)
+                scalar_dimensional_calibrations = dimensional_calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
+                # check whether there is common units between the data and the display
+                if not displayed_dimensional_calibration.units and self.__dimensional_calibration and scalar_dimensional_calibrations[-1].units == self.__dimensional_calibration.units:
+                    scalar_dimensional_calibrations = scalar_dimensional_calibrations[0:-1] + [Calibration.Calibration(scale=self.__data_scale)]
+                if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units:
+                    scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, scalar_intensity_calibration, scalar_dimensional_calibrations))
             return scalar_xdata_list
 
         data_scale = self.__data_scale
@@ -409,7 +428,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 scalar_xdata_list = calculate_scalar_xdata(xdata_list)
                 scalar_data_list = [xdata.data if xdata else None for xdata in scalar_xdata_list]
             calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(scalar_data_list, y_min, y_max, intensity_calibration, y_style)
-            axes = LineGraphCanvasItem.LineGraphAxes(data_scale, calibrated_data_min, calibrated_data_max, left_channel, right_channel, dimensional_calibration, intensity_calibration, y_style, y_ticker)
+            axes = LineGraphCanvasItem.LineGraphAxes(data_scale, calibrated_data_min, calibrated_data_max, left_channel, right_channel, displayed_dimensional_calibration, intensity_calibration, y_style, y_ticker)
 
             if scalar_xdata_list is None and len(xdata_list) > 0:
                 scalar_xdata_list = calculate_scalar_xdata(xdata_list)
@@ -425,10 +444,10 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 elif scalar_xdata.is_data_2d:
                     rows = min(16, scalar_xdata.dimensional_shape[0])
                     intensity_calibration = scalar_xdata.intensity_calibration
-                    dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
+                    displayed_dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
                     for row in range(rows):
                         scalar_data_row = scalar_xdata.data[row:row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
-                        scalar_xdata_row = DataAndMetadata.new_data_and_metadata(scalar_data_row, intensity_calibration, [dimensional_calibration])
+                        scalar_xdata_row = DataAndMetadata.new_data_and_metadata(scalar_data_row, intensity_calibration, [displayed_dimensional_calibration])
                         line_graph_xdata_list.append(scalar_xdata_row)
 
             line_graph_xdata_list = line_graph_xdata_list[0:16]

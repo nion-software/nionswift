@@ -238,6 +238,88 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             # print(display_panel.display_canvas_item.line_graph_stack.canvas_items[0].calibrated_data)
             # print(display_panel.display_canvas_item.line_graph_stack.canvas_items[1].calibrated_data)
 
+    def test_line_plot_calculates_calibrated_vs_uncalibrated_display_y_values(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), intensity_calibration=Calibration.Calibration(offset=0, scale=10, units="nm")))
+            data_item.displays[0].display_type = "line_plot"
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.full((8, ), 10)))
+            data_item.displays[0].dimensional_calibration_style = "pixels-top-left"
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            self.assertTrue(numpy.array_equal(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.data, numpy.ones((8, ))))
+
+    def test_line_plot_handles_calibrated_vs_uncalibrated_display(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), dimensional_calibrations=[Calibration.Calibration(offset=0, scale=10, units="nm")]))
+            data_item.displays[0].display_type = "line_plot"
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            self.assertEqual(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, "nm")
+            data_item.displays[0].dimensional_calibration_style = "pixels-top-left"
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
+
+    def test_multi_line_plot_without_calibration_does_not_display_any_line_graphs(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), dimensional_calibrations=[Calibration.Calibration(offset=0, scale=10, units="nm")]))
+            data_item.displays[0].display_type = "line_plot"
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            composite_item.append_data_item(data_item)
+            composite_item.displays[0].display_type = "line_plot"
+            document_model.append_data_item(composite_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            self.assertIsNone(display_panel.display_canvas_item.line_graph_canvas_item)
+
+    def test_multi_line_plot_handles_calibrated_vs_uncalibrated_display(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            calibration = Calibration.Calibration(offset=0, scale=10, units="nm")
+            data_item = DataItem.new_data_item(DataAndMetadata.new_data_and_metadata(numpy.ones((8, )), dimensional_calibrations=[calibration]))
+            data_item.displays[0].display_type = "line_plot"
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            composite_item.append_data_item(data_item)
+            composite_item.displays[0].display_type = "line_plot"
+            composite_item.displays[0].dimensional_calibrations = [calibration]
+            composite_item.displays[0].dimensional_scales = [8]
+            document_model.append_data_item(composite_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            self.assertEqual(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units, composite_item.displays[0].dimensional_calibrations[-1].units)
+            # print(f"style {composite_item.displays[0].dimensional_calibration_style}")
+            # print(f"dim {composite_item.displays[0].dimensional_calibrations}")
+            # print(f"int {composite_item.displays[0].intensity_calibration}")
+            # print(f"d dim {composite_item.displays[0].displayed_dimensional_calibrations}")
+            # print(f"d int {composite_item.displays[0].displayed_intensity_calibration}")
+            # print(f"scales {composite_item.displays[0].displayed_dimensional_scales}")
+            composite_item.displays[0].dimensional_calibration_style = "pixels-top-left"
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            # print(f">> {display_panel.display_canvas_item.line_graph_canvas_item}")
+            self.assertFalse(display_panel.display_canvas_item.line_graph_canvas_item.calibrated_xdata.dimensional_calibrations[-1].units)
+            self.assertFalse(composite_item.displays[0].displayed_dimensional_calibrations[-1].units)
+            # print(f"style {composite_item.displays[0].dimensional_calibration_style}")
+            # print(f"dim {composite_item.displays[0].dimensional_calibrations}")
+            # print(f"int {composite_item.displays[0].intensity_calibration}")
+            # print(f"d dim {composite_item.displays[0].displayed_dimensional_calibrations}")
+            # print(f"d int {composite_item.displays[0].displayed_intensity_calibration}")
+            # print(f"scales {composite_item.displays[0].displayed_dimensional_scales}")
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
