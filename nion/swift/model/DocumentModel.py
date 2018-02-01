@@ -1845,7 +1845,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             with self.__dependency_tree_lock:
                 dependents = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
                 for dependent in dependents:
-                    self.get_deep_dependent_items(dependent, item_set)
+                    self.__get_deep_dependent_item_set(dependent, item_set)
 
     def get_source_data_items(self, data_item: DataItem.DataItem) -> typing.List[DataItem.DataItem]:
         with self.__dependency_tree_lock:
