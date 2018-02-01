@@ -282,9 +282,12 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             if self.__closed:
                 return
 
-            self.__data_scale = display.displayed_dimensional_scales[-1] if len(display.displayed_dimensional_scales) > 0 else 1
-            self.__dimensional_calibration = display.dimensional_calibrations[-1] if display.dimensional_calibrations else None
-            self.__displayed_dimensional_calibration = display.displayed_dimensional_calibrations[-1] if len(display.displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=display.displayed_dimensional_scales[-1])
+            dimensional_calibrations = display.dimensional_calibrations
+            displayed_dimensional_scales = display.displayed_dimensional_scales
+            displayed_dimensional_calibrations = display.displayed_dimensional_calibrations
+            self.__data_scale = displayed_dimensional_scales[-1] if len(displayed_dimensional_scales) > 0 else 1
+            self.__dimensional_calibration = dimensional_calibrations[-1] if dimensional_calibrations else None
+            self.__displayed_dimensional_calibration = displayed_dimensional_calibrations[-1] if len(displayed_dimensional_calibrations) > 0 else Calibration.Calibration(scale=displayed_dimensional_scales[-1])
             self.__intensity_calibration = display.displayed_intensity_calibration
             self.__dimensional_calibration_style = display.get_calibration_style_for_id(display.dimensional_calibration_style)
             self.__y_min = display.y_min
