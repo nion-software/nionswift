@@ -212,6 +212,19 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_item_r, "r01")
             self.assertEqual(composite_item_r, "r02")
 
+    def test_computation_creates_dependency_between_data_source_graphic_and_target(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.displays[0].add_graphic(crop_region)
+            document_model.append_data_item(data_item)
+            data_item_crop = document_model.get_crop_new(data_item, crop_region)
+            self.assertSetEqual(set(document_model.get_dependent_items(data_item)), {data_item_crop})
+            self.assertSetEqual(set(document_model.get_dependent_items(crop_region)), {data_item_crop})
+            self.assertSetEqual(set(document_model.get_source_items(data_item_crop)), {data_item, crop_region})
+
     find_max_eval_count = 0
 
     class FindMax:
@@ -818,6 +831,43 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_computation(computation)
             document_model.recompute_all()
             self.assertEqual(TestDocumentModelClass.add2_eval_count, 0)
+
+    class GenerateZero:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, rect):
+            size = int(rect.bounds[1][0] * 100), int(rect.bounds[1][1] * 100)
+            self.__new_data = numpy.zeros(size)
+
+        def commit(self):
+            dst_data_item = self.computation.get_result("dst")
+            if not dst_data_item:
+                dst_data_item = self.computation.api.library.create_data_item()
+                self.computation.set_result("dst", dst_data_item)
+            dst_data_item.data = self.__new_data
+
+    def test_dependency_from_graphic_to_data_item_establishes_cleanly(self):
+        Symbolic.register_computation_type("genzero", self.GenerateZero)
+        document_model = DocumentModel.DocumentModel()
+        self.app._set_document_model(document_model)  # required to allow API to find document model
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            graphic = Graphics.RectangleGraphic()
+            data_item.displays[0].add_graphic(graphic)
+            document_model.append_data_item(data_item)
+            computation = document_model.create_computation()
+            computation.create_object("rect", document_model.get_object_specifier(graphic))
+            computation.processing_id = "genzero"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            target_data_item = document_model.data_items[1]
+            self.assertEqual(document_model.get_dependent_items(graphic)[0], target_data_item)
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 0)
+            self.assertEqual(len(document_model.get_dependent_items(target_data_item)), 0)
+            self.assertEqual(document_model.get_source_items(target_data_item)[0], graphic)
+            self.assertEqual(len(document_model.get_source_items(graphic)), 0)
+            self.assertEqual(len(document_model.get_source_items(data_item)), 0)
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
