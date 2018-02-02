@@ -1831,20 +1831,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def get_source_items(self, item) -> typing.List:
         with self.__dependency_tree_lock:
-            return [item for item in self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list())]
+            return copy.copy(self.__dependency_tree_target_to_source_map.get(weakref.ref(item), list()))
 
     def get_dependent_items(self, item) -> typing.List:
         """Return the list of data items containing data that directly depends on data in this item."""
         with self.__dependency_tree_lock:
-            return [item for item in self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())]
+            return copy.copy(self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list()))
 
     def __get_deep_dependent_item_set(self, item, item_set) -> None:
         """Return the list of data items containing data that directly depends on data in this item."""
         if not item in item_set:
             item_set.add(item)
             with self.__dependency_tree_lock:
-                dependents = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
-                for dependent in dependents:
+                for dependent in self.get_dependent_items(item):
                     self.__get_deep_dependent_item_set(dependent, item_set)
 
     def get_source_data_items(self, data_item: DataItem.DataItem) -> typing.List[DataItem.DataItem]:
@@ -1870,20 +1869,25 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             return [data_item.primary_display_specifier.display for data_item in data_items]
         return list()
 
-    def data_item_transaction(self, data_item):
+    @property
+    def _transactions(self):
+        # for testing
+        return self.__transactions
+
+    def item_transaction(self, item):
         """ Return a context manager to put the data item under a 'transaction'. """
         class TransactionContextManager:
             def __init__(self, manager, object):
                 self.__manager = manager
                 self.__object = object
             def __enter__(self):
-                self.__manager.begin_data_item_transaction(self.__object)
+                self.__manager.begin_item_transaction(self.__object)
                 return self
             def __exit__(self, type, value, traceback):
-                self.__manager.end_data_item_transaction(self.__object)
-        return TransactionContextManager(self, data_item)
+                self.__manager.end_item_transaction(self.__object)
+        return TransactionContextManager(self, item)
 
-    def begin_data_item_transaction(self, data_item):
+    def begin_item_transaction(self, item):
         """Begin transaction state.
 
         A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
@@ -1894,18 +1898,46 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         This method is thread safe.
         """
-        with self.__transactions_lock:
-            old_transaction_count = self.__transactions.get(data_item.uuid, 0)
-            self.__transactions[data_item.uuid] = old_transaction_count + 1
-        # if the old transaction count was 0, it means we're entering the transaction state.
-        if old_transaction_count == 0:
-            data_item._enter_transaction_state()
-            # finally, tell dependent data items to enter their transaction states also
-            # so that they also don't write change to disk immediately.
-            for dependent_data_item in self.get_dependent_data_items(data_item):
-                self.begin_data_item_transaction(dependent_data_item)
 
-    def end_data_item_transaction(self, data_item):
+        class TransactionInfo:
+            def __init__(self, transactions_lock, transactions, item):
+                self.__transactions_lock = transactions_lock
+                self.__transactions = transactions
+                self.__item_uuid = item.uuid
+                self.count = 0
+
+                def will_remove():
+                    with self.__transactions_lock:
+                        del self.__transactions[self.__item_uuid]
+
+                self.__about_to_be_removed_event_listener = item.about_to_be_removed_event.listen(will_remove) if hasattr(item, "about_to_be_removed_event") else None
+
+            def close(self):
+                if self.__about_to_be_removed_event_listener:
+                    self.__about_to_be_removed_event_listener.close()
+                    self.__about_to_be_removed_event_listener = None
+
+        items = set()
+        if isinstance(item, DataItem.LibraryItem):
+            for display in item.displays:
+                for graphic in display.graphics:
+                    self.__get_deep_dependent_item_set(graphic, items)
+        self.__get_deep_dependent_item_set(item, items)
+        # print(f"IN {items}")
+        for item in items:
+            with self.__transactions_lock:
+                transaction = self.__transactions.get(item.uuid)
+                if not transaction:
+                    transaction = TransactionInfo(self.__transactions_lock, self.__transactions, item)
+                    self.__transactions[item.uuid] = transaction
+                old_transaction_count = transaction.count
+                transaction.count += 1
+            # if the old transaction count was 0, it means we're entering the transaction state.
+            if old_transaction_count == 0:
+                if callable(getattr(item, "_enter_transaction_state", None)):
+                    item._enter_transaction_state()
+
+    def end_item_transaction(self, item):
         """End transaction state.
 
         Has the side effects of exiting the write delay state, cache delay state (via is_cached_delayed),
@@ -1918,26 +1950,45 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         This method is thread safe.
         """
         # maintain the transaction count under a mutex
-        with self.__transactions_lock:
-            transaction_count = self.__transactions.get(data_item.uuid, 0) - 1
-            assert transaction_count >= 0
-            self.__transactions[data_item.uuid] = transaction_count
-        # if the new transaction count is 0, it means we're exiting the transaction state.
-        if transaction_count == 0:
-            # first, tell our dependent data items to exit their transaction states.
-            for dependent_data_item in self.get_dependent_data_items(data_item):
-                self.end_data_item_transaction(dependent_data_item)
-            data_item._exit_transaction_state()
+        items = set()
+        if isinstance(item, DataItem.LibraryItem):
+            for display in item.displays:
+                for graphic in display.graphics:
+                    self.__get_deep_dependent_item_set(graphic, items)
+        self.__get_deep_dependent_item_set(item, items)
+        # print(f"OUT {items}")
+        for item in items:
+            with self.__transactions_lock:
+                transaction_count = 0
+                transaction = self.__transactions.get(item.uuid)
+                if transaction:
+                    transaction.count -= 1
+                    transaction_count = transaction.count
+                    if transaction.count == 0:
+                        self.__transactions.pop(item.uuid).close()
+            # if the new transaction count is 0, it means we're exiting the transaction state.
+            if transaction_count == 0:
+                if callable(getattr(item, "_exit_transaction_state", None)):
+                    item._exit_transaction_state()
+
+    def data_item_transaction(self, data_item):
+        return self.item_transaction(data_item)
+
+    def begin_data_item_transaction(self, data_item):
+        self.begin_item_transaction(data_item)
+
+    def end_data_item_transaction(self, data_item):
+        self.end_item_transaction(data_item)
 
     def begin_display_transaction(self, display: Display.Display) -> None:
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
-        if data_item:
-            self.begin_data_item_transaction(data_item)
+        library_item = DataItem.DisplaySpecifier.from_display(display).library_item
+        if library_item:
+            self.begin_item_transaction(library_item)
 
     def end_display_transaction(self, display: Display.Display) -> None:
-        data_item = DataItem.DisplaySpecifier.from_display(display).data_item
-        if data_item:
-            self.end_data_item_transaction(data_item)
+        library_item = DataItem.DisplaySpecifier.from_display(display).library_item
+        if library_item:
+            self.end_item_transaction(library_item)
 
     def data_item_live(self, data_item):
         """ Return a context manager to put the data item in a 'live state'. """

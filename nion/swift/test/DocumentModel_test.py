@@ -212,6 +212,83 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(data_item_r, "r01")
             self.assertEqual(composite_item_r, "r02")
 
+    def test_transaction_on_composite_display_propagates_to_dependents(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item)
+            composite_item.displays[0].display_type = "line_plot"
+            interval = Graphics.IntervalGraphic()
+            composite_item.displays[0].add_graphic(interval)
+            computed_data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(computed_data_item)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_object("interval", document_model.get_object_specifier(interval))
+            document_model.set_data_item_computation(computed_data_item, computation)
+            self.assertSetEqual(set(document_model.get_dependent_items(data_item)), {computed_data_item})
+            self.assertSetEqual(set(document_model.get_dependent_items(interval)), {computed_data_item})
+            document_model.begin_display_transaction(composite_item.displays[0])
+            try:
+                self.assertTrue(composite_item.in_transaction_state)
+                self.assertTrue(computed_data_item.in_transaction_state)
+                self.assertFalse(data_item.in_transaction_state)
+            finally:
+                document_model.end_display_transaction(composite_item.displays[0])
+            self.assertFalse(composite_item.in_transaction_state)
+            self.assertFalse(computed_data_item.in_transaction_state)
+            self.assertFalse(data_item.in_transaction_state)
+
+    def test_transaction_handles_added_graphic(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item)
+            with document_model.item_transaction(data_item):
+                interval = Graphics.IntervalGraphic()
+                data_item.displays[0].add_graphic(interval)
+            self.assertFalse(document_model._transactions)
+
+    def test_transaction_handles_removed_graphic(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((100, )))
+            interval = Graphics.IntervalGraphic()
+            data_item.displays[0].add_graphic(interval)
+            document_model.append_data_item(data_item)
+            with document_model.item_transaction(data_item):
+                data_item.displays[0].remove_graphic(interval)
+            self.assertFalse(document_model._transactions)
+
+    def test_transaction_handles_added_dependent_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.displays[0].add_graphic(crop_region)
+            document_model.append_data_item(data_item)
+            with document_model.item_transaction(data_item):
+                data_item_crop = document_model.get_crop_new(data_item, crop_region)
+                self.assertIn(data_item_crop.uuid, document_model._transactions)
+            self.assertFalse(document_model._transactions)
+
+    def test_transaction_handles_removed_dependent_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            crop_region = Graphics.RectangleGraphic()
+            crop_region.bounds = (0.25, 0.25), (0.5, 0.5)
+            data_item.displays[0].add_graphic(crop_region)
+            document_model.append_data_item(data_item)
+            data_item_crop = document_model.get_crop_new(data_item, crop_region)
+            with document_model.item_transaction(data_item):
+                document_model.remove_data_item(data_item_crop)
+            self.assertFalse(document_model._transactions)
+
     def test_computation_creates_dependency_between_data_source_graphic_and_target(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
