@@ -106,18 +106,23 @@ class SharedInstance(type):
     """
     def __init__(cls, name, bases, d):
         super(SharedInstance, cls).__init__(name, bases, d)
+        cls.__lock = threading.RLock()
         cls.instances = dict()
 
     def __call__(cls, *args, **kw):
         assert len(args) == 1
-        instance_ref = cls.instances.get(args[0])
-        if not instance_ref:
-            instance = super(SharedInstance, cls).__call__(*args, **kw)
-            def remove_instance_ref(instance_ref):
+
+        def remove_instance_ref(instance_ref):
+            with cls.__lock:
                 cls.instances = { k: v for k, v in cls.instances.items() if v != instance_ref }
-            instance_ref = weakref.ref(instance, remove_instance_ref)
-            cls.instances[args[0]] = instance_ref
-        return instance_ref()
+
+        with cls.__lock:
+            instance_ref = cls.instances.get(args[0])
+            if not instance_ref:
+                instance = super(SharedInstance, cls).__call__(*args, **kw)
+                instance_ref = weakref.ref(instance, remove_instance_ref)
+                cls.instances[args[0]] = instance_ref
+            return instance_ref()
 
 
 class ObjectSpecifier:
