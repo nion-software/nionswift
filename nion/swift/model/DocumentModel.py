@@ -1904,6 +1904,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__transactions_lock = transactions_lock
                 self.__transactions = transactions
                 self.__item_uuid = item.uuid
+                self.__item = item
                 self.count = 0
 
                 def will_remove():
@@ -1911,6 +1912,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         del self.__transactions[self.__item_uuid]
 
                 self.__about_to_be_removed_event_listener = item.about_to_be_removed_event.listen(will_remove) if hasattr(item, "about_to_be_removed_event") else None
+
+            def __repr__(self):
+                return repr(self.__item)
 
             def close(self):
                 if self.__about_to_be_removed_event_listener:
@@ -1922,7 +1926,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for display in item.displays:
                 for graphic in display.graphics:
                     self.__get_deep_dependent_item_set(graphic, items)
+            for connection in item.connections:
+                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
+                    self.__get_deep_dependent_item_set(connection._source, items)
         self.__get_deep_dependent_item_set(item, items)
+        for data_item in self.data_items:
+            for connection in data_item.connections:
+                if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
+                    self.__get_deep_dependent_item_set(connection._target, items)
         # print(f"IN {items}")
         for item in items:
             with self.__transactions_lock:
@@ -1955,7 +1966,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for display in item.displays:
                 for graphic in display.graphics:
                     self.__get_deep_dependent_item_set(graphic, items)
+            for connection in item.connections:
+                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
+                    self.__get_deep_dependent_item_set(connection._source, items)
         self.__get_deep_dependent_item_set(item, items)
+        for data_item in self.data_items:
+            for connection in data_item.connections:
+                if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
+                    self.__get_deep_dependent_item_set(connection._target, items)
         # print(f"OUT {items}")
         for item in items:
             with self.__transactions_lock:

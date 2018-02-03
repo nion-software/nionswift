@@ -74,6 +74,10 @@ class PropertyConnection(Connection):
         super().close()
 
     @property
+    def _source(self):
+        return self.__source
+
+    @property
     def _target(self):
         return self.__target
 

@@ -165,6 +165,56 @@ class TestConnectionClass(unittest.TestCase):
             self.assertEqual(len(interval_descriptors), 1)
             self.assertEqual(interval_descriptors[0]["interval"], interval)
 
+    def test_connection_establishes_transaction_on_source(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item_src = DataItem.DataItem(numpy.zeros((1000, )))
+            data_item_dst = DataItem.DataItem(numpy.zeros((1000, )))
+            interval_src = Graphics.IntervalGraphic()
+            interval_dst = Graphics.IntervalGraphic()
+            data_item_src.displays[0].add_graphic(interval_src)
+            data_item_dst.displays[0].add_graphic(interval_dst)
+            document_model.append_data_item(data_item_src)
+            document_model.append_data_item(data_item_dst)
+            connection = Connection.PropertyConnection(interval_src, "interval", interval_dst, "interval")
+            data_item_dst.add_connection(connection)
+            # check dependencies
+            with document_model.item_transaction(data_item_dst):
+                self.assertIn(data_item_dst.uuid, document_model._transactions.keys())
+                self.assertIn(interval_dst.uuid, document_model._transactions.keys())
+                self.assertIn(interval_src.uuid, document_model._transactions.keys())
+                self.assertNotIn(data_item_src.uuid, document_model._transactions.keys())
+            self.assertFalse(document_model._transactions)
+
+    def test_connection_establishes_transaction_on_parallel_source_connection(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item_src = DataItem.DataItem(numpy.zeros((1000, )))
+            data_item_dst1 = DataItem.DataItem(numpy.zeros((1000, )))
+            data_item_dst2 = DataItem.DataItem(numpy.zeros((1000, )))
+            interval_src = Graphics.IntervalGraphic()
+            interval_dst1 = Graphics.IntervalGraphic()
+            interval_dst2 = Graphics.IntervalGraphic()
+            data_item_src.displays[0].add_graphic(interval_src)
+            data_item_dst1.displays[0].add_graphic(interval_dst1)
+            data_item_dst2.displays[0].add_graphic(interval_dst2)
+            document_model.append_data_item(data_item_src)
+            document_model.append_data_item(data_item_dst1)
+            document_model.append_data_item(data_item_dst2)
+            connection1 = Connection.PropertyConnection(interval_src, "interval", interval_dst1, "interval")
+            data_item_dst1.add_connection(connection1)
+            connection2 = Connection.PropertyConnection(interval_src, "interval", interval_dst2, "interval")
+            data_item_dst2.add_connection(connection2)
+            # check dependencies
+            with document_model.item_transaction(data_item_dst1):
+                self.assertIn(data_item_dst1.uuid, document_model._transactions.keys())
+                self.assertIn(interval_dst1.uuid, document_model._transactions.keys())
+                self.assertIn(interval_src.uuid, document_model._transactions.keys())
+                self.assertNotIn(data_item_dst2.uuid, document_model._transactions.keys())
+                self.assertIn(interval_dst2.uuid, document_model._transactions.keys())
+                self.assertNotIn(data_item_src.uuid, document_model._transactions.keys())
+            self.assertFalse(document_model._transactions)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
