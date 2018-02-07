@@ -946,6 +946,192 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_source_items(graphic)), 0)
             self.assertEqual(len(document_model.get_source_items(data_item)), 0)
 
+    class CropHalf:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src_xdata):
+            top = src_xdata.dimensional_shape[0] // 4
+            left = src_xdata.dimensional_shape[1] // 4
+            bottom = top + src_xdata.dimensional_shape[0] // 2
+            right = left + src_xdata.dimensional_shape[1] // 2
+            self.__new_data = src_xdata.data[top:bottom, left:right]
+
+        def commit(self):
+            dst_data_item = self.computation.get_result("dst")
+            if not dst_data_item:
+                dst_data_item = self.computation.api.library.create_data_item()
+                self.computation.set_result("dst", dst_data_item)
+            dst_data_item.data = self.__new_data
+
+    def test_computation_can_depend_on_xdata(self):
+        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.random.randn(12, 12))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "crop_half"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, data_item.data[3:9, 3:9]))
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
+            self.assertEqual(len(document_model.get_source_items(data_item2)), 1)
+            self.assertEqual(document_model.get_source_items(data_item2)[0], data_item)
+
+    def test_computation_can_depend_on_display_xdata(self):
+        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.random.randn(12, 12, 4))
+            data_item.displays[0].slice_center = 2
+            data_item.displays[0].slice_width = 1
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "display_xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "crop_half"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, data_item.data[3:9, 3:9, 2]))
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
+            self.assertEqual(len(document_model.get_source_items(data_item2)), 1)
+            self.assertEqual(document_model.get_source_items(data_item2)[0], data_item)
+
+    def test_computation_can_depend_on_cropped_xdata(self):
+        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.random.randn(24, 24))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = (0, 0), (0.5, 0.5)
+            data_item.displays[0].add_graphic(graphic)
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "cropped_xdata"), secondary_specifier=document_model.get_object_specifier(graphic))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "crop_half"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, data_item.data[3:9, 3:9]))
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
+            self.assertEqual(len(document_model.get_dependent_items(graphic)), 1)
+            self.assertEqual(document_model.get_dependent_items(graphic)[0], data_item2)
+            self.assertEqual(len(document_model.get_source_items(data_item2)), 2)
+            self.assertIn(graphic, document_model.get_source_items(data_item2))
+            self.assertIn(data_item, document_model.get_source_items(data_item2))
+
+    def test_computation_can_depend_on_cropped_display_xdata(self):
+        Symbolic.register_computation_type("crop_half", self.CropHalf)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.random.randn(24, 24, 4))
+            data_item.displays[0].slice_center = 2
+            data_item.displays[0].slice_width = 1
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            graphic = Graphics.RectangleGraphic()
+            graphic.bounds = (0, 0), (0.5, 0.5)
+            data_item.displays[0].add_graphic(graphic)
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "cropped_display_xdata"), secondary_specifier=document_model.get_object_specifier(graphic))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "crop_half"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, data_item.data[3:9, 3:9, 2]))
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
+            self.assertEqual(len(document_model.get_dependent_items(graphic)), 1)
+            self.assertEqual(document_model.get_dependent_items(graphic)[0], data_item2)
+            self.assertEqual(len(document_model.get_source_items(data_item2)), 2)
+            self.assertIn(graphic, document_model.get_source_items(data_item2))
+            self.assertIn(data_item, document_model.get_source_items(data_item2))
+
+    class PassThru:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src_xdata):
+            self.__new_data = numpy.copy(src_xdata.data)
+
+        def commit(self):
+            dst_data_item = self.computation.get_result("dst")
+            if not dst_data_item:
+                dst_data_item = self.computation.api.library.create_data_item()
+                self.computation.set_result("dst", dst_data_item)
+            dst_data_item.data = self.__new_data
+
+    def test_computation_can_depend_on_filter_xdata(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.full((20, 20), 5))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            graphic = Graphics.RingGraphic()
+            graphic.radius_1 = 0.2
+            graphic.radius_2 = 1.0
+            data_item.displays[0].add_graphic(graphic)
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "filter_xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "pass_thru"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(data_item2.xdata.dimensional_shape, (20, 20))
+            self.assertEqual(numpy.amin(data_item2.data), 0)
+            self.assertEqual(numpy.amax(data_item2.data), 1)
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
+            self.assertEqual(len(document_model.get_dependent_items(graphic)), 1)
+            self.assertEqual(document_model.get_dependent_items(graphic)[0], data_item2)
+            self.assertEqual(len(document_model.get_source_items(data_item2)), 2)
+            self.assertIn(graphic, document_model.get_source_items(data_item2))
+            self.assertIn(data_item, document_model.get_source_items(data_item2))
+
+    def test_computation_can_depend_on_filtered_xdata(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.full((20, 20), 5, dtype=numpy.complex128))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            graphic = Graphics.RingGraphic()
+            graphic.radius_1 = 0.2
+            graphic.radius_2 = 1.0
+            data_item.displays[0].add_graphic(graphic)
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "filtered_xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "pass_thru"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(data_item2.xdata.dimensional_shape, (20, 20))
+            self.assertEqual(numpy.amin(data_item2.data), 0)
+            self.assertEqual(numpy.amax(data_item2.data), 5)
+            self.assertEqual(len(document_model.get_dependent_items(data_item)), 1)
+            self.assertEqual(document_model.get_dependent_items(data_item)[0], data_item2)
+            self.assertEqual(len(document_model.get_dependent_items(graphic)), 1)
+            self.assertEqual(document_model.get_dependent_items(graphic)[0], data_item2)
+            self.assertEqual(len(document_model.get_source_items(data_item2)), 2)
+            self.assertIn(graphic, document_model.get_source_items(data_item2))
+            self.assertIn(data_item, document_model.get_source_items(data_item2))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # ability to add custom objects to library and depend on them and update them

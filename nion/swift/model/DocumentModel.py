@@ -21,6 +21,7 @@ import numpy
 import scipy
 
 # local libraries
+from nion.data import Core
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift.model import Cache
@@ -1748,14 +1749,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             specifier = variable.specifier
             if specifier:
                 object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier)
-                if hasattr(object, "value"):
-                    source_item = object.value
-                    if isinstance(source_item, DataItem.DataSource):
-                        input_items.add(source_item.data_item)
-                        if source_item.graphic:
-                            input_items.add(source_item.graphic)
-                    else:
-                        input_items.add(source_item)
+                if hasattr(object, "base_objects"):
+                    input_items.update(object.base_objects)
         return input_items
 
     def __resolve_computation_outputs(self, computation: Symbolic.Computation) -> typing.Set:
@@ -2272,6 +2267,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def get_object_specifier(self, object, object_type: str=None) -> dict:
         if isinstance(object, DataItem.DataItem) and object_type == "data_item":
             return {"version": 1, "type": "data_item_object", "uuid": str(object.uuid)}
+        if isinstance(object, DataItem.DataItem) and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+            return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
         if isinstance(object, DataItem.DataItem):
             # should be "data_source" but requires file format change
             return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
@@ -2305,6 +2302,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     @property
                     def value(self):
                         return self.__data_source
+                    @property
+                    def base_objects(self):
+                        objects = {self.__data_source.data_item}
+                        if self.__data_source.graphic:
+                            objects.add(self.__data_source.graphic)
+                        return objects
                     def close(self):
                         self.__data_source.close()
                         self.__data_source = None
@@ -2326,6 +2329,178 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def value(self):
                             return self.__object
+                        @property
+                        def base_objects(self):
+                            return {self.__object}
+                    return BoundDataItem(data_item)
+            elif specifier_type == "xdata":
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                if data_item:
+                    class BoundDataItem:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
+                        def close(self):
+                            self.__data_changed_event_listener.close()
+                            self.__data_changed_event_listener = None
+                        @property
+                        def value(self):
+                            return self.__object.xdata
+                        @property
+                        def base_objects(self):
+                            return {self.__object}
+                    return BoundDataItem(data_item)
+            elif specifier_type == "display_xdata":
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                if data_item:
+                    class BoundDataItem:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
+                        def close(self):
+                            self.__data_changed_event_listener.close()
+                            self.__data_changed_event_listener = None
+                        @property
+                        def value(self):
+                            return self.__object.displays[0].get_calculated_display_values(True).display_data_and_metadata
+                        @property
+                        def base_objects(self):
+                            return {self.__object}
+                    return BoundDataItem(data_item)
+            elif specifier_type == "cropped_xdata":
+                specifier_uuid_str = specifier.get("uuid")
+                secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
+                if data_item:
+                    class BoundDataItem:
+                        def __init__(self, data_item, graphic):
+                            self.__data_item = data_item
+                            self.__graphic = graphic
+                            self.changed_event = Event.Event()
+                            self.__data_changed_event_listener = self.__data_item.data_changed_event.listen(self.changed_event.fire)
+                        def close(self):
+                            self.__data_changed_event_listener.close()
+                            self.__data_changed_event_listener = None
+                        @property
+                        def value(self):
+                            xdata = self.__data_item.xdata
+                            graphic = self.__graphic
+                            if graphic:
+                                if hasattr(graphic, "bounds"):
+                                    return Core.function_crop(xdata, graphic.bounds)
+                                if hasattr(graphic, "interval"):
+                                    return Core.function_crop_interval(xdata, graphic.interval)
+                            return xdata
+                        @property
+                        def base_objects(self):
+                            objects = {self.__data_item}
+                            if self.__graphic:
+                                objects.add(self.__graphic)
+                            return objects
+                    return BoundDataItem(data_item, graphic)
+            elif specifier_type == "cropped_display_xdata":
+                specifier_uuid_str = specifier.get("uuid")
+                secondary_uuid_str = secondary_specifier.get("uuid") if secondary_specifier else None
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                secondary_uuid = uuid.UUID(secondary_uuid_str) if secondary_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                graphic = self.get_graphic_by_uuid(secondary_uuid) if secondary_uuid else None
+                if data_item:
+                    class BoundDataItem:
+                        def __init__(self, data_item, graphic):
+                            self.__data_item = data_item
+                            self.__graphic = graphic
+                            self.changed_event = Event.Event()
+                            self.__data_changed_event_listener = self.__data_item.data_changed_event.listen(self.changed_event.fire)
+                        def close(self):
+                            self.__data_changed_event_listener.close()
+                            self.__data_changed_event_listener = None
+                        @property
+                        def value(self):
+                            xdata = self.__data_item.displays[0].get_calculated_display_values(True).display_data_and_metadata
+                            graphic = self.__graphic
+                            if graphic:
+                                if hasattr(graphic, "bounds"):
+                                    return Core.function_crop(xdata, graphic.bounds)
+                                if hasattr(graphic, "interval"):
+                                    return Core.function_crop_interval(xdata, graphic.interval)
+                            return xdata
+                        @property
+                        def base_objects(self):
+                            objects = {self.__data_item}
+                            if self.__graphic:
+                                objects.add(self.__graphic)
+                            return objects
+                    return BoundDataItem(data_item, graphic)
+            elif specifier_type == "filter_xdata":
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                if data_item:
+                    class BoundDataItem:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
+                        def close(self):
+                            self.__data_changed_event_listener.close()
+                            self.__data_changed_event_listener = None
+                        @property
+                        def value(self):
+                            shape = self.__object.displays[0].get_calculated_display_values(True).display_data_and_metadata.data_shape
+                            mask = numpy.zeros(shape)
+                            for graphic in self.__object.displays[0].graphics:
+                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                    mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                            return DataAndMetadata.DataAndMetadata.from_data(mask)
+                        @property
+                        def base_objects(self):
+                            objects = {self.__object}
+                            for graphic in self.__object.displays[0].graphics:
+                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                    objects.add(graphic)
+                            return objects
+                    return BoundDataItem(data_item)
+            elif specifier_type == "filtered_xdata":
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                data_item = self.get_data_item_by_uuid(object_uuid) if object_uuid else None
+                if data_item:
+                    class BoundDataItem:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
+                        def close(self):
+                            self.__data_changed_event_listener.close()
+                            self.__data_changed_event_listener = None
+                        @property
+                        def value(self):
+                            xdata = self.__object.xdata
+                            if xdata.is_data_2d and xdata.is_data_complex_type:
+                                shape = xdata.data_shape
+                                mask = numpy.zeros(shape)
+                                for graphic in self.__object.displays[0].graphics:
+                                    if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                        mask = numpy.logical_or(mask, graphic.get_mask(shape))
+                                return Core.function_fourier_mask(xdata, DataAndMetadata.DataAndMetadata.from_data(mask))
+                            return xdata
+                        @property
+                        def base_objects(self):
+                            objects = {self.__object}
+                            for graphic in self.__object.displays[0].graphics:
+                                if isinstance(graphic, (Graphics.SpotGraphic, Graphics.WedgeGraphic, Graphics.RingGraphic)):
+                                    objects.add(graphic)
+                            return objects
                     return BoundDataItem(data_item)
             elif specifier_type == "region":
                 specifier_uuid_str = specifier.get("uuid")
@@ -2345,6 +2520,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         @property
                         def value(self):
                             return self.__object
+                        @property
+                        def base_objects(self):
+                            return {self.__object}
                     return BoundGraphic(graphic)
         return Symbolic.ComputationVariable.resolve_extension_object_specifier(specifier)
 
