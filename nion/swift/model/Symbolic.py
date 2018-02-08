@@ -82,10 +82,11 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
 
     Specifier value types have a specifier which can be resolved to a specific object.
     """
-    def __init__(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None):  # defaults are None for factory
+    def __init__(self, name: str=None, *, property_name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None, secondary_specifier: dict=None):  # defaults are None for factory
         super().__init__()
         self.define_type("variable")
         self.define_property("name", name, changed=self.__property_changed)
+        self.define_property("property_name", property_name, changed=self.__property_changed)
         self.define_property("label", label if label else name, changed=self.__property_changed)
         self.define_property("value_type", value_type, changed=self.__property_changed)
         self.define_property("value", value, changed=self.__property_changed, reader=self.__value_reader, writer=self.__value_writer)
@@ -371,8 +372,10 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             def property_changed(property_name_being_changed):
                                 self.changed_event.fire()
+                                self.property_changed_event.fire(property_name_being_changed)
                             self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
                         def close(self):
                             self.__property_changed_listener.close()
@@ -411,7 +414,7 @@ class ComputationContext:
         self.__computation = weakref.ref(computation)
         self.__context = context
 
-    def resolve_object_specifier(self, object_specifier, secondary_specifier=None):
+    def resolve_object_specifier(self, object_specifier, secondary_specifier=None, property_name=None):
         """Resolve the object specifier.
 
         First lookup the object specifier in the enclosing computation. If it's not found,
@@ -420,7 +423,7 @@ class ComputationContext:
         """
         variable = self.__computation().resolve_variable(object_specifier)
         if not variable:
-            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier)
+            return self.__context.resolve_object_specifier(object_specifier, secondary_specifier, property_name)
         elif variable.specifier is None:
             return variable.bound_variable
         return None
@@ -539,7 +542,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.needs_update = True
 
     def create_variable(self, name: str=None, value_type: str=None, value=None, value_default=None, value_min=None, value_max=None, control_type: str=None, specifier: dict=None, label: str=None) -> ComputationVariable:
-        variable = ComputationVariable(name, value_type, value, value_default, value_min, value_max, control_type, specifier, label)
+        variable = ComputationVariable(name, value_type=value_type, value=value, value_default=value_default, value_min=value_min, value_max=value_max, control_type=control_type, specifier=specifier, label=label)
+        self.add_variable(variable)
+        return variable
+
+    def create_input(self, name: str, object_specifier: dict, property_name: str, label: str=None) -> ComputationVariable:
+        variable = ComputationVariable(name, specifier=object_specifier, property_name=property_name, label=label)
         self.add_variable(variable)
         return variable
 
@@ -707,7 +715,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         if not variable_specifier:
             return
 
-        variable.bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier)
+        variable.bound_item = self.__computation_context.resolve_object_specifier(variable_specifier, variable.secondary_specifier, variable.property_name)
 
     def __unbind_variable(self, variable: ComputationVariable) -> None:
         self.__variable_changed_event_listeners[variable.uuid].close()

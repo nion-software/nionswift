@@ -1295,12 +1295,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
 
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value
-        self.data_structure_changed_event.fire()
+        self.data_structure_changed_event.fire(property)
 
     def remove_property_value(self, property: str) -> None:
         if property in self.__properties:
             self.__properties.pop(property)
-            self.data_structure_changed_event.fire()
+            self.data_structure_changed_event.fire(property)
 
     def get_property_value(self, property: str, default_value=None):
         return self.__properties.get(property, default_value)
@@ -1820,7 +1820,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for variable in computation.variables:
             specifier = variable.specifier
             if specifier:
-                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier)
+                object = self.resolve_object_specifier(variable.specifier, variable.secondary_specifier, variable.property_name)
                 if hasattr(object, "base_objects"):
                     input_items.update(object.base_objects)
         return input_items
@@ -2364,7 +2364,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 return data_structure
         return None
 
-    def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None):
+    def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None, property_name: str=None):
         document_model = self
         if specifier.get("version") == 1:
             specifier_type = specifier["type"]
@@ -2378,6 +2378,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 class BoundDataSource:
                     def __init__(self, data_item, graphic):
                         self.changed_event = Event.Event()
+                        self.property_changed_event = Event.Event()
                         self.__data_source = DataItem.DataSource(data_item, graphic, self.changed_event)
                     @property
                     def value(self):
@@ -2402,6 +2403,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             self.__data_item_changed_event_listener = self.__object.data_item_changed_event.listen(self.changed_event.fire)
                         def close(self):
                             self.__data_item_changed_event_listener.close()
@@ -2422,6 +2424,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
                         def close(self):
                             self.__data_changed_event_listener.close()
@@ -2442,6 +2445,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
                         def close(self):
                             self.__data_changed_event_listener.close()
@@ -2466,6 +2470,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             self.__data_item = data_item
                             self.__graphic = graphic
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             self.__data_changed_event_listener = self.__data_item.data_changed_event.listen(self.changed_event.fire)
                         def close(self):
                             self.__data_changed_event_listener.close()
@@ -2500,6 +2505,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                             self.__data_item = data_item
                             self.__graphic = graphic
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             self.__data_changed_event_listener = self.__data_item.data_changed_event.listen(self.changed_event.fire)
                         def close(self):
                             self.__data_changed_event_listener.close()
@@ -2530,6 +2536,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
                         def close(self):
                             self.__data_changed_event_listener.close()
@@ -2559,6 +2566,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
+                            self.property_changed_event = Event.Event()
                             self.__data_changed_event_listener = self.__object.data_changed_event.listen(self.changed_event.fire)
                         def close(self):
                             self.__data_changed_event_listener.close()
@@ -2591,14 +2599,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
-                            def data_structure_changed():
+                            self.property_changed_event = Event.Event()
+                            def data_structure_changed(property_name_):
                                 self.changed_event.fire()
+                                if property_name_ == property_name:
+                                    self.property_changed_event.fire(property_name_)
                             self.__changed_listener = self.__object.data_structure_changed_event.listen(data_structure_changed)
                         def close(self):
                             self.__changed_listener.close()
                             self.__changed_listener = None
                         @property
                         def value(self):
+                            if property_name:
+                                return self.__object.get_property_value(property_name)
                             return self.__object
                         @property
                         def base_objects(self):
@@ -2613,14 +2626,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def __init__(self, object):
                             self.__object = object
                             self.changed_event = Event.Event()
-                            def property_changed(property_name_being_changed):
+                            self.property_changed_event = Event.Event()
+                            def property_changed(property_name_):
                                 self.changed_event.fire()
+                                if property_name_ == property_name:
+                                    self.property_changed_event.fire(property_name_)
                             self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
                         def close(self):
                             self.__property_changed_listener.close()
                             self.__property_changed_listener = None
                         @property
                         def value(self):
+                            if property_name:
+                                return getattr(self.__object, property_name)
                             return self.__object
                         @property
                         def base_objects(self):

@@ -468,6 +468,29 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item2.data, numpy.full((8, 8), 5)))
 
+    def test_new_computation_with_data_structure_property(self):
+        Symbolic.register_computation_type("set_const", self.SetConst)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("amount", 3)
+            document_model.append_data_structure(data_structure)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_input("value", document_model.get_object_specifier(data_structure), property_name="amount")
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, numpy.full((8, 8), 3)))
+            data_structure.set_property_value("amount", 5)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item2.data, numpy.full((8, 8), 5)))
+
     class OptionalGraphic:
         def __init__(self, computation, **kwargs):
             self.computation = computation
