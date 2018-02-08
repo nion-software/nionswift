@@ -1982,6 +1982,37 @@ class Instrument(metaclass=SharedInstance):
         return result_str
 
 
+class DataStructure(metaclass=SharedInstance):
+    release = ["uuid"]
+
+    def __init__(self, data_structure: DocumentModelModule.DataStructure):
+        self.__data_structure = data_structure
+
+    @property
+    def _data_structure(self) -> DocumentModelModule.DataStructure:
+        return self.__data_structure
+
+    @property
+    def specifier(self):
+        return ObjectSpecifier("library")
+
+    @property
+    def uuid(self) -> uuid_module.UUID:
+        """Return the uuid of this object.
+
+        .. versionadded:: 1.0
+
+        Scriptable: Yes
+        """
+        return self.__data_structure.uuid
+
+    def get_property(self, property: str):
+        return self.__data_structure.get_property_value(property)
+
+    def set_property(self, property: str, value) -> None:
+        self.__data_structure.set_property_value(property, value)
+
+
 class Computation(metaclass=SharedInstance):
     release = ["uuid"]
 
@@ -3156,6 +3187,8 @@ def _new_api_object(object):
         return DataSource(object)
     if isinstance(object, Symbolic.Computation):
         return Computation(object)
+    if isinstance(object, DocumentModelModule.DataStructure):
+        return DataStructure(object)
     return None
 
 

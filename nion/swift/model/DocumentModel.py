@@ -1239,8 +1239,79 @@ class AutoMigration:
         self.log_copying = log_copying
 
 
+class DataStructure(Observable.Observable, Persistence.PersistentObject):
+    # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
+    def __init__(self):
+        super().__init__()
+        self.__container_weak_ref = None
+        self.about_to_be_removed_event = Event.Event()
+        self._about_to_be_removed = False
+        self._closed = False
+        self.__properties = dict()
+        self.define_type("data_structure")
+        self.data_structure_changed_event = Event.Event()
+
+    def close(self):
+        assert self._about_to_be_removed
+        assert not self._closed
+        self._closed = True
+        self.__container_weak_ref = None
+
+    @property
+    def container(self):
+        return self.__container_weak_ref()
+
+    def about_to_be_inserted(self, container):
+        assert self.__container_weak_ref is None
+        self.__container_weak_ref = weakref.ref(container)
+
+    def about_to_be_removed(self):
+        # called before close and before item is removed from its container
+        self.about_to_be_removed_event.fire()
+        assert not self._about_to_be_removed
+        self._about_to_be_removed = True
+        self.__container_weak_ref = None
+
+    def insert_model_item(self, container, name, before_index, item):
+        if self.__container_weak_ref:
+            self.container.insert_model_item(container, name, before_index, item)
+        else:
+            container.insert_item(name, before_index, item)
+
+    def remove_model_item(self, container, name, item):
+        if self.__container_weak_ref:
+            self.container.remove_model_item(container, name, item)
+        else:
+            container.remove_item(name, item)
+
+    def read_from_dict(self, properties):
+        super().read_from_dict(properties)
+        self.__properties = properties.get("properties")
+
+    def write_to_dict(self):
+        properties = super().write_to_dict()
+        properties["properties"] = copy.deepcopy(self.__properties)
+        return properties
+
+    def set_property_value(self, property: str, value) -> None:
+        self.__properties[property] = value
+        self.data_structure_changed_event.fire()
+
+    def remove_property_value(self, property: str) -> None:
+        if property in self.__properties:
+            self.__properties.pop(property)
+            self.data_structure_changed_event.fire()
+
+    def get_property_value(self, property: str, default_value=None):
+        return self.__properties.get(property, default_value)
+
+
 def computation_factory(lookup_id):
     return Symbolic.Computation()
+
+
+def data_structure_factory(lookup_id):
+    return DataStructure()
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
@@ -1293,6 +1364,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
+        self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
@@ -2274,6 +2346,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
         elif isinstance(object, Graphics.Graphic):
             return {"version": 1, "type": "region", "uuid": str(object.uuid)}
+        elif isinstance(object, DataStructure):
+            return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
         return Symbolic.ComputationVariable.get_extension_object_specifier(object)
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
@@ -2282,6 +2356,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 for graphic in display.graphics:
                     if graphic.uuid == object_uuid:
                         return graphic
+        return None
+
+    def get_data_structure_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[DataStructure]:
+        for data_structure in self.data_structures:
+            if data_structure.uuid == object_uuid:
+                return data_structure
         return None
 
     def resolve_object_specifier(self, specifier: dict, secondary_specifier: dict=None):
@@ -2502,6 +2582,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                                     objects.add(graphic)
                             return objects
                     return BoundDataItem(data_item)
+            elif specifier_type == "structure":
+                specifier_uuid_str = specifier.get("uuid")
+                object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
+                data_structure = self.get_data_structure_by_uuid(object_uuid)
+                if data_structure:
+                    class BoundDataStructure:
+                        def __init__(self, object):
+                            self.__object = object
+                            self.changed_event = Event.Event()
+                            def data_structure_changed():
+                                self.changed_event.fire()
+                            self.__changed_listener = self.__object.data_structure_changed_event.listen(data_structure_changed)
+                        def close(self):
+                            self.__changed_listener.close()
+                            self.__changed_listener = None
+                        @property
+                        def value(self):
+                            return self.__object
+                        @property
+                        def base_objects(self):
+                            return {self.__object}
+                    return BoundDataStructure(data_structure)
             elif specifier_type == "region":
                 specifier_uuid_str = specifier.get("uuid")
                 object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
@@ -2802,6 +2904,28 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_item_copy.title = _("Snapshot of ") + data_item.title
         self.append_data_item(data_item_copy)
         return data_item_copy
+
+    def create_data_structure(self):
+        return DataStructure()
+
+    def append_data_structure(self, data_structure):
+        self.insert_data_structure(len(self.data_structures), data_structure)
+
+    def insert_data_structure(self, before_index, data_structure):
+        self.insert_item("data_structures", before_index, data_structure)
+        self.notify_insert_item("data_structures", data_structure, before_index)
+
+    def remove_data_structure(self, data_structure):
+        index = self.data_structures.index(data_structure)
+        self.remove_item("data_structures", data_structure)
+        self.notify_remove_item("data_structures", data_structure, index)
+
+    def __inserted_data_structure(self, name, before_index, data_structure):
+        data_structure.about_to_be_inserted(self)
+
+    def __removed_data_structure(self, name, index, data_structure):
+        data_structure.about_to_be_removed()
+        data_structure.close()
 
     def set_data_item_computation(self, data_item: DataItem.DataItem, computation: Symbolic.Computation) -> None:
         if data_item:

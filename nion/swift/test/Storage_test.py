@@ -3026,6 +3026,23 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_data_structure_reloads_basic_value_types(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("title", "Title")
+            data_structure.set_property_value("width", 8.5)
+            data_structure.set_property_value("interval", (0.5, 0.2))
+            document_model.append_data_structure(data_structure)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            self.assertEqual(len(document_model.data_structures), 1)
+            self.assertEqual(document_model.data_structures[0].get_property_value("title"), "Title")
+            self.assertEqual(document_model.data_structures[0].get_property_value("width"), 8.5)
+            self.assertEqual(document_model.data_structures[0].get_property_value("interval"), (0.5, 0.2))
+
     def test_computation_reconnects_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
