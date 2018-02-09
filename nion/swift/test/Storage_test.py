@@ -3031,7 +3031,7 @@ class TestStorageClass(unittest.TestCase):
         library_storage = DocumentModel.MemoryPersistentStorage()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
         with contextlib.closing(document_model):
-            data_structure = document_model.create_data_structure()
+            data_structure = document_model.create_data_structure(structure_type="nada")
             data_structure.set_property_value("title", "Title")
             data_structure.set_property_value("width", 8.5)
             data_structure.set_property_value("interval", (0.5, 0.2))
@@ -3042,6 +3042,25 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_structures[0].get_property_value("title"), "Title")
             self.assertEqual(document_model.data_structures[0].get_property_value("width"), 8.5)
             self.assertEqual(document_model.data_structures[0].get_property_value("interval"), (0.5, 0.2))
+            self.assertEqual(document_model.data_structures[0].structure_type, "nada")
+
+    def test_attached_data_structure_reconnects_after_reload(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2)))
+            document_model.append_data_item(data_item)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("title", "Title")
+            document_model.append_data_structure(data_structure)
+            document_model.attach_data_structure(data_structure, data_item)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            self.assertEqual(len(document_model.data_structures), 1)
+            self.assertEqual(document_model.data_structures[0].source, document_model.data_items[0])
+            document_model.remove_data_item(document_model.data_items[0])
+            self.assertEqual(len(document_model.data_structures), 0)
 
     def test_computation_reconnects_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()

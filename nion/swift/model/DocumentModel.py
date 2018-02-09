@@ -1241,7 +1241,7 @@ class AutoMigration:
 
 class DataStructure(Observable.Observable, Persistence.PersistentObject):
     # regarding naming: https://en.wikipedia.org/wiki/Passive_data_structure
-    def __init__(self):
+    def __init__(self, *, structure_type: str=None, source=None):
         super().__init__()
         self.__container_weak_ref = None
         self.about_to_be_removed_event = Event.Event()
@@ -1249,7 +1249,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self._closed = False
         self.__properties = dict()
         self.define_type("data_structure")
+        self.define_property("structure_type", structure_type)
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.data_structure_changed_event = Event.Event()
+        self.__source = source
+        if source is not None:
+            self.source_uuid = source.uuid
 
     def close(self):
         assert self._about_to_be_removed
@@ -1292,6 +1297,35 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         properties = super().write_to_dict()
         properties["properties"] = copy.deepcopy(self.__properties)
         return properties
+
+    @property
+    def source(self):
+        return self.__source
+
+    @source.setter
+    def source(self, source):
+        self.__source = source
+        self.source_uuid = source.uuid if source else None
+
+    def persistent_object_context_changed(self):
+        """ Override from PersistentObject. """
+        super().persistent_object_context_changed()
+
+        def register():
+            if self.__source is not None:
+                pass
+
+        def source_registered(source):
+            self.__source = source
+            register()
+
+        def unregistered(source=None):
+            pass
+
+        if self.persistent_object_context:
+            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
+        else:
+            unregistered()
 
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value
@@ -1716,6 +1750,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if (item, target) not in dependencies:
                     dependencies.append((item, target))
                 self.__build_cascade(target, items, dependencies)
+            for data_structure in self.data_structures:
+                if data_structure.source == item:
+                    if (item, data_structure) not in dependencies:
+                        dependencies.append((item, data_structure))
+                    self.__build_cascade(data_structure, items, dependencies)
             for source in sources:
                 if (source, item) not in dependencies:
                     dependencies.append((source, item))
@@ -2925,8 +2964,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_data_item(data_item_copy)
         return data_item_copy
 
-    def create_data_structure(self):
-        return DataStructure()
+    def create_data_structure(self, *, structure_type: str=None, source=None):
+        return DataStructure(structure_type=structure_type, source=source)
 
     def append_data_structure(self, data_structure):
         self.insert_data_structure(len(self.data_structures), data_structure)
@@ -2944,6 +2983,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __removed_data_structure(self, name, index, data_structure):
         data_structure.about_to_be_removed()
         data_structure.close()
+
+    def attach_data_structure(self, data_structure, data_item):
+        data_structure.source = data_item
 
     def set_data_item_computation(self, data_item: DataItem.DataItem, computation: Symbolic.Computation) -> None:
         if data_item:

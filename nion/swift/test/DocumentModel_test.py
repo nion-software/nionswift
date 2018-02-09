@@ -289,6 +289,23 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.remove_data_item(data_item_crop)
             self.assertFalse(document_model._transactions)
 
+    def test_data_item_with_associated_data_structure_deletes_when_data_item_deleted(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("title", "Title")
+            data_structure.set_property_value("width", 8.5)
+            data_structure.set_property_value("interval", (0.5, 0.2))
+            document_model.append_data_structure(data_structure)
+            document_model.attach_data_structure(data_structure, data_item)
+            self.assertEqual(len(document_model.data_structures), 1)
+            self.assertSetEqual(set(document_model.get_dependent_items(data_item)), set())
+            self.assertSetEqual(set(document_model.get_source_items(data_structure)), set())
+            document_model.remove_data_item(data_item)
+            self.assertEqual(len(document_model.data_structures), 0)
+
     def test_computation_creates_dependency_between_data_source_graphic_and_target(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
