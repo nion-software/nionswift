@@ -13,6 +13,7 @@ from nion.swift.model import Connection
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
+from nion.swift.model import Symbolic
 from nion.ui import TestUI
 
 
@@ -183,7 +184,7 @@ class TestConnectionClass(unittest.TestCase):
                 self.assertIn(data_item_dst.uuid, document_model._transactions.keys())
                 self.assertIn(interval_dst.uuid, document_model._transactions.keys())
                 self.assertIn(interval_src.uuid, document_model._transactions.keys())
-                self.assertNotIn(data_item_src.uuid, document_model._transactions.keys())
+                self.assertIn(data_item_src.uuid, document_model._transactions.keys())  # from graphic
             self.assertFalse(document_model._transactions)
 
     def test_connection_establishes_transaction_on_parallel_source_connection(self):
@@ -210,10 +211,100 @@ class TestConnectionClass(unittest.TestCase):
                 self.assertIn(data_item_dst1.uuid, document_model._transactions.keys())
                 self.assertIn(interval_dst1.uuid, document_model._transactions.keys())
                 self.assertIn(interval_src.uuid, document_model._transactions.keys())
-                self.assertNotIn(data_item_dst2.uuid, document_model._transactions.keys())
+                self.assertIn(data_item_dst2.uuid, document_model._transactions.keys())  # from graphic
                 self.assertIn(interval_dst2.uuid, document_model._transactions.keys())
-                self.assertNotIn(data_item_src.uuid, document_model._transactions.keys())
+                self.assertIn(data_item_src.uuid, document_model._transactions.keys())  # from graphic
             self.assertFalse(document_model._transactions)
+
+    def test_connection_between_data_structures(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_struct1 = document_model.create_data_structure()
+            data_struct2 = document_model.create_data_structure()
+            data_struct1.set_property_value("title", "t1")
+            data_struct2.set_property_value("title", "t2")
+            document_model.append_data_structure(data_struct1)
+            document_model.append_data_structure(data_struct2)
+            connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title")
+            data_item.add_connection(connection)
+            data_struct1.set_property_value("title", "T1")
+            self.assertEqual("T1", data_struct1.get_property_value("title"))
+            self.assertEqual("T1", data_struct2.get_property_value("title"))
+            data_struct2.set_property_value("title", "T2")
+            self.assertEqual("T2", data_struct1.get_property_value("title"))
+            self.assertEqual("T2", data_struct2.get_property_value("title"))
+
+    def test_connection_establishes_transaction_on_target_data_structure(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            interval1 = Graphics.IntervalGraphic()
+            interval2 = Graphics.IntervalGraphic()
+            data_item1.displays[0].add_graphic(interval1)
+            data_item2.displays[0].add_graphic(interval2)
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            data_struct1 = document_model.create_data_structure()
+            data_struct2 = document_model.create_data_structure()
+            data_struct1.set_property_value("x_interval", (0.5, 0.1))
+            data_struct2.set_property_value("x_interval", (0.5, 0.2))
+            document_model.append_data_structure(data_struct1)
+            document_model.append_data_structure(data_struct2)
+            connection1 = Connection.PropertyConnection(data_struct1, "x_interval", interval1, "interval")
+            connection2 = Connection.PropertyConnection(interval2, "interval", data_struct2, "x_interval")
+            data_item1.add_connection(connection1)
+            data_item2.add_connection(connection2)
+            with document_model.item_transaction(data_item1):
+                self.assertIn(data_item1.uuid, document_model._transactions.keys())
+                self.assertIn(data_struct1.uuid, document_model._transactions.keys())
+            with document_model.item_transaction(data_item2):
+                self.assertIn(data_item2.uuid, document_model._transactions.keys())
+                self.assertIn(data_struct2.uuid, document_model._transactions.keys())
+            self.assertFalse(document_model._transactions)
+
+    def test_connection_establishes_transaction_on_target_data_structure_dependent(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((20, )))
+            interval = Graphics.IntervalGraphic()
+            data_item.displays[0].add_graphic(interval)
+            document_model.append_data_item(data_item)
+            data_struct = document_model.create_data_structure()
+            data_struct.set_property_value("x_interval", (0.5, 0.1))
+            document_model.append_data_structure(data_struct)
+            connection = Connection.PropertyConnection(data_struct, "x_interval", interval, "interval")
+            data_item.add_connection(connection)
+            computed_data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(computed_data_item)
+            computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computation.create_object("d", document_model.get_object_specifier(data_struct))
+            document_model.set_data_item_computation(computed_data_item, computation)
+            with document_model.item_transaction(data_item):
+                self.assertIn(data_item.uuid, document_model._transactions.keys())
+                self.assertIn(data_struct.uuid, document_model._transactions.keys())
+                self.assertIn(computed_data_item.uuid, document_model._transactions.keys())
+            self.assertFalse(document_model._transactions)
+
+    def test_connection_to_graphic_puts_data_item_under_transaction(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((20, )))
+            interval = Graphics.IntervalGraphic()
+            data_item.displays[0].add_graphic(interval)
+            document_model.append_data_item(data_item)
+            data_struct = document_model.create_data_structure()
+            data_struct.set_property_value("x_interval", (0.5, 0.1))
+            document_model.append_data_structure(data_struct)
+            connection = Connection.PropertyConnection(data_struct, "x_interval", interval, "interval")
+            data_item.add_connection(connection)
+            with document_model.item_transaction(data_struct):
+                self.assertIn(data_struct.uuid, document_model._transactions.keys())
+                self.assertIn(interval.uuid, document_model._transactions.keys())
+                self.assertIn(data_item.uuid, document_model._transactions.keys())
 
 
 if __name__ == '__main__':

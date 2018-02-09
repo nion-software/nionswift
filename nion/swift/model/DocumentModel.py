@@ -1262,6 +1262,22 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self._closed = True
         self.__container_weak_ref = None
 
+    def __getattr__(self, name):
+        properties = self.__dict__.get("_DataStructure__properties", dict())
+        if name in properties:
+            return properties[name]
+        return super().__getattr__(name)
+
+    def __setattr__(self, name, value):
+        properties = self.__dict__.get("_DataStructure__properties", dict())
+        if name in properties:
+            if value is not None:
+                self.set_property_value(name, value)
+            else:
+                self.remove_property_value(name)
+        else:
+            super().__setattr__(name, value)
+
     @property
     def container(self):
         return self.__container_weak_ref()
@@ -1330,11 +1346,15 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value
         self.data_structure_changed_event.fire(property)
+        self.property_changed_event.fire(property)
+        self._update_persistent_property("properties", self.__properties)
 
     def remove_property_value(self, property: str) -> None:
         if property in self.__properties:
             self.__properties.pop(property)
             self.data_structure_changed_event.fire(property)
+            self.property_changed_event.fire(property)
+            self._update_persistent_property("properties", self.__properties)
 
     def get_property_value(self, property: str, default_value=None):
         return self.__properties.get(property, default_value)
@@ -2042,6 +2062,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for connection in data_item.connections:
                 if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
                     self.__get_deep_dependent_item_set(connection._target, items)
+        for item in copy.copy(items):
+            if isinstance(item, Graphics.Graphic):
+                self.__get_deep_dependent_item_set(item.container.container, items)
         # print(f"IN {items}")
         for item in items:
             with self.__transactions_lock:
@@ -2082,6 +2105,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for connection in data_item.connections:
                 if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
                     self.__get_deep_dependent_item_set(connection._target, items)
+        for item in copy.copy(items):
+            if isinstance(item, Graphics.Graphic):
+                self.__get_deep_dependent_item_set(item.container.container, items)
         # print(f"OUT {items}")
         for item in items:
             with self.__transactions_lock:

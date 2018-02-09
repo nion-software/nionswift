@@ -22,6 +22,7 @@ from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import Thumbnails
 from nion.swift.model import Cache
+from nion.swift.model import Connection
 from nion.swift.model import DataGroup
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
@@ -3034,8 +3035,8 @@ class TestStorageClass(unittest.TestCase):
             data_structure = document_model.create_data_structure(structure_type="nada")
             data_structure.set_property_value("title", "Title")
             data_structure.set_property_value("width", 8.5)
-            data_structure.set_property_value("interval", (0.5, 0.2))
             document_model.append_data_structure(data_structure)
+            data_structure.set_property_value("interval", (0.5, 0.2))
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
         with contextlib.closing(document_model):
             self.assertEqual(len(document_model.data_structures), 1)
@@ -3061,6 +3062,32 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_structures[0].source, document_model.data_items[0])
             document_model.remove_data_item(document_model.data_items[0])
             self.assertEqual(len(document_model.data_structures), 0)
+
+    def test_connected_data_structure_reconnects_after_reload(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_struct1 = document_model.create_data_structure()
+            data_struct2 = document_model.create_data_structure()
+            data_struct1.set_property_value("title", "t1")
+            data_struct2.set_property_value("title", "t2")
+            document_model.append_data_structure(data_struct1)
+            document_model.append_data_structure(data_struct2)
+            connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title")
+            data_item.add_connection(connection)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_struct1 = document_model.data_structures[0]
+            data_struct2 = document_model.data_structures[1]
+            data_struct1.set_property_value("title", "T1")
+            self.assertEqual("T1", data_struct1.get_property_value("title"))
+            self.assertEqual("T1", data_struct2.get_property_value("title"))
+            data_struct2.set_property_value("title", "T2")
+            self.assertEqual("T2", data_struct1.get_property_value("title"))
+            self.assertEqual("T2", data_struct2.get_property_value("title"))
 
     def test_computation_reconnects_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
