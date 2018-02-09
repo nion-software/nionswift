@@ -1790,7 +1790,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # now delete the actual items
         for item in reversed(items):
             container = item.container
-            if isinstance(item, DataItem.DataItem):
+            if isinstance(item, DataItem.LibraryItem):
                 name = "data_items"
             elif isinstance(item, Graphics.Graphic):
                 name = "graphics"
@@ -1799,6 +1799,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             elif isinstance(item, Symbolic.Computation):
                 name = "computations"
             else:
+                print("Unable to cascade delete type " + str(type(item)))
                 name = None
             assert name
             # print(container, name, item)

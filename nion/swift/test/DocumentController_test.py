@@ -483,6 +483,17 @@ class TestDocumentControllerClass(unittest.TestCase):
             self.assertNotIn(interval_region1, intermediate_display.graphics)
             self.assertNotIn(interval_region2, intermediate_display.graphics)
 
+    def test_delete_composite_cascade_delete_works(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item)
+            document_model.remove_data_item(composite_item)
+
     def test_delete_graphic_with_two_dependencies_deletes_both_dependencies(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
