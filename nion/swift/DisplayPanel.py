@@ -1376,7 +1376,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def cursor_changed(self, pos):
         position_text, value_text = str(), str()
         try:
-            position_text, value_text = self.__display.get_value_and_position_text(pos)
+            if pos is not None:
+                position_text, value_text = self.__display.get_value_and_position_text(pos)
         except Exception as e:
             import traceback
             traceback.print_exc()

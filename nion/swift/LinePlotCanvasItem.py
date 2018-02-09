@@ -249,7 +249,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         self.__display_listeners[index].close()
         del self.__display_listeners[index]
         # update the cursor info
-        self.__update_cursor_info()
+        self.delegate.cursor_changed(None)
         # mark for update. prepare display will mark children for update if necesssary.
         self.update()
 
