@@ -1735,6 +1735,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 name = "data_items"
             elif isinstance(item, Graphics.Graphic):
                 name = "graphics"
+            elif isinstance(item, DataStructure):
+                name = "data_structures"
             elif isinstance(item, Symbolic.Computation):
                 name = "computations"
             else:
@@ -2934,9 +2936,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.notify_insert_item("data_structures", data_structure, before_index)
 
     def remove_data_structure(self, data_structure):
-        index = self.data_structures.index(data_structure)
-        self.remove_item("data_structures", data_structure)
-        self.notify_remove_item("data_structures", data_structure, index)
+        self.__cascade_delete(data_structure)
 
     def __inserted_data_structure(self, name, before_index, data_structure):
         data_structure.about_to_be_inserted(self)

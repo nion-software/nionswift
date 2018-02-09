@@ -491,6 +491,31 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(data_item2.data, numpy.full((8, 8), 5)))
 
+    def test_computation_creates_dependency_between_data_structure_and_target(self):
+        Symbolic.register_computation_type("set_const", self.SetConst)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("amount", 3)
+            document_model.append_data_structure(data_structure)
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_input("value", document_model.get_object_specifier(data_structure), property_name="amount")
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertSetEqual(set(document_model.get_dependent_items(data_item)), {data_item2})
+            self.assertSetEqual(set(document_model.get_dependent_items(data_structure)), {data_item2})
+            self.assertSetEqual(set(document_model.get_source_items(data_item2)), {data_item, data_structure})
+            self.assertEqual(len(document_model.data_items), 2)
+            document_model.remove_data_structure(data_structure)
+            self.assertEqual(len(document_model.data_items), 1)
+
     class OptionalGraphic:
         def __init__(self, computation, **kwargs):
             self.computation = computation
