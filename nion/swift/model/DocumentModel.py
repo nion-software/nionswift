@@ -1770,6 +1770,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 if (item, target) not in dependencies:
                     dependencies.append((item, target))
                 self.__build_cascade(target, items, dependencies)
+            for data_item in self.data_items:
+                if data_item.source == item:
+                    if (item, data_item) not in dependencies:
+                        dependencies.append((item, data_item))
+                    self.__build_cascade(data_item, items, dependencies)
             for data_structure in self.data_structures:
                 if data_structure.source == item:
                     if (item, data_structure) not in dependencies:

@@ -289,6 +289,19 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.remove_data_item(data_item_crop)
             self.assertFalse(document_model._transactions)
 
+    def test_composite_item_deletes_children_when_deleted(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item)
+            data_item.source = composite_item
+            self.assertEqual(len(document_model.data_items), 2)
+            document_model.remove_data_item(composite_item)
+            self.assertEqual(len(document_model.data_items), 0)
+
     def test_data_item_with_associated_data_structure_deletes_when_data_item_deleted(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
@@ -1236,7 +1249,6 @@ class TestDocumentModelClass(unittest.TestCase):
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
-    # ability to add custom objects to library and depend on them and update them
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)
     # variable number of inputs, single output
     # user has way to see error output from a failed computation

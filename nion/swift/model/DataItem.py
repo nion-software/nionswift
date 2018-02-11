@@ -26,6 +26,7 @@ from nion.swift.model import Graphics
 from nion.swift.model import Metadata
 from nion.swift.model import Symbolic
 from nion.swift.model import Utility
+from nion.utils import Converter
 from nion.utils import Event
 from nion.utils import Observable
 from nion.utils import Persistence
@@ -600,9 +601,11 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__property_changed)
         self.define_property("timezone", Utility.get_local_timezone(), changed=self.__timezone_property_changed)
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
         self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__session_manager = None
+        self.__source = None
         self.library_item_changed_event = Event.Event()
         self.item_changed_event = Event.Event()  # equivalent to library_item_changed_event
         self.metadata_changed_event = Event.Event()  # see Metadata Note above
@@ -791,12 +794,38 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         # exit the write delay state.
         self.__exit_write_delay_state()
 
+    @property
+    def source(self):
+        return self.__source
+
+    @source.setter
+    def source(self, source):
+        self.__source = source
+        self.source_uuid = source.uuid if source else None
+
     def persistent_object_context_changed(self):
         # handle case where persistent object context is set on an item that is already under transaction.
         # this can occur during acquisition. any other cases?
         super().persistent_object_context_changed()
+
         if self.__in_transaction_state:
             self.__enter_write_delay_state()
+
+        def register():
+            if self.__source is not None:
+                pass
+
+        def source_registered(source):
+            self.__source = source
+            register()
+
+        def unregistered(source=None):
+            pass
+
+        if self.persistent_object_context:
+            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
+        else:
+            unregistered()
 
     def update_and_bind_computation(self, computation_context):
         pass
