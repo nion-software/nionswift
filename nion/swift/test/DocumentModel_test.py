@@ -289,6 +289,30 @@ class TestDocumentModelClass(unittest.TestCase):
                 document_model.remove_data_item(data_item_crop)
             self.assertFalse(document_model._transactions)
 
+    def test_transaction_propogates_to_data_structure_referenced_objects(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_struct = document_model.create_data_structure()
+            data_struct.set_referenced_object("master", data_item)
+            document_model.append_data_structure(data_struct)
+            with document_model.item_transaction(data_struct):
+                self.assertTrue(data_item.in_transaction_state)
+            self.assertFalse(document_model._transactions)
+
+    def test_transaction_propogates_to_data_structure_referenced_objects_added_during_transaction(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_struct = document_model.create_data_structure()
+            document_model.append_data_structure(data_struct)
+            with document_model.item_transaction(data_struct):
+                data_struct.set_referenced_object("master", data_item)
+                self.assertTrue(data_item.in_transaction_state)
+            self.assertFalse(document_model._transactions)
+
     def test_composite_item_deletes_children_when_deleted(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):

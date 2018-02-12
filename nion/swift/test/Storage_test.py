@@ -3089,6 +3089,39 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual("T2", data_struct1.get_property_value("title"))
             self.assertEqual("T2", data_struct2.get_property_value("title"))
 
+    def test_data_structure_references_reconnect_after_reload(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_struct = document_model.create_data_structure()
+            data_struct.set_referenced_object("master", data_item)
+            document_model.append_data_structure(data_struct)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            self.assertEqual(document_model.data_items[0], document_model.data_structures[0].get_referenced_object("master"))
+
+    def test_library_item_sources_reconnect_after_reload(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item3 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item1.source = data_item2
+            data_item3.source = data_item2
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            self.assertEqual(3, len(document_model.data_items))
+            document_model.remove_data_item(document_model.data_items[1])
+            self.assertEqual(0, len(document_model.data_items))
+
     def test_computation_reconnects_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])

@@ -1247,10 +1247,13 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
+        self.__in_transaction_state = True
         self.__properties = dict()
+        self.__referenced_objects = dict()
         self.define_type("data_structure")
         self.define_property("structure_type", structure_type)
         self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
+        # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
         self.__source = source
         if source is not None:
@@ -1314,6 +1317,12 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         properties["properties"] = copy.deepcopy(self.__properties)
         return properties
 
+    def _enter_transaction_state(self):
+        self.__in_transaction_state = True
+
+    def _exit_transaction_state(self):
+        self.__in_transaction_state = False
+
     @property
     def source(self):
         return self.__source
@@ -1327,24 +1336,34 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         """ Override from PersistentObject. """
         super().persistent_object_context_changed()
 
-        def register():
-            if self.__source is not None:
-                pass
-
         def source_registered(source):
             self.__source = source
-            register()
 
-        def unregistered(source=None):
+        def source_unregistered(source=None):
+            pass
+
+        def reference_registered(property_name, reference):
+            self.__referenced_objects[property_name] = reference
+
+        def reference_unregistered(property_name, reference=None):
             pass
 
         if self.persistent_object_context:
-            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
+            self.persistent_object_context.subscribe(self.source_uuid, source_registered, source_unregistered)
+
+            for property_name, value in self.__properties.items():
+                if isinstance(value, dict) and value.get("type") in {"data_item", "region", "structure"} and "uuid" in value:
+                    self.persistent_object_context.subscribe(uuid.UUID(value["uuid"]), functools.partial(reference_registered, property_name), functools.partial(reference_unregistered, property_name))
         else:
-            unregistered()
+            source_unregistered()
+
+            for property_name, value in self.__properties.items():
+                if isinstance(value, dict) and value.get("type") in {"data_item", "region", "structure"} and "uuid" in value:
+                    reference_unregistered(property_name)
 
     def set_property_value(self, property: str, value) -> None:
         self.__properties[property] = value
+        self.__referenced_objects.pop(property, None)
         self.data_structure_changed_event.fire(property)
         self.property_changed_event.fire(property)
         self._update_persistent_property("properties", self.__properties)
@@ -1352,12 +1371,34 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
     def remove_property_value(self, property: str) -> None:
         if property in self.__properties:
             self.__properties.pop(property)
+            self.__referenced_objects.pop(property, None)
             self.data_structure_changed_event.fire(property)
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
 
     def get_property_value(self, property: str, default_value=None):
         return self.__properties.get(property, default_value)
+
+    def set_referenced_object(self, property: str, item) -> None:
+        assert item is not None
+        if item != self.__referenced_objects.get(property):
+            self.__properties[property] = get_object_specifier(item)
+            self.data_structure_changed_event.fire(property)
+            self.property_changed_event.fire(property)
+            self._update_persistent_property("properties", self.__properties)
+            self.__referenced_objects[property] = item
+            if self.__in_transaction_state:
+                item._enter_transaction_state()
+
+    def remove_referenced_object(self, property: str) -> None:
+        self.remove_property_value(property)
+
+    def get_referenced_object(self, property: str):
+        return self.__referenced_objects.get(property)
+
+    @property
+    def _referenced_objects(self):
+        return self.__referenced_objects.values()
 
 
 def computation_factory(lookup_id):
@@ -1366,6 +1407,21 @@ def computation_factory(lookup_id):
 
 def data_structure_factory(lookup_id):
     return DataStructure()
+
+
+def get_object_specifier(object, object_type: str=None) -> dict:
+    if isinstance(object, DataItem.DataItem) and object_type == "data_item":
+        return {"version": 1, "type": "data_item_object", "uuid": str(object.uuid)}
+    if isinstance(object, DataItem.DataItem) and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
+        return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
+    if isinstance(object, DataItem.DataItem):
+        # should be "data_source" but requires file format change
+        return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
+    elif isinstance(object, Graphics.Graphic):
+        return {"version": 1, "type": "region", "uuid": str(object.uuid)}
+    elif isinstance(object, DataStructure):
+        return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
+    return Symbolic.ComputationVariable.get_extension_object_specifier(object)
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
@@ -2055,22 +2111,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__about_to_be_removed_event_listener.close()
                     self.__about_to_be_removed_event_listener = None
 
-        items = set()
-        if isinstance(item, DataItem.LibraryItem):
-            for display in item.displays:
-                for graphic in display.graphics:
-                    self.__get_deep_dependent_item_set(graphic, items)
-            for connection in item.connections:
-                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
-                    self.__get_deep_dependent_item_set(connection._source, items)
-        self.__get_deep_dependent_item_set(item, items)
-        for data_item in self.data_items:
-            for connection in data_item.connections:
-                if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
-                    self.__get_deep_dependent_item_set(connection._target, items)
-        for item in copy.copy(items):
-            if isinstance(item, Graphics.Graphic):
-                self.__get_deep_dependent_item_set(item.container.container, items)
+        items = self.__build_transaction_tree(item)
         # print(f"IN {items}")
         for item in items:
             with self.__transactions_lock:
@@ -2097,23 +2138,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         This method is thread safe.
         """
-        # maintain the transaction count under a mutex
-        items = set()
-        if isinstance(item, DataItem.LibraryItem):
-            for display in item.displays:
-                for graphic in display.graphics:
-                    self.__get_deep_dependent_item_set(graphic, items)
-            for connection in item.connections:
-                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
-                    self.__get_deep_dependent_item_set(connection._source, items)
-        self.__get_deep_dependent_item_set(item, items)
-        for data_item in self.data_items:
-            for connection in data_item.connections:
-                if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
-                    self.__get_deep_dependent_item_set(connection._target, items)
-        for item in copy.copy(items):
-            if isinstance(item, Graphics.Graphic):
-                self.__get_deep_dependent_item_set(item.container.container, items)
+
+        items = self.__build_transaction_tree(item)
         # print(f"OUT {items}")
         for item in items:
             with self.__transactions_lock:
@@ -2128,6 +2154,37 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if transaction_count == 0:
                 if callable(getattr(item, "_exit_transaction_state", None)):
                     item._exit_transaction_state()
+
+    def __get_deep_transaction_item_set(self, item, items):
+        if not item in items:
+            # first the dependent items, also keep track of which items are added
+            old_items = copy.copy(items)
+            self.__get_deep_dependent_item_set(item, items)
+            # next, the graphics and connections (where item is source)
+            if isinstance(item, DataItem.LibraryItem):
+                for display in item.displays:
+                    for graphic in display.graphics:
+                        self.__get_deep_transaction_item_set(graphic, items)
+            if isinstance(item, DataStructure):
+                for referenced_object in item._referenced_objects:
+                    self.__get_deep_dependent_item_set(referenced_object, items)
+            for data_item in self.data_items:
+                for connection in data_item.connections:
+                    if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
+                        self.__get_deep_transaction_item_set(connection._target, items)
+            for item in items - old_items:
+                if isinstance(item, Graphics.Graphic):
+                    self.__get_deep_transaction_item_set(item.container.container, items)
+
+    def __build_transaction_tree(self, item):
+        """Build the items that should enter transaction state from the root item."""
+        items = set()
+        self.__get_deep_transaction_item_set(item, items)
+        if isinstance(item, DataItem.LibraryItem):
+            for connection in item.connections:
+                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
+                    self.__get_deep_transaction_item_set(connection._source, items)
+        return items
 
     def data_item_transaction(self, data_item):
         return self.item_transaction(data_item)
@@ -2410,18 +2467,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.perform_data_item_merges()
 
     def get_object_specifier(self, object, object_type: str=None) -> dict:
-        if isinstance(object, DataItem.DataItem) and object_type == "data_item":
-            return {"version": 1, "type": "data_item_object", "uuid": str(object.uuid)}
-        if isinstance(object, DataItem.DataItem) and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
-            return {"version": 1, "type": object_type, "uuid": str(object.uuid)}
-        if isinstance(object, DataItem.DataItem):
-            # should be "data_source" but requires file format change
-            return {"version": 1, "type": "data_item", "uuid": str(object.uuid)}
-        elif isinstance(object, Graphics.Graphic):
-            return {"version": 1, "type": "region", "uuid": str(object.uuid)}
-        elif isinstance(object, DataStructure):
-            return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
-        return Symbolic.ComputationVariable.get_extension_object_specifier(object)
+        return get_object_specifier(object, object_type)
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
         for data_item in self.data_items:
