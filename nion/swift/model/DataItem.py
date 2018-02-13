@@ -888,6 +888,12 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.remove_model_item(self, "displays", display)
 
     @property
+    def primary_display_specifier(self):
+        if len(self.displays) > 0:
+            return DisplaySpecifier(self, self.displays[0])
+        return DisplaySpecifier()
+
+    @property
     def is_live(self):
         """Return whether this library item represents live acquisition."""
         return self.__is_live
