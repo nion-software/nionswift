@@ -2,6 +2,7 @@
 import abc
 import copy
 import datetime
+import functools
 import gettext
 import os
 import threading
@@ -615,6 +616,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.__content_changed = False
         self.__suspendable_storage_cache = None
         self.r_var = None
+        self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
 
@@ -663,12 +665,16 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def container(self):
         return self.__container_weak_ref()
 
+    def about_to_close(self):
+        pass
+
     def about_to_be_inserted(self, container):
         assert self.__container_weak_ref is None
         self.__container_weak_ref = weakref.ref(container)
 
     def about_to_be_removed(self):
         # called before close and before item is removed from its container
+        self.about_to_be_removed_event.fire()
         for display in self.displays:
             display.about_to_be_removed()
         assert not self._about_to_be_removed
@@ -980,20 +986,25 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         if notify_changed:  # set to False to set the r-value at startup; avoid marking it as a change
             self.__notify_description_changed()
 
-    def increment_display_ref_count(self):
+    def increment_display_ref_count(self, amount: int=1):
         """Increment display reference count to indicate this library item is currently displayed."""
-        self.__display_ref_count += 1
-        if self.__display_ref_count == 1:
+        display_ref_count = self.__display_ref_count
+        self.__display_ref_count += amount
+        if display_ref_count == 0:
             for display in self.displays:
                 display._become_master()
 
-    def decrement_display_ref_count(self):
+    def decrement_display_ref_count(self, amount: int=1):
         """Decrement display reference count to indicate this library item is no longer displayed."""
         assert not self._closed
-        self.__display_ref_count -= 1
+        self.__display_ref_count -= amount
         if self.__display_ref_count == 0:
             for display in self.displays:
                 display._relinquish_master()
+
+    @property
+    def _display_ref_count(self):
+        return self.__display_ref_count
 
     @property
     def displayed_title(self):
@@ -1129,10 +1140,28 @@ class CompositeLibraryItem(LibraryItem):
     def __init__(self, item_uuid=None):
         super().__init__(item_uuid=item_uuid)
         self.__data_items = list()
+        self.__data_item_about_to_be_removed_listeners = list()
         self.add_display(Display.Display())  # always have one display, for now
         self.define_property("data_item_uuids", list(), converter=UuidsToStringsConverter(), changed=self.__property_changed)
         self.define_property("metadata", dict(), hidden=True, changed=self.__metadata_property_changed)
         self.__metadata = dict()
+
+    def close(self):
+        self.__unlisten_about_to_be_removed()
+        super().close()
+
+    def about_to_close(self):
+        self.__unlisten_about_to_be_removed()
+        super().about_to_close()
+
+    def about_to_be_removed(self):
+        self.__unlisten_about_to_be_removed()
+        super().about_to_be_removed()
+
+    def __unlisten_about_to_be_removed(self):
+        for listener in self.__data_item_about_to_be_removed_listeners:
+            listener.close()
+        self.__data_item_about_to_be_removed_listeners.clear()
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
@@ -1159,6 +1188,7 @@ class CompositeLibraryItem(LibraryItem):
             if data_item in data_items:
                 before_index = len(self.__data_items)
                 self.__data_items.append(data_item)
+                self.__data_item_about_to_be_removed_listeners.append(data_item.about_to_be_removed_event.listen(functools.partial(self.__data_item_about_to_be_removed, data_item)))
                 self.notify_insert_item("data_items", data_item, before_index)
 
     def append_data_item(self, data_item):
@@ -1167,31 +1197,38 @@ class CompositeLibraryItem(LibraryItem):
     def insert_data_item(self, before_index, data_item):
         assert data_item not in self.__data_items
         self.__data_items.insert(before_index, data_item)
+        self.__data_item_about_to_be_removed_listeners.append(data_item.about_to_be_removed_event.listen(functools.partial(self.__data_item_about_to_be_removed, data_item)))
         data_item_uuids = self.data_item_uuids
         data_item_uuids.insert(before_index, data_item.uuid)
         self.data_item_uuids = data_item_uuids
         self.notify_property_changed("data_item_uuids")
         self.notify_insert_item("data_items", data_item, before_index)
+        data_item.increment_display_ref_count(self._display_ref_count)
 
     def remove_data_item(self, data_item):
-        # index = self.__data_items.index(data_item)
         index = self.__data_items.index(data_item)
         self.notify_remove_item("data_items", data_item, index)
+        self.__data_item_about_to_be_removed_listeners[index].close()
+        del self.__data_item_about_to_be_removed_listeners[index]
         self.__data_items.remove(data_item)
         data_item_uuids = self.data_item_uuids
         data_item_uuids.remove(data_item.uuid)
         self.data_item_uuids = data_item_uuids
         self.notify_property_changed("data_item_uuids")
+        data_item.decrement_display_ref_count(self._display_ref_count)
 
-    def increment_display_ref_count(self):
-        super().increment_display_ref_count()
-        for data_item in self.data_items:
-            data_item.increment_display_ref_count()
+    def __data_item_about_to_be_removed(self, data_item):
+        self.remove_data_item(data_item)
 
-    def decrement_display_ref_count(self):
-        super().decrement_display_ref_count()
+    def increment_display_ref_count(self, amount: int=1):
+        super().increment_display_ref_count(amount)
         for data_item in self.data_items:
-            data_item.decrement_display_ref_count()
+            data_item.increment_display_ref_count(amount)
+
+    def decrement_display_ref_count(self, amount: int=1):
+        super().decrement_display_ref_count(amount)
+        for data_item in self.data_items:
+            data_item.decrement_display_ref_count(amount)
 
     def __property_changed(self, name, value):
         self.notify_property_changed(name)
@@ -1447,13 +1484,15 @@ class DataItem(LibraryItem):
     def data_source(self) -> typing.Optional[BufferedDataSource]:
         return self.get_item("data_source")
 
-    def increment_display_ref_count(self):
-        super().increment_display_ref_count()
-        self.increment_data_ref_count()
+    def increment_display_ref_count(self, amount: int=1):
+        super().increment_display_ref_count(amount)
+        for _ in range(amount):
+            self.increment_data_ref_count()
 
-    def decrement_display_ref_count(self):
-        super().decrement_display_ref_count()
-        self.decrement_data_ref_count()
+    def decrement_display_ref_count(self, amount: int=1):
+        super().decrement_display_ref_count(amount)
+        for _ in range(amount):
+            self.decrement_data_ref_count()
 
     def increment_data_ref_count(self):
         data_source = self.data_source

@@ -1464,6 +1464,23 @@ class TestDisplayPanelClass(unittest.TestCase):
             composite_display = display_panel._display_canvas_item
             self.assertSequenceEqual(data_item1.displays, composite_display._displays)
 
+    def test_composite_item_deletes_cleanly_when_displayed(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item)
+            composite_item = DataItem.CompositeLibraryItem()
+            document_model.append_data_item(composite_item)
+            composite_item.append_data_item(data_item)
+            data_item.source = composite_item
+            self.assertEqual(len(document_model.data_items), 2)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            document_model.remove_data_item(composite_item)
+            self.assertEqual(len(document_model.data_items), 0)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

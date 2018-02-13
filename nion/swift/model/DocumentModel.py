@@ -1618,7 +1618,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.displays_list_model.close()
         self.displays_list_model = None
         for data_item in self.data_items:
+            data_item.about_to_close()
+        for data_item in self.data_items:
             data_item.about_to_be_removed()
+        for data_item in self.data_items:
             data_item.close()
         self.storage_cache.close()
 

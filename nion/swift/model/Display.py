@@ -870,11 +870,11 @@ class Display(Observable.Observable, Persistence.PersistentObject):
             return self.__current_display_values
         return self.__last_display_values
 
-    def increment_display_ref_count(self):
-        self.container.increment_display_ref_count()
+    def increment_display_ref_count(self, amount: int=1):
+        self.container.increment_display_ref_count(amount)
 
-    def decrement_display_ref_count(self):
-        self.container.decrement_display_ref_count()
+    def decrement_display_ref_count(self, amount: int=1):
+        self.container.decrement_display_ref_count(amount)
 
     def _become_master(self):
         self.__is_master = True
