@@ -3160,7 +3160,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         computation_mutated()  # ensure the initial mutation is reported
 
-    def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
+    def make_data_item_with_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, typing.Optional[Graphics.Graphic]]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
         return self.__make_computation(processing_id, inputs, region_list_map)
 
     def __make_computation(self, processing_id: str, inputs: typing.List[typing.Tuple[DataItem.DataItem, Graphics.Graphic]], region_list_map: typing.Mapping[str, typing.List[Graphics.Graphic]]=None) -> DataItem.DataItem:
