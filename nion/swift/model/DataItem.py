@@ -1544,8 +1544,8 @@ class DataItem(LibraryItem):
 
     def set_xdata(self, xdata: DataAndMetadata.DataAndMetadata, data_modified: datetime.datetime=None) -> None:
         with self.data_source_changes():
-            if self.data_source:
-                self.data_source.set_data_and_metadata(xdata, data_modified)
+            self.ensure_data_source()
+            self.data_source.set_data_and_metadata(xdata, data_modified)
 
     # grab a data reference as a context manager. the object
     # returned defines data and data properties. reading data

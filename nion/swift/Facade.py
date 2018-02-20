@@ -2090,6 +2090,20 @@ class Computation(metaclass=SharedInstance):
                     return
             self.__computation.create_result(name, result_specifier)
 
+    def set_referenced_data(self, name: str, data: numpy.ndarray) -> None:
+        data_item = self.get_result(name)
+        if not data_item:
+            data_item = self.api.library.create_data_item()
+            self.set_result(name, data_item)
+        data_item.data = data
+
+    def set_referenced_xdata(self, name: str, xdata: DataAndMetadata.DataAndMetadata) -> None:
+        data_item = self.get_result(name)
+        if not data_item:
+            data_item = self.api.library.create_data_item()
+            self.set_result(name, data_item)
+        data_item.xdata = xdata
+
 
 class Library(metaclass=SharedInstance):
     release = ["uuid", "data_item_count", "data_items", "create_data_item", "create_data_item_from_data",
