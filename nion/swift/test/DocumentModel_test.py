@@ -167,24 +167,6 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(inverted_data_item.data, -d))
 
-    def test_recompute_twice_before_periodic_uses_final_data(self):
-        document_model = DocumentModel.DocumentModel()
-        with contextlib.closing(document_model):
-            d = numpy.zeros((2, 2), numpy.int)
-            data_item = DataItem.DataItem(d)
-            document_model.append_data_item(data_item)
-            computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata + x"))
-            computation.create_object("a", document_model.get_object_specifier(data_item))
-            x = computation.create_variable("x", value_type="integral", value=5)
-            computed_data_item = DataItem.DataItem(d)
-            document_model.append_data_item(computed_data_item)
-            document_model.set_data_item_computation(computed_data_item, computation)
-            document_model.recompute_all(merge=False)
-            x.value = 10
-            document_model.recompute_all(merge=False)
-            document_model.perform_data_item_merges()
-            self.assertTrue(numpy.array_equal(computed_data_item.data, d + 10))
-
     def test_data_item_recording(self):
         data_item = DataItem.DataItem(numpy.zeros((16, 16)))
         data_item_recorder = Recorder.Recorder(data_item)
@@ -1207,11 +1189,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.__new_data = numpy.copy(src_xdata.data)
 
         def commit(self):
-            dst_data_item = self.computation.get_result("dst")
-            if not dst_data_item:
-                dst_data_item = self.computation.api.library.create_data_item()
-                self.computation.set_result("dst", dst_data_item)
-            dst_data_item.data = self.__new_data
+            self.computation.set_referenced_data("dst", self.__new_data)
 
     def test_computation_can_depend_on_filter_xdata(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
@@ -1270,6 +1248,30 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_source_items(data_item2)), 2)
             self.assertIn(graphic, document_model.get_source_items(data_item2))
             self.assertIn(data_item, document_model.get_source_items(data_item2))
+
+    def test_computation_sequence_evaluates(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem()
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            computation1 = document_model.create_computation()
+            computation1.create_object("src_xdata", document_model.get_object_specifier(data_item1, "xdata"))
+            computation1.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation1.processing_id = "pass_thru"
+            document_model.append_computation(computation1)
+            computation2 = document_model.create_computation()
+            computation2.create_object("src_xdata", document_model.get_object_specifier(data_item2, "xdata"))
+            computation2.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation2.processing_id = "pass_thru"
+            document_model.append_computation(computation2)
+            document_model.recompute_all()
+            self.assertTrue(numpy.array_equal(data_item1.data, data_item2.data))
+            self.assertTrue(numpy.array_equal(data_item1.data, data_item3.data))
 
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?

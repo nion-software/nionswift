@@ -1183,11 +1183,11 @@ class ComputationQueueItem:
         self.data_item = data_item
         self.valid = True
 
-    def recompute(self) -> typing.Sequence[typing.Callable[[], None]]:
+    def recompute(self) -> typing.Optional[typing.Callable[[], None]]:
         # evaluate the computation in a thread safe manner
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
-        pending_data_item_merges = list()
+        pending_data_item_merge = None
         if self.data_item:
             data_item = self.data_item
             computation = data_item.computation
@@ -1204,7 +1204,7 @@ class ComputationQueueItem:
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                     if self.valid and compute_obj:  # TODO: race condition for 'valid'
-                        pending_data_item_merges.append((computation, functools.partial(compute_obj.commit)))
+                        pending_data_item_merge = (computation, functools.partial(compute_obj.commit))
                 else:
                     data_item_clone = data_item.clone()
                     data_item_data_modified = data_item.data_modified or datetime.datetime.min
@@ -1225,12 +1225,12 @@ class ComputationQueueItem:
                                 data_item_clone_recorder.apply(data_item)
                                 if computation.error_text != error_text:
                                     computation.error_text = error_text
-                        pending_data_item_merges.append((computation, functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder)))
+                        pending_data_item_merge = (computation, functools.partial(data_item_merge, data_item, data_item_clone, data_item_clone_recorder))
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 # computation.error_text = _("Unable to compute data")
-        return pending_data_item_merges
+        return pending_data_item_merge
 
 
 class AutoMigration:
@@ -1469,7 +1469,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__recompute_lock = threading.RLock()
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
-        self.__computation_active_items = list()  # type: typing.List[ComputationQueueItem]
+        self.__computation_active_item = None  # type: ComputationQueueItem
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
@@ -1499,8 +1499,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__pending_data_item_updates_lock = threading.RLock()
         self.__pending_data_item_updates = list()
 
-        self.__pending_data_item_merges_lock = threading.RLock()
-        self.__pending_data_item_merges = list()
+        self.__pending_data_item_merge_lock = threading.RLock()
+        self.__pending_data_item_merge = None
         self.__current_computation = None
 
         self.call_soon_event = Event.Event()
@@ -1580,9 +1580,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # stop computations
         with self.__computation_queue_lock:
             self.__computation_pending_queue.clear()
-            for computation_queue_item in self.__computation_active_items:
-                computation_queue_item.valid = False
-            self.__computation_active_items.clear()
+            if self.__computation_active_item:
+                self.__computation_active_item.valid = False
+                self.__computation_active_item = None
 
         # close hardware source related stuff
         self.__hardware_source_added_event_listener.close()
@@ -1741,9 +1741,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __remove_data_item(self, data_item):
         assert data_item.uuid in self.__data_item_uuids
         with self.__computation_queue_lock:
-            for computation_queue_item in self.__computation_pending_queue + self.__computation_active_items:
-                if computation_queue_item.data_item is data_item:
-                    computation_queue_item.valid = False
+            computation_pending_queue = self.__computation_pending_queue
+            self.__computation_pending_queue = list()
+            for computation_queue_item in computation_pending_queue:
+                if not computation_queue_item.data_item is data_item:
+                    self.__computation_pending_queue.append(computation_queue_item)
+            if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
+                self.__computation_active_item.valid = False
         # remove data item from any selections
         self.library_item_will_be_removed_event.fire(data_item)
         # remove the data item from any groups
@@ -2399,14 +2403,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_thread_pool.queue_fn(task, description)
 
     def recompute_all(self, merge=True):
-        self.__computation_thread_pool.run_all()
-        if merge:
-            self.perform_data_item_merges()
+        while True:
+            self.__computation_thread_pool.run_all()
+            if merge:
+                self.perform_data_item_merge()
+                with self.__computation_queue_lock:
+                    if not (self.__computation_pending_queue or self.__computation_active_item or self.__pending_data_item_merge):
+                        break
+            else:
+                break
 
     def recompute_one(self, merge=True):
         self.__computation_thread_pool.run_one()
         if merge:
-            self.perform_data_item_merges()
+            self.perform_data_item_merge()
 
     def start_dispatcher(self):
         self.__thread_pool.start()
@@ -2414,51 +2424,35 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __recompute(self):
         computation_queue_item = None
-        skipped_pending = False
         with self.__computation_queue_lock:
-            # loop through the items in the pending queue
-            for i, _computation_queue_item in enumerate(self.__computation_pending_queue):
-                # first check to see if the item in the pending queue matches an item in the active list
-                match = None
-                for active_computation_item in self.__computation_active_items:
-                    if _computation_queue_item.data_item == active_computation_item.data_item:
-                        match = _computation_queue_item
-                        break
-                # if it doesn't match, move it to active, and break out of this loop
-                # other items in the queue will be serviced by future calls to __recompute.
-                # there is one __recompute for each item put into the pending queue.
-                if not match:
-                    computation_queue_item = self.__computation_pending_queue.pop(i)
-                    self.__computation_active_items.append(computation_queue_item)
-                    break
-                # otherwise, mark it as skipped so that __recompute is called again.
-                # so that it eventually gets serviced.
-                else:
-                    skipped_pending = True
+            if not self.__computation_active_item and self.__computation_pending_queue:
+                computation_queue_item = self.__computation_pending_queue.pop(0)
+                self.__computation_active_item = computation_queue_item
 
         if computation_queue_item:
             # an item was put into the active queue, so compute it, then merge
-            pending_data_item_merges = computation_queue_item.recompute()
-            with self.__pending_data_item_merges_lock:
-                self.__pending_data_item_merges.extend(pending_data_item_merges)
-            self.__call_soon(self.perform_data_item_merges)
-            # it is now merged, so remove it from the active queue
-            with self.__computation_queue_lock:
-                self.__computation_active_items.remove(computation_queue_item)
+            pending_data_item_merge = computation_queue_item.recompute()
+            if pending_data_item_merge is not None:
+                with self.__pending_data_item_merge_lock:
+                    self.__pending_data_item_merge = pending_data_item_merge
+                self.__call_soon(self.perform_data_item_merge)
+            else:
+                self.__computation_active_item = None
 
-        if skipped_pending:
-            self.dispatch_task2(self.__recompute)
-
-    def perform_data_item_merges(self):
-        with self.__pending_data_item_merges_lock:
-            pending_data_item_merges = self.__pending_data_item_merges
-            self.__pending_data_item_merges = list()
-        for computation, pending_data_item_merge in pending_data_item_merges:
+    def perform_data_item_merge(self):
+        with self.__pending_data_item_merge_lock:
+            pending_data_item_merge = self.__pending_data_item_merge
+            self.__pending_data_item_merge = None
+        if pending_data_item_merge is not None:
+            computation, pending_data_item_merge_fn = pending_data_item_merge
             self.__current_computation = computation
             try:
-                pending_data_item_merge()
+                pending_data_item_merge_fn()
             finally:
                 self.__current_computation = None
+                with self.__computation_queue_lock:
+                    self.__computation_active_item = None
+        self.dispatch_task2(self.__recompute)
 
     async def recompute_immediate(self, event_loop: asyncio.AbstractEventLoop, data_item: DataItem.DataItem) -> None:
         computation = data_item.computation
@@ -2467,7 +2461,24 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 with self.__recompute_lock:
                     pass
             await event_loop.run_in_executor(None, sync_recompute)
-            self.perform_data_item_merges()
+            self.perform_data_item_merge()
+
+    async def recompute_computation_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation) -> None:
+        if computation:
+            def sync_recompute():
+                finished = False
+                while not finished:
+                    with self.__recompute_lock:
+                        found = False
+                        for computation_queue_item in self.__computation_pending_queue:
+                            if computation_queue_item.computation == computation:
+                                found = True
+                        for computation_queue_item in self.__computation_active_items:
+                            if computation_queue_item.computation == computation:
+                                found = True
+                        finished = not found
+            await event_loop.run_in_executor(None, sync_recompute)
+            self.perform_data_item_merge()
 
     def get_object_specifier(self, object, object_type: str=None) -> dict:
         return get_object_specifier(object, object_type)

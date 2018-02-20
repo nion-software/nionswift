@@ -526,7 +526,7 @@ class TestDataItemClass(unittest.TestCase):
     def test_is_data_stale_should_propagate_to_data_items_dependent_on_source(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
-            data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item = DataItem.DataItem(numpy.full((2, 2), 2, numpy.int32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             inverted_data_item = document_model.get_invert_new(data_item)
@@ -535,15 +535,10 @@ class TestDataItemClass(unittest.TestCase):
             inverted2_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted2_data_item)
             document_model.recompute_all()
             self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
-            document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
             self.assertFalse(inverted2_display_specifier.data_item.computation.needs_update)
-            display_specifier.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
+            display_specifier.data_item.set_data(numpy.ones((2, 2), numpy.int32))
             self.assertTrue(inverted_display_specifier.data_item.computation.needs_update)
-            document_model.recompute_one()
-            document_model.recompute_one()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
-            self.assertTrue(inverted2_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(inverted2_display_specifier.data_item.computation.needs_update)
             document_model.recompute_all()
             self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
             self.assertFalse(inverted2_display_specifier.data_item.computation.needs_update)
@@ -1140,8 +1135,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item2 = document_model.get_invert_new(data_item)
             data_item3 = document_model.get_invert_new(data_item2)
             display_specifier3 = DataItem.DisplaySpecifier.from_data_item(data_item3)
-            document_model.recompute_one()
-            document_model.recompute_one()  # need two explicitly
+            document_model.recompute_all()
             self.assertIsNotNone(display_specifier3.data_item.dimensional_calibrations)
 
     def test_spatial_calibration_on_rgb(self):
