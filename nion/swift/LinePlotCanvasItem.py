@@ -436,8 +436,11 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             calibrated_data_min, calibrated_data_max, y_ticker = LineGraphCanvasItem.calculate_y_axis(scalar_data_list, y_min, y_max, intensity_calibration, y_style)
             axes = LineGraphCanvasItem.LineGraphAxes(data_scale, calibrated_data_min, calibrated_data_max, left_channel, right_channel, displayed_dimensional_calibration, intensity_calibration, y_style, y_ticker)
 
-            if scalar_xdata_list is None and len(xdata_list) > 0:
-                scalar_xdata_list = calculate_scalar_xdata(xdata_list)
+            if scalar_xdata_list is None:
+                if len(xdata_list) > 0:
+                    scalar_xdata_list = calculate_scalar_xdata(xdata_list)
+                else:
+                    scalar_xdata_list = list()
 
             line_graph_xdata_list = list()
 

@@ -238,6 +238,20 @@ class TestLineGraphCanvasItem(unittest.TestCase):
             # print(display_panel.display_canvas_item.line_graph_stack.canvas_items[0].calibrated_data)
             # print(display_panel.display_canvas_item.line_graph_stack.canvas_items[1].calibrated_data)
 
+    def test_composite_line_plot_handles_drawing_with_fixed_y_scale_and_without_data(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            composite_item = DataItem.CompositeLibraryItem()
+            composite_item.displays[0].display_type = "line_plot"
+            composite_item.displays[0].y_min = 0
+            composite_item.displays[0].y_max = 1
+            document_model.append_data_item(composite_item)
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(composite_item)
+            display_panel.display_canvas_item.layout_immediate((640, 480))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+
     def test_composite_line_plot_handles_first_components_without_data(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
