@@ -804,6 +804,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         for result in self.results:
             self.__unbind_result(result)
 
+    def _get_variable(self, variable_name):
+        for variable in self.variables:
+            if variable.name == variable_name:
+                return variable
+        return None
+
     def _set_variable_value(self, variable_name, value):
         for variable in self.variables:
             if variable.name == variable_name:
@@ -814,6 +820,15 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             if variable.name == variable_name:
                 return True
         return False
+
+    def get_referenced_object(self, name: str):
+        for result in self.results:
+            if result.name == name:
+                if isinstance(result.bound_item, list):
+                    return [bound_item.value for bound_item in result.bound_item]
+                if result.bound_item:
+                    return result.bound_item.value
+        return None
 
 # for computations
 
