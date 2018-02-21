@@ -406,15 +406,18 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         def calculate_scalar_xdata(xdata_list):
             scalar_xdata_list = list()
             for xdata in xdata_list:
-                scalar_data = Image.scalar_from_array(xdata.data)
-                scalar_data = Image.convert_to_grayscale(scalar_data)
-                scalar_intensity_calibration = dimensional_calibration_style.get_intensity_calibration(xdata)
-                scalar_dimensional_calibrations = dimensional_calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
-                # check whether there is common units between the data and the display
-                if not displayed_dimensional_calibration.units and self.__dimensional_calibration and scalar_dimensional_calibrations[-1].units == self.__dimensional_calibration.units:
-                    scalar_dimensional_calibrations = scalar_dimensional_calibrations[0:-1] + [Calibration.Calibration(scale=self.__data_scale)]
-                if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units:
-                    scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, scalar_intensity_calibration, scalar_dimensional_calibrations))
+                if xdata:
+                    scalar_data = Image.scalar_from_array(xdata.data)
+                    scalar_data = Image.convert_to_grayscale(scalar_data)
+                    scalar_intensity_calibration = dimensional_calibration_style.get_intensity_calibration(xdata)
+                    scalar_dimensional_calibrations = dimensional_calibration_style.get_dimensional_calibrations(xdata.dimensional_shape, xdata.dimensional_calibrations)
+                    # check whether there is common units between the data and the display
+                    if not displayed_dimensional_calibration.units and self.__dimensional_calibration and scalar_dimensional_calibrations[-1].units == self.__dimensional_calibration.units:
+                        scalar_dimensional_calibrations = scalar_dimensional_calibrations[0:-1] + [Calibration.Calibration(scale=self.__data_scale)]
+                    if displayed_dimensional_calibration.units == scalar_dimensional_calibrations[-1].units:
+                        scalar_xdata_list.append(DataAndMetadata.new_data_and_metadata(scalar_data, scalar_intensity_calibration, scalar_dimensional_calibrations))
+                else:
+                    scalar_xdata_list.append(None)
             return scalar_xdata_list
 
         data_scale = self.__data_scale
@@ -442,9 +445,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 Utility.fps_tick("prepare_"+self.__display_frame_rate_id)
 
             for scalar_xdata in scalar_xdata_list:
-                if scalar_xdata.is_data_1d:
+                if scalar_xdata and scalar_xdata.is_data_1d:
                     line_graph_xdata_list.append(scalar_xdata)
-                elif scalar_xdata.is_data_2d:
+                elif scalar_xdata and scalar_xdata.is_data_2d:
                     rows = min(16, scalar_xdata.dimensional_shape[0])
                     intensity_calibration = scalar_xdata.intensity_calibration
                     displayed_dimensional_calibration = scalar_xdata.dimensional_calibrations[-1]
@@ -452,6 +455,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                         scalar_data_row = scalar_xdata.data[row:row + 1, :].reshape((scalar_xdata.dimensional_shape[-1],))
                         scalar_xdata_row = DataAndMetadata.new_data_and_metadata(scalar_data_row, intensity_calibration, [displayed_dimensional_calibration])
                         line_graph_xdata_list.append(scalar_xdata_row)
+                else:
+                    line_graph_xdata_list.append(None)
 
             line_graph_xdata_list = line_graph_xdata_list[0:16]
 
@@ -525,7 +530,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
     def __update_canvas_items(self, axes, legend_labels):
         self.__line_graph_background_canvas_item.set_axes(axes)
         self.__line_graph_regions_canvas_item.set_axes(axes)
-        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item else None)
+        self.__line_graph_regions_canvas_item.set_calibrated_data(self.line_graph_canvas_item.calibrated_xdata.data if self.line_graph_canvas_item and self.line_graph_canvas_item.calibrated_xdata else None)
         self.__line_graph_frame_canvas_item.set_draw_frame(axes.is_valid)
         self.__line_graph_legend_canvas_item.set_legend_labels(legend_labels)
         self.__line_graph_vertical_axis_label_canvas_item.set_axes(axes)
