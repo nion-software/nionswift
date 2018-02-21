@@ -1410,7 +1410,7 @@ def data_structure_factory(lookup_id):
     return DataStructure()
 
 
-def get_object_specifier(object, object_type: str=None) -> dict:
+def get_object_specifier(object, object_type: str=None) -> typing.Optional[typing.Mapping]:
     if isinstance(object, DataItem.DataItem) and object_type == "data_item":
         return {"version": 1, "type": "data_item_object", "uuid": str(object.uuid)}
     if isinstance(object, DataItem.DataItem) and object_type in ("xdata", "display_xdata", "cropped_xdata", "cropped_display_xdata", "filter_xdata", "filtered_xdata"):
@@ -1422,7 +1422,7 @@ def get_object_specifier(object, object_type: str=None) -> dict:
         return {"version": 1, "type": "region", "uuid": str(object.uuid)}
     elif isinstance(object, DataStructure):
         return {"version": 1, "type": "structure", "uuid": str(object.uuid)}
-    return Symbolic.ComputationVariable.get_extension_object_specifier(object)
+    return None
 
 
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
@@ -2469,7 +2469,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 computation.is_initial_computation_complete.wait(timeout)
             await event_loop.run_in_executor(None, sync_recompute)
 
-    def get_object_specifier(self, object, object_type: str=None) -> dict:
+    def get_object_specifier(self, object, object_type: str=None) -> typing.Optional[typing.Mapping]:
         return get_object_specifier(object, object_type)
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:
@@ -2766,7 +2766,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                         def base_objects(self):
                             return {self.__object}
                     return BoundGraphic(graphic)
-        return Symbolic.ComputationVariable.resolve_extension_object_specifier(specifier)
+        return None
 
     class DataItemReference:
         """A data item reference to coordinate data item access between acquisition and main thread.

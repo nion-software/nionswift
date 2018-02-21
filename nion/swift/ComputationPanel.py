@@ -226,7 +226,6 @@ class ComputationPanelSection:
             name_text_edit.bind_text(Binding.PropertyBinding(variable, "name"))
 
             type_items = [("boolean", _("Boolean")), ("integral", _("Integer")), ("real", _("Real")), ("data_item", _("Data Item")), ("region", _("Region"))]
-            type_items.extend(Symbolic.ComputationVariable.get_extension_type_items())
             type_combo_box = ui.create_combo_box_widget(items=type_items, item_getter=operator.itemgetter(1))
 
             remove_button = ui.create_push_button_widget(_("X"))
@@ -396,8 +395,6 @@ class ComputationPanelSection:
             elif variable_type == "data_item":
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove, include_secondary=True))
             elif variable_type == "region":
-                stack.add(make_specifier_row(ui, variable, change_type, on_remove))
-            elif variable_type in Symbolic.ComputationVariable.get_extension_types():
                 stack.add(make_specifier_row(ui, variable, change_type, on_remove))
             else:
                 stack.add(make_empty_row(ui, variable, change_type, on_remove))

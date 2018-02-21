@@ -282,18 +282,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
                 specifier.pop("property", None)
                 self.specifier = specifier
                 self.secondary_specifier = None
-            elif value_type in ComputationVariable.get_extension_types():
-                self.value_type = None
-                self.control_type = None
-                self.value_default = None
-                self.value_min = None
-                self.value_max = None
-                specifier = self.specifier or {"version": 1}
-                specifier["type"] = value_type
-                specifier.pop("uuid", None)
-                specifier.pop("property", None)
-                self.specifier = specifier
-                self.secondary_specifier = None
             self.variable_type_changed_event.fire()
 
     @property
@@ -335,67 +323,6 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     @property
     def has_range(self):
         return self.value_type is not None and self.value_min is not None and self.value_max is not None
-
-    # handle extension types
-
-    extension_types = list()  # type: typing.List[ComputationVariableType]
-
-    @classmethod
-    def get_extension_type_items(cls):
-        """Return a list of type_id / label tuples."""
-        type_items = list()
-        for computation_variable_type in ComputationVariable.extension_types:
-            type_items.append((computation_variable_type.type_id, computation_variable_type.label))
-        return type_items
-
-    @classmethod
-    def get_extension_types(cls):
-        """Return a list of type_ids."""
-        return [computation_variable_type.type_id for computation_variable_type in ComputationVariable.extension_types]
-
-    @classmethod
-    def get_extension_object_specifier(cls, object):
-        for computation_variable_type in ComputationVariable.extension_types:
-            if isinstance(object, computation_variable_type.object_type):
-                return {"version": 1, "type": computation_variable_type.type_id, "uuid": str(object.uuid)}
-        return None
-
-    @classmethod
-    def resolve_extension_object_specifier(cls, specifier: dict):
-        if specifier.get("version") == 1:
-            specifier_type = specifier["type"]
-            for computation_variable_type in ComputationVariable.extension_types:
-                if computation_variable_type.type_id == specifier_type:
-                    specifier_uuid_str = specifier.get("uuid")
-                    object_uuid = uuid.UUID(specifier_uuid_str) if specifier_uuid_str else None
-                    object = computation_variable_type.get_object_by_uuid(object_uuid)
-                    class BoundObject:
-                        def __init__(self, object):
-                            self.__object = object
-                            self.changed_event = Event.Event()
-                            self.property_changed_event = Event.Event()
-                            def property_changed(property_name_being_changed):
-                                self.changed_event.fire()
-                                self.property_changed_event.fire(property_name_being_changed)
-                            self.__property_changed_listener = self.__object.property_changed_event.listen(property_changed)
-                        def close(self):
-                            self.__property_changed_listener.close()
-                            self.__property_changed_listener = None
-                        @property
-                        def value(self):
-                            return self.__object
-                    if object:
-                        return BoundObject(object)
-        return None
-
-    @classmethod
-    def register_computation_variable_type(cls, computation_variable_type: ComputationVariableType) -> None:
-        ComputationVariable.extension_types.append(computation_variable_type)
-
-    @classmethod
-    def unregister_computation_variable_type(cls, computation_variable_type: ComputationVariableType) -> None:
-        ComputationVariable.extension_types.remove(computation_variable_type)
-
 
 
 def variable_factory(lookup_id):
