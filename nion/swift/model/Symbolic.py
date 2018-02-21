@@ -9,6 +9,7 @@
 
 # standard libraries
 import ast
+import threading
 import time
 import typing
 import uuid
@@ -476,6 +477,7 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self.computation_output_changed_event = Event.Event()
         self.variable_inserted_event = Event.Event()
         self.variable_removed_event = Event.Event()
+        self.is_initial_computation_complete = threading.Event()  # helpful for waiting for initial computation
         self._evaluation_count_for_test = 0
         self.target_output = None
         self._inputs = set()  # used by document model for tracking dependencies

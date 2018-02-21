@@ -1466,7 +1466,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_changed_listeners = dict()
         self.__computation_output_changed_listeners = dict()
         self.__data_item_references = dict()
-        self.__recompute_lock = threading.RLock()
         self.__computation_queue_lock = threading.RLock()
         self.__computation_pending_queue = list()  # type: typing.List[ComputationQueueItem]
         self.__computation_active_item = None  # type: ComputationQueueItem
@@ -2452,33 +2451,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__current_computation = None
                 with self.__computation_queue_lock:
                     self.__computation_active_item = None
+                computation.is_initial_computation_complete.set()
         self.dispatch_task2(self.__recompute)
 
-    async def recompute_immediate(self, event_loop: asyncio.AbstractEventLoop, data_item: DataItem.DataItem) -> None:
-        computation = data_item.computation
+    async def compute_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation, timeout: float=None) -> None:
         if computation:
             def sync_recompute():
-                with self.__recompute_lock:
-                    pass
+                computation.is_initial_computation_complete.wait(timeout)
             await event_loop.run_in_executor(None, sync_recompute)
-            self.perform_data_item_merge()
-
-    async def recompute_computation_immediate(self, event_loop: asyncio.AbstractEventLoop, computation: Symbolic.Computation) -> None:
-        if computation:
-            def sync_recompute():
-                finished = False
-                while not finished:
-                    with self.__recompute_lock:
-                        found = False
-                        for computation_queue_item in self.__computation_pending_queue:
-                            if computation_queue_item.computation == computation:
-                                found = True
-                        for computation_queue_item in self.__computation_active_items:
-                            if computation_queue_item.computation == computation:
-                                found = True
-                        finished = not found
-            await event_loop.run_in_executor(None, sync_recompute)
-            self.perform_data_item_merge()
 
     def get_object_specifier(self, object, object_type: str=None) -> dict:
         return get_object_specifier(object, object_type)
