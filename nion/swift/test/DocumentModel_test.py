@@ -1273,6 +1273,54 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_item1.data, data_item2.data))
             self.assertTrue(numpy.array_equal(data_item1.data, data_item3.data))
 
+    def test_computation_deletes_when_source_deletes(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem()
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.source = data_item3
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item1, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "pass_thru"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(1, len(document_model.computations))
+            document_model.remove_data_item(data_item3)
+            self.assertEqual(0, len(document_model.computations))
+
+    def test_computation_deletes_when_triggered_by_both_inputs_and_source_deletion(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem()
+            data_item3 = DataItem.DataItem()
+            data_item3.source = data_item2
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.source = data_item3
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item1, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "pass_thru"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(1, len(document_model.computations))
+            # deleting data_item1 will delete the computation (as its only input)
+            # deleting the computation will delete data_item2 (which is its output)
+            # deleting data_item2 will delete data_item3 (which has it as its source)
+            # deleting data_item3 will also delete computation (which has it as its source)
+            document_model.remove_data_item(data_item1)
+            self.assertEqual(0, len(document_model.data_items))
+            self.assertEqual(0, len(document_model.computations))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)

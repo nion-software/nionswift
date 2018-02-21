@@ -223,7 +223,7 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
         return mapping.get(value_type)
 
     @property
-    def variable_type(self) -> str:
+    def variable_type(self) -> typing.Optional[str]:
         if self.value_type is not None:
             return self.value_type
         elif self.specifier is not None:
@@ -462,12 +462,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         self._about_to_be_removed = False
         self._closed = False
         self.define_type("computation")
+        self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("original_expression", expression)
         self.define_property("error_text", changed=self.__error_changed)
         self.define_property("label", changed=self.__label_changed)
         self.define_property("processing_id")  # see note above
         self.define_relationship("variables", variable_factory)
         self.define_relationship("results", result_factory)
+        self.__source = None
         self.__variable_changed_event_listeners = dict()
         self.__variable_needs_rebind_event_listeners = dict()
         self.__result_needs_rebind_event_listeners = dict()
@@ -518,6 +520,34 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     def read_from_dict(self, properties):
         super().read_from_dict(properties)
+
+    @property
+    def source(self):
+        return self.__source
+
+    @source.setter
+    def source(self, source):
+        self.__source = source
+        self.source_uuid = source.uuid if source else None
+
+    def persistent_object_context_changed(self):
+        super().persistent_object_context_changed()
+
+        def register():
+            if self.__source is not None:
+                pass
+
+        def source_registered(source):
+            self.__source = source
+            register()
+
+        def unregistered(source=None):
+            pass
+
+        if self.persistent_object_context:
+            self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
+        else:
+            unregistered()
 
     def __error_changed(self, name, value):
         self.notify_property_changed(name)

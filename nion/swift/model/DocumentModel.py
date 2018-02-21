@@ -1827,6 +1827,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 for display in item.displays:
                     for graphic in display.graphics:
                         self.__build_cascade(graphic, items, dependencies)
+            elif isinstance(item, Symbolic.Computation):
+                for output in item._outputs:
+                    self.__build_cascade(output, items, dependencies)
             targets = self.__dependency_tree_source_to_target_map.get(weakref.ref(item), list())
             for target in targets:
                 if (item, target) not in dependencies:
@@ -1842,6 +1845,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     if (item, data_structure) not in dependencies:
                         dependencies.append((item, data_structure))
                     self.__build_cascade(data_structure, items, dependencies)
+            for computation in self.computations:
+                if computation.source == item:
+                    if (item, computation) not in dependencies:
+                        dependencies.append((item, computation))
+                    self.__build_cascade(computation, items, dependencies)
             for source in sources:
                 if (source, item) not in dependencies:
                     dependencies.append((source, item))
@@ -3083,9 +3091,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.notify_insert_item("computations", computation, before_index)
 
     def remove_computation(self, computation):
-        index = self.computations.index(computation)
-        self.remove_item("computations", computation)
-        self.notify_remove_item("computations", computation, index)
+        self.__cascade_delete(computation)
 
     def __computation_changed(self, computation):
         # when the computation is mutated, this function is called. it calls the handle computation
@@ -3105,23 +3111,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         computation._inputs = input_items
         computation._outputs = output_items
 
-    def __inserted_computation(self, name, before_index, computation):
+    def __inserted_computation(self, name: str, before_index: int, computation: Symbolic.Computation) -> None:
         computation.about_to_be_inserted(self)
         self.__computation_changed_listeners[computation] = computation.computation_mutated_event.listen(functools.partial(self.__computation_changed, computation))
         self.__computation_output_changed_listeners[computation] = computation.computation_output_changed_event.listen(functools.partial(self.__computation_update_dependencies, computation))
         self.__computation_changed(computation)  # ensure the initial mutation is reported
 
-    def __removed_computation(self, name, index, computation):
+    def __removed_computation(self, name: str, index: int, computation: Symbolic.Computation) -> None:
         computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
         if computation_output_changed_listener: computation_output_changed_listener.close()
-        self.__current_computation = computation
-        try:
-            for output in computation._outputs:
-                self.__cascade_delete(output)
-        finally:
-            self.__current_computation = None
         computation.about_to_be_removed()
         computation.close()
 
