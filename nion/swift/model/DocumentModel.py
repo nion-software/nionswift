@@ -1388,7 +1388,8 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self._update_persistent_property("properties", self.__properties)
             self.__referenced_objects[property] = item
             if self.__in_transaction_state:
-                item._enter_transaction_state()
+                if callable(getattr(item, "_enter_transaction_state", None)):
+                    item._enter_transaction_state()
 
     def remove_referenced_object(self, property: str) -> None:
         self.remove_property_value(property)
