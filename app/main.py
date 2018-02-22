@@ -10,6 +10,7 @@ def main(args, bootstrap_args):
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nionswift-instrumentation-kit"))
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nionswift-io"))
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nion-instrumentation"))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "eels-analysis"))
     # these imports need to occur AFTER the args are parsed and the path
     # is updated accordingly.
     from nion.swift import Facade
