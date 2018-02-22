@@ -103,6 +103,18 @@ class TestDocumentModelClass(unittest.TestCase):
         gc.collect()
         self.assertIsNone(data_item_weak_ref())
 
+    def test_data_items_without_display_close_nicely(self):
+        # see test_flattened_model_with_empty_master_item_closes_properly
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item1 = DataItem.DataItem(numpy.zeros((2, 2)))
+            data_item2 = DataItem.DataItem()
+            data_item2.remove_display(data_item2.displays[0])
+            data_item3 = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item1)
+            document_model.append_data_item(data_item2)
+            document_model.append_data_item(data_item3)
+
     def test_processing_line_profile_configures_intervals_connection(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
