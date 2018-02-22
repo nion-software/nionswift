@@ -70,14 +70,14 @@ class Workspace:
         self.create_panels(visible_panels)
 
         self.__workspace = None
+        self.__last_deconstructed = None
 
     def close(self):
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
             self.message_column.remove(message_box_widget)
         self.__message_boxes.clear()
         if self.__workspace:
-            # TODO: remove this; it should be updated whenever the workspace changes anyway.
-            self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
+            self.__sync_layout()
         self.display_panels = []
         self.__canvas_item = None
         self.__workspace = None
@@ -103,8 +103,7 @@ class Workspace:
 
     def save_geometry_state(self, geometry, state):
         # ugh. this has the side effect of saving the layout when the geometry state is saved.
-        # TODO: make the saving of internal layout independent of _deconstruct
-        self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
+        self.__sync_layout()
         self.ui.set_persistent_string("Workspace/%s/Geometry" % self.workspace_id, geometry)
         self.ui.set_persistent_string("Workspace/%s/State" % self.workspace_id, state)
 
@@ -170,6 +169,7 @@ class Workspace:
         for display_panel in self.display_panels:
             if display_panel.display_panel_id == display_panel_id:
                 display_panel.set_display_panel_data_item(data_item)
+                self.__sync_layout()
 
     def _construct(self, desc, display_panels, lookup_data_item):
         selected_display_panel = None
@@ -181,6 +181,7 @@ class Workspace:
             container = CanvasItem.CanvasItemComposition()
         elif type == "splitter":
             container = CanvasItem.SplitterCanvasItem(orientation=desc.get("orientation"))
+            container.on_splits_changed = self.__sync_layout
             def splitter_post_children_adjust():
                 splits = desc.get("splits")
                 if splits is not None:
@@ -225,7 +226,7 @@ class Workspace:
         assert workspace is not None
         # save the current workspace
         if self.__workspace:
-            self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
+            self.__sync_layout()
             self.__workspace = None
         # remove existing layout and canvas item
         self.display_panels = []
@@ -512,6 +513,7 @@ class Workspace:
         elif d is not None:
             display_panel.change_display_panel_content(d)
         display_panel.request_focus()
+        self.__sync_layout()
 
     def insert_display_panel(self, display_panel, region, data_item=None, d=None):
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
@@ -521,10 +523,12 @@ class Workspace:
             # check if trying to drag on non-axis edge of splitter
             if container.orientation != orientation:
                 splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
+                splitter_canvas_item.on_splits_changed = self.__sync_layout
                 container.wrap_canvas_item(display_panel, splitter_canvas_item)
                 container = splitter_canvas_item
         if not isinstance(container, CanvasItem.SplitterCanvasItem):  # special case where top level item is the image panel
             splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
+            splitter_canvas_item.on_splits_changed = self.__sync_layout
             container.wrap_canvas_item(display_panel, splitter_canvas_item)
             container = splitter_canvas_item
         index = container.canvas_items.index(display_panel)
@@ -546,6 +550,7 @@ class Workspace:
             splits[index + 1] = old_split * 0.5
             container.splits = splits
             new_display_panel.request_focus()
+        self.__sync_layout()
 
     def remove_display_panel(self, display_panel):
         # first make sure the display panel has no content
@@ -558,10 +563,15 @@ class Workspace:
                 container.remove_canvas_item(display_panel)
                 if len(container.canvas_items) == 1:
                     container.unwrap_canvas_item(container.canvas_items[0])
+        self.__sync_layout()
 
     def selected_display_panel_changed(self, selected_display_panel):
         for display_panel in self.display_panels:
             display_panel.set_selected(display_panel == selected_display_panel)
+
+    def __sync_layout(self):
+        # ensure that the layout is written to persistent storage
+        self.__workspace.layout = self._deconstruct(self.__canvas_item.canvas_items[0])
 
 
 class WorkspaceManager(metaclass=Utility.Singleton):

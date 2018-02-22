@@ -1,5 +1,6 @@
 # standard libraries
 import contextlib
+import copy
 import json
 import logging
 import unittest
@@ -278,6 +279,50 @@ class TestWorkspaceClass(unittest.TestCase):
         json_str = json.dumps(library_storage.properties)
         properties = json.loads(json_str)
         self.assertEqual(properties, library_storage.properties)
+
+    def test_workspace_saves_contents_immediately_following_change(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.insert_display_panel(display_panel, "bottom")
+            # copy the storage before the document closes
+            library_storage_0 = copy.deepcopy(library_storage.properties)
+        # reload with the storage copied before the document closes
+        document_model = DocumentModel.DocumentModel(library_storage=DocumentModel.MemoryPersistentStorage(library_storage_0))
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            workspace_controller = document_controller.workspace_controller
+            self.assertEqual(2, len(workspace_controller.display_panels))
+
+    def test_workspace_saves_contents_immediately_following_adjustment(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            workspace_controller = document_controller.workspace_controller
+            workspace_2x1 = workspace_controller.new_workspace(*get_layout("2x1"))
+            workspace_controller.change_workspace(workspace_2x1)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            display_panel = workspace_controller.display_panels[0]
+            display_panel.container.splits = [0.4, 0.6]
+            display_panel.container.on_splits_changed()
+            # copy the storage before the document closes
+            library_storage_0 = copy.deepcopy(library_storage.properties)
+        # reload with the storage copied before the document closes
+        document_model = DocumentModel.DocumentModel(library_storage=DocumentModel.MemoryPersistentStorage(library_storage_0))
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            self.assertEqual([0.4, 0.6], display_panel.container.splits)
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
