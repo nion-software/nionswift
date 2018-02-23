@@ -1128,6 +1128,35 @@ class TestDisplayPanelClass(unittest.TestCase):
         self.assertAlmostEqual(region.end[0], 0.2)
         self.assertAlmostEqual(region.end[1], 0.25)
 
+    def test_dragging_to_add_line_profile_works_when_line_profile_is_filtered_from_data_panel(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            d = {"type": "splitter", "orientation": "vertical", "splits": [0.5, 0.5], "children": [
+                {"type": "image", "uuid": "0569ca31-afd7-48bd-ad54-5e2bb9f21102", "identifier": "a", "selected": True},
+                {"type": "image", "uuid": "acd77f9f-2f6f-4fbf-af5e-94330b73b997", "identifier": "b"}]}
+            workspace_2x1 = document_controller.workspace_controller.new_workspace("2x1", d)
+            document_controller.workspace_controller.change_workspace(workspace_2x1)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            header_height = self.display_panel.header_canvas_item.header_height
+            display_panel = document_controller.workspace_controller.display_panels[0]
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=1000, height=500 + header_height), immediate=True)
+            document_controller.set_filter("none")
+            document_controller.tool_mode = "line-profile"
+            display_panel.display_canvas_item.simulate_drag((100,125), (200,250))
+            display = data_item.displays[0]
+            self.assertEqual(len(display.graphics), 1)
+            region = display.graphics[0]
+            self.assertEqual(region.type, "line-profile-graphic")
+            self.assertAlmostEqual(0.2, region.start[0])
+            self.assertAlmostEqual(0.25, region.start[1])
+            self.assertAlmostEqual(0.4, region.end[0])
+            self.assertAlmostEqual(0.5, region.end[1])
+
     def test_enter_to_auto_display_limits(self):
         # test preliminary assumptions (no display limits)
         display_limits = 0.5, 1.5

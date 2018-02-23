@@ -679,7 +679,9 @@ class DocumentController(Window.Window):
                 indexes.add(index)
         self.selection.set_multiple(indexes)
         if len(associated_displays) > 0:
-            self.selection.anchor_index = displays.index(data_items[0].primary_display_specifier.display)
+            display = data_items[0].primary_display_specifier.display
+            if display in displays:
+                self.selection.anchor_index = displays.index(display)
 
     # track the selected data item. this can be called by ui elements when
     # they get focus. the selected data item will stay the same until another ui

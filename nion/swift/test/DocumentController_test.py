@@ -651,6 +651,15 @@ class TestDocumentControllerClass(unittest.TestCase):
             document_controller.prepare_data_item_script(do_log=False)
             self.assertEqual(composite_item.r_var, "r01")
 
+    def test_display_data_item_when_it_is_immediately_filtered(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            document_controller.set_filter("none")
+            document_controller.display_data_item(DataItem.DisplaySpecifier.from_data_item(data_item))
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
