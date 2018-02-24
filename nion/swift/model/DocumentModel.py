@@ -1200,11 +1200,15 @@ class ComputationQueueItem:
                 if self.computation:
                     compute_obj, error_text = computation.evaluate(api)
                     if computation.error_text != error_text:
-                        computation.error_text = error_text
+                        def update_error_text():
+                            computation.error_text = error_text
+                        pending_data_item_merge = (computation, update_error_text)
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                     if self.valid and compute_obj:  # TODO: race condition for 'valid'
                         pending_data_item_merge = (computation, functools.partial(compute_obj.commit))
+                    else:
+                        pending_data_item_merge = (computation, None)
                 else:
                     data_item_clone = data_item.clone()
                     data_item_data_modified = data_item.data_modified or datetime.datetime.min
@@ -2455,7 +2459,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             computation, pending_data_item_merge_fn = pending_data_item_merge
             self.__current_computation = computation
             try:
-                pending_data_item_merge_fn()
+                if callable(pending_data_item_merge_fn):
+                    pending_data_item_merge_fn()
             finally:
                 self.__current_computation = None
                 with self.__computation_queue_lock:
