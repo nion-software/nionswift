@@ -403,7 +403,7 @@ class MissingDataCanvasItem(CanvasItem.CanvasItemComposition):
         self.__delegate = delegate
 
     def context_menu_event(self, x, y, gx, gy):
-        self.__delegate.show_display_context_menu(gx, gy)
+        return self.__delegate.show_display_context_menu(gx, gy)
 
     @property
     def default_aspect_ratio(self):
@@ -469,7 +469,7 @@ class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
         super().close()
 
     def context_menu_event(self, x, y, gx, gy):
-        self.__delegate.show_display_context_menu(gx, gy)
+        return self.__delegate.show_display_context_menu(gx, gy)
 
     @property
     def default_aspect_ratio(self):
@@ -510,7 +510,7 @@ class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
 
     # delegate for image canvas items
 
-    def show_display_context_menu(self, gx, gy):
+    def show_display_context_menu(self, gx, gy) -> bool:
         return self.__delegate.show_display_context_menu(gx, gy)
 
     def begin_mouse_tracking(self):
@@ -1372,7 +1372,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def tool_mode(self, value):
         self.__document_controller.tool_mode = value
 
-    def show_display_context_menu(self, gx, gy):
+    def show_display_context_menu(self, gx, gy) -> bool:
         document_controller = self.__document_controller
         menu = document_controller.create_context_menu_for_display(self.__display, container=document_controller.document_model)
         return self.show_context_menu(menu, gx, gy)
