@@ -719,6 +719,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
         self.ui = document_controller.ui
 
+        self.on_contents_changed = None  # useful for writing changes to disk quickly
+
         self.__content_canvas_item = DisplayPanelOverlayCanvasItem()
         self.__content_canvas_item.wants_mouse_events = True  # only when display_canvas_item is None
         self.__content_canvas_item.focusable = True
@@ -887,6 +889,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__change_display_panel_content(document_controller, d)
 
     def close(self):
+        self.on_contents_changed = None
+
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.set_display(None)  # required before destructing display thread
         # NOTE: the enclosing canvas item should be closed AFTER this close is called.
@@ -973,6 +977,9 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         if is_selected:
             document_controller.notify_focused_display_changed(self.__display)
+
+        if callable(self.on_contents_changed):
+            self.on_contents_changed()
 
     @property
     def display_canvas_item(self):

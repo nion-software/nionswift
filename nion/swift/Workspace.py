@@ -70,7 +70,6 @@ class Workspace:
         self.create_panels(visible_panels)
 
         self.__workspace = None
-        self.__last_deconstructed = None
 
     def close(self):
         for message_box_widget in copy.copy(list(self.__message_boxes.values())):
@@ -189,6 +188,7 @@ class Workspace:
             post_children_adjust = splitter_post_children_adjust
         elif type == "image":
             display_panel = self.__create_display_panel(desc)
+            display_panel.on_contents_changed = self.__sync_layout
             display_panels.append(display_panel)
             if desc.get("selected", False):
                 selected_display_panel = display_panel

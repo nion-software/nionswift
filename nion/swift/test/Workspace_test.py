@@ -324,6 +324,54 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual([0.4, 0.6], display_panel.container.splits)
 
+    def test_workspace_saves_contents_immediately_following_controller_change(self):
+        DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("test", TestWorkspaceClass.DisplayPanelControllerFactory())
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            workspace_controller = document_controller.workspace_controller
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            display_panel = workspace_controller.display_panels[0]
+            d = {"type": "image", "controller_type": "test"}
+            display_panel.change_display_panel_content(d)
+            # copy the storage before the document closes
+            library_storage_0 = copy.deepcopy(library_storage.properties)
+        # reload with the storage copied before the document closes
+        document_model = DocumentModel.DocumentModel(library_storage=DocumentModel.MemoryPersistentStorage(library_storage_0))
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            self.assertEqual("test", display_panel.save_contents()["controller_type"])
+        DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+
+    def test_workspace_saves_contents_immediately_following_view_change(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            workspace_controller = document_controller.workspace_controller
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            display_panel = workspace_controller.display_panels[0]
+            d = {"type": "image", "display-panel-type": "browser-display-panel"}
+            display_panel.change_display_panel_content(d)
+            # copy the storage before the document closes
+            library_storage_0 = copy.deepcopy(library_storage.properties)
+        # reload with the storage copied before the document closes
+        document_model = DocumentModel.DocumentModel(library_storage=DocumentModel.MemoryPersistentStorage(library_storage_0))
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            self.assertEqual("grid", display_panel.save_contents()["browser_type"])
+
     def test_workspace_records_and_reloads_image_panel_contents(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         library_storage = DocumentModel.FilePersistentStorage()
@@ -901,6 +949,7 @@ class TestWorkspaceClass(unittest.TestCase):
                 pass
             # check to ensure that the exception didn't invalidate the entire layout
             self.assertEqual(2, len(library_storage.properties["workspaces"][1].get("layout", dict()).get("children", list())))
+            DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("error")
         finally:
             DisplayPanel._test_log_exceptions = True
 
