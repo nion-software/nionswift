@@ -73,7 +73,7 @@ def get_layout(layout_id):
     return layout_id, d
 
 
-class MimeData(object):
+class MimeData:
     def __init__(self, type, content):
         self.type = type
         self.content = content
@@ -693,13 +693,14 @@ class TestWorkspaceClass(unittest.TestCase):
             display_panel.root_container.canvas_widget.on_focus_changed(False)
             self.assertIsNotNone(document_controller.focused_data_item)
 
-    class DisplayPanelController(object):
-        def __init__(self, display_panel):
-            self.type = "test"
+    class DisplayPanelController:
+        def __init__(self, display_panel, error=False):
+            self.type = "test" if not error else "error"
             self.__display_panel = display_panel
             self.__composition = CanvasItem.CanvasItemComposition()
             self.__composition.add_canvas_item(CanvasItem.TextButtonCanvasItem("ABC"))
             self.__display_panel.footer_canvas_item.insert_canvas_item(0, self.__composition)
+            if error: raise RuntimeError()
             self.closed = False
         def close(self):
             self.__display_panel.footer_canvas_item.remove_canvas_item(self.__composition)
@@ -708,13 +709,15 @@ class TestWorkspaceClass(unittest.TestCase):
         def save(self, d):
             pass
 
-    class DisplayPanelControllerFactory(object):
+    class DisplayPanelControllerFactory:
         def __init__(self, match=None):
             self.priority = 1
             self._match = match
         def make_new(self, controller_type, display_panel, d):
             if controller_type == "test":
                 return TestWorkspaceClass.DisplayPanelController(display_panel)
+            if controller_type == "error":
+                return TestWorkspaceClass.DisplayPanelController(display_panel, error=True)
             return None
         def match(self, data_item):
             if data_item == self._match:
@@ -875,6 +878,31 @@ class TestWorkspaceClass(unittest.TestCase):
             document_controller.workspace_controller.change_workspace(workspace)
             self.assertIsNone(document_controller.next_result_display_panel())
             DisplayPanel.DisplayPanelManager().unregister_display_panel_controller_factory("test")
+
+    def test_reloading_display_panel_with_exception_keeps_workspace_layout_intact(self):
+        DisplayPanel._test_log_exceptions = False
+        try:
+            DisplayPanel.DisplayPanelManager().register_display_panel_controller_factory("error", TestWorkspaceClass.DisplayPanelControllerFactory())
+            library_storage = DocumentModel.MemoryPersistentStorage()
+            document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            # first create a workspace
+            with contextlib.closing(document_controller):
+                workspace_2x1 = document_controller.workspace_controller.new_workspace(*get_layout("2x1"))
+                document_controller.workspace_controller.change_workspace(workspace_2x1)
+            # modify it to include a controller which raises an exception during init
+            library_storage_properties = library_storage.properties
+            library_storage_properties["workspaces"][1]["layout"]["children"][0]["controller_type"] = "error"
+            # create a new document based on the corrupt layout
+            library_storage = DocumentModel.MemoryPersistentStorage(copy.deepcopy(library_storage_properties))
+            document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+            document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+            with contextlib.closing(document_controller):
+                pass
+            # check to ensure that the exception didn't invalidate the entire layout
+            self.assertEqual(2, len(library_storage.properties["workspaces"][1].get("layout", dict()).get("children", list())))
+        finally:
+            DisplayPanel._test_log_exceptions = True
 
 
 if __name__ == '__main__':

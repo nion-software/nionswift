@@ -35,6 +35,8 @@ _ = gettext.gettext
 
 DISPLAY_PANEL_MIME_TYPE = "text/vnd.nion.display_panel_type"
 
+_test_log_exceptions = True
+
 
 # coordinate systems:
 #   widget (origin top left, size of the widget)
@@ -1014,24 +1016,31 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return d
 
     def restore_contents(self, d):
-        display_panel_id = d.get("display_panel_id")
-        if display_panel_id:
-            self.__display_panel_id = display_panel_id
-        controller_type = d.get("controller_type")
-        self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
-        if not self.__display_panel_controller:
-            data_item = None
-            data_item_uuid_str = d.get("data_item_uuid")
-            if data_item_uuid_str:
-                data_item = self.__document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
-            self.set_displayed_data_item(data_item)
-            self.__update_selection_to_display()
-            if d.get("browser_type") == "horizontal":
-                self.__switch_to_horizontal_browser()
-            elif d.get("browser_type") == "grid":
-                self.__switch_to_grid_browser()
-            else:
-                self.__switch_to_no_browser()
+        try:
+            display_panel_id = d.get("display_panel_id")
+            if display_panel_id:
+                self.__display_panel_id = display_panel_id
+            controller_type = d.get("controller_type")
+            self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
+            if not self.__display_panel_controller:
+                data_item = None
+                data_item_uuid_str = d.get("data_item_uuid")
+                if data_item_uuid_str:
+                    data_item = self.__document_controller.document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid_str))
+                self.set_displayed_data_item(data_item)
+                self.__update_selection_to_display()
+                if d.get("browser_type") == "horizontal":
+                    self.__switch_to_horizontal_browser()
+                elif d.get("browser_type") == "grid":
+                    self.__switch_to_grid_browser()
+                else:
+                    self.__switch_to_no_browser()
+        except Exception as e:
+            # catch and print any exceptions, but kill the exception so layout stays intact
+            global _test_log_exceptions
+            if _test_log_exceptions:
+                import traceback
+                traceback.print_exc()
 
     @property
     def _is_result_panel(self) -> bool:
@@ -1379,8 +1388,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             if pos is not None:
                 position_text, value_text = self.__display.get_value_and_position_text(pos)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            global _test_log_exceptions
+            if _test_log_exceptions:
+                import traceback
+                traceback.print_exc()
         if position_text and value_text:
             self.__document_controller.cursor_changed([_("Position: ") + position_text, _("Value: ") + value_text])
         else:

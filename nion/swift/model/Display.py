@@ -940,7 +940,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
 
         For displays associated with a single data item, this matches the size of the data.
 
-        For displays assocaited with a composite data item, this must be stored in this class.
+        For displays associated with a composite data item, this must be stored in this class.
         """
         if self.__data_and_metadata:
             return self.__data_and_metadata.dimensional_shape
