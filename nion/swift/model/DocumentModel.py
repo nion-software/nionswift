@@ -1251,7 +1251,6 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.about_to_be_removed_event = Event.Event()
         self._about_to_be_removed = False
         self._closed = False
-        self.__in_transaction_state = True
         self.__properties = dict()
         self.__referenced_objects = dict()
         self.define_type("data_structure")
@@ -1259,6 +1258,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         # properties is handled explicitly
         self.data_structure_changed_event = Event.Event()
+        self.referenced_objects_changed_event = Event.Event()
         self.__source = source
         if source is not None:
             self.source_uuid = source.uuid
@@ -1320,12 +1320,6 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
         properties = super().write_to_dict()
         properties["properties"] = copy.deepcopy(self.__properties)
         return properties
-
-    def _enter_transaction_state(self):
-        self.__in_transaction_state = True
-
-    def _exit_transaction_state(self):
-        self.__in_transaction_state = False
 
     @property
     def source(self):
@@ -1391,9 +1385,7 @@ class DataStructure(Observable.Observable, Persistence.PersistentObject):
             self.property_changed_event.fire(property)
             self._update_persistent_property("properties", self.__properties)
             self.__referenced_objects[property] = item
-            if self.__in_transaction_state:
-                if callable(getattr(item, "_enter_transaction_state", None)):
-                    item._enter_transaction_state()
+            self.referenced_objects_changed_event.fire()
 
     def remove_referenced_object(self, property: str) -> None:
         self.remove_property_value(property)
@@ -1429,6 +1421,145 @@ def get_object_specifier(object, object_type: str=None) -> typing.Optional[typin
     return None
 
 
+class Transaction:
+    def __init__(self, transaction_manager: "TransactionManager", item, items):
+        self.__transaction_manager = transaction_manager
+        self.__item = item
+        self.__items = items
+
+    def close(self):
+        self.__transaction_manager._close_transaction(self)
+        self.__items = None
+        self.__transaction_manager = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+    @property
+    def item(self):
+        return self.__item
+
+    @property
+    def items(self):
+        return copy.copy(self.__items)
+
+    def replace_items(self, items):
+        self.__items = items
+
+
+class TransactionManager:
+    def __init__(self, document_model: "DocumentModel"):
+        self.__document_model = document_model
+        self.__transactions_lock = threading.RLock()
+        self.__transaction_counts = collections.Counter()
+        self.__transactions = list()
+
+    def close(self):
+        self.__document_model = None
+        self.__transaction_counts = None
+
+    def is_in_transaction_state(self, item) -> bool:
+        return self.__transaction_counts[item] > 0
+
+    @property
+    def transaction_count(self):
+        return len(list(self.__transaction_counts.elements()))
+
+    def item_transaction(self, item) -> Transaction:
+        """Begin transaction state for item.
+
+        A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
+        All changes to the object are delayed until the transaction state exits.
+
+        This method is thread safe.
+        """
+        items = self.__build_transaction_items(item)
+        transaction = Transaction(self, item, items)
+        self.__transactions.append(transaction)
+        return transaction
+
+    def _close_transaction(self, transaction):
+        items = transaction.items
+        self.__close_transaction_items(items)
+        self.__transactions.remove(transaction)
+
+    def __build_transaction_items(self, item):
+        items = self.__build_transaction_tree(item)
+        with self.__transactions_lock:
+            for item in items:
+                old_count = self.__transaction_counts[item]
+                self.__transaction_counts.update({item})
+                if old_count == 0:
+                    if callable(getattr(item, "_transaction_state_entered", None)):
+                        item._transaction_state_entered()
+        return items
+
+    def __close_transaction_items(self, items):
+        with self.__transactions_lock:
+            for item in items:
+                self.__transaction_counts.subtract({item})
+                if self.__transaction_counts[item] == 0:
+                    if callable(getattr(item, "_transaction_state_exited", None)):
+                        item._transaction_state_exited()
+
+    def __get_deep_transaction_item_set(self, item, items):
+        if not item in items:
+            # first the dependent items, also keep track of which items are added
+            old_items = copy.copy(items)
+            self.__get_deep_dependent_item_set(item, items)
+            # next, the graphics and connections (where item is source)
+            if isinstance(item, DataItem.LibraryItem):
+                for display in item.displays:
+                    for graphic in display.graphics:
+                        self.__get_deep_transaction_item_set(graphic, items)
+            if isinstance(item, DataStructure):
+                for referenced_object in item._referenced_objects:
+                    self.__get_deep_dependent_item_set(referenced_object, items)
+            for data_item in self.__document_model.data_items:
+                for connection in data_item.connections:
+                    if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
+                        self.__get_deep_transaction_item_set(connection._target, items)
+            for item in items - old_items:
+                if isinstance(item, Graphics.Graphic):
+                    self.__get_deep_transaction_item_set(item.container.container, items)
+
+    def __get_deep_dependent_item_set(self, item, item_set) -> None:
+        """Return the list of data items containing data that directly depends on data in this item."""
+        if not item in item_set:
+            item_set.add(item)
+            for dependent in self.__document_model.get_dependent_items(item):
+                self.__get_deep_dependent_item_set(dependent, item_set)
+
+    def __build_transaction_tree(self, item):
+        """Build the items that should enter transaction state from the root item."""
+        items = set()
+        self.__get_deep_transaction_item_set(item, items)
+        if isinstance(item, DataItem.LibraryItem):
+            for connection in item.connections:
+                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
+                    self.__get_deep_transaction_item_set(connection._source, items)
+        return items
+
+    def _add_item(self, item):
+        self._rebuild_transactions()
+
+    def _remove_item(self, item):
+        for transaction in copy.copy(self.__transactions):
+            if transaction.item == item:
+                self._close_transaction(transaction)
+        self._rebuild_transactions()
+
+    def _rebuild_transactions(self):
+        for transaction in self.__transactions:
+            old_items = transaction.items
+            new_items = self.__build_transaction_items(transaction.item)
+            transaction.replace_items(new_items)
+            self.__close_transaction_items(old_items)
+
+
 class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, Persistence.PersistentObject, DataItem.SessionManager):
 
     """The document model manages storage and dependencies between data items and other objects.
@@ -1458,8 +1589,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.persistent_object_context._set_persistent_storage_for_object(self, self.__library_storage)
         self.storage_cache = storage_cache if storage_cache else Cache.DictStorageCache()
         self.__auto_migrations = auto_migrations or list()
-        self.__transactions_lock = threading.RLock()
-        self.__transactions = dict()
+        self.__transaction_manager = TransactionManager(self)
+        self.__data_structure_listeners = dict()
         self.__live_data_items_lock = threading.RLock()
         self.__live_data_items = dict()
         self.__dependency_tree_lock = threading.RLock()
@@ -1628,6 +1759,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         for data_item in self.data_items:
             data_item.close()
         self.storage_cache.close()
+        self.__transaction_manager.close()
+        self.__transaction_manager = None
 
     def __call_soon(self, fn):
         self.call_soon_event.fire_any(fn)
@@ -1731,6 +1864,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 computation.bind(self)
                 if computation.is_resolved:
                     computation.mark_update()
+        self.__transaction_manager._add_item(data_item)
 
     def remove_data_item(self, data_item):
         """Remove data item from document model.
@@ -1743,6 +1877,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__cascade_delete(data_item)
 
     def __remove_data_item(self, data_item):
+        self.__transaction_manager._remove_item(data_item)
         assert data_item.uuid in self.__data_item_uuids
         with self.__computation_queue_lock:
             computation_pending_queue = self.__computation_pending_queue
@@ -1909,9 +2044,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if source_item in source_items:
                 source_items.remove(source_item)
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
-            # propagate transaction and live states to dependents
-            if source_item.in_transaction_state:
-                self.end_data_item_transaction(target_item)
+            # propagate live states to dependents
             if source_item.is_live:
                 self.end_data_item_live(target_item)
         self.dependency_removed_event.fire(source_item, target_item)
@@ -1928,9 +2061,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__dependency_tree_source_to_target_map.setdefault(weakref.ref(source_item), list()).append(target_item)
             self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(target_item), list()).append(source_item)
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
-            # propagate transaction and live states to dependents
-            if source_item.in_transaction_state:
-                self.begin_data_item_transaction(target_item)
+            # propagate live states to dependents
             if source_item.is_live:
                 self.begin_data_item_live(target_item)
         self.dependency_added_event.fire(source_item, target_item)
@@ -2021,6 +2152,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             for output in added_outputs:
                 for input in same_inputs:
                     self.__add_dependency(input, output)
+        if removed_inputs or added_inputs or removed_outputs or added_outputs:
+            self.__transaction_manager._rebuild_transactions()
 
     def rebind_computations(self):
         """Call this to rebind all computations.
@@ -2036,7 +2169,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def data_items(self):
         return tuple(self.__data_items)  # tuple makes it read only
 
-    # transactions, live state, and dependencies
+    # live state, and dependencies
 
     def get_source_items(self, item) -> typing.List:
         with self.__dependency_tree_lock:
@@ -2078,151 +2211,22 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             return [data_item.primary_display_specifier.display for data_item in data_items]
         return list()
 
+    def item_transaction(self, item) -> Transaction:
+        return self.__transaction_manager.item_transaction(item)
+
+    def is_in_transaction_state(self, item) -> bool:
+        return self.__transaction_manager.is_in_transaction_state(item)
+
     @property
-    def _transactions(self):
-        # for testing
-        return self.__transactions
+    def transaction_count(self):
+        return self.__transaction_manager.transaction_count
 
-    def item_transaction(self, item):
-        """ Return a context manager to put the data item under a 'transaction'. """
-        class TransactionContextManager:
-            def __init__(self, manager, object):
-                self.__manager = manager
-                self.__object = object
-            def __enter__(self):
-                self.__manager.begin_item_transaction(self.__object)
-                return self
-            def __exit__(self, type, value, traceback):
-                self.__manager.end_item_transaction(self.__object)
-        return TransactionContextManager(self, item)
-
-    def begin_item_transaction(self, item):
-        """Begin transaction state.
-
-        A transaction state is exists to prevent writing out to disk, mainly for performance reasons.
-        All changes to the object are delayed until the transaction state exits.
-
-        Has the side effects of entering the write delay state, cache delay state (via is_cached_delayed),
-        loading data of data sources, and entering transaction state for dependent data items.
-
-        This method is thread safe.
-        """
-
-        class TransactionInfo:
-            def __init__(self, transactions_lock, transactions, item):
-                self.__transactions_lock = transactions_lock
-                self.__transactions = transactions
-                self.__item_uuid = item.uuid
-                self.__item = item
-                self.count = 0
-
-                def will_remove():
-                    with self.__transactions_lock:
-                        del self.__transactions[self.__item_uuid]
-
-                self.__about_to_be_removed_event_listener = item.about_to_be_removed_event.listen(will_remove) if hasattr(item, "about_to_be_removed_event") else None
-
-            def __repr__(self):
-                return repr(self.__item)
-
-            def close(self):
-                if self.__about_to_be_removed_event_listener:
-                    self.__about_to_be_removed_event_listener.close()
-                    self.__about_to_be_removed_event_listener = None
-
-        items = self.__build_transaction_tree(item)
-        # print(f"IN {items}")
-        for item in items:
-            with self.__transactions_lock:
-                transaction = self.__transactions.get(item.uuid)
-                if not transaction:
-                    transaction = TransactionInfo(self.__transactions_lock, self.__transactions, item)
-                    self.__transactions[item.uuid] = transaction
-                old_transaction_count = transaction.count
-                transaction.count += 1
-            # if the old transaction count was 0, it means we're entering the transaction state.
-            if old_transaction_count == 0:
-                if callable(getattr(item, "_enter_transaction_state", None)):
-                    item._enter_transaction_state()
-
-    def end_item_transaction(self, item):
-        """End transaction state.
-
-        Has the side effects of exiting the write delay state, cache delay state (via is_cached_delayed),
-        unloading data of data sources, and exiting transaction state for dependent data items.
-
-        As a consequence of exiting write delay state, data and metadata may be written to disk.
-
-        As a consequence of existing cache delay state, cache may be written to disk.
-
-        This method is thread safe.
-        """
-
-        items = self.__build_transaction_tree(item)
-        # print(f"OUT {items}")
-        for item in items:
-            with self.__transactions_lock:
-                transaction_count = 0
-                transaction = self.__transactions.get(item.uuid)
-                if transaction:
-                    transaction.count -= 1
-                    transaction_count = transaction.count
-                    if transaction.count == 0:
-                        self.__transactions.pop(item.uuid).close()
-            # if the new transaction count is 0, it means we're exiting the transaction state.
-            if transaction_count == 0:
-                if callable(getattr(item, "_exit_transaction_state", None)):
-                    item._exit_transaction_state()
-
-    def __get_deep_transaction_item_set(self, item, items):
-        if not item in items:
-            # first the dependent items, also keep track of which items are added
-            old_items = copy.copy(items)
-            self.__get_deep_dependent_item_set(item, items)
-            # next, the graphics and connections (where item is source)
-            if isinstance(item, DataItem.LibraryItem):
-                for display in item.displays:
-                    for graphic in display.graphics:
-                        self.__get_deep_transaction_item_set(graphic, items)
-            if isinstance(item, DataStructure):
-                for referenced_object in item._referenced_objects:
-                    self.__get_deep_dependent_item_set(referenced_object, items)
-            for data_item in self.data_items:
-                for connection in data_item.connections:
-                    if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
-                        self.__get_deep_transaction_item_set(connection._target, items)
-            for item in items - old_items:
-                if isinstance(item, Graphics.Graphic):
-                    self.__get_deep_transaction_item_set(item.container.container, items)
-
-    def __build_transaction_tree(self, item):
-        """Build the items that should enter transaction state from the root item."""
-        items = set()
-        self.__get_deep_transaction_item_set(item, items)
-        if isinstance(item, DataItem.LibraryItem):
-            for connection in item.connections:
-                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
-                    self.__get_deep_transaction_item_set(connection._source, items)
-        return items
-
-    def data_item_transaction(self, data_item):
-        return self.item_transaction(data_item)
-
-    def begin_data_item_transaction(self, data_item):
-        self.begin_item_transaction(data_item)
-
-    def end_data_item_transaction(self, data_item):
-        self.end_item_transaction(data_item)
-
-    def begin_display_transaction(self, display: Display.Display) -> None:
+    def begin_display_transaction(self, display: Display.Display) -> Transaction:
         library_item = DataItem.DisplaySpecifier.from_display(display).library_item
         if library_item:
-            self.begin_item_transaction(library_item)
-
-    def end_display_transaction(self, display: Display.Display) -> None:
-        library_item = DataItem.DisplaySpecifier.from_display(display).library_item
-        if library_item:
-            self.end_item_transaction(library_item)
+            return self.item_transaction(library_item)
+        else:
+            return Transaction(self.__transaction_manager, set())
 
     def data_item_live(self, data_item):
         """ Return a context manager to put the data item in a 'live state'. """
@@ -2238,7 +2242,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         return LiveContextManager(self, data_item)
 
     def begin_data_item_live(self, data_item):
-        """Begins a live transaction for the data item.
+        """Begins a live state for the data item.
 
         The live state is propagated to dependent data items.
 
@@ -2253,7 +2257,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.begin_data_item_live(dependent_data_item)
 
     def end_data_item_live(self, data_item):
-        """Ends a live transaction for the data item.
+        """Ends a live state for the data item.
 
         The live-ness property is propagated to dependent data items, similar to the transactions.
 
@@ -2823,7 +2827,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
         def __start(self):
             self.__data_item.increment_data_ref_count()
-            self.__document_model.begin_data_item_transaction(self.__data_item)
+            self.__data_item_transaction = self.__document_model.item_transaction(self.__data_item)
             self.__document_model.begin_data_item_live(self.__data_item)
             self.__starts += 1
 
@@ -2832,7 +2836,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # when the transaction ends, the data will get written to disk, so we need to
             # make sure it's still in memory. if decrement were to come before the end
             # of the transaction, the data would be unloaded from memory, losing it forever.
-            self.__document_model.end_data_item_transaction(self.__data_item)
+            self.__data_item_transaction.close()
+            self.__data_item_transaction = None
             self.__document_model.end_data_item_live(self.__data_item)
             self.__data_item.decrement_data_ref_count()
             self.__starts -= 1
@@ -3065,8 +3070,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __inserted_data_structure(self, name, before_index, data_structure):
         data_structure.about_to_be_inserted(self)
+        def rebuild_transactions(): self.__transaction_manager._rebuild_transactions()
+        self.__data_structure_listeners[data_structure] = data_structure.referenced_objects_changed_event.listen(rebuild_transactions)
+        self.__transaction_manager._add_item(data_structure)
 
     def __removed_data_structure(self, name, index, data_structure):
+        self.__data_structure_listeners[data_structure].close()
+        self.__data_structure_listeners.pop(data_structure, None)
+        self.__transaction_manager._remove_item(data_structure)
         data_structure.about_to_be_removed()
         data_structure.close()
 

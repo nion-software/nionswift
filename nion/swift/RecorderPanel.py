@@ -94,7 +94,7 @@ class RecorderDialog(Dialog.ActionDialog):
         self.__recording_last = 0.0
         self.__recording_index = 0
         self.__recording_data_item = None
-        self.__recording_transacted = False
+        self.__recording_transaction = None
         self.__recording_error = False
 
         self.__recording_interval = self.__recording_interval_property.value / 1000
@@ -169,7 +169,6 @@ class RecorderDialog(Dialog.ActionDialog):
                     data_item.title = _("Recording of ") + self.__data_item.title
                     self.document_controller.document_model.append_data_item(data_item)
                     self.__recording_data_item = data_item
-                    self.__recording_transacted = False
                 # next grab the current data and stop if it is a sequence (can't record sequences)
                 current_xdata = self.__last_complete_xdata
                 if self.__recording_error:
@@ -195,8 +194,7 @@ class RecorderDialog(Dialog.ActionDialog):
                     data_descriptor = DataAndMetadata.DataDescriptor(True, current_xdata.data_descriptor.collection_dimension_count, current_xdata.data_descriptor.datum_dimension_count)
                     sequence_xdata = DataAndMetadata.new_data_and_metadata(current_xdata.data[numpy.newaxis, ...], intensity_calibration=intensity_calibration, dimensional_calibrations=dimensional_calibrations, data_descriptor=data_descriptor)
                     self.__recording_data_item.set_xdata(sequence_xdata)
-                    self.__recording_data_item._enter_transaction_state()
-                    self.__recording_transacted = True
+                    self.__recording_transaction = self.__recording_data_item._enter_transaction_state()
                 else:
                     # something is amiss. stop.
                     self.__stop_recording()
@@ -220,8 +218,8 @@ class RecorderDialog(Dialog.ActionDialog):
             self.__recording_last = 0.0
             self.__recording_index = 0
             self.__recording_error = False
-            if self.__recording_data_item and self.__recording_transacted:
-                self.__recording_data_item._exit_transaction_state()
+            if self.__recording_data_item and self.__recording_transaction:
+                self.__recording_transaction.close()
+                self.__recording_transaction = None
                 self.__recording_data_item = None
-                self.__recording_transacted = False
             self.__record_button.text = _("Record")

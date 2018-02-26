@@ -783,7 +783,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
                 self.persistent_object_context.rewrite_data_item_properties(self)
             self._finish_pending_write_inner()
 
-    def _enter_transaction_state(self):
+    def _transaction_state_entered(self):
         self.__in_transaction_state = True
         # first enter the write delay state.
         self.__enter_write_delay_state()
@@ -791,7 +791,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         if self.__suspendable_storage_cache:
             self.__suspendable_storage_cache.suspend_cache()
 
-    def _exit_transaction_state(self):
+    def _transaction_state_exited(self):
         self.__in_transaction_state = False
         # being in the transaction state has the side effect of delaying the cache too.
         # spill whatever was into the local cache into the persistent cache.
@@ -1313,17 +1313,17 @@ class DataItem(LibraryItem):
         data_item.__update_displays()
         return data_item
 
-    def _enter_transaction_state(self):
-        super()._enter_transaction_state()
+    def _transaction_state_entered(self):
+        super()._transaction_state_entered()
         # tell each data source to load its data.
         # this prevents paging in and out.
         data_source = self.data_source
         if data_source:
             data_source.increment_data_ref_count()
 
-    def _exit_transaction_state(self):
-        super()._exit_transaction_state()
-        # finally, tell each data source to unload its data.
+    def _transaction_state_exited(self):
+        super()._transaction_state_exited()
+        # tell each data source to unload its data.
         data_source = self.data_source
         if data_source:
             data_source.decrement_data_ref_count()

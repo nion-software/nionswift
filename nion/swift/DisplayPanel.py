@@ -1378,10 +1378,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         return self.show_context_menu(menu, gx, gy)
 
     def begin_mouse_tracking(self):
-        self.__document_controller.document_model.begin_display_transaction(self.__display)
+        self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_transaction(self.__display)
 
     def end_mouse_tracking(self):
-        self.__document_controller.document_model.end_display_transaction(self.__display)
+        self.__mouse_tracking_transaction.close()
+        self.__mouse_tracking_transaction = None
 
     def delete_key_pressed(self):
         return self.__document_controller.remove_selected_graphics()

@@ -181,11 +181,11 @@ class TestConnectionClass(unittest.TestCase):
             data_item_dst.add_connection(connection)
             # check dependencies
             with document_model.item_transaction(data_item_dst):
-                self.assertIn(data_item_dst.uuid, document_model._transactions.keys())
-                self.assertIn(interval_dst.uuid, document_model._transactions.keys())
-                self.assertIn(interval_src.uuid, document_model._transactions.keys())
-                self.assertIn(data_item_src.uuid, document_model._transactions.keys())  # from graphic
-            self.assertFalse(document_model._transactions)
+                self.assertTrue(document_model.is_in_transaction_state(data_item_dst))
+                self.assertTrue(document_model.is_in_transaction_state(interval_dst))
+                self.assertTrue(document_model.is_in_transaction_state(interval_src))
+                self.assertTrue(document_model.is_in_transaction_state(data_item_src))
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_establishes_transaction_on_parallel_source_connection(self):
         document_model = DocumentModel.DocumentModel()
@@ -208,13 +208,13 @@ class TestConnectionClass(unittest.TestCase):
             data_item_dst2.add_connection(connection2)
             # check dependencies
             with document_model.item_transaction(data_item_dst1):
-                self.assertIn(data_item_dst1.uuid, document_model._transactions.keys())
-                self.assertIn(interval_dst1.uuid, document_model._transactions.keys())
-                self.assertIn(interval_src.uuid, document_model._transactions.keys())
-                self.assertIn(data_item_dst2.uuid, document_model._transactions.keys())  # from graphic
-                self.assertIn(interval_dst2.uuid, document_model._transactions.keys())
-                self.assertIn(data_item_src.uuid, document_model._transactions.keys())  # from graphic
-            self.assertFalse(document_model._transactions)
+                self.assertTrue(document_model.is_in_transaction_state(data_item_dst1))
+                self.assertTrue(document_model.is_in_transaction_state(interval_dst1))
+                self.assertTrue(document_model.is_in_transaction_state(interval_src))
+                self.assertTrue(document_model.is_in_transaction_state(data_item_dst2))  # from graphic
+                self.assertTrue(document_model.is_in_transaction_state(interval_dst2))
+                self.assertTrue(document_model.is_in_transaction_state(data_item_src))  # from graphic
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_between_data_structures(self):
         document_model = DocumentModel.DocumentModel()
@@ -258,12 +258,12 @@ class TestConnectionClass(unittest.TestCase):
             data_item1.add_connection(connection1)
             data_item2.add_connection(connection2)
             with document_model.item_transaction(data_item1):
-                self.assertIn(data_item1.uuid, document_model._transactions.keys())
-                self.assertIn(data_struct1.uuid, document_model._transactions.keys())
+                self.assertTrue(document_model.is_in_transaction_state(data_item1))
+                self.assertTrue(document_model.is_in_transaction_state(data_struct1))
             with document_model.item_transaction(data_item2):
-                self.assertIn(data_item2.uuid, document_model._transactions.keys())
-                self.assertIn(data_struct2.uuid, document_model._transactions.keys())
-            self.assertFalse(document_model._transactions)
+                self.assertTrue(document_model.is_in_transaction_state(data_item2))
+                self.assertTrue(document_model.is_in_transaction_state(data_struct2))
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_establishes_transaction_on_target_data_structure_dependent(self):
         document_model = DocumentModel.DocumentModel()
@@ -284,10 +284,10 @@ class TestConnectionClass(unittest.TestCase):
             computation.create_object("d", document_model.get_object_specifier(data_struct))
             document_model.set_data_item_computation(computed_data_item, computation)
             with document_model.item_transaction(data_item):
-                self.assertIn(data_item.uuid, document_model._transactions.keys())
-                self.assertIn(data_struct.uuid, document_model._transactions.keys())
-                self.assertIn(computed_data_item.uuid, document_model._transactions.keys())
-            self.assertFalse(document_model._transactions)
+                self.assertTrue(document_model.is_in_transaction_state(data_item))
+                self.assertTrue(document_model.is_in_transaction_state(data_struct))
+                self.assertTrue(document_model.is_in_transaction_state(computed_data_item))
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_connection_to_graphic_puts_data_item_under_transaction(self):
         document_model = DocumentModel.DocumentModel()
@@ -302,9 +302,9 @@ class TestConnectionClass(unittest.TestCase):
             connection = Connection.PropertyConnection(data_struct, "x_interval", interval, "interval")
             data_item.add_connection(connection)
             with document_model.item_transaction(data_struct):
-                self.assertIn(data_struct.uuid, document_model._transactions.keys())
-                self.assertIn(interval.uuid, document_model._transactions.keys())
-                self.assertIn(data_item.uuid, document_model._transactions.keys())
+                self.assertTrue(document_model.is_in_transaction_state(data_struct))
+                self.assertTrue(document_model.is_in_transaction_state(interval))
+                self.assertTrue(document_model.is_in_transaction_state(data_item))
 
 
 if __name__ == '__main__':

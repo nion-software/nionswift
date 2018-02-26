@@ -225,7 +225,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((4, 4), numpy.uint32))
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 with display_specifier.data_item.data_ref() as data_ref:
                     data_ref.master_data = numpy.ones((4, 4), numpy.uint32)
                     data_item_copy = copy.deepcopy(data_item)
@@ -706,7 +706,7 @@ class TestDataItemClass(unittest.TestCase):
             # configure the dependent item
             data_item2 = document_model.get_invert_new(data_item)
             # begin the transaction
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 self.assertTrue(data_item.in_transaction_state)
                 self.assertTrue(data_item2.in_transaction_state)
             self.assertFalse(data_item.in_transaction_state)
@@ -719,7 +719,7 @@ class TestDataItemClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             document_model.append_data_item(data_item)
             # begin the transaction
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 # configure the dependent item
                 data_item2 = document_model.get_invert_new(data_item)
                 # check to make sure it is under transaction
@@ -739,7 +739,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             # begin the transaction
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 data_item_crop1 = document_model.get_crop_new(data_item, crop_region)
                 # change the bounds of the graphic
                 display_specifier.display.graphics[0].bounds = ((0.31, 0.32), (0.6, 0.4))
@@ -756,7 +756,7 @@ class TestDataItemClass(unittest.TestCase):
             # configure the source item
             data_item = DataItem.DataItem(numpy.zeros((8, 4), numpy.double))
             # begin the transaction
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 document_model.append_data_item(data_item)
                 persistent_storage = data_item.persistent_object_context._get_persistent_storage_for_object(data_item)
                 self.assertTrue(persistent_storage.write_delayed)
@@ -958,7 +958,7 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 document_model.append_data_item(data_item)
                 self.assertEqual(len(memory_persistent_storage_system.data.keys()), 0)
             self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
@@ -968,7 +968,7 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 data_item.session_id = "20000630-150200"
                 document_model.append_data_item(data_item)
                 self.assertEqual(len(memory_persistent_storage_system.data.keys()), 0)
@@ -980,11 +980,11 @@ class TestDataItemClass(unittest.TestCase):
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
             data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.uint32))
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 data_item.session_id = "20000630-150200"
                 document_model.append_data_item(data_item)
             self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 data_item.session_id = "20000630-150201"
             self.assertEqual(len(memory_persistent_storage_system.data.keys()), 1)
 
@@ -1066,7 +1066,7 @@ class TestDataItemClass(unittest.TestCase):
             self.assertFalse(master_data_item.in_transaction_state)
             self.assertFalse(document_model.data_items[0].in_transaction_state)
             self.assertFalse(document_model.data_items[1].in_transaction_state)
-            with document_model.data_item_transaction(master_data_item):
+            with document_model.item_transaction(master_data_item):
                 self.assertTrue(master_data_item.in_transaction_state)
                 self.assertFalse(document_model.data_items[0].in_transaction_state)
                 self.assertFalse(document_model.data_items[1].in_transaction_state)

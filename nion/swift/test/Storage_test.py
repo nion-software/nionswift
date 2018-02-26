@@ -610,7 +610,7 @@ class TestStorageClass(unittest.TestCase):
             data_item.ensure_data_source()
             data_item.title = 'title'
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                 document_model.append_data_item(data_item)
                 data_group.append_data_item(data_item)
@@ -625,12 +625,12 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item2)
             document_model.append_data_item(data_item3)
             # interleaved transactions
-            document_model.begin_data_item_transaction(data_item1)
-            document_model.begin_data_item_transaction(data_item2)
-            document_model.end_data_item_transaction(data_item1)
-            document_model.begin_data_item_transaction(data_item3)
-            document_model.end_data_item_transaction(data_item3)
-            document_model.end_data_item_transaction(data_item2)
+            transaction1 = document_model.item_transaction(data_item1)
+            transaction2 = document_model.item_transaction(data_item2)
+            transaction1.close()
+            transaction3 = document_model.item_transaction(data_item3)
+            transaction3.close()
+            transaction2.close()
 
     def test_data_item_modification_should_not_change_when_reading(self):
         modified = datetime.datetime(year=2000, month=6, day=30, hour=15, minute=2)
@@ -656,7 +656,7 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem()
             data_item.ensure_data_source()
             document_model.append_data_item(data_item)
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 data_item.created = created
         # make sure it reloads
         storage_cache = Cache.DbStorageCache(cache_name)
@@ -785,7 +785,7 @@ class TestStorageClass(unittest.TestCase):
                 display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
                 # write data with transaction
                 data_file_path = data_item._test_get_file_path()
-                with document_model.data_item_transaction(data_item):
+                with document_model.item_transaction(data_item):
                     display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
                     # make sure data does NOT exist during the transaction
                     handler = document_model.persistent_object_context._get_persistent_storage_for_object(data_item)._storage_handler
@@ -808,16 +808,16 @@ class TestStorageClass(unittest.TestCase):
             data_item = DataItem.DataItem(numpy.ones((16, 16), numpy.uint32))
             document_model.append_data_item(data_item)
             # force a write and verify
-            document_model.begin_data_item_transaction(data_item)
-            document_model.end_data_item_transaction(data_item)
+            with document_model.item_transaction(data_item):
+                pass
             self.assertEqual(len(memory_persistent_storage_system.properties.keys()), 1)
             # continue with test
             data_item._set_modified(modified)
             self.assertEqual(document_model.data_items[0].modified, modified)
             # now clear the memory_persistent_storage_system and see if it gets written again
             memory_persistent_storage_system.properties.clear()
-            document_model.begin_data_item_transaction(data_item)
-            document_model.end_data_item_transaction(data_item)
+            with document_model.item_transaction(data_item):
+                pass
             self.assertEqual(document_model.data_items[0].modified, modified)
             # properties should still be empty, unless it was written again
             self.assertEqual(memory_persistent_storage_system.properties, dict())
@@ -834,9 +834,8 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(document_model.data_items[0].modified, modified)
             # now clear the memory_persistent_storage_system and see if it gets written again
             memory_persistent_storage_system.properties.clear()
-            document_model.begin_data_item_transaction(data_item)
-            data_item.metadata = data_item.metadata
-            document_model.end_data_item_transaction(data_item)
+            with document_model.item_transaction(data_item):
+                data_item.metadata = data_item.metadata
             self.assertNotEqual(document_model.data_items[0].modified, modified)
             # properties should still be empty, unless it was written again
             self.assertNotEqual(memory_persistent_storage_system.properties, dict())
@@ -849,7 +848,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             # now clear the memory_persistent_storage_system and see if it gets written again
             memory_persistent_storage_system.data.clear()
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 data_item.description = data_item.description
             self.assertEqual(memory_persistent_storage_system.data, dict())
 
@@ -861,7 +860,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             # now clear the memory_persistent_storage_system and see if it gets written again
             memory_persistent_storage_system.data.clear()
-            with document_model.data_item_transaction(data_item):
+            with document_model.item_transaction(data_item):
                 data_item.set_data(numpy.zeros((17, 17), numpy.uint32))
             self.assertEqual(memory_persistent_storage_system.data[str(data_item.uuid)].shape, (17, 17))
 
@@ -933,7 +932,7 @@ class TestStorageClass(unittest.TestCase):
         data_item.ensure_data_source()
         document_model.append_data_item(data_item)
         display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
-        with document_model.data_item_transaction(data_item):
+        with document_model.item_transaction(data_item):
             display_specifier.data_item.set_data(numpy.zeros((16, 16), numpy.uint32))
         self.assertEqual(len(display_specifier.data_item.dimensional_calibrations), 2)
         document_controller.close()

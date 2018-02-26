@@ -225,13 +225,10 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.set_data_item_computation(computed_data_item, computation)
             self.assertSetEqual(set(document_model.get_dependent_items(data_item)), {computed_data_item})
             self.assertSetEqual(set(document_model.get_dependent_items(interval)), {computed_data_item})
-            document_model.begin_display_transaction(composite_item.displays[0])
-            try:
+            with document_model.begin_display_transaction(composite_item.displays[0]):
                 self.assertTrue(composite_item.in_transaction_state)
                 self.assertTrue(computed_data_item.in_transaction_state)
                 self.assertFalse(data_item.in_transaction_state)
-            finally:
-                document_model.end_display_transaction(composite_item.displays[0])
             self.assertFalse(composite_item.in_transaction_state)
             self.assertFalse(computed_data_item.in_transaction_state)
             self.assertFalse(data_item.in_transaction_state)
@@ -244,7 +241,7 @@ class TestDocumentModelClass(unittest.TestCase):
             with document_model.item_transaction(data_item):
                 interval = Graphics.IntervalGraphic()
                 data_item.displays[0].add_graphic(interval)
-            self.assertFalse(document_model._transactions)
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_removed_graphic(self):
         document_model = DocumentModel.DocumentModel()
@@ -255,7 +252,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             with document_model.item_transaction(data_item):
                 data_item.displays[0].remove_graphic(interval)
-            self.assertFalse(document_model._transactions)
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_added_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -267,8 +264,8 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             with document_model.item_transaction(data_item):
                 data_item_crop = document_model.get_crop_new(data_item, crop_region)
-                self.assertIn(data_item_crop.uuid, document_model._transactions)
-            self.assertFalse(document_model._transactions)
+                self.assertTrue(document_model.is_in_transaction_state(data_item_crop))
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_handles_removed_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -281,7 +278,7 @@ class TestDocumentModelClass(unittest.TestCase):
             data_item_crop = document_model.get_crop_new(data_item, crop_region)
             with document_model.item_transaction(data_item):
                 document_model.remove_data_item(data_item_crop)
-            self.assertFalse(document_model._transactions)
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_propogates_to_data_structure_referenced_objects(self):
         document_model = DocumentModel.DocumentModel()
@@ -293,7 +290,7 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_data_structure(data_struct)
             with document_model.item_transaction(data_struct):
                 self.assertTrue(data_item.in_transaction_state)
-            self.assertFalse(document_model._transactions)
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_transaction_propogates_to_data_structure_referenced_objects_added_during_transaction(self):
         document_model = DocumentModel.DocumentModel()
@@ -305,7 +302,21 @@ class TestDocumentModelClass(unittest.TestCase):
             with document_model.item_transaction(data_struct):
                 data_struct.set_referenced_object("master", data_item)
                 self.assertTrue(data_item.in_transaction_state)
-            self.assertFalse(document_model._transactions)
+            self.assertEqual(0, document_model.transaction_count)
+
+    def test_transaction_handles_nested_transaction_with_dependent_data_item(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item)
+            with document_model.item_transaction(data_item):
+                with document_model.item_transaction(data_item):
+                    line_profile_data_item = document_model.get_line_profile_new(data_item)
+                    self.assertTrue(document_model.is_in_transaction_state(data_item))
+                    self.assertTrue(document_model.is_in_transaction_state(line_profile_data_item))
+                self.assertTrue(document_model.is_in_transaction_state(data_item))
+                self.assertTrue(document_model.is_in_transaction_state(line_profile_data_item))
+            self.assertEqual(0, document_model.transaction_count)
 
     def test_composite_item_deletes_children_when_deleted(self):
         document_model = DocumentModel.DocumentModel()

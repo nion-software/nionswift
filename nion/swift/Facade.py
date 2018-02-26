@@ -2292,13 +2292,14 @@ class Library(metaclass=SharedInstance):
                 self.__data_item = data_item
 
             def __enter__(self):
-                self.__document_model.begin_data_item_transaction(self.__data_item._data_item)
+                self.__transaction = self.__document_model.item_transaction(self.__data_item._data_item)
                 self.__data_item._data_item.increment_data_ref_count()
                 return self
 
             def __exit__(self, type, value, traceback):
                 self.__data_item._data_item.decrement_data_ref_count()
-                self.__document_model.end_data_item_transaction(self.__data_item._data_item)
+                self.__transaction.close()
+                self.__transaction = None
 
             @property
             def data(self):
