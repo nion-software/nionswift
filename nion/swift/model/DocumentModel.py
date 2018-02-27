@@ -2794,6 +2794,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             self.__data_item = data_item
             self.__starts = 0
             self.__pending_starts = 0
+            self.__data_item_transaction = None
             self.mutex = threading.RLock()
             self.data_item_changed_event = Event.Event()
 
@@ -2836,11 +2837,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # when the transaction ends, the data will get written to disk, so we need to
             # make sure it's still in memory. if decrement were to come before the end
             # of the transaction, the data would be unloaded from memory, losing it forever.
-            self.__data_item_transaction.close()
-            self.__data_item_transaction = None
-            self.__document_model.end_data_item_live(self.__data_item)
-            self.__data_item.decrement_data_ref_count()
-            self.__starts -= 1
+            if self.__data_item_transaction:
+                self.__data_item_transaction.close()
+                self.__data_item_transaction = None
+                self.__document_model.end_data_item_live(self.__data_item)
+                self.__data_item.decrement_data_ref_count()
+                self.__starts -= 1
 
         # this method gets called directly from the document model
         def data_item_inserted(self, data_item):
