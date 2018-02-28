@@ -709,3 +709,44 @@ it will most likely break in future versions.
     I/O Handler
     -----------
     N/A
+   
+Checkbox Script
+---------------
+The checkboxes.py script allows the user to quickly toggle various settings with a checkbox window. 
+
+The checkbox window contains an "Enable All" button with all other individual checkboxes underneath it. The "Enable All" checkbox toggles all child checkboxes on or off. The child checkboxes only toggle their own respective function. The script output will display the current status of the checkbox list in the output window. Following is sample output: ::
+
+   Check state: checked
+   Checked: False
+   Compare False to True
+   Setting PARTIAL
+   Checked: True
+   Compare True to True
+   Setting checked
+   Check state: unchecked
+   Checked: True
+   Compare False to True
+   Setting PARTIAL
+
+To add or remove checkboxes, locate the checkboxes.py script file and open it in your preferred IDE. To add a checkbox, create a new variable for your checkbox and add it among the others in script_main. Then, add your new variable to the ui.create_column parameters on the next line. ::
+   
+   all_cb = ui.create_check_box(text="Enable All", name="all_cb", tristate=True, check_state="partial", on_check_state_changed="check_state_changed")
+   gain_cb = ui.create_check_box(text="Gain Normalize", name="gain_cb", checked=True, on_checked_changed="checked")
+   dark_cb = ui.create_check_box(text="Dark Subtract", name="dark_cb", on_checked_changed="checked")
+   # add new checkbox variables here following the pattern of the two above. The "checked=" parameter sets the default value of the checkbox. The parameter is initialized to false if not included.
+   cb_group = ui.create_column(gain_cb, dark_cb) # add new checkbox variable to this parameter list
+   
+Lastly, in check_state_changed, add your new checkbox variable to the others. ::
+
+   def check_state_changed(self, cs):
+      print(f"Check state: {cs}")
+      if cs == "partial":
+         cs = "checked"
+      if cs != "partial":
+         c = cs == "checked"
+         self.gain_cb.checked = c
+         self.dark_cb.checked = c
+         # add new checkbox variable here following the pattern of the above two
+         self.all_cb.checked = c
+         
+To remove a checkbox, just delete all references to it in check_state_changed and in script_main.
