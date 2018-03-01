@@ -1487,7 +1487,8 @@ class TransactionManager:
         self.__transactions.remove(transaction)
 
     def __build_transaction_items(self, item):
-        items = self.__build_transaction_tree(item)
+        items = set()
+        self.__get_deep_transaction_item_set(item, items)
         with self.__transactions_lock:
             for item in items:
                 old_count = self.__transaction_counts[item]
@@ -1518,10 +1519,20 @@ class TransactionManager:
             if isinstance(item, DataStructure):
                 for referenced_object in item._referenced_objects:
                     self.__get_deep_dependent_item_set(referenced_object, items)
+            if isinstance(item, Connection.Connection):
+                self.__get_deep_dependent_item_set(item._source, items)
+                self.__get_deep_dependent_item_set(item._target, items)
             for data_item in self.__document_model.data_items:
                 for connection in data_item.connections:
                     if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
                         self.__get_deep_transaction_item_set(connection._target, items)
+                    if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
+                        self.__get_deep_transaction_item_set(connection._source, items)
+            for connection in self.__document_model.connections:
+                if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
+                    self.__get_deep_transaction_item_set(connection._target, items)
+                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
+                    self.__get_deep_transaction_item_set(connection._source, items)
             for item in items - old_items:
                 if isinstance(item, Graphics.Graphic):
                     self.__get_deep_transaction_item_set(item.container.container, items)
@@ -1532,16 +1543,6 @@ class TransactionManager:
             item_set.add(item)
             for dependent in self.__document_model.get_dependent_items(item):
                 self.__get_deep_dependent_item_set(dependent, item_set)
-
-    def __build_transaction_tree(self, item):
-        """Build the items that should enter transaction state from the root item."""
-        items = set()
-        self.__get_deep_transaction_item_set(item, items)
-        if isinstance(item, DataItem.LibraryItem):
-            for connection in item.connections:
-                if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
-                    self.__get_deep_transaction_item_set(connection._source, items)
-        return items
 
     def _add_item(self, item):
         self._rebuild_transactions()
@@ -1610,6 +1611,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
+        self.define_relationship("connections", Connection.connection_factory, insert=self.__inserted_connection, remove=self.__removed_connection)
         self.define_property("session_metadata", dict(), copy_on_read=True, changed=self.__session_metadata_changed)
         self.define_property("workspace_uuid", converter=Converter.UuidToStringConverter())
         self.define_property("data_item_references", dict(), hidden=True)  # map string key to data item, used for data acquisition channels
@@ -1718,6 +1720,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if self.__computation_active_item:
                 self.__computation_active_item.valid = False
                 self.__computation_active_item = None
+
+        # close connections
+        for connection in copy.copy(self.connections):
+            connection.about_to_be_removed()
+        for connection in copy.copy(self.connections):
+            connection.close()
 
         # close hardware source related stuff
         self.__hardware_source_added_event_listener.close()
@@ -1980,6 +1988,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     if (item, data_item) not in dependencies:
                         dependencies.append((item, data_item))
                     self.__build_cascade(data_item, items, dependencies)
+            for connection in self.connections:
+                if connection.parent == item:
+                    if (item, connection) not in dependencies:
+                        dependencies.append((item, connection))
+                    self.__build_cascade(connection, items, dependencies)
             for data_structure in self.data_structures:
                 if data_structure.source == item:
                     if (item, data_structure) not in dependencies:
@@ -2013,6 +2026,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 name = "data_structures"
             elif isinstance(item, Symbolic.Computation):
                 name = "computations"
+            elif isinstance(item, Connection.Connection):
+                name = "connections"
             else:
                 print("Unable to cascade delete type " + str(type(item)))
                 name = None
@@ -3057,6 +3072,23 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.append_data_item(data_item_copy)
         return data_item_copy
 
+    def append_connection(self, connection: Connection.Connection) -> None:
+        self.insert_connection(len(self.connections), connection)
+
+    def insert_connection(self, before_index, connection):
+        self.insert_item("connections", before_index, connection)
+        self.notify_insert_item("connections", connection, before_index)
+
+    def remove_connection(self, connection):
+        self.remove_item("connections", connection)
+
+    def __inserted_connection(self, name, before_index, connection):
+        connection.about_to_be_inserted(self)
+
+    def __removed_connection(self, name, index, connection):
+        connection.about_to_be_removed()
+        connection.close()
+
     def create_data_structure(self, *, structure_type: str=None, source=None):
         return DataStructure(structure_type=structure_type, source=source)
 
@@ -3398,9 +3430,11 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             if connection_type == "property":
                 if connection_src == "display":
                     # TODO: how to refer to the data_items? hardcode to data_item0 for now.
-                    new_data_item.add_connection(Connection.PropertyConnection(data_item0.displays[0], connection_src_prop, new_regions[connection_dst], connection_dst_prop))
+                    connection = Connection.PropertyConnection(data_item0.displays[0], connection_src_prop, new_regions[connection_dst], connection_dst_prop, parent=new_data_item)
+                    self.append_connection(connection)
             elif connection_type == "interval_list":
-                new_data_item.add_connection(Connection.IntervalListConnection(display, region_map[connection_dst]))
+                connection = Connection.IntervalListConnection(display, region_map[connection_dst], parent=new_data_item)
+                self.append_connection(connection)
 
         # save setting the computation until last to work around threaded clone/merge operation bug.
         # the bug is that setting the computation triggers the recompute to occur on a thread.

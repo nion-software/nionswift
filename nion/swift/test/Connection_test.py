@@ -38,8 +38,8 @@ class TestConnectionClass(unittest.TestCase):
             interval = Graphics.IntervalGraphic()
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
-            data_item_1d.add_connection(connection)
+            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            document_model.append_connection(connection)
             # test to see if connection updates target when source changes
             display_specifier_3d.display.slice_center = 12
             self.assertEqual(interval.start, 12)
@@ -56,18 +56,18 @@ class TestConnectionClass(unittest.TestCase):
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
             interval = Graphics.IntervalGraphic()
             display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
-            data_item_1d.add_connection(connection)
+            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            document_model.append_connection(connection)
             # test to see if connection updates target when source changes
             interval.start = 9
             self.assertEqual(display_specifier_3d.display.slice_center, 9)
 
     def test_connection_saves_and_restores(self):
         # setup document
+        library_storage = DocumentModel.FilePersistentStorage()
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
-        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
-        with contextlib.closing(document_controller):
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
             data_item_3d = DataItem.DataItem(numpy.zeros((8, 8, 32), numpy.uint32))
             data_item_1d = DataItem.DataItem(numpy.zeros((32,), numpy.uint32))
             document_model.append_data_item(data_item_3d)
@@ -76,10 +76,10 @@ class TestConnectionClass(unittest.TestCase):
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
             interval = Graphics.IntervalGraphic()
             display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
-            data_item_1d.add_connection(connection)
+            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            document_model.append_connection(connection)
         # read it back
-        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
         with contextlib.closing(document_model):
             # verify it read back
             data_item_3d = document_model.data_items[0]
@@ -87,7 +87,7 @@ class TestConnectionClass(unittest.TestCase):
             display_specifier_1d = DataItem.DisplaySpecifier.from_data_item(data_item_1d)
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
             interval = display_specifier_1d.display.graphics[0]
-            self.assertEqual(len(data_item_1d.connections), 1)
+            self.assertEqual(1, len(document_model.connections))
             # verify connection is working in both directions
             display_specifier_3d.display.slice_center = 11
             self.assertEqual(interval.start, 11)
@@ -105,10 +105,10 @@ class TestConnectionClass(unittest.TestCase):
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
             interval = Graphics.IntervalGraphic()
             display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
-            data_item_1d.add_connection(connection)
+            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            document_model.append_connection(connection)
             self.assertFalse(connection._closed)
-            data_item_1d.remove_connection(connection)
+            document_model.remove_connection(connection)
             self.assertTrue(connection._closed)
 
     def test_connection_closed_when_data_item_removed_from_model(self):
@@ -122,8 +122,8 @@ class TestConnectionClass(unittest.TestCase):
             display_specifier_3d = DataItem.DisplaySpecifier.from_data_item(data_item_3d)
             interval = Graphics.IntervalGraphic()
             display_specifier_1d.display.add_graphic(interval)
-            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start")
-            data_item_1d.add_connection(connection)
+            connection = Connection.PropertyConnection(display_specifier_3d.display, "slice_center", interval, "start", parent=data_item_1d)
+            document_model.append_connection(connection)
             self.assertFalse(connection._closed)
             document_model.remove_data_item(data_item_1d)
             self.assertTrue(connection._closed)
@@ -177,8 +177,8 @@ class TestConnectionClass(unittest.TestCase):
             data_item_dst.displays[0].add_graphic(interval_dst)
             document_model.append_data_item(data_item_src)
             document_model.append_data_item(data_item_dst)
-            connection = Connection.PropertyConnection(interval_src, "interval", interval_dst, "interval")
-            data_item_dst.add_connection(connection)
+            connection = Connection.PropertyConnection(interval_src, "interval", interval_dst, "interval", parent=data_item_dst)
+            document_model.append_connection(connection)
             # check dependencies
             with document_model.item_transaction(data_item_dst):
                 self.assertTrue(document_model.is_in_transaction_state(data_item_dst))
@@ -202,10 +202,10 @@ class TestConnectionClass(unittest.TestCase):
             document_model.append_data_item(data_item_src)
             document_model.append_data_item(data_item_dst1)
             document_model.append_data_item(data_item_dst2)
-            connection1 = Connection.PropertyConnection(interval_src, "interval", interval_dst1, "interval")
-            data_item_dst1.add_connection(connection1)
-            connection2 = Connection.PropertyConnection(interval_src, "interval", interval_dst2, "interval")
-            data_item_dst2.add_connection(connection2)
+            connection1 = Connection.PropertyConnection(interval_src, "interval", interval_dst1, "interval", parent=data_item_dst1)
+            connection2 = Connection.PropertyConnection(interval_src, "interval", interval_dst2, "interval", parent=data_item_dst2)
+            document_model.append_connection(connection1)
+            document_model.append_connection(connection2)
             # check dependencies
             with document_model.item_transaction(data_item_dst1):
                 self.assertTrue(document_model.is_in_transaction_state(data_item_dst1))
@@ -227,8 +227,8 @@ class TestConnectionClass(unittest.TestCase):
             data_struct2.set_property_value("title", "t2")
             document_model.append_data_structure(data_struct1)
             document_model.append_data_structure(data_struct2)
-            connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title")
-            data_item.add_connection(connection)
+            connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title", parent=data_item)
+            document_model.append_connection(connection)
             data_struct1.set_property_value("title", "T1")
             self.assertEqual("T1", data_struct1.get_property_value("title"))
             self.assertEqual("T1", data_struct2.get_property_value("title"))
@@ -253,10 +253,10 @@ class TestConnectionClass(unittest.TestCase):
             data_struct2.set_property_value("x_interval", (0.5, 0.2))
             document_model.append_data_structure(data_struct1)
             document_model.append_data_structure(data_struct2)
-            connection1 = Connection.PropertyConnection(data_struct1, "x_interval", interval1, "interval")
-            connection2 = Connection.PropertyConnection(interval2, "interval", data_struct2, "x_interval")
-            data_item1.add_connection(connection1)
-            data_item2.add_connection(connection2)
+            connection1 = Connection.PropertyConnection(data_struct1, "x_interval", interval1, "interval", parent=data_item1)
+            connection2 = Connection.PropertyConnection(interval2, "interval", data_struct2, "x_interval", parent=data_item2)
+            document_model.append_connection(connection1)
+            document_model.append_connection(connection2)
             with document_model.item_transaction(data_item1):
                 self.assertTrue(document_model.is_in_transaction_state(data_item1))
                 self.assertTrue(document_model.is_in_transaction_state(data_struct1))
@@ -275,8 +275,8 @@ class TestConnectionClass(unittest.TestCase):
             data_struct = document_model.create_data_structure()
             data_struct.set_property_value("x_interval", (0.5, 0.1))
             document_model.append_data_structure(data_struct)
-            connection = Connection.PropertyConnection(data_struct, "x_interval", interval, "interval")
-            data_item.add_connection(connection)
+            connection = Connection.PropertyConnection(data_struct, "x_interval", interval, "interval", parent=data_item)
+            document_model.append_connection(connection)
             computed_data_item = DataItem.DataItem(numpy.zeros((100, )))
             document_model.append_data_item(computed_data_item)
             computation = document_model.create_computation(Symbolic.xdata_expression("a.xdata"))
@@ -299,8 +299,8 @@ class TestConnectionClass(unittest.TestCase):
             data_struct = document_model.create_data_structure()
             data_struct.set_property_value("x_interval", (0.5, 0.1))
             document_model.append_data_structure(data_struct)
-            connection = Connection.PropertyConnection(data_struct, "x_interval", interval, "interval")
-            data_item.add_connection(connection)
+            connection = Connection.PropertyConnection(data_struct, "x_interval", interval, "interval", parent=data_item)
+            document_model.append_connection(connection)
             with document_model.item_transaction(data_struct):
                 self.assertTrue(document_model.is_in_transaction_state(data_struct))
                 self.assertTrue(document_model.is_in_transaction_state(interval))

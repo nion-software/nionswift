@@ -3075,8 +3075,8 @@ class TestStorageClass(unittest.TestCase):
             data_struct2.set_property_value("title", "t2")
             document_model.append_data_structure(data_struct1)
             document_model.append_data_structure(data_struct2)
-            connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title")
-            data_item.add_connection(connection)
+            connection = Connection.PropertyConnection(data_struct1, "title", data_struct2, "title", parent=data_item)
+            document_model.append_connection(connection)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
         with contextlib.closing(document_model):
             data_struct1 = document_model.data_structures[0]

@@ -534,8 +534,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
 
     * *created* a datetime item
     * *session_id* a string representing the session
-    * *connections* a list of connections between objects
-    * *operation* an operation describing how to compute this data item
 
     *Descriptive Metadata*
 
@@ -647,6 +645,8 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def close(self):
         for display in self.displays:
             display.close()
+        for connection in copy.copy(self.connections):
+            connection.about_to_be_removed()
         for connection in copy.copy(self.connections):
             connection.close()
         # close the storage handler
