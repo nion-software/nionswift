@@ -577,7 +577,7 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     and can be moved into this class.
     """
 
-    writer_version = 11
+    writer_version = 12
 
     def __init__(self, item_uuid=None):
         super().__init__()
@@ -1354,35 +1354,10 @@ class DataItem(LibraryItem):
         computation = self.computation
         if computation:
             try:
-                self.__update_computation(computation, computation_context._processing_descriptions)
+                computation.update_script(computation_context._processing_descriptions)
                 computation.bind(computation_context)
             except Exception as e:
                 print(str(e))
-
-    def __update_computation(self, computation: Symbolic.Computation, processing_descriptions) -> None:
-        processing_id = computation.processing_id
-        processing_description = processing_descriptions.get(processing_id)
-        if processing_description:
-            src_names = list()
-            src_texts = list()
-            source_dicts = processing_description["sources"]
-            for i, source_dict in enumerate(source_dicts):
-                src_names.append(source_dict["name"])
-                use_display_data = source_dict.get("use_display_data", True)
-                xdata_property = "display_xdata" if use_display_data else "xdata"
-                if source_dict.get("croppable"):
-                    xdata_property = "cropped_" + xdata_property
-                elif source_dict.get("use_filtered_data", False):
-                    xdata_property = "filtered_" + xdata_property
-                data_expression = source_dict["name"] + "." + xdata_property
-                src_texts.append(data_expression)
-            script = processing_description.get("script")
-            if not script:
-                expression = processing_description.get("expression")
-                if expression:
-                    script = Symbolic.xdata_expression(expression)
-            script = script.format(**dict(zip(src_names, src_texts)))
-            computation._get_persistent_property("original_expression").value = script
 
     def data_item_was_inserted(self, computation_context):
         super().data_item_was_inserted(computation_context)

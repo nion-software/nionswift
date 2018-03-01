@@ -2629,6 +2629,159 @@ class TestStorageClass(unittest.TestCase):
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
+    def test_data_items_v11_to_v12_line_profile_migration(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_uuid_str = str(uuid.uuid4())
+        src_data_item_dict["uuid"] = src_uuid_str
+        src_data_item_dict["version"] = 11
+        src_data_source_dict = dict()
+        src_data_source_dict["uuid"] = str(uuid.uuid4())
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        graphic_uuid_str = str(uuid.uuid4())
+        src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "graphics": [{"type": "line-profile-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
+        src_data_item_dict["data_source"] = src_data_source_dict
+
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 11
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        display_uuid_str = str(uuid.uuid4())
+        dst_data_item_dict["displays"] = [{"uuid": display_uuid_str}]
+        computation_dict = dict()
+        computation_dict["processing_id"] = "line-profile"
+        computation_dict["uuid"] = str(uuid.uuid4())
+        variables_list = computation_dict.setdefault("variables", list())
+        variables_list.append({"name": "src", "type": "variable", "uuid": str(uuid.uuid4()), "specifier": {"type": "data_item", "version": 1, "uuid": src_uuid_str}})
+        variables_list.append({"name": "line_region", "type": "variable", "uuid": str(uuid.uuid4()), "specifier": {"type": "region", "version": 1, "uuid": graphic_uuid_str}})
+        dst_data_item_dict["computation"] = computation_dict
+        connection_dict = {"type": "interval-list-connection", "source_uuid": display_uuid_str, "target_uuid": graphic_uuid_str, "uuid": str(uuid.uuid4())}
+        dst_data_item_dict["connections"] = [connection_dict]
+        dst_data_item_dict["data_source"] = dst_data_source_dict
+
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(1, len(document_model.connections))
+            # ensure dependencies are correct
+            self.assertEqual(1, len(document_model.get_dependent_data_items(document_model.data_items[0])))
+            self.assertEqual(document_model.get_dependent_data_items(document_model.data_items[0])[0], document_model.data_items[1])
+            # finally cascade delete
+            document_model.remove_data_item(document_model.data_items[0])
+            self.assertEqual(0, len(document_model.data_items))
+            self.assertEqual(0, len(document_model.computations))
+            self.assertEqual(0, len(document_model.connections))
+
+    def test_data_items_v11_to_v12_pick_migration(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_uuid_str = str(uuid.uuid4())
+        src_data_item_dict["uuid"] = src_uuid_str
+        src_data_item_dict["version"] = 11
+        src_data_source_dict = dict()
+        src_data_source_dict["uuid"] = str(uuid.uuid4())
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8, 8)
+        point_graphic_uuid_str = str(uuid.uuid4())
+        src_display_uuid_str = str(uuid.uuid4())
+        src_data_item_dict["displays"] = [{"uuid": src_display_uuid_str, "graphics": [{"type": "point-graphic", "uuid": point_graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
+        src_data_item_dict["data_source"] = src_data_source_dict
+
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 11
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        dst_display_uuid_str = str(uuid.uuid4())
+        interval_graphic_uuid_str = str(uuid.uuid4())
+        dst_data_item_dict["displays"] = [{"uuid": dst_display_uuid_str, "graphics": [{"type": "interval-graphic", "uuid": interval_graphic_uuid_str, "start": 0, "end": 1}]}]
+        computation_dict = dict()
+        computation_dict["processing_id"] = "pick-point"
+        computation_dict["uuid"] = str(uuid.uuid4())
+        variables_list = computation_dict.setdefault("variables", list())
+        variables_list.append({"name": "src", "type": "variable", "uuid": str(uuid.uuid4()), "specifier": {"type": "data_item", "version": 1, "uuid": src_uuid_str}})
+        variables_list.append({"name": "pick_region", "type": "variable", "uuid": str(uuid.uuid4()), "specifier": {"type": "region", "version": 1, "uuid": point_graphic_uuid_str}})
+        dst_data_item_dict["computation"] = computation_dict
+        connection_dict = {"type": "property-connection",
+                           "source_uuid": src_display_uuid_str, "source_property": "slice_interval",
+                           "target_uuid": interval_graphic_uuid_str, "target_property": "interval",
+                           "uuid": str(uuid.uuid4())}
+        dst_data_item_dict["connections"] = [connection_dict]
+        dst_data_item_dict["data_source"] = dst_data_source_dict
+
+        # read it back
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], log_migrations=False)
+        with contextlib.closing(document_model):
+            # check metadata transferred to data source
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.computations))
+            self.assertEqual(1, len(document_model.connections))
+            # ensure dependencies are correct
+            self.assertEqual(1, len(document_model.get_dependent_data_items(document_model.data_items[0])))
+            self.assertEqual(document_model.get_dependent_data_items(document_model.data_items[0])[0], document_model.data_items[1])
+            # finally cascade delete
+            document_model.remove_data_item(document_model.data_items[0])
+            self.assertEqual(0, len(document_model.data_items))
+            self.assertEqual(0, len(document_model.computations))
+            self.assertEqual(0, len(document_model.connections))
+
+    def test_data_items_v11_to_v12_computation_reloads_without_duplicating_computation(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+
+        src_data_item_dict = memory_persistent_storage_system.properties.setdefault("A", dict())
+        src_uuid_str = str(uuid.uuid4())
+        src_data_item_dict["uuid"] = src_uuid_str
+        src_data_item_dict["version"] = 11
+        src_data_source_dict = dict()
+        src_data_source_dict["uuid"] = str(uuid.uuid4())
+        src_data_source_dict["type"] = "buffered-data-source"
+        src_data_source_dict["data_dtype"] = str(numpy.dtype(numpy.uint32))
+        src_data_source_dict["data_shape"] = (8, 8)
+        graphic_uuid_str = str(uuid.uuid4())
+        src_data_item_dict["displays"] = [{"uuid": str(uuid.uuid4()), "graphics": [{"type": "line-profile-graphic", "uuid": graphic_uuid_str, "start": (0, 0), "end": (1, 1)}]}]
+        src_data_item_dict["data_source"] = src_data_source_dict
+
+        dst_data_item_dict = memory_persistent_storage_system.properties.setdefault("B", dict())
+        dst_data_item_dict["uuid"] = str(uuid.uuid4())
+        dst_data_item_dict["version"] = 11
+        dst_data_source_dict = dict()
+        dst_data_source_dict["uuid"] = str(uuid.uuid4())
+        dst_data_source_dict["type"] = "buffered-data-source"
+        display_uuid_str = str(uuid.uuid4())
+        dst_data_item_dict["displays"] = [{"uuid": display_uuid_str}]
+        computation_dict = dict()
+        computation_dict["processing_id"] = "line-profile"
+        computation_dict["uuid"] = str(uuid.uuid4())
+        variables_list = computation_dict.setdefault("variables", list())
+        variables_list.append({"name": "src", "type": "variable", "uuid": str(uuid.uuid4()), "specifier": {"type": "data_item", "version": 1, "uuid": src_uuid_str}})
+        variables_list.append({"name": "line_region", "type": "variable", "uuid": str(uuid.uuid4()), "specifier": {"type": "region", "version": 1, "uuid": graphic_uuid_str}})
+        dst_data_item_dict["computation"] = computation_dict
+        connection_dict = {"type": "interval-list-connection", "source_uuid": display_uuid_str, "target_uuid": graphic_uuid_str, "uuid": str(uuid.uuid4())}
+        dst_data_item_dict["connections"] = [connection_dict]
+        dst_data_item_dict["data_source"] = dst_data_source_dict
+
+        memory_persistent_storage_system2 = DocumentModel.MemoryStorageSystem()
+        memory_persistent_storage_system2.properties = copy.deepcopy(memory_persistent_storage_system.properties)
+
+        auto_migration = DocumentModel.AutoMigration(log_copying=False, storage_system=memory_persistent_storage_system2)
+
+        # make sure it reloads twice
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], auto_migrations=[auto_migration], library_storage=library_storage, log_migrations=False)
+        with contextlib.closing(document_model):
+            self.assertEqual(1, len(document_model.computations))
+
     def test_migrate_overwrites_old_data(self):
         current_working_directory = os.getcwd()
         library_dir = os.path.join(current_working_directory, "__Test")

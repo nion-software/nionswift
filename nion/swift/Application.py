@@ -7,6 +7,7 @@ import gettext
 import json
 import logging
 import os
+import shutil
 import sys
 import typing
 
@@ -150,12 +151,16 @@ class Application:
     def _set_document_model(self, document_model):
         self.__document_model = document_model
 
-    def migrate_library(self, workspace_dir, library_path, welcome_message=True):
+    def __migrate_library(self, workspace_dir: str, welcome_message_enabled: bool=True) -> str:
         """ Migrate library to latest version. """
-        library_storage = DocumentModel.FilePersistentStorage(library_path)
-        version = library_storage.get_version()
-        if welcome_message:
-            logging.debug("Library at version %s.", version)
+        library_path_11 = os.path.join(workspace_dir, "Nion Swift Workspace.nslib")
+        library_path_12 = os.path.join(workspace_dir, "Nion Swift Library 12.nslib")
+        if not os.path.exists(library_path_12):
+            if os.path.exists(library_path_11):
+                if welcome_message_enabled:
+                    logging.debug("Migrating from library 11 to 12: %s -> %s", library_path_11, library_path_12)
+                shutil.copyfile(library_path_11, library_path_12)
+        return library_path_12
 
     def start(self, skip_choose=False, fixed_workspace_dir=None):
         """
@@ -181,25 +186,22 @@ class Application:
             documents_dir = self.ui.get_document_location()
             workspace_dir = os.path.join(documents_dir, "Nion Swift Libraries")
             workspace_dir = self.ui.get_persistent_string("workspace_location", workspace_dir)
-        library_filename = "Nion Swift Workspace.nslib"
         cache_filename = "Nion Swift Cache {version}.nscache".format(version=DataItem.DataItem.writer_version)
-        library_path = os.path.join(workspace_dir, library_filename)
+        welcome_message_enabled = fixed_workspace_dir is None
+        library_path = self.__migrate_library(workspace_dir, welcome_message_enabled)
         cache_path = os.path.join(workspace_dir, cache_filename)
         if not skip_choose and not os.path.exists(library_path):
             self.choose_library()
             return True
-        welcome_message = fixed_workspace_dir is None
-        if os.path.exists(library_path):
-            self.migrate_library(workspace_dir, library_path, welcome_message)
         self.workspace_dir = workspace_dir
         file_persistent_storage_system = DocumentModel.FileStorageSystem([os.path.join(workspace_dir, "Nion Swift Data {version}".format(version=DataItem.DataItem.writer_version))])
         create_new_document = not os.path.exists(library_path)
         if create_new_document:
-            if welcome_message:
+            if welcome_message_enabled:
                 logging.debug("Creating new document: %s", library_path)
             library_storage = DocumentModel.FilePersistentStorage(library_path)
         else:
-            if welcome_message:
+            if welcome_message_enabled:
                 logging.debug("Using existing document %s", library_path)
             library_storage = DocumentModel.FilePersistentStorage(library_path)
         persistent_object_context = DocumentModel.PersistentDataItemContext([file_persistent_storage_system], False, False)
@@ -269,7 +271,7 @@ class Application:
             upgrade_dialog.show()
 
         else:
-            self.continue_start(cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, True, welcome_message=welcome_message)
+            self.continue_start(cache_path, create_new_document, file_persistent_storage_system, library_storage, workspace_dir, True, welcome_message=welcome_message_enabled)
 
         return True
 
@@ -279,6 +281,7 @@ class Application:
         auto_migrations = list()
         auto_migrations.append(DocumentModel.AutoMigration([os.path.join(workspace_dir, "Nion Swift Data")]))
         auto_migrations.append(DocumentModel.AutoMigration([os.path.join(workspace_dir, "Nion Swift Data 10")]))
+        auto_migrations.append(DocumentModel.AutoMigration([os.path.join(workspace_dir, "Nion Swift Data 11")]))
         document_model = DocumentModel.DocumentModel(library_storage=library_storage,
                                                      persistent_storage_systems=[file_persistent_storage_system],
                                                      storage_cache=storage_cache, ignore_older_files=ignore_older_files,

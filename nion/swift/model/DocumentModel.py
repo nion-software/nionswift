@@ -89,6 +89,12 @@ class FilePersistentStorage:
         with self.__properties_lock:
             self.__properties = properties
 
+    def rewrite_properties(self, properties):
+        """Set the properties and write to disk."""
+        with self.__properties_lock:
+            self.__properties = properties
+        self.__write_properties()
+
     def __get_storage_dict(self, object):
         persistent_object_parent = object.persistent_object_parent
         if not persistent_object_parent:
@@ -161,6 +167,11 @@ class MemoryPersistentStorage:
 
     def _set_properties(self, properties):
         """Set the properties; used for testing."""
+        with self.__properties_lock:
+            self.__properties = properties
+
+    def rewrite_properties(self, properties):
+        """Set the properties and write to disk."""
         with self.__properties_lock:
             self.__properties = properties
 
@@ -488,7 +499,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 count[0] += 1
         return count
 
-    def read_data_items(self, *, persistent_object_context=None, data_item_uuids=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
+    def read_data_items(self, library_storage_properties, *, persistent_object_context=None, data_item_uuids=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
         """
         Read data items from the data reference handler and return as a list.
 
@@ -509,8 +520,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
+        library_updates = dict()
         if not self.__ignore_older_files:
-            self.__migrate_to_latest(reader_info_list)
+            self.__migrate_to_latest(reader_info_list, library_updates)
         for reader_info in reader_info_list:
             properties = reader_info.properties
             changed_ref = reader_info.changed_ref
@@ -527,6 +539,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                                 new_data_item = self.__auto_migrate_data_item(data_item_uuid, storage_handler, properties, persistent_object_context)
                                 if new_data_item:
                                     data_items_by_uuid[data_item_uuid] = new_data_item
+                                    library_update = library_updates.get(data_item_uuid, dict())
+                                    library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
+                                    library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
                     else:
                         if changed_ref[0]:
                             storage_handler.write_properties(copy.deepcopy(properties), datetime.datetime.now())
@@ -542,6 +557,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                             if self.__log_migrations and data_item.uuid in data_items_by_uuid:
                                 logging.info("Warning: Duplicate data item %s", data_item.uuid)
                             data_items_by_uuid[data_item.uuid] = data_item
+                            library_update = library_updates.get(data_item_uuid, dict())
+                            library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
+                            library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
                         else:
                             large_format = isinstance(storage_handler, HDF5Handler.HDF5Handler)
                             data_item = DataItem.DataItem(item_uuid=data_item_uuid, large_format=large_format)
@@ -553,13 +571,18 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                             if self.__log_migrations and data_item.uuid in data_items_by_uuid:
                                 logging.info("Warning: Duplicate data item %s", data_item.uuid)
                             data_items_by_uuid[data_item.uuid] = data_item
+                            library_update = library_updates.get(data_item_uuid, dict())
+                            library_storage_properties.setdefault("connections", list()).extend(library_update.get("connections", list()))
+                            library_storage_properties.setdefault("computations", list()).extend(library_update.get("computations", list()))
             except Exception as e:
                 logging.debug("Error reading %s", storage_handler.reference)
                 import traceback
                 traceback.print_exc()
                 traceback.print_stack()
+
         def sort_by_date_key(data_item):
             return data_item.created
+
         data_items = list(data_items_by_uuid.values())
         data_items.sort(key=sort_by_date_key)
         return data_items
@@ -594,7 +617,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
             logging.info("Unable to copy data item %s to library.", data_item_uuid)
         return new_data_item
 
-    def __migrate_to_latest(self, reader_info_list):
+    def __migrate_to_latest(self, reader_info_list, library_updates):
         self.__migrate_to_v2(reader_info_list)
         self.__migrate_to_v3(reader_info_list)
         self.__migrate_to_v4(reader_info_list)
@@ -605,7 +628,45 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         self.__migrate_to_v9(reader_info_list)
         self.__migrate_to_v10(reader_info_list)
         self.__migrate_to_v11(reader_info_list)
+        self.__migrate_to_v12(reader_info_list, library_updates)
         # TODO: rename specifier types (data_item -> data_source, library_item -> data_item, region -> graphic)
+
+    def __migrate_to_v12(self, reader_info_list, library_updates):
+        for reader_info in reader_info_list:
+            storage_handler = reader_info.storage_handler
+            properties = reader_info.properties
+            try:
+                version = properties.get("version", 0)
+                if version == 11:
+                    reader_info.changed_ref[0] = True
+                    # import pprint; pprint.pprint(properties)
+                    # version 11 -> 12 moves connections and computations out of data item and into library.
+
+                    data_item_uuid_str = properties["uuid"]
+                    data_item_uuid = uuid.UUID(data_item_uuid_str)
+
+                    computation_dict = properties.get("computation", dict())
+                    if computation_dict:
+                        data_item_specifier = {"type": "data_item_object", "uuid": data_item_uuid_str, "version": 1}
+                        computation_dict["results"] = [{"name": "target", "label": "Target", "specifier": data_item_specifier, "type": "output", "uuid": str(uuid.uuid4())}]
+                        computation_dict["source_uuid"] = data_item_uuid_str
+                        library_updates.setdefault(data_item_uuid, dict()).setdefault("computations", list()).append(computation_dict)
+                        properties.pop("computation", None)
+
+                    for connection_dict in properties.get("connections", list()):
+                        connection_dict["parent_uuid"] = data_item_uuid_str
+                        library_updates.setdefault(data_item_uuid, dict()).setdefault("connections", list()).append(connection_dict)
+                        properties.pop("connections", None)
+
+                    properties["version"] = 12
+
+                    if self.__log_migrations:
+                        logging.info("Updated %s to %s (move connections/computations to library)", storage_handler.reference, properties["version"])
+            except Exception as e:
+                logging.debug("Error reading %s", storage_handler.reference)
+                import traceback
+                traceback.print_exc()
+                traceback.print_stack()
 
     def __migrate_to_v11(self, reader_info_list):
         for reader_info in reader_info_list:
@@ -616,7 +677,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 if version == 10:
                     reader_info.changed_ref[0] = True
                     # pprint.pprint(properties)
-                    # version 9 -> 10 merges regions into graphics.
+                    # version 10 -> 11 changes computed data items to combined crop, merges data source into data item.
                     data_source_dicts = properties.get("data_sources", list())
                     if len(data_source_dicts) > 0:
                         data_source_dict = data_source_dicts[0]
@@ -1239,9 +1300,10 @@ class ComputationQueueItem:
 
 
 class AutoMigration:
-    def __init__(self, paths: typing.List[str], log_copying: bool=True):
+    def __init__(self, paths: typing.List[str]=None, log_copying: bool=True, storage_system=None):
         self.paths = paths
         self.log_copying = log_copying
+        self.storage_system = storage_system
 
 
 class DataStructure(Observable.Observable, Persistence.PersistentObject):
@@ -1572,7 +1634,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     computation_min_period = 0.0
 
     def __init__(self, library_storage=None, persistent_storage_systems=None, storage_cache=None, log_migrations=True, ignore_older_files=False, auto_migrations=None):
-        super(DocumentModel, self).__init__()
+        super().__init__()
 
         self.library_item_will_be_removed_event = Event.Event()  # will be called before the item is deleted
         self.data_item_inserted_event = Event.Event()
@@ -1651,17 +1713,19 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __read(self):
         # first read the items
-        data_items = self.persistent_object_context.read_data_items()
+        library_storage_properties = self.__library_storage.properties
+        data_items = self.persistent_object_context.read_data_items(library_storage_properties)
         data_item_uuids = {data_item.uuid for data_item in data_items}
         utilized_deletions = set()  # the uuid's skipped due to being deleted
-        deletions = self.__library_storage.properties.get("data_item_deletions", list())
+        deletions = library_storage_properties.get("data_item_deletions", list())
         for auto_migration in self.__auto_migrations:
-            file_persistent_storage_system = FileStorageSystem(auto_migration.paths)
+            file_persistent_storage_system = FileStorageSystem(auto_migration.paths) if auto_migration.paths else auto_migration.storage_system
             persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=auto_migration.log_copying)
-            new_data_items = persistent_object_context.read_data_items(persistent_object_context=self.persistent_object_context, data_item_uuids=data_item_uuids, deletions=deletions, utilized_deletions=utilized_deletions)
+            new_data_items = persistent_object_context.read_data_items(library_storage_properties, persistent_object_context=self.persistent_object_context, data_item_uuids=data_item_uuids, deletions=deletions, utilized_deletions=utilized_deletions)
             data_items.extend(new_data_items)
             data_item_uuids.update({data_item.uuid for data_item in new_data_items})
-        self.read_from_dict(self.__library_storage.properties)
+        self.__library_storage.rewrite_properties(library_storage_properties)
+        self.read_from_dict(library_storage_properties)
         self.__finish_read_partial(data_items)
         self.__finish_read(utilized_deletions)
 
@@ -1694,6 +1758,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # loading mechanism; but because some data items may not have been loaded at the first time computation
         # changed was called (during insert computation), this call is made to update the dependencies.
         for computation in self.computations:
+            computation.update_script(self._processing_descriptions)
             self.__computation_changed(computation)
             computation.bind(self)
         # initialize data item references
