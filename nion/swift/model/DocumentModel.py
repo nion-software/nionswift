@@ -1247,13 +1247,8 @@ class ComputationQueueItem:
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
         pending_data_item_merge = None
-        computation = None
-        if self.data_item:
-            data_item = self.data_item
-            computation = data_item.computation
-        if not computation:
-            data_item = None
-            computation = self.computation
+        data_item = None
+        computation = self.computation
         if computation.expression:
             data_item = computation.get_referenced_object("target")
         if computation and computation.needs_update:
@@ -1585,12 +1580,6 @@ class TransactionManager:
             if isinstance(item, Connection.Connection):
                 self.__get_deep_dependent_item_set(item._source, items)
                 self.__get_deep_dependent_item_set(item._target, items)
-            for data_item in self.__document_model.data_items:
-                for connection in data_item.connections:
-                    if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
-                        self.__get_deep_transaction_item_set(connection._target, items)
-                    if isinstance(connection, Connection.PropertyConnection) and connection._target in items:
-                        self.__get_deep_transaction_item_set(connection._source, items)
             for connection in self.__document_model.connections:
                 if isinstance(connection, Connection.PropertyConnection) and connection._source in items:
                     self.__get_deep_transaction_item_set(connection._target, items)
@@ -1749,9 +1738,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # computations and connections
         data_items = self.data_items
         for data_item in data_items:
-            self.__data_item_computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
+            self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         for data_item in data_items:
-            data_item.update_and_bind_computation(self)
             data_item.connect_data_items(data_items, self.get_data_item_by_uuid)
         # this loop reestablishes dependencies now that everything is loaded.
         # the change listener for the computation will already have been established via the regular
@@ -1936,13 +1924,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # self.persistent_object_context.write_data_item(data_item)
             # call finish pending write instead
             data_item._finish_pending_write()  # initially write to disk
-        self.__data_item_computation_changed(data_item, None, data_item.computation)  # set up initial computation listeners
+        self.__data_item_computation_changed(data_item, None, None)  # set up initial computation listeners
         data_item.set_session_manager(self)
         self.data_item_inserted_event.fire(self, data_item, before_index, False)
         self.notify_insert_item("data_items", data_item, before_index)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
-        data_item.data_item_was_inserted(self)
         # when a new data item is inserted, check for computations with unresolved variables
         # rebind them, and recompute if they no longer have unresolved variables.
         for computation in self.computations:
@@ -2000,9 +1987,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         # keep storage up-to-date
         self.persistent_object_context.erase_data_item(data_item)
         data_item.__storage_cache = None
-        computation = data_item.computation
-        if computation:
-            self.__data_item_computation_changed(data_item, computation, None)
         # update data item count
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_removed(data_item)
@@ -2249,16 +2233,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     self.__add_dependency(input, output)
         if removed_inputs or added_inputs or removed_outputs or added_outputs:
             self.__transaction_manager._rebuild_transactions()
-
-    def rebind_computations(self):
-        """Call this to rebind all computations.
-
-        This is helpful when extending the computation type system.
-        After new objcts have been loaded, call this so that existing
-        computations can find the new objects during startup.
-        """
-        for data_item in self.data_items:
-            data_item.rebind_computations(self)
 
     @property
     def data_items(self):
@@ -3199,8 +3173,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_structure.source = data_item
 
     def get_data_item_computation(self, data_item: DataItem.DataItem) -> typing.Optional[Symbolic.Computation]:
-        if data_item.computation:
-            return data_item.computation
         for computation in self.computations:
             if computation.source == data_item:
                 target_object = computation.get_referenced_object("target")
@@ -3298,8 +3270,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             input_items = self.__resolve_computation_inputs(new_computation) if new_computation else set()
             old_input_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(data_item), list()))
             self.__establish_computation_dependencies(old_input_items, input_items, {data_item}, {data_item})
-            if data_item.computation:
-                self.__computation_needs_update(data_item, None)
             self.computation_updated_event.fire(data_item, new_computation)
 
         if old_computation:

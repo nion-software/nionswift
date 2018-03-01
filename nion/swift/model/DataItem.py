@@ -602,7 +602,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
         self.define_property("timezone_offset", Utility.TimezoneMinutesToStringConverter().convert(Utility.local_utcoffset_minutes()), changed=self.__timezone_property_changed)
         self.define_property("source_uuid", converter=Converter.UuidToStringConverter())
         self.define_relationship("displays", Display.display_factory, insert=self.__insert_display, remove=self.__remove_display)
-        self.define_relationship("connections", Connection.connection_factory, remove=self.__remove_connection)
         self.__session_manager = None
         self.__source = None
         self.library_item_changed_event = Event.Event()
@@ -645,10 +644,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def close(self):
         for display in self.displays:
             display.close()
-        for connection in copy.copy(self.connections):
-            connection.about_to_be_removed()
-        for connection in copy.copy(self.connections):
-            connection.close()
         # close the storage handler
         if self.persistent_object_context:
             persistent_storage = self.persistent_object_context._get_persistent_storage_for_object(self)
@@ -709,8 +704,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             library_item.remove_display(display)
         for display in self.displays:
             library_item.add_display(display.clone())
-        for connection in self.connections:
-            library_item.add_connection(connection.clone())
         return library_item
 
     def snapshot(self):
@@ -832,15 +825,6 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
             self.persistent_object_context.subscribe(self.source_uuid, source_registered, unregistered)
         else:
             unregistered()
-
-    def update_and_bind_computation(self, computation_context):
-        pass
-
-    def rebind_computations(self, context) -> None:
-        pass
-
-    def data_item_was_inserted(self, computation_context):
-        pass
 
     def _test_get_file_path(self):
         if self.persistent_object_context:
@@ -1065,23 +1049,10 @@ class LibraryItem(Observable.Observable, Persistence.PersistentObject):
     def set_session_manager(self, session_manager: SessionManager) -> None:
         self.__session_manager = session_manager
 
-    def add_connection(self, connection):
-        self.append_item("connections", connection)
-
-    def remove_connection(self, connection):
-        self.remove_item("connections", connection)
-
-    def __remove_connection(self, name, index, connection):
-        connection.close()
-
     # override from storage to watch for changes to this library item. notify observers.
     def notify_property_changed(self, key):
         super().notify_property_changed(key)
         self._notify_library_item_content_changed()
-
-    @property
-    def computation(self) -> typing.Optional[Symbolic.Computation]:
-        return None
 
     # description
 
@@ -1242,10 +1213,6 @@ class CompositeLibraryItem(LibraryItem):
         return "{0} ({1})".format(_("Composite"), len(self.__data_items))
 
 
-def computation_factory(lookup_id):
-    return Symbolic.Computation()
-
-
 class DataItem(LibraryItem):
 
     def __init__(self, data=None, item_uuid=None, large_format=False):
@@ -1253,7 +1220,6 @@ class DataItem(LibraryItem):
         self.add_display(Display.Display())  # always have one display, for now
         self.large_format = large_format
         self.define_item("data_source", data_source_factory, item_changed=self.__data_source_changed)
-        self.define_item("computation", computation_factory)
         self.data_item_changed_event = Event.Event()  # anything has changed
         self.data_changed_event = Event.Event()  # data has changed
         self.__write_delay_data_changed = False
@@ -1276,8 +1242,6 @@ class DataItem(LibraryItem):
         data_item_copy.large_format = self.large_format
         # data source
         data_item_copy.set_data_source(copy.deepcopy(self.data_source))
-        # computation
-        data_item_copy.set_computation(copy.deepcopy(self.computation))
         data_item_copy.__update_displays()
         return data_item_copy
 
@@ -1348,22 +1312,6 @@ class DataItem(LibraryItem):
         super()._finish_pending_write_inner()
         if self.__write_delay_data_changed:
             self.persistent_object_context.rewrite_data_item_data(self, self.data)
-
-    def update_and_bind_computation(self, computation_context):
-        super().update_and_bind_computation(computation_context)
-        computation = self.computation
-        if computation:
-            try:
-                computation.update_script(computation_context._processing_descriptions)
-                computation.bind(computation_context)
-            except Exception as e:
-                print(str(e))
-
-    def data_item_was_inserted(self, computation_context):
-        super().data_item_was_inserted(computation_context)
-        computation = self.computation
-        if computation:
-            computation.bind(computation_context)
 
     @property
     def date_for_sorting(self):
@@ -1449,13 +1397,6 @@ class DataItem(LibraryItem):
         self.set_item("data_source", data_source)
 
     @property
-    def computation(self) -> typing.Optional[Symbolic.Computation]:
-        return self.get_item("computation")
-
-    def set_computation(self, computation: typing.Optional[Symbolic.Computation]) -> None:
-        self.set_item("computation", computation)
-
-    @property
     def data_source(self) -> typing.Optional[BufferedDataSource]:
         return self.get_item("data_source")
 
@@ -1495,12 +1436,6 @@ class DataItem(LibraryItem):
                 data_source.timezone = self.timezone
                 data_source.timezone_offset = self.timezone_offset
             super()._update_timezone()
-
-    def rebind_computations(self, context) -> None:
-        computation = self.computation
-        if computation:
-            computation.unbind()
-            computation.bind(context)
 
     def ensure_data_source(self) -> None:
         if not self.data_source:
