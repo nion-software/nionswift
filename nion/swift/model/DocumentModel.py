@@ -488,14 +488,12 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 count[0] += 1
         return count
 
-    def read_data_items(self, target_document=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
+    def read_data_items(self, *, persistent_object_context=None, data_item_uuids=None, deletions: typing.Set[uuid.UUID] = None, utilized_deletions: typing.Set[uuid.UUID] = None):
         """
         Read data items from the data reference handler and return as a list.
 
         Data items will have persistent_object_context set upon return, but caller will need to call finish_reading
         on each of the data items.
-
-        Pass target_document to copy data items into new document. Useful for auto migration.
         """
         storage_handlers = list()  # storage_handler
         for persistent_storage_system in self.__persistent_storage_systems:
@@ -521,12 +519,12 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
                 version = properties.get("version", 0)
                 if version == DataItem.DataItem.writer_version:
                     data_item_uuid = uuid.UUID(properties["uuid"])
-                    if target_document is not None:
-                        if not target_document.get_data_item_by_uuid(data_item_uuid):
-                            if data_item_uuid in deletions:
+                    if persistent_object_context is not None:
+                        if not data_item_uuid in data_item_uuids:
+                            if str(data_item_uuid) in deletions:
                                 utilized_deletions.add(data_item_uuid)
                             else:
-                                new_data_item = self.__auto_migrate_data_item(data_item_uuid, storage_handler, properties, target_document)
+                                new_data_item = self.__auto_migrate_data_item(data_item_uuid, storage_handler, properties, persistent_object_context)
                                 if new_data_item:
                                     data_items_by_uuid[data_item_uuid] = new_data_item
                     else:
@@ -566,10 +564,10 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         data_items.sort(key=sort_by_date_key)
         return data_items
 
-    def __auto_migrate_data_item(self, data_item_uuid, storage_handler, properties, target_document):
+    def __auto_migrate_data_item(self, data_item_uuid, storage_handler, properties, persistent_object_context):
         new_data_item = None
         target_storage_handler = None
-        for persistent_storage_system in target_document.persistent_object_context.persistent_storage_systems:
+        for persistent_storage_system in persistent_object_context.persistent_storage_systems:
             # create a temporary data item that can be used to get the new file reference
             old_data_item = DataItem.DataItem(item_uuid=data_item_uuid)
             old_data_item.begin_reading()
@@ -588,8 +586,8 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
             new_data_item.begin_reading()
             persistent_storage = DataItemStorage(storage_handler=target_storage_handler, data_item=new_data_item, properties=properties)
             new_data_item.read_from_dict(persistent_storage.properties)
-            target_document.persistent_object_context._set_persistent_storage_for_object(new_data_item, persistent_storage)
-            new_data_item.persistent_object_context = target_document.persistent_object_context
+            persistent_object_context._set_persistent_storage_for_object(new_data_item, persistent_storage)
+            new_data_item.persistent_object_context = persistent_object_context
             if self.__log_copying:
                 logging.info("Copying data item %s to library.", data_item_uuid)
         elif self.__log_copying:
@@ -1653,16 +1651,18 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def __read(self):
         # first read the items
-        self.read_from_dict(self.__library_storage.properties)
         data_items = self.persistent_object_context.read_data_items()
+        data_item_uuids = {data_item.uuid for data_item in data_items}
         utilized_deletions = set()  # the uuid's skipped due to being deleted
-        deletions = self.data_item_deletions
-        self.__finish_read_partial(data_items)
+        deletions = self.__library_storage.properties.get("data_item_deletions", list())
         for auto_migration in self.__auto_migrations:
             file_persistent_storage_system = FileStorageSystem(auto_migration.paths)
             persistent_object_context = PersistentDataItemContext([file_persistent_storage_system], ignore_older_files=False, log_migrations=False, log_copying=auto_migration.log_copying)
-            data_items = persistent_object_context.read_data_items(target_document=self, deletions=deletions, utilized_deletions=utilized_deletions)
-            self.__finish_read_partial(data_items)
+            new_data_items = persistent_object_context.read_data_items(persistent_object_context=self.persistent_object_context, data_item_uuids=data_item_uuids, deletions=deletions, utilized_deletions=utilized_deletions)
+            data_items.extend(new_data_items)
+            data_item_uuids.update({data_item.uuid for data_item in new_data_items})
+        self.read_from_dict(self.__library_storage.properties)
+        self.__finish_read_partial(data_items)
         self.__finish_read(utilized_deletions)
 
     def __finish_read_partial(self, data_items: typing.List[DataItem.DataItem]) -> None:
