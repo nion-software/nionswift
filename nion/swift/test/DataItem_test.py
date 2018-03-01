@@ -166,7 +166,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(document_model.get_dependent_data_items(data_item)[0], data_item1)
             # remove dependent
             document_model.remove_data_item(data_item1)
-            data_item1.computation.expression = data_item1.computation.expression + " "
+            computation = document_model.get_data_item_computation(data_item1)
+            computation.expression = computation.expression + " "
             # verify
             self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 0)
 
@@ -200,8 +201,8 @@ class TestDataItemClass(unittest.TestCase):
             data_item2a_copy = copy.deepcopy(data_item2a)
             document_model.append_data_item(data_item2a_copy)
             # verify data source
-            self.assertEqual(document_model.resolve_object_specifier(data_item2a.computation.variables[0].variable_specifier).value.data_item, data_item2)
-            self.assertEqual(document_model.resolve_object_specifier(data_item2a_copy.computation.variables[0].variable_specifier).value.data_item, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2a).variables[0].variable_specifier).value.data_item, data_item2)
+            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2a_copy).variables[0].variable_specifier).value.data_item, data_item2)
 
     def test_copy_data_item_with_crop(self):
         document_model = DocumentModel.DocumentModel()
@@ -214,10 +215,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item = document_model.get_crop_new(source_data_item, crop_region)
             data_item_copy = copy.deepcopy(data_item)
             document_model.append_data_item(data_item_copy)
-            self.assertNotEqual(data_item_copy.computation, data_item.computation)
+            self.assertNotEqual(document_model.get_data_item_computation(data_item_copy), document_model.get_data_item_computation(data_item))
             document_model.recompute_all()
-            self.assertEqual(document_model.resolve_object_specifier(data_item_copy.computation.variables[0].secondary_specifier).value,
-                             document_model.resolve_object_specifier(data_item.computation.variables[0].secondary_specifier).value)
+            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item_copy).variables[0].secondary_specifier).value,
+                             document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].secondary_specifier).value)
 
     def test_copy_data_item_with_transaction(self):
         document_model = DocumentModel.DocumentModel()
@@ -388,8 +389,8 @@ class TestDataItemClass(unittest.TestCase):
             self.assertTrue(numpy.array_equal(data_item.data, data2))
             self.assertTrue(numpy.array_equal(data_item_copy.data, data2[2:6, 2:6]))
             self.assertTrue(numpy.array_equal(data_item_snap.data, data1[2:6, 2:6]))
-            self.assertIsNotNone(data_item_copy.computation)
-            self.assertIsNone(data_item_snap.computation)
+            self.assertIsNotNone(document_model.get_data_item_computation(data_item_copy))
+            self.assertIsNone(document_model.get_data_item_computation(data_item_snap))
 
     def test_copy_data_item_should_raise_exception(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -404,7 +405,7 @@ class TestDataItemClass(unittest.TestCase):
             inverted_data_item = document_model.get_invert_new(data_item)
             document_model.recompute_all()
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
 
     def test_data_range(self):
         data_item = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
@@ -495,7 +496,7 @@ class TestDataItemClass(unittest.TestCase):
                 display_specifier.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
                 document_model.recompute_all()
                 self.assertTrue(data_changed_ref)
-                self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
+                self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
 
     def test_modifying_source_data_should_trigger_data_item_stale_from_dependent_data_item(self):
         document_model = DocumentModel.DocumentModel()
@@ -507,7 +508,7 @@ class TestDataItemClass(unittest.TestCase):
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
             display_specifier.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
-            self.assertTrue(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertTrue(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
 
     def test_modifying_source_data_should_queue_recompute_in_document_model(self):
         document_model = DocumentModel.DocumentModel()
@@ -519,9 +520,9 @@ class TestDataItemClass(unittest.TestCase):
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
             display_specifier.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
-            self.assertTrue(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertTrue(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
 
     def test_is_data_stale_should_propagate_to_data_items_dependent_on_source(self):
         document_model = DocumentModel.DocumentModel()
@@ -534,14 +535,14 @@ class TestDataItemClass(unittest.TestCase):
             inverted2_data_item = document_model.get_invert_new(inverted_data_item)
             inverted2_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted2_data_item)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
-            self.assertFalse(inverted2_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted2_display_specifier.data_item).needs_update)
             display_specifier.data_item.set_data(numpy.ones((2, 2), numpy.int32))
-            self.assertTrue(inverted_display_specifier.data_item.computation.needs_update)
-            self.assertFalse(inverted2_display_specifier.data_item.computation.needs_update)
+            self.assertTrue(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted2_display_specifier.data_item).needs_update)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
-            self.assertFalse(inverted2_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted2_display_specifier.data_item).needs_update)
 
     def test_data_item_that_is_recomputed_notifies_listeners_of_a_single_data_change(self):
         # this test ensures that doing a recompute_data is efficient and doesn't produce
@@ -554,16 +555,16 @@ class TestDataItemClass(unittest.TestCase):
             inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
             data_changed_ref = [0]
             def data_item_content_changed():
                 data_changed_ref[0] += 1
             with contextlib.closing(inverted_data_item.library_item_changed_event.listen(data_item_content_changed)):
                 display_specifier.data_item.set_data(numpy.ones((8, 8), numpy.uint32))
-                self.assertTrue(inverted_display_specifier.data_item.computation.needs_update)
+                self.assertTrue(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
                 self.assertEqual(data_changed_ref[0], 0)
                 document_model.recompute_all()
-                self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
+                self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
                 self.assertEqual(data_changed_ref[0], 1)
 
     def test_adding_removing_data_item_with_crop_computation_updates_graphics(self):
@@ -801,10 +802,10 @@ class TestDataItemClass(unittest.TestCase):
             data_item = document_model.get_invert_new(src_data_item)
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
             document_model.recompute_all()
-            self.assertFalse(display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(display_specifier.data_item).needs_update)
             display_specifier.data_item.set_data(numpy.zeros((8, 8), numpy.uint32))
             display_specifier.data_item.set_intensity_calibration(Calibration.Calibration())
-            self.assertFalse(display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(display_specifier.data_item).needs_update)
 
     def test_changing_metadata_or_data_does_not_mark_the_data_as_stale_for_data_item_with_data_source(self):
         # changing metadata or data will override what has been computed
@@ -816,9 +817,9 @@ class TestDataItemClass(unittest.TestCase):
             copied_data_item = document_model.get_invert_new(data_item)
             copied_display_specifier = DataItem.DisplaySpecifier.from_data_item(copied_data_item)
             document_model.recompute_all()
-            self.assertFalse(copied_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(copied_display_specifier.data_item).needs_update)
             copied_display_specifier.data_item.set_intensity_calibration(Calibration.Calibration())
-            self.assertFalse(copied_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(copied_display_specifier.data_item).needs_update)
 
     def test_removing_computation_should_not_mark_the_data_as_stale(self):
         # is this test valid any more?
@@ -828,7 +829,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             copied_data_item = document_model.get_invert_new(data_item)
             document_model.recompute_all()
-            self.assertFalse(copied_data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(copied_data_item).needs_update)
             document_model.set_data_item_computation(copied_data_item, None)
             document_model.recompute_all()
             self.assertIsNotNone(copied_data_item.data)
@@ -841,9 +842,9 @@ class TestDataItemClass(unittest.TestCase):
             copied_data_item = document_model.get_gaussian_blur_new(data_item)
             copied_display_specifier = DataItem.DisplaySpecifier.from_data_item(copied_data_item)
             document_model.recompute_all()
-            self.assertFalse(copied_display_specifier.data_item.computation.needs_update)
-            copied_data_item.computation.variables[1].value = 0.1
-            self.assertTrue(copied_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(copied_display_specifier.data_item).needs_update)
+            document_model.get_data_item_computation(copied_data_item).variables[1].value = 0.1
+            self.assertTrue(document_model.get_data_item_computation(copied_display_specifier.data_item).needs_update)
 
     def test_reloading_stale_data_should_still_be_stale(self):
         document_model = DocumentModel.DocumentModel()
@@ -854,18 +855,18 @@ class TestDataItemClass(unittest.TestCase):
             inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
             self.assertAlmostEqual(inverted_display_specifier.data_item.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_specifier.data_item.data_ref() as data_ref:
                 data_ref.master_data = data_ref.master_data + 2.0
-            self.assertTrue(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertTrue(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
             # data is now unloaded and stale.
             self.assertFalse(inverted_display_specifier.data_item.is_data_loaded)
             # don't recompute
             self.assertAlmostEqual(inverted_display_specifier.data_item.data[0, 0], -1.0)
             # data should still be stale
-            self.assertTrue(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertTrue(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
 
     def test_recomputing_data_gives_correct_result(self):
         document_model = DocumentModel.DocumentModel()
@@ -893,7 +894,7 @@ class TestDataItemClass(unittest.TestCase):
             inverted_data_item = document_model.get_invert_new(data_item)
             inverted_display_specifier = DataItem.DisplaySpecifier.from_data_item(inverted_data_item)
             document_model.recompute_all()
-            self.assertFalse(inverted_display_specifier.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(inverted_display_specifier.data_item).needs_update)
             self.assertAlmostEqual(inverted_display_specifier.data_item.data[0, 0], -1.0)
             # now the source data changes and the inverted data needs computing.
             with display_specifier.data_item.data_ref() as data_ref:

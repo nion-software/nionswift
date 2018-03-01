@@ -96,7 +96,7 @@ class ComputationModel:
             if not computation:
                 computation = self.document_controller.document_model.create_computation()
             computation.label = label
-            data_item.set_computation(computation)
+            self.document_controller.document_model.set_data_item_computation(data_item, computation)
 
     @property
     def computation_text(self):
@@ -110,7 +110,7 @@ class ComputationModel:
             if not computation:
                 computation = self.document_controller.document_model.create_computation()
             computation.expression = computation_text
-            data_item.set_computation(computation)
+            self.document_controller.document_model.set_data_item_computation(data_item, computation)
 
     @property
     def error_text(self):

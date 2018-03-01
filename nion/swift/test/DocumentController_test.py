@@ -332,9 +332,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         DataItem.DisplaySpecifier.from_data_item(data_item).display.add_graphic(crop_region)
         document_model.append_data_item(data_item)
         new_data_item = document_model.get_invert_new(data_item, crop_region)
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.computation.variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(new_data_item.computation.variables[0].secondary_specifier).value.bounds)
+        self.assertEqual(crop_region.bounds, document_model.resolve_object_specifier(document_model.get_data_item_computation(new_data_item).variables[0].secondary_specifier).value.bounds)
         document_controller.close()
 
     def test_processing_on_crop_region_recomputes_when_bounds_changes(self):
@@ -347,9 +347,9 @@ class TestDocumentControllerClass(unittest.TestCase):
         document_model.append_data_item(data_item)
         cropped_data_item = document_model.get_invert_new(data_item, crop_region)
         document_model.recompute_all()
-        self.assertFalse(cropped_data_item.computation.needs_update)
+        self.assertFalse(document_model.get_data_item_computation(cropped_data_item).needs_update)
         crop_region.bounds = ((0.3, 0.4), (0.25, 0.35))
-        self.assertTrue(cropped_data_item.computation.needs_update)
+        self.assertTrue(document_model.get_data_item_computation(cropped_data_item).needs_update)
         document_controller.close()
 
     def test_creating_with_variable_produces_valid_computation(self):
@@ -379,7 +379,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             data_item_r2 = document_model.assign_variable_to_library_item(data_item2)
             document_model.assign_variable_to_library_item(data_item3)
             computed_data_item = document_controller.processing_computation("target.xdata = {0}.xdata * 2 + {1}.xdata".format(data_item_r, data_item_r2))
-            self.assertEqual(len(computed_data_item.computation.variables), 2)
+            self.assertEqual(len(document_model.get_data_item_computation(computed_data_item).variables), 2)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, data*2 + data))
 
@@ -447,7 +447,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             interval_region = Graphics.IntervalGraphic()
             intermediate_display.add_graphic(interval_region)
             target_data_item = document_model.get_invert_new(source_data_item)
-            target_computation = target_data_item.computation
+            target_computation = document_model.get_data_item_computation(target_data_item)
             target_computation.create_object("interval", document_model.get_object_specifier(interval_region), label="I")
             self.assertIn(source_data_item, document_model.data_items)
             self.assertIn(intermediate_data_item, document_model.data_items)
@@ -470,7 +470,7 @@ class TestDocumentControllerClass(unittest.TestCase):
             interval_region2 = Graphics.IntervalGraphic()
             intermediate_display.add_graphic(interval_region2)
             target_data_item = document_model.get_invert_new(source_data_item)
-            target_computation = target_data_item.computation
+            target_computation = document_model.get_data_item_computation(target_data_item)
             target_computation.create_object("interval1", document_model.get_object_specifier(interval_region1), label="I")
             target_computation.create_object("interval2", document_model.get_object_specifier(interval_region2), label="I")
             self.assertIn(source_data_item, document_model.data_items)
@@ -574,12 +574,12 @@ class TestDocumentControllerClass(unittest.TestCase):
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             data_item_dup = document_controller.processing_duplicate().data_item
-            self.assertIsNotNone(data_item_dup.computation)
-            self.assertNotEqual(data_item_dup.computation, data_item.computation)
-            self.assertNotEqual(data_item_dup.computation.variables[0], data_item.computation.variables[0])
-            self.assertEqual(data_item_dup.computation.variables[0].variable_specifier["uuid"], data_item.computation.variables[0].variable_specifier["uuid"])
-            self.assertEqual(document_model.resolve_object_specifier(data_item_dup.computation.variables[0].variable_specifier).value.data_item,
-                             document_model.resolve_object_specifier(data_item.computation.variables[0].variable_specifier).value.data_item)
+            self.assertIsNotNone(document_model.get_data_item_computation(data_item_dup))
+            self.assertNotEqual(document_model.get_data_item_computation(data_item_dup), document_model.get_data_item_computation(data_item))
+            self.assertNotEqual(document_model.get_data_item_computation(data_item_dup).variables[0], document_model.get_data_item_computation(data_item).variables[0])
+            self.assertEqual(document_model.get_data_item_computation(data_item_dup).variables[0].variable_specifier["uuid"], document_model.get_data_item_computation(data_item).variables[0].variable_specifier["uuid"])
+            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item_dup).variables[0].variable_specifier).value.data_item,
+                             document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].variable_specifier).value.data_item)
 
     def test_fixing_display_limits_works_for_all_data_types(self):
         document_model = DocumentModel.DocumentModel()

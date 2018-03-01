@@ -980,7 +980,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(data_item.displays[0].graphics[0].start, (0.1, 0.2))
             self.assertEqual(data_item.displays[0].graphics[0].end, (0.3, 0.4))
             data_item.displays[0].graphics[0].start = 0.11, 0.22
-            vector = document_model.resolve_object_specifier(data_item2.computation.variables[1].specifier).value.vector
+            vector = document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2).variables[1].specifier).value.vector
             self.assertEqual(vector[0], (0.11, 0.22))
             self.assertEqual(vector[1], (0.3, 0.4))
 
@@ -1226,10 +1226,10 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             read_data_item = document_model.data_items[0]
             read_display_specifier = DataItem.DisplaySpecifier.from_data_item(read_data_item)
-            computation_bounds = document_model.resolve_object_specifier(document_model.data_items[1].computation.variables[0].secondary_specifier).value.bounds
+            computation_bounds = document_model.resolve_object_specifier(document_model.get_data_item_computation(document_model.data_items[1]).variables[0].secondary_specifier).value.bounds
             self.assertEqual(read_display_specifier.display.graphics[0].bounds, computation_bounds)
             read_display_specifier.display.graphics[0].bounds = ((0.3, 0.4), (0.5, 0.6))
-            computation_bounds = document_model.resolve_object_specifier(document_model.data_items[1].computation.variables[0].secondary_specifier).value.bounds
+            computation_bounds = document_model.resolve_object_specifier(document_model.get_data_item_computation(document_model.data_items[1]).variables[0].secondary_specifier).value.bounds
             self.assertEqual(read_display_specifier.display.graphics[0].bounds, computation_bounds)
 
     def test_inverted_data_item_does_not_need_recompute_when_reloaded(self):
@@ -1245,7 +1245,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(read_display_specifier2.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
 
     def test_data_item_with_persistent_r_value_does_not_need_recompute_when_reloaded(self):
         current_working_directory = os.getcwd()
@@ -1270,7 +1270,7 @@ class TestStorageClass(unittest.TestCase):
             with contextlib.closing(document_model):
                 read_data_item2 = document_model.data_items[1]
                 read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-                self.assertFalse(read_display_specifier2.data_item.computation.needs_update)
+                self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
         finally:
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
@@ -1302,8 +1302,8 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             for data_item_uuid in original_expressions.keys():
                 data_item = document_model.get_data_item_by_uuid(uuid.UUID(data_item_uuid))
-                self.assertEqual(data_item.computation.original_expression, original_expressions[data_item_uuid])
-                self.assertFalse(data_item.computation.needs_update)
+                self.assertEqual(document_model.get_data_item_computation(data_item).original_expression, original_expressions[data_item_uuid])
+                self.assertFalse(document_model.get_data_item_computation(data_item).needs_update)
                 self.assertEqual(data_item.modified, modifieds[data_item_uuid])
 
     def test_cropped_data_item_with_region_does_not_need_recompute_when_reloaded(self):
@@ -1318,11 +1318,11 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(read_display_specifier2.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            self.assertFalse(document_model.data_items[1].computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(document_model.data_items[1]).needs_update)
 
     def test_cropped_data_item_with_region_still_updates_when_reloaded(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
@@ -1337,7 +1337,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
             read_data_item2 = document_model.data_items[1]
             read_display_specifier2 = DataItem.DisplaySpecifier.from_data_item(read_data_item2)
-            self.assertFalse(read_display_specifier2.data_item.computation.needs_update)
+            self.assertFalse(document_model.get_data_item_computation(read_display_specifier2.data_item).needs_update)
             self.assertEqual(read_display_specifier2.data_item.data_shape, (4, 4))
         # reload and check inverted data item does not need recompute
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
@@ -1442,7 +1442,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 1)
             data_item = document_model.data_items[0]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertIsNotNone(data_item.computation)
+            self.assertIsNotNone(document_model.get_data_item_computation(data_item))
             # not really checking beyond this; the program has changed enough to make the region connection not work without a data source
 
     def test_data_items_v5_migration(self):
@@ -1474,9 +1474,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(str(document_model.data_items[1].uuid), data_item2_dict["uuid"])
             data_item = document_model.data_items[1]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertIsNotNone(data_item.computation)
-            self.assertEqual(len(data_item.computation.variables), 1)
-            self.assertEqual(document_model.resolve_object_specifier(data_item.computation.variables[0].variable_specifier).value.data_item, document_model.data_items[0])
+            self.assertIsNotNone(document_model.get_data_item_computation(data_item))
+            self.assertEqual(len(document_model.get_data_item_computation(data_item).variables), 1)
+            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].variable_specifier).value.data_item, document_model.data_items[0])
             # calibration renaming
             data_item = document_model.data_items[0]
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -1522,9 +1522,9 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(str(document_model.data_items[2].uuid), data_item3_dict["uuid"])
             data_item = document_model.data_items[1]
             self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
-            self.assertIsNotNone(data_item.computation)
-            self.assertEqual(len(data_item.computation.variables), 1)
-            self.assertEqual(document_model.resolve_object_specifier(data_item.computation.variables[0].variable_specifier).value.data_item, document_model.data_items[0])
+            self.assertIsNotNone(document_model.get_data_item_computation(data_item))
+            self.assertEqual(len(document_model.get_data_item_computation(data_item).variables), 1)
+            self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item).variables[0].variable_specifier).value.data_item, document_model.data_items[0])
             # calibration renaming
             data_item = document_model.data_items[0]
             display_specifier = DataItem.DisplaySpecifier.from_data_item(data_item)
@@ -1611,7 +1611,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "fft")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.fft(src.cropped_display_xdata)"))
             self.assertEqual(len(computation.variables), 1)
@@ -1678,7 +1678,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 3)
-            computation = document_model.data_items[2].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[2])
             self.assertEqual(computation.processing_id, "cross-correlate")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.crosscorrelate(src1.cropped_display_xdata, src2.cropped_display_xdata)"))
             self.assertEqual(len(computation.variables), 2)
@@ -1747,7 +1747,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "gaussian-blur")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.gaussian_blur(src.cropped_display_xdata, sigma)"))
             self.assertEqual(len(computation.variables), 2)
@@ -1804,7 +1804,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "median-filter")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.median_filter(src.cropped_display_xdata, filter_size)"))
             self.assertEqual(len(computation.variables), 2)
@@ -1856,7 +1856,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "slice")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.slice_sum(src.cropped_xdata, center, width)"))
             self.assertEqual(len(computation.variables), 3)
@@ -1911,7 +1911,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "crop")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("src.cropped_display_xdata"))
             self.assertEqual(len(computation.variables), 1)
@@ -1978,7 +1978,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "sum")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.sum(src.cropped_xdata, src.xdata.datum_dimension_indexes[0])"))
             self.assertEqual(len(computation.variables), 1)
@@ -2049,7 +2049,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "convert-to-scalar")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("src.cropped_display_xdata"))
             self.assertEqual(len(computation.variables), 1)
@@ -2105,7 +2105,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "resample")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.resample_image(src.cropped_display_xdata, (height, width))"))
             self.assertEqual(len(computation.variables), 3)
@@ -2160,7 +2160,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "pick-point")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.pick(src.xdata, pick_region.position)"))
             self.assertEqual(len(computation.variables), 2)
@@ -2221,7 +2221,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "line-profile")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.line_profile(src.display_xdata, line_region.vector, line_region.line_width)"))
             self.assertEqual(len(computation.variables), 2)
@@ -2278,7 +2278,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            self.assertIsNone(document_model.data_items[1].computation)
+            self.assertIsNone(document_model.get_data_item_computation(document_model.data_items[1]))
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
@@ -2405,7 +2405,7 @@ class TestStorageClass(unittest.TestCase):
             self.assertEqual(len(document_model.data_items), 2)
             src_display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0])
             dst_display_specifier = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[1])
-            self.assertEqual(src_display_specifier.display.graphics[0], document_model.resolve_object_specifier(dst_display_specifier.data_item.computation.variables[1].variable_specifier).value)
+            self.assertEqual(src_display_specifier.display.graphics[0], document_model.resolve_object_specifier(document_model.get_data_item_computation(dst_display_specifier.data_item).variables[1].variable_specifier).value)
             for data_item in document_model.data_items:
                 self.assertEqual(data_item.properties["version"], DataItem.DataItem.writer_version)
 
@@ -2478,7 +2478,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "crop")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("src.cropped_display_xdata"))
             self.assertEqual(len(computation.variables), 1)
@@ -2533,7 +2533,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 2)
-            computation = document_model.data_items[1].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(computation.processing_id, "gaussian-blur")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.gaussian_blur(src.cropped_display_xdata, sigma)"))
             self.assertEqual(len(computation.variables), 2)
@@ -2604,7 +2604,7 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             # check metadata transferred to data source
             self.assertEqual(len(document_model.data_items), 3)
-            computation = document_model.data_items[2].computation
+            computation = document_model.get_data_item_computation(document_model.data_items[2])
             self.assertEqual(computation.processing_id, "cross-correlate")
             self.assertEqual(computation.expression, Symbolic.xdata_expression("xd.crosscorrelate(src1.cropped_display_xdata, src2.cropped_display_xdata)"))
             self.assertEqual(len(computation.variables), 2)
@@ -3137,7 +3137,7 @@ class TestStorageClass(unittest.TestCase):
             assert numpy.array_equal(-document_model.data_items[0].data, document_model.data_items[1].data)
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            read_computation = document_model.data_items[1].computation
+            read_computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertIsNotNone(read_computation)
             with document_model.data_items[0].data_ref() as data_ref:
                 data_ref.data += 1.5
@@ -3184,7 +3184,7 @@ class TestStorageClass(unittest.TestCase):
             document_model.recompute_all()
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            read_computation = document_model.data_items[1].computation
+            read_computation = document_model.get_data_item_computation(document_model.data_items[1])
             with document_model.data_items[0].data_ref() as data_ref:
                 data_ref.data += 1.5
             document_model.recompute_all()
@@ -3241,7 +3241,7 @@ class TestStorageClass(unittest.TestCase):
             x.value = 6
         document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
         with contextlib.closing(document_model):
-            read_computation = document_model.data_items[1].computation
+            read_computation = document_model.get_data_item_computation(document_model.data_items[1])
             self.assertEqual(read_computation.variables[1].name, "x")
             self.assertEqual(read_computation.variables[1].value, 6)
 

@@ -205,7 +205,7 @@ class TestDisplayClass(unittest.TestCase):
             display_specifier.display.slice_width = 4
             self.assertEqual(display_specifier.display.slice_center, 6)
             self.assertEqual(display_specifier.display.slice_width, 4)
-            display_specifier.data_item.computation.expression = "target.xdata = a.xdata[:, :, 0:4]"
+            document_model.get_data_item_computation(display_specifier.data_item).expression = "target.xdata = a.xdata[:, :, 0:4]"
             document_model.recompute_all()
             self.assertEqual(display_specifier.display.slice_center, 3)
             self.assertEqual(display_specifier.display.slice_width, 2)

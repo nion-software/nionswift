@@ -3118,6 +3118,9 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def attach_data_structure(self, data_structure, data_item):
         data_structure.source = data_item
 
+    def get_data_item_computation(self, data_item: DataItem.DataItem) -> typing.Optional[Symbolic.Computation]:
+        return data_item.computation
+
     def set_data_item_computation(self, data_item: DataItem.DataItem, computation: Symbolic.Computation) -> None:
         if data_item:
             old_computation = data_item.computation
@@ -3251,7 +3254,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                     if not data_item.is_sequence:
                         return None
 
-            suffix = i if len(src_dicts) > 1 else ""
             src_name = src_dict["name"]
             src_label = src_dict["label"]
             use_display_data = src_dict.get("use_display_data", True)

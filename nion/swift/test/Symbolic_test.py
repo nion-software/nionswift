@@ -623,7 +623,7 @@ class TestSymbolicClass(unittest.TestCase):
             computed_data_item = document_controller.processing_computation(Symbolic.xdata_expression("-a.xdata"), map)
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, -data))
-            computed_data_item.computation.expression = Symbolic.xdata_expression("-a.xdata * 2")
+            document_model.get_data_item_computation(computed_data_item).expression = Symbolic.xdata_expression("-a.xdata * 2")
             document_model.recompute_all()
             self.assertTrue(numpy.array_equal(computed_data_item.data, -data * 2))
 
@@ -715,9 +715,9 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             copied_data_item = copy.deepcopy(computed_data_item)
             document_model.append_data_item(copied_data_item)
-            self.assertIsNotNone(copied_data_item.computation)
-            self.assertEqual(computed_data_item.computation.error_text, copied_data_item.computation.error_text)
-            self.assertEqual(computed_data_item.computation.expression, copied_data_item.computation.expression)
+            self.assertIsNotNone(document_model.get_data_item_computation(copied_data_item))
+            self.assertEqual(document_model.get_data_item_computation(computed_data_item).error_text, document_model.get_data_item_computation(copied_data_item).error_text)
+            self.assertEqual(document_model.get_data_item_computation(computed_data_item).expression, document_model.get_data_item_computation(copied_data_item).expression)
 
     def test_changing_computation_source_data_updates_computation(self):
         document_model = DocumentModel.DocumentModel()

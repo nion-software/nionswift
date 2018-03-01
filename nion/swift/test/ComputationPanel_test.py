@@ -40,7 +40,7 @@ class TestComputationPanelClass(unittest.TestCase):
             panel = ComputationPanel.EditComputationDialog(document_controller, data_item2)
             document_controller.periodic()  # execute queue
             text1 = panel._text_edit_for_testing.text
-            data_item2.computation.expression = "target.xdata = -a.xdata + 1"
+            document_model.get_data_item_computation(data_item2).expression = "target.xdata = -a.xdata + 1"
             document_controller.periodic()  # execute queue
             text2 = panel._text_edit_for_testing.text
             self.assertNotEqual(text2, text1)
@@ -61,7 +61,7 @@ class TestComputationPanelClass(unittest.TestCase):
             panel._text_edit_for_testing.text = ""
             panel._update_button.on_clicked()
             document_controller.periodic()
-            self.assertIsNone(data_item2.computation)
+            self.assertIsNone(document_model.get_data_item_computation(data_item2))
             text2 = panel._text_edit_for_testing.text
             self.assertFalse(text2)
 

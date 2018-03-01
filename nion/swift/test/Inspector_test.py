@@ -703,7 +703,7 @@ class TestInspectrorClass(unittest.TestCase):
             document_model.append_data_item(data_item)
             computation = document_model.create_computation()
             x = computation.create_variable("x", "integral", 0)
-            data_item.set_computation(computation)
+            document_model.set_data_item_computation(data_item, computation)
             display_panel = document_controller.selected_display_panel
             display_panel.set_display_panel_data_item(data_item)
             inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
