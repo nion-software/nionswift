@@ -630,6 +630,7 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         self.__migrate_to_v11(reader_info_list)
         self.__migrate_to_v12(reader_info_list, library_updates)
         # TODO: rename specifier types (data_item -> data_source, library_item -> data_item, region -> graphic)
+        # TODO: switch from 'displays' to a single 'display' in data item
 
     def __migrate_to_v12(self, reader_info_list, library_updates):
         for reader_info in reader_info_list:
