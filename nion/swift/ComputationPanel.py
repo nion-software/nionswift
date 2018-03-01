@@ -67,7 +67,7 @@ class ComputationModel:
     @property
     def __computation(self):
         if self.__display_specifier.data_item:
-            return self.__display_specifier.data_item.computation
+            return self.document_controller.document_model.get_data_item_computation(self.__display_specifier.data_item)
         return None
 
     def set_data_item(self, data_item):
@@ -92,7 +92,7 @@ class ComputationModel:
     def computation_label(self, label):
         data_item = self.__display_specifier.data_item
         if data_item:
-            computation = data_item.computation
+            computation = self.document_controller.document_model.get_data_item_computation(data_item)
             if not computation:
                 computation = self.document_controller.document_model.create_computation()
             computation.label = label
@@ -106,7 +106,7 @@ class ComputationModel:
     def computation_text(self, computation_text):
         data_item = self.__display_specifier.data_item
         if data_item:
-            computation = data_item.computation
+            computation = self.document_controller.document_model.get_data_item_computation(data_item)
             if not computation:
                 computation = self.document_controller.document_model.create_computation()
             computation.expression = computation_text

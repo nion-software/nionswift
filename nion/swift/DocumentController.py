@@ -1201,10 +1201,9 @@ class DocumentController(Window.Window):
     def processing_duplicate(self):
         data_item = self.selected_display_specifier.data_item
         if data_item:
-            new_data_item = copy.deepcopy(data_item)
+            new_data_item = self.document_model.copy_data_item(data_item)
             new_data_item.title = _("Clone of ") + data_item.title
             new_data_item.category = data_item.category
-            self.document_model.append_data_item(new_data_item)
             self.select_data_item_in_data_panel(new_data_item)
             self.notify_focused_display_changed(new_data_item.primary_display_specifier.display)
             inspector_panel = self.find_dock_widget("inspector-panel").panel

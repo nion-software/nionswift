@@ -486,7 +486,7 @@ class TestProcessingClass(unittest.TestCase):
             data_item_rgba2 = document_model.get_crop_new(data_item_rgba, crop_region)
             data_item_rgba2_copy = copy.deepcopy(data_item_rgba2)
             # make sure the computation was not copied
-            self.assertNotEqual(data_item_rgba2.computation, data_item_rgba2_copy.computation)
+            self.assertNotEqual(document_model.get_data_item_computation(data_item_rgba2), document_model.get_data_item_computation(data_item_rgba2_copy))
 
     def test_snapshot_of_processing_should_copy_data(self):
         document_model = DocumentModel.DocumentModel()

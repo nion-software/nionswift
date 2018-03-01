@@ -1708,7 +1708,7 @@ class ComputationInspectorSection(InspectorSection):
     def __init__(self, ui, document_controller, data_item: DataItem.DataItem):
         super().__init__(ui, "computation", _("Computation"))
         document_model = document_controller.document_model
-        computation = data_item.computation
+        computation = document_model.get_data_item_computation(data_item)
         if computation:
             label_row = self.ui.create_row_widget()
             label_widget = self.ui.create_label_widget()

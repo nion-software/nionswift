@@ -748,6 +748,17 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 return True
         return False
 
+    def _clear_referenced_object(self, name: str) -> None:
+        for result in self.results:
+            if result.name == name:
+                if result.bound_item:
+                    self.__unbind_result(result)
+                index = self.item_index("results", result)
+                self.remove_item("results", result)
+                # self.result_removed_event.fire(index, result)
+                self.computation_mutated_event.fire()
+                self.needs_update = True
+
     def get_referenced_object(self, name: str):
         for result in self.results:
             if result.name == name:

@@ -152,7 +152,7 @@ class TestDataItemClass(unittest.TestCase):
             # verify
             self.assertEqual(len(document_model.get_source_data_items(data_item2a)), 0)
 
-    def test_modifying_computation_on_data_item_after_removed_does_not_reestablish_dependency(self):
+    def test_removing_data_item_removes_associated_computation(self):
         document_model = DocumentModel.DocumentModel()
         with contextlib.closing(document_model):
             # setup by adding data item and a dependent data item
@@ -165,9 +165,9 @@ class TestDataItemClass(unittest.TestCase):
             self.assertEqual(document_model.get_source_data_items(data_item1)[0], data_item)
             self.assertEqual(document_model.get_dependent_data_items(data_item)[0], data_item1)
             # remove dependent
+            self.assertEqual(1, len(document_model.computations))
             document_model.remove_data_item(data_item1)
-            computation = document_model.get_data_item_computation(data_item1)
-            computation.expression = computation.expression + " "
+            self.assertEqual(0, len(document_model.computations))
             # verify
             self.assertEqual(len(document_model.get_dependent_data_items(data_item)), 0)
 
@@ -184,8 +184,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item2a)  # add this second
             document_model.set_data_item_computation(data_item2a, computation)
             # copy the dependent item
-            data_item2a_copy = copy.deepcopy(data_item2a)
-            document_model.append_data_item(data_item2a_copy)
+            data_item2a_copy = document_model.copy_data_item(data_item2a)
             # verify data source
             self.assertEqual(document_model.get_source_data_items(data_item2a_copy)[0], data_item2)
             self.assertIn(data_item2a_copy, document_model.get_dependent_data_items(data_item2))
@@ -198,8 +197,7 @@ class TestDataItemClass(unittest.TestCase):
             document_model.append_data_item(data_item2)  # add this first
             data_item2a = document_model.get_invert_new(data_item2)
             # copy the dependent item
-            data_item2a_copy = copy.deepcopy(data_item2a)
-            document_model.append_data_item(data_item2a_copy)
+            data_item2a_copy = document_model.copy_data_item(data_item2a)
             # verify data source
             self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2a).variables[0].variable_specifier).value.data_item, data_item2)
             self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item2a_copy).variables[0].variable_specifier).value.data_item, data_item2)
@@ -213,8 +211,7 @@ class TestDataItemClass(unittest.TestCase):
             source_data_item.displays[0].add_graphic(crop_region)
             document_model.append_data_item(source_data_item)
             data_item = document_model.get_crop_new(source_data_item, crop_region)
-            data_item_copy = copy.deepcopy(data_item)
-            document_model.append_data_item(data_item_copy)
+            data_item_copy = document_model.copy_data_item(data_item)
             self.assertNotEqual(document_model.get_data_item_computation(data_item_copy), document_model.get_data_item_computation(data_item))
             document_model.recompute_all()
             self.assertEqual(document_model.resolve_object_specifier(document_model.get_data_item_computation(data_item_copy).variables[0].secondary_specifier).value,

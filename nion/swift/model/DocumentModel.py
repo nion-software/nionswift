@@ -1188,16 +1188,19 @@ class ComputationQueueItem:
         # returns a list of functions that must be called on the main thread to finish the recompute action
         # threadsafe
         pending_data_item_merge = None
+        computation = None
         if self.data_item:
             data_item = self.data_item
             computation = data_item.computation
-        else:
+        if not computation:
             data_item = None
             computation = self.computation
+        if computation.expression:
+            data_item = computation.get_referenced_object("target")
         if computation and computation.needs_update:
             try:
                 api = PlugInManager.api_broker_fn("~1.0", None)
-                if self.computation:
+                if not data_item:
                     compute_obj, error_text = computation.evaluate(api)
                     if computation.error_text != error_text:
                         def update_error_text():
@@ -1828,6 +1831,17 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.remove_item("workspaces", workspace)
         self.notify_remove_item("workspaces", workspace, index)
 
+    def copy_data_item(self, data_item: DataItem.DataItem) -> DataItem.DataItem:
+        computation_copy = copy.deepcopy(self.get_data_item_computation(data_item))
+        data_item_copy = copy.deepcopy(data_item)
+        self.append_data_item(data_item_copy)
+        if computation_copy:
+            computation_copy.source = None
+            computation_copy._clear_referenced_object("target")
+            computation_copy.bind(self)
+            self.set_data_item_computation(data_item_copy, computation_copy)
+        return data_item_copy
+
     def append_data_item(self, data_item):
         self.insert_data_item(len(self.data_items), data_item)
 
@@ -1887,11 +1901,12 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
     def __remove_data_item(self, data_item):
         self.__transaction_manager._remove_item(data_item)
         assert data_item.uuid in self.__data_item_uuids
+        library_computation = self.get_data_item_computation(data_item)
         with self.__computation_queue_lock:
             computation_pending_queue = self.__computation_pending_queue
             self.__computation_pending_queue = list()
             for computation_queue_item in computation_pending_queue:
-                if not computation_queue_item.data_item is data_item:
+                if not computation_queue_item.data_item is data_item and not computation_queue_item.computation is library_computation:
                     self.__computation_pending_queue.append(computation_queue_item)
             if self.__computation_active_item and data_item is self.__computation_active_item.data_item:
                 self.__computation_active_item.valid = False
@@ -3119,13 +3134,30 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         data_structure.source = data_item
 
     def get_data_item_computation(self, data_item: DataItem.DataItem) -> typing.Optional[Symbolic.Computation]:
-        return data_item.computation
+        if data_item.computation:
+            return data_item.computation
+        for computation in self.computations:
+            if computation.source == data_item:
+                target_object = computation.get_referenced_object("target")
+                if target_object == data_item:
+                    return computation
+        return None
 
-    def set_data_item_computation(self, data_item: DataItem.DataItem, computation: Symbolic.Computation) -> None:
+    def set_data_item_computation(self, data_item: DataItem.DataItem, computation: typing.Optional[Symbolic.Computation]) -> None:
         if data_item:
-            old_computation = data_item.computation
-            data_item.set_computation(computation)
-            self.__data_item_computation_changed(data_item, old_computation, computation)
+            old_computation = self.get_data_item_computation(data_item)
+            if old_computation is computation:
+                pass
+            elif computation:
+                computation.source = data_item
+                computation.create_result("target", self.get_object_specifier(data_item, "data_item"))
+                self.append_computation(computation)
+            elif old_computation:
+                # remove old computation without cascade (it would delete this data item itself)
+                old_computation.valid = False
+                self.remove_item("computations", old_computation)
+            if old_computation is not computation:
+                self.__data_item_computation_changed(data_item, old_computation, computation)
 
     def append_computation(self, computation):
         self.insert_computation(len(self.computations), computation)
@@ -3172,6 +3204,14 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_changed(computation)  # ensure the initial mutation is reported
 
     def __removed_computation(self, name: str, index: int, computation: Symbolic.Computation) -> None:
+        with self.__computation_queue_lock:
+            computation_pending_queue = self.__computation_pending_queue
+            self.__computation_pending_queue = list()
+            for computation_queue_item in computation_pending_queue:
+                if not computation_queue_item.computation is computation:
+                    self.__computation_pending_queue.append(computation_queue_item)
+            if self.__computation_active_item and computation is self.__computation_active_item.computation:
+                self.__computation_active_item.valid = False
         computation_changed_listener = self.__computation_changed_listeners.pop(computation, None)
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
