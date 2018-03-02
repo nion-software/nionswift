@@ -259,7 +259,7 @@ class ImageCanvasItemDelegate:
 
     def begin_mouse_tracking(self) -> None: ...
 
-    def end_mouse_tracking(self) -> None: ...
+    def end_mouse_tracking(self, undo_command) -> None: ...
 
     def delete_key_pressed(self) -> None: ...
 
@@ -902,7 +902,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         self.delegate.remove_index_from_selection(graphic_index)
                     else:
                         self.delegate.add_index_to_selection(graphic_index)
-            self.delegate.end_mouse_tracking()
+            self.delegate.end_mouse_tracking(None)
         self.__graphic_drag_items = []
         self.__graphic_drag_item = None
         self.__graphic_part_data = {}

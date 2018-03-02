@@ -12,6 +12,7 @@ from nion.data import Calibration
 from nion.data import DataAndMetadata
 from nion.data import Image
 from nion.swift import LineGraphCanvasItem
+from nion.swift import Undo
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
@@ -42,7 +43,7 @@ class LinePlotCanvasItemDelegate:
 
     def begin_mouse_tracking(self) -> None: ...
 
-    def end_mouse_tracking(self) -> None: ...
+    def end_mouse_tracking(self, undo_command) -> None: ...
 
     def delete_key_pressed(self) -> None: ...
 
@@ -52,6 +53,10 @@ class LinePlotCanvasItemDelegate:
 
     def update_display_properties(self, display_properties: dict) -> None: ...
 
+    def create_change_display_command(self) -> Undo.UndoableCommand: ...
+
+    def create_change_graphics_command(self) -> Undo.UndoableCommand: ...
+
     def add_index_to_selection(self, index: int) -> None: ...
 
     def remove_index_from_selection(self, index: int) -> None: ...
@@ -60,7 +65,7 @@ class LinePlotCanvasItemDelegate:
 
     def clear_selection(self) -> None: ...
 
-    def add_and_select_region(self, region: Graphics.Graphic) -> None: ...
+    def add_and_select_region(self, region: Graphics.Graphic) -> Undo.UndoableCommand: ...
 
     def nudge_selected_graphics(self, mapping, delta) -> None: ...
 
@@ -172,6 +177,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         # the background
         self.add_canvas_item(CanvasItem.BackgroundCanvasItem())
         self.add_canvas_item(line_graph_background_canvas_item)
+
+        # used for tracking undo
+        self.__undo_command = None
 
         # used for dragging graphic items
         self.__graphic_drag_items = []
@@ -610,6 +618,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
             return True
         if not self.__axes or not self.__axes.is_valid:
             return False
+        self.__undo_command = None
         pos = Geometry.IntPoint(x=x, y=y)
         self.delegate.begin_mouse_tracking()
         if self.delegate.tool_mode == "pointer":
@@ -629,7 +638,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 region = Graphics.IntervalGraphic()
                 region.start = x
                 region.end = x
-                self.delegate.add_and_select_region(region)
+                self.__undo_command = self.delegate.add_and_select_region(region)
                 self.begin_tracking_regions(pos, Graphics.NullModifiers())
                 return True
         return False
@@ -640,8 +649,20 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if not self.__axes or not self.__axes.is_valid:
             return False
         self.end_tracking(modifiers)
-        self.delegate.end_mouse_tracking()
+        self.delegate.end_mouse_tracking(self.__undo_command)
         return False
+
+    def _mouse_dragged(self, start: float, end: float, modifiers=None) -> None:
+        # for testing
+        plot_origin = self.line_graph_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
+        plot_left = self.line_graph_canvas_item.canvas_rect.left + plot_origin.x
+        plot_width = self.line_graph_canvas_item.canvas_rect.width
+        modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
+        self.mouse_pressed(plot_left + plot_width * start, 100, modifiers)
+        self.mouse_position_changed(plot_left + plot_width * start, 100, modifiers)
+        self.mouse_position_changed(plot_left + plot_width * (start + end) / 2, 100, modifiers)
+        self.mouse_position_changed(plot_left + plot_width * end, 100, modifiers)
+        self.mouse_released(plot_left + plot_width * end, 100, modifiers)
 
     def context_menu_event(self, x, y, gx, gy):
         return self.delegate.show_display_context_menu(gx, gy)
@@ -759,7 +780,7 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 region = Graphics.IntervalGraphic()
                 region.start = x
                 region.end = x
-                self.delegate.add_and_select_region(region)
+                self.__undo_command = self.delegate.add_and_select_region(region)
                 selection_indexes = self.__graphic_selection.indexes
                 for graphic_index, graphic in enumerate(self.__graphics):
                     if graphic == region:
@@ -774,6 +795,9 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                             self.__graphic_drag_indexes = selection_indexes
                             self.__graphic_drag_items.append(graphic)
                             self.__graphic_part_data[graphic_index] = graphic.begin_drag()
+            else:
+                if not self.__undo_command:
+                    self.__undo_command = self.delegate.create_change_graphics_command()
             # x,y already have transform applied
             self.__last_mouse = copy.copy(pos)
             self.__update_cursor_info()
@@ -784,6 +808,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_changed = True
                 self.__line_graph_regions_canvas_item.update()
         elif self.__tracking_horizontal:
+            if not self.__undo_command:
+                self.__undo_command = self.delegate.create_change_display_command()
             if self.__tracking_rescale:
                 plot_origin = self.line_graph_horizontal_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
                 plot_rect = self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.translated(plot_origin)
@@ -801,6 +827,8 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
                 self.delegate.update_display_properties({"left_channel": left_channel, "right_channel": right_channel})
                 return True
         elif self.__tracking_vertical:
+            if not self.__undo_command:
+                self.__undo_command = self.delegate.create_change_display_command()
             if self.__tracking_rescale:
                 plot_origin = self.__line_graph_vertical_axis_group_canvas_item.map_to_canvas_item(Geometry.IntPoint(), self)
                 plot_rect = self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.translated(plot_origin)

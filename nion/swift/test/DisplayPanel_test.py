@@ -1528,6 +1528,139 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item.displays[0].remove_graphic(data_item.displays[0].graphics[1])
             self.assertEqual(1, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
 
+    def test_dragging_to_create_interval_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 640))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+            line_plot_canvas_item = display_panel.display_canvas_item
+            line_plot_canvas_item._mouse_dragged(0.35, 0.55)
+            # check the undo status
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertTrue(document_controller._undo_stack.can_undo)
+            self.assertFalse(document_controller._undo_stack.can_redo)
+            for i in range(2):
+                # try the undo
+                document_controller.handle_undo()
+                self.assertEqual(0, len(data_item.displays[0].graphics))
+                self.assertFalse(document_controller._undo_stack.can_undo)
+                self.assertTrue(document_controller._undo_stack.can_redo)
+                # try the redo
+                document_controller.handle_redo()
+                self.assertEqual(1, len(data_item.displays[0].graphics))
+                self.assertTrue(document_controller._undo_stack.can_undo)
+                self.assertFalse(document_controller._undo_stack.can_redo)
+
+    def test_dragging_to_change_interval_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            interval_graphic = Graphics.IntervalGraphic()
+            interval_graphic.start = 0.3
+            interval_graphic.end = 0.5
+            data_item.displays[0].add_graphic(interval_graphic)
+            data_item.displays[0].graphic_selection.set(0)
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+            line_plot_canvas_item = display_panel.display_canvas_item
+            line_plot_canvas_item._mouse_dragged(0.4, 0.5)
+            # check the undo status. use full object specifiers since objects may be replaced.
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+            self.assertTrue(document_controller._undo_stack.can_undo)
+            self.assertFalse(document_controller._undo_stack.can_redo)
+            for i in range(2):
+                # try the undo
+                document_controller.handle_undo()
+                self.assertEqual(1, len(data_item.displays[0].graphics))
+                self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertFalse(document_controller._undo_stack.can_undo)
+                self.assertTrue(document_controller._undo_stack.can_redo)
+                # try the redo
+                document_controller.handle_redo()
+                self.assertEqual(1, len(data_item.displays[0].graphics))
+                self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertTrue(document_controller._undo_stack.can_undo)
+                self.assertFalse(document_controller._undo_stack.can_redo)
+
+    def test_dragging_to_create_and_change_interval_undo_redo_cycle(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            display_panel.set_display_panel_data_item(data_item)
+            display_panel.root_container.layout_immediate(Geometry.IntSize(240, 1000))
+            display_panel.display_canvas_item.prepare_display()  # force layout
+            display_panel.display_canvas_item.refresh_layout_immediate()
+            document_controller.periodic()
+            self.assertEqual(0, len(data_item.displays[0].graphics))
+            self.assertIsInstance(display_panel.display_canvas_item, LinePlotCanvasItem.LinePlotCanvasItem)
+            line_plot_canvas_item = display_panel.display_canvas_item
+            line_plot_canvas_item._mouse_dragged(0.3, 0.5)
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+            line_plot_canvas_item._mouse_dragged(0.4, 0.5)
+            # check the undo status. use full object specifiers since objects may be replaced.
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+            self.assertTrue(document_controller._undo_stack.can_undo)
+            self.assertFalse(document_controller._undo_stack.can_redo)
+            for i in range(2):
+                # try the first undo
+                document_controller.handle_undo()
+                self.assertEqual(1, len(data_item.displays[0].graphics))
+                self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertTrue(document_controller._undo_stack.can_undo)
+                self.assertTrue(document_controller._undo_stack.can_redo)
+                # try the second undo
+                document_controller.handle_undo()
+                self.assertEqual(0, len(data_item.displays[0].graphics))
+                self.assertFalse(document_controller._undo_stack.can_undo)
+                self.assertTrue(document_controller._undo_stack.can_redo)
+                # try the first redo
+                document_controller.handle_redo()
+                self.assertEqual(1, len(data_item.displays[0].graphics))
+                self.assertAlmostEqual(0.3, data_item.displays[0].graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.5, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertTrue(document_controller._undo_stack.can_undo)
+                self.assertTrue(document_controller._undo_stack.can_redo)
+                # try the second redo
+                document_controller.handle_redo()
+                self.assertEqual(1, len(data_item.displays[0].graphics))
+                self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
+                self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+                self.assertTrue(document_controller._undo_stack.can_undo)
+                self.assertFalse(document_controller._undo_stack.can_redo)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
     unittest.main()

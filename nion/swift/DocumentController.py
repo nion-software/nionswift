@@ -18,7 +18,6 @@ import weakref
 
 from nion.swift import ComputationPanel
 from nion.swift import ConsoleDialog
-from nion.swift import DataPanel
 from nion.swift import Decorators
 from nion.swift import DisplayEditorPanel
 from nion.swift import DisplayPanel
@@ -27,6 +26,7 @@ from nion.swift import FilterPanel
 from nion.swift import RecorderPanel
 from nion.swift import ScriptsDialog
 from nion.swift import Task
+from nion.swift import Undo
 from nion.swift import Workspace
 from nion.swift.model import Cache
 from nion.swift.model import DataGroup
@@ -38,6 +38,7 @@ from nion.swift.model import ImportExportManager
 from nion.swift.model import Symbolic
 from nion.ui import Dialog
 from nion.ui import Window
+from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import ListModel
 from nion.utils import Selection
@@ -52,6 +53,8 @@ class DocumentController(Window.Window):
 
     def __init__(self, ui, document_model, workspace_id=None, app=None):
         super().__init__(ui, app)
+
+        self.__undo_stack = Undo.UndoStack()
 
         if not app:
             self.event_loop.has_no_pulse = True
@@ -433,7 +436,7 @@ class DocumentController(Window.Window):
         self._file_menu.on_about_to_show = self._file_menu_about_to_show
 
         def adjust_edit_menu():
-            # self._deep_copy_action.enabled = self._will_focus_widget_dispatch("handle_deep_copy")
+            # self._deep_copy_action.apply_state(self._get_focus_widget_menu_item_state("deep_copy"))
             self._edit_menu_about_to_show()
 
         self._edit_menu.on_about_to_show = adjust_edit_menu
@@ -557,6 +560,16 @@ class DocumentController(Window.Window):
             self.workspace_controller.periodic()
         if self.__last_activity is not None and time.time() - self.__last_activity > 60 * 60:
             pass  # self.app.choose_library()
+
+    @property
+    def _undo_stack(self):
+        return self.__undo_stack
+
+    def push_undo_command(self, undo_command: Undo.UndoableCommand) -> None:
+        if undo_command:
+            self.__undo_stack.push(undo_command)
+        else:
+            self.__undo_stack.clear()
 
     @property
     def workspace_controller(self):
@@ -962,6 +975,20 @@ class DocumentController(Window.Window):
 
     def __deep_copy(self):
         self._dispatch_any_to_focus_widget("handle_deep_copy")
+
+    def handle_undo(self):
+        if self.__undo_stack.can_undo:
+            self.__undo_stack.undo()
+
+    def get_undo_menu_item_state(self):
+        return UserInterface.MenuItemState(title=self.__undo_stack.undo_title, enabled=self.__undo_stack.can_undo, checked=False)
+
+    def handle_redo(self):
+        if self.__undo_stack.can_redo:
+            self.__undo_stack.redo()
+
+    def get_redo_menu_item_state(self):
+        return UserInterface.MenuItemState(title=self.__undo_stack.redo_title, enabled=self.__undo_stack.can_redo, checked=False)
 
     def handle_copy(self):
         self.copy_selected_graphics()

@@ -18,6 +18,7 @@ from nion.swift import ImageCanvasItem
 from nion.swift import LinePlotCanvasItem
 from nion.swift import Panel
 from nion.swift import Thumbnails
+from nion.swift import Undo
 from nion.swift.model import DataItem
 from nion.swift.model import Display
 from nion.swift.model import Graphics
@@ -524,8 +525,8 @@ class CompositeDisplayCanvasItem(CanvasItem.LayerCanvasItem):
     def begin_mouse_tracking(self):
         self.__delegate.begin_mouse_tracking()
 
-    def end_mouse_tracking(self):
-        self.__delegate.end_mouse_tracking()
+    def end_mouse_tracking(self, undo_command):
+        self.__delegate.end_mouse_tracking(undo_command)
 
     def delete_key_pressed(self):
         self.__delegate.delete_key_pressed()
@@ -722,6 +723,79 @@ class DisplayTracker:
     @display_canvas_item.setter
     def display_canvas_item(self, value):
         self.__display_canvas_item = value
+
+
+class InsertGraphicCommand(Undo.UndoableCommand):
+    title = None
+
+    def __init__(self, display, graphic):
+        self.title = _("Insert Graphic")
+        self.__properties = None
+        self.__display = display
+        self.__graphic = graphic
+
+    def close(self):
+        self.__properties = None
+        self.__display = None
+        self.__graphic = None
+
+    def undo(self):
+        self.__properties = self.__graphic.write_to_dict()
+        self.__display.remove_graphic(self.__graphic)
+
+    def redo(self):
+        self.__graphic = Graphics.factory(self.__properties.get)
+        self.__graphic.read_from_dict(self.__properties)
+        self.__display.add_graphic(self.__graphic)
+
+
+class ChangeDisplayCommand(Undo.UndoableCommand):
+    title = None
+
+    def __init__(self, display):
+        self.title = _("Change Display")
+        self.__display = display
+        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max)
+
+    def close(self):
+        self.__properties = None
+        self.__display = None
+
+    def undo(self):
+        properties = self.__properties
+        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max)
+        self.__display.left_channel = properties[0]
+        self.__display.right_channel = properties[1]
+        self.__display.y_min = properties[2]
+        self.__display.y_max = properties[3]
+
+    def redo(self):
+        self.undo()
+
+
+class ChangeGraphicsCommand(Undo.UndoableCommand):
+    title = None
+
+    def __init__(self, display, graphics):
+        self.title = _("Change Graphics")
+        self.__display = display
+        self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
+        self.__properties = [graphic.write_to_dict() for graphic in graphics]
+
+    def close(self):
+        self.__properties = None
+        self.__display = None
+        self.__graphic_indexes = None
+
+    def undo(self):
+        properties = self.__properties
+        graphics = [self.__display.graphics[index] for index in self.__graphic_indexes]
+        self.__properties = [graphic.write_to_dict() for graphic in graphics]
+        for graphic, properties in zip(graphics, properties):
+            graphic.read_from_dict(properties)
+
+    def redo(self):
+        self.undo()
 
 
 class DisplayPanel(CanvasItem.CanvasItemComposition):
@@ -1368,6 +1442,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
         self.__display.add_graphic(region)  # this will also make a drawn graphic
         # hack to select it. it will be the last item.
         self.__display.graphic_selection.set(len(self.__display.graphics) - 1)
+        return InsertGraphicCommand(self.__display, region)
 
     def nudge_selected_graphics(self, mapping, delta):
         all_graphics = self.__display.graphics
@@ -1398,9 +1473,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def begin_mouse_tracking(self):
         self.__mouse_tracking_transaction = self.__document_controller.document_model.begin_display_transaction(self.__display)
 
-    def end_mouse_tracking(self):
+    def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()
         self.__mouse_tracking_transaction = None
+        self.__document_controller.push_undo_command(undo_command)
 
     def delete_key_pressed(self):
         return self.__document_controller.remove_selected_graphics()
@@ -1438,6 +1514,14 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def update_display_properties(self, display_properties):
         for key, value in iter(display_properties.items()):
             setattr(self.__display, key, value)
+
+    def create_change_display_command(self) -> ChangeDisplayCommand:
+        return ChangeDisplayCommand(self.__display)
+
+    def create_change_graphics_command(self) -> ChangeGraphicsCommand:
+        all_graphics = self.__display.graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
+        return ChangeGraphicsCommand(self.__display, graphics)
 
     def create_rectangle(self, pos):
         bounds = tuple(pos), (0, 0)
