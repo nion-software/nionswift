@@ -1193,7 +1193,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             d = {"type": "image", "data_item_uuid": str(library_item.uuid)}
             if detect_controller and isinstance(library_item, DataItem.DataItem):
                 data_item = library_item
-                d2 = DisplayPanelManager().detect_controller(data_item)
+                d2 = DisplayPanelManager().detect_controller(self.__document_controller.document_model, data_item)
                 if d2:
                     d.update(d2)
         else:
@@ -1546,11 +1546,11 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         assert factory_id in self.__display_controller_factories
         del self.__display_controller_factories[factory_id]
 
-    def detect_controller(self, data_item: DataItem.DataItem) -> dict:
+    def detect_controller(self, document_model, data_item: DataItem.DataItem) -> dict:
         priority = 0
         result = None
         for factory in self.__display_controller_factories.values():
-            controller_type = factory.match(data_item)
+            controller_type = factory.match(document_model, data_item)
             if controller_type and factory.priority > priority:
                 priority = factory.priority
                 result = controller_type

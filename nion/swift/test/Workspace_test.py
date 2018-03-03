@@ -767,7 +767,7 @@ class TestWorkspaceClass(unittest.TestCase):
             if controller_type == "error":
                 return TestWorkspaceClass.DisplayPanelController(display_panel, error=True)
             return None
-        def match(self, data_item):
+        def match(self, document_model, data_item):
             if data_item == self._match:
                 return {"controller_type": "test"}
             return None

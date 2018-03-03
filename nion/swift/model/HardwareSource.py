@@ -1218,8 +1218,10 @@ class DataChannelBuffer:
             self.__state = DataChannelBuffer.State.idle
 
 
-def matches_hardware_source(hardware_source_id, channel_id, data_item):
-    hardware_source_metadata = data_item.metadata.get("hardware_source", dict())
-    data_item_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
-    data_item_channel_id = hardware_source_metadata.get("channel_id")
-    return data_item.category == "temporary" and hardware_source_id == data_item_hardware_source_id and channel_id == data_item_channel_id
+def matches_hardware_source(hardware_source_id, channel_id, document_model, data_item):
+    if not document_model.get_data_item_computation(data_item):
+        hardware_source_metadata = data_item.metadata.get("hardware_source", dict())
+        data_item_hardware_source_id = hardware_source_metadata.get("hardware_source_id")
+        data_item_channel_id = hardware_source_metadata.get("channel_id")
+        return data_item.category == "temporary" and hardware_source_id == data_item_hardware_source_id and channel_id == data_item_channel_id
+    return False
