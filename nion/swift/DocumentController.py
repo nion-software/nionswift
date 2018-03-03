@@ -623,9 +623,8 @@ class DocumentController(Window.Window):
     def set_filter(self, filter_id):
         if self.__data_items_model is not None:
             if filter_id != self.__data_items_model.filter_id:
-                data_group = self.__data_items_model.container if self.__data_items_model.container != self.document_model else None
-                self.__update_data_items_model(self.__data_items_model, data_group, filter_id)
-                self.filter_changed_event.fire(data_group, filter_id)
+                self.__update_data_items_model(self.__data_items_model, None, filter_id)
+                self.filter_changed_event.fire(None, filter_id)
 
     def get_data_group_and_filter_id(self):
         # used for display panel initialization

@@ -614,6 +614,28 @@ class TestDataPanelClass(unittest.TestCase):
             document_controller.selection.set_multiple([0, 1])
             document_controller.select_data_group_in_data_panel(data_group=data_group2)
 
+    def test_change_from_group_with_selected_items_to_all_updates_data_items_correctly(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            # create two data groups
+            data_group1 = DataGroup.DataGroup()
+            data_group1.title = "data_group1"
+            document_model.append_data_group(data_group1)
+            # add items to data group 1
+            data_item1a = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item1a.title = "data_item1a"
+            document_model.append_data_item(data_item1a)
+            data_group1.append_data_item(data_item1a)
+            data_item1b = DataItem.DataItem(numpy.zeros((8, 8), numpy.uint32))
+            data_item1b.title = "data_item1a"
+            document_model.append_data_item(data_item1b)
+            # now select the first group in the data panel
+            document_controller.select_data_group_in_data_panel(data_group=data_group1)
+            self.assertEqual(len(document_controller.filtered_displays_model.items), 1)
+            document_controller.select_filter_in_data_panel(filter_id="all")
+            self.assertEqual(len(document_controller.filtered_displays_model.items), 2)
+
     def test_change_from_filter_to_group_and_back_and_forth_updates_without_recursion(self):
         document_model = DocumentModel.DocumentModel()
         document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
