@@ -3254,6 +3254,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         if computation_changed_listener: computation_changed_listener.close()
         computation_output_changed_listener = self.__computation_output_changed_listeners.pop(computation, None)
         if computation_output_changed_listener: computation_output_changed_listener.close()
+        computation.unbind()
         computation.about_to_be_removed()
         computation.close()
 

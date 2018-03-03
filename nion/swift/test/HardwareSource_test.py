@@ -663,6 +663,18 @@ class TestHardwareSourceClass(unittest.TestCase):
                 document_controller2.periodic()
                 self.assertEqual(len(document_model.data_items), 1)
 
+    def test_processing_after_acquire_twice_works(self):
+        # tests out a problem with 'live' attribute and thumbnails
+        document_controller, document_model, hardware_source = self.__setup_simple_hardware_source()
+        with contextlib.closing(document_controller):
+            display_panel = document_controller.selected_display_panel
+            self.__acquire_one(document_controller, hardware_source)
+            display_panel.set_display_panel_data_item(document_model.data_items[0])
+            display_panel.root_container.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            document_model.get_invert_new(document_model.data_items[0])
+            document_model.remove_data_item(document_model.data_items[1])
+            document_model.data_items[0].set_data(numpy.zeros((4, 4)))
+
     def test_record_scan_during_view_suspends_the_view(self):
         document_controller, document_model, hardware_source = self.__setup_scan_hardware_source()
         with contextlib.closing(document_controller):

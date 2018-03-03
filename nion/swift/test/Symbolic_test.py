@@ -1515,6 +1515,18 @@ class TestSymbolicClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertTrue(computation1.is_initial_computation_complete.wait(0.01))
 
+    def test_removing_computation_unbinds(self):
+        Symbolic.register_computation_type("compute_error", self.ComputeExecError)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.random.randn(2, 2))
+            document_model.append_data_item(data_item)
+            document_model.get_invert_new(data_item)
+            computation = document_model.computations[0]
+            self.assertIsNotNone(computation.variables[0].bound_item)
+            document_model.remove_data_item(document_model.data_items[1])
+            self.assertIsNone(computation.variables[0].bound_item)
+
     def disabled_test_reshape_rgb(self):
         assert False
 
