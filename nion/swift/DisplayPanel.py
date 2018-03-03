@@ -729,73 +729,116 @@ class InsertGraphicCommand(Undo.UndoableCommand):
     title = None
 
     def __init__(self, display, graphic):
+        super().__init__()
         self.title = _("Insert Graphic")
         self.__properties = None
         self.__display = display
         self.__graphic = graphic
+        self.initialize()
 
     def close(self):
         self.__properties = None
         self.__display = None
         self.__graphic = None
+        super().close()
 
-    def undo(self):
-        self.__properties = self.__graphic.write_to_dict()
-        self.__display.remove_graphic(self.__graphic)
+    def _get_modified_state(self):
+        return self.__display.modified_state
 
-    def redo(self):
+    def _set_modified_state(self, modified_state):
+        self.__display.modified_state = modified_state
+
+    def _redo(self):
         self.__graphic = Graphics.factory(self.__properties.get)
         self.__graphic.read_from_dict(self.__properties)
         self.__display.add_graphic(self.__graphic)
+
+    def _undo(self):
+        self.__properties = self.__graphic.write_to_dict()
+        self.__display.remove_graphic(self.__graphic)
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
     title = None
 
     def __init__(self, display):
+        super().__init__()
         self.title = _("Change Display")
         self.__display = display
         self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max)
+        self.initialize()
 
     def close(self):
         self.__properties = None
         self.__display = None
+        super().close()
 
-    def undo(self):
+    def _get_modified_state(self):
+        return self.__display.modified_state
+
+    def _set_modified_state(self, modified_state):
+        self.__display.modified_state = modified_state
+
+    def _undo(self):
         properties = self.__properties
-        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max)
+        self.__properties = (
+        self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max)
         self.__display.left_channel = properties[0]
         self.__display.right_channel = properties[1]
         self.__display.y_min = properties[2]
         self.__display.y_max = properties[3]
-
-    def redo(self):
-        self.undo()
 
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
     title = None
 
     def __init__(self, display, graphics):
+        super().__init__()
         self.title = _("Change Graphics")
         self.__display = display
         self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
+        self.initialize()
 
     def close(self):
         self.__properties = None
         self.__display = None
         self.__graphic_indexes = None
+        super().close()
 
-    def undo(self):
+    def _get_modified_state(self):
+        return self.__display.modified_state
+
+    def _set_modified_state(self, modified_state):
+        self.__display.modified_state = modified_state
+
+    def _undo(self):
         properties = self.__properties
         graphics = [self.__display.graphics[index] for index in self.__graphic_indexes]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         for graphic, properties in zip(graphics, properties):
             graphic.read_from_dict(properties)
 
-    def redo(self):
-        self.undo()
+
+class RemoveGraphicsCommand(Undo.UndoableCommand):
+    title = None
+
+    def __init__(self, display, graphics):
+        super().__init__()
+        self.title = _("Remove Graphics")
+        self.initialize()
+
+    def close(self):
+        super().close()
+
+    def _get_modified_state(self):
+        return 0
+
+    def _set_modified_state(self, modified_state):
+        pass
+
+    def _undo(self):
+        pass
 
 
 class DisplayPanel(CanvasItem.CanvasItemComposition):
@@ -1447,8 +1490,11 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def nudge_selected_graphics(self, mapping, delta):
         all_graphics = self.__display.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
-        for graphic in graphics:
-            graphic.nudge(mapping, delta)
+        if graphics:
+            command = ChangeGraphicsCommand(self.__display, graphics)
+            for graphic in graphics:
+                graphic.nudge(mapping, delta)
+            self.__document_controller.push_undo_command(command)
 
     def update_graphics(self, widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers):
         with self.__display._changes():
@@ -1476,13 +1522,26 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def end_mouse_tracking(self, undo_command):
         self.__mouse_tracking_transaction.close()
         self.__mouse_tracking_transaction = None
-        self.__document_controller.push_undo_command(undo_command)
+        if undo_command:
+            self.__document_controller.push_undo_command(undo_command)
 
     def delete_key_pressed(self):
-        return self.__document_controller.remove_selected_graphics()
+        all_graphics = self.__display.graphics
+        graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
+        command = RemoveGraphicsCommand(self.__display, graphics)
+        if self.__document_controller.remove_selected_graphics():
+            self.__document_controller.push_undo_command(command)
+        else:
+            command.close()
 
     def enter_key_pressed(self):
-        return self.display_canvas_item.handle_auto_display(self.__display)
+        command = ChangeDisplayCommand(self.__display)
+        result = self.display_canvas_item.handle_auto_display(self.__display)
+        if result:
+            self.__document_controller.push_undo_command(command)
+        else:
+            command.close()
+        return result
 
     def cursor_changed(self, pos):
         position_text, value_text = str(), str()
@@ -1512,8 +1571,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__begin_drag(mime_data, thumbnail_data)
 
     def update_display_properties(self, display_properties):
+        command = ChangeDisplayCommand(self.__display)
         for key, value in iter(display_properties.items()):
             setattr(self.__display, key, value)
+        self.__document_controller.push_undo_command(command)
 
     def create_change_display_command(self) -> ChangeDisplayCommand:
         return ChangeDisplayCommand(self.__display)

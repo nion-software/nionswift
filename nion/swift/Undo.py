@@ -7,9 +7,13 @@ _ = gettext.gettext
 
 class UndoableCommand(abc.ABC):
 
-    @abc.abstractmethod
+    def __init__(self):
+        self.__old_modified_state = None
+        self.__new_modified_state = None
+
     def close(self):
-        pass
+        self.__old_modified_state = None
+        self.__new_modified_state = None
 
     @property
     @abc.abstractmethod
@@ -21,13 +25,42 @@ class UndoableCommand(abc.ABC):
     def title(self, title: str) -> None:
         pass
 
+    @property
+    def is_redo_valid(self) -> bool:
+        return self.__old_modified_state == self._get_modified_state()
+
+    @property
+    def is_undo_valid(self) -> bool:
+        return self.__new_modified_state == self._get_modified_state()
+
+    def initialize(self):
+        self.__old_modified_state = self._get_modified_state()
+
+    def commit(self):
+        self.__new_modified_state = self._get_modified_state()
+
+    def undo(self):
+        self._undo()
+        self._set_modified_state(self.__old_modified_state)
+
+    def redo(self):
+        self._redo()
+        self._set_modified_state(self.__new_modified_state)
+
     @abc.abstractmethod
-    def undo(self) -> None:
+    def _get_modified_state(self):
         pass
 
     @abc.abstractmethod
-    def redo(self) -> None:
+    def _set_modified_state(self, modified_state) -> None:
         pass
+
+    @abc.abstractmethod
+    def _undo(self) -> None:
+        pass
+
+    def _redo(self) -> None:
+        self._undo()
 
 
 class UndoStack:
@@ -39,11 +72,15 @@ class UndoStack:
 
     @property
     def can_redo(self) -> bool:
-        return len(self.__redo_stack) > 0
+        return len(self.__redo_stack) > 0 and self.__redo_stack[-1].is_redo_valid
 
     @property
     def can_undo(self) -> bool:
-        return len(self.__undo_stack) > 0
+        return len(self.__undo_stack) > 0 and self.__undo_stack[-1].is_undo_valid
+
+    def validate(self) -> None:
+        if len(self.__undo_stack) > 0 and not self.__undo_stack[-1].is_undo_valid:
+            self.clear()
 
     @property
     def undo_title(self) -> str:
@@ -57,11 +94,17 @@ class UndoStack:
             return _("Redo") + " " + self.__redo_stack[-1].title
         return _("Redo")
 
+    @property
+    def _undo_count(self) -> int:
+        return len(self.__undo_stack)  # for testing
+
+    @property
+    def _redo_count(self) -> int:
+        return len(self.__redo_stack)  # for testing
+
     def clear(self) -> None:
-        # close current to last
         while len(self.__redo_stack) > 0:
             self.__redo_stack.pop().close()
-        # close current to first
         while (len(self.__undo_stack)) > 0:
             self.__undo_stack.pop().close()
 
@@ -79,7 +122,7 @@ class UndoStack:
 
     def push(self, undo_command: UndoableCommand) -> None:
         assert undo_command
-        # close current to last
         self.__undo_stack.append(undo_command)
+        undo_command.commit()
         while len(self.__redo_stack) > 0:
             self.__redo_stack.pop().close()

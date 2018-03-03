@@ -981,6 +981,7 @@ class DocumentController(Window.Window):
             self.__undo_stack.undo()
 
     def get_undo_menu_item_state(self):
+        self.__undo_stack.validate()
         return UserInterface.MenuItemState(title=self.__undo_stack.undo_title, enabled=self.__undo_stack.can_undo, checked=False)
 
     def handle_redo(self):

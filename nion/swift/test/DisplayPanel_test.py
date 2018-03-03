@@ -1605,6 +1605,42 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertTrue(document_controller._undo_stack.can_undo)
                 self.assertFalse(document_controller._undo_stack.can_redo)
 
+    def test_display_undo_invalidated_with_external_change(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            interval_graphic = Graphics.IntervalGraphic()
+            interval_graphic.start = 0.3
+            interval_graphic.end = 0.5
+            data_item.displays[0].add_graphic(interval_graphic)
+            data_item.displays[0].graphic_selection.set(0)
+            document_model.append_data_item(data_item)
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            command = DisplayPanel.ChangeDisplayCommand(data_item.displays[0])
+            data_item.displays[0].graphics[0].interval = 0.4, 0.6
+            document_controller.push_undo_command(command)
+            # check the undo status. use full object specifiers since objects may be replaced.
+            self.assertEqual(1, len(data_item.displays[0].graphics))
+            self.assertAlmostEqual(0.4, data_item.displays[0].graphics[0].interval[0], 1)
+            self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
+            self.assertTrue(document_controller._undo_stack.can_undo)
+            self.assertFalse(document_controller._undo_stack.can_redo)
+            # external change
+            data_item.displays[0].graphics[0].interval = (0.3, 0.5)
+            document_controller._undo_stack.validate()
+            self.assertFalse(document_controller._undo_stack.can_undo)
+            self.assertFalse(document_controller._undo_stack.can_redo)
+            # make another change, make sure stack is cleared
+            command = DisplayPanel.ChangeDisplayCommand(data_item.displays[0])
+            data_item.displays[0].graphics[0].interval = 0.4, 0.6
+            document_controller.push_undo_command(command)
+            self.assertTrue(document_controller._undo_stack.can_undo)
+            self.assertFalse(document_controller._undo_stack.can_redo)
+            self.assertEqual(1, document_controller._undo_stack._undo_count)
+            self.assertEqual(0, document_controller._undo_stack._redo_count)
+
     def test_dragging_to_create_and_change_interval_undo_redo_cycle(self):
         app = Application.Application(TestUI.UserInterface(), set_global=False)
         document_model = DocumentModel.DocumentModel()
