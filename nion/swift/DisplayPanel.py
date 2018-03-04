@@ -365,10 +365,18 @@ class RelatedIconsCanvasItem(CanvasItem.CanvasItemComposition):
         self.set_display(None)
         super().close()
 
+    @property
+    def _source_thumbnails(self):
+        return self.__source_thumbnails
+
+    @property
+    def _dependent_thumbnails(self):
+        return self.__dependent_thumbnails
+
     def __related_items_changed(self, display, source_displays, dependent_displays):
-        self.__source_thumbnails.remove_all_canvas_items()
-        self.__dependent_thumbnails.remove_all_canvas_items()
         if display == self.__display:
+            self.__source_thumbnails.remove_all_canvas_items()
+            self.__dependent_thumbnails.remove_all_canvas_items()
             for source_display in source_displays:
                 thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(self.ui, display=source_display)
                 thumbnail_canvas_item = DataItemThumbnailWidget.ThumbnailCanvasItem(self.ui, thumbnail_source, self.__thumbnail_size)
@@ -941,6 +949,10 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     @property
     def _display_items_for_test(self):
         return self.__filtered_display_items_model.display_items
+
+    @property
+    def _related_icons_canvas_item(self):
+        return self.__related_icons_canvas_item
 
     @property
     def header_canvas_item(self):

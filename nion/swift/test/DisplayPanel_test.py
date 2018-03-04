@@ -1510,6 +1510,23 @@ class TestDisplayPanelClass(unittest.TestCase):
             document_model.remove_data_item(composite_item)
             self.assertEqual(len(document_model.data_items), 0)
 
+    def test_dependency_icons_updated_properly_when_one_of_two_dependents_are_removed(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((100, )))
+            document_model.append_data_item(data_item)
+            display_panel = document_controller.selected_display_panel
+            document_model.get_crop_new(data_item)
+            document_model.get_line_profile_new(data_item)
+            self.assertEqual(3, len(document_model.data_items))
+            self.assertEqual(2, len(data_item.displays[0].graphics))
+            self.assertEqual(2, len(document_model.get_dependent_items(data_item)))
+            display_panel.set_display_panel_data_item(data_item)
+            self.assertEqual(2, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
+            data_item.displays[0].remove_graphic(data_item.displays[0].graphics[1])
+            self.assertEqual(1, len(display_panel._related_icons_canvas_item._dependent_thumbnails.canvas_items))
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)
