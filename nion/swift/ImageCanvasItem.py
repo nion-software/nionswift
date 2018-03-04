@@ -11,6 +11,7 @@ import scipy.ndimage
 
 # local libraries
 from nion.data import Calibration
+from nion.swift import Undo
 from nion.swift.model import Graphics
 from nion.swift.model import Utility
 from nion.ui import CanvasItem
@@ -267,7 +268,15 @@ class ImageCanvasItemDelegate:
 
     def cursor_changed(self, pos): ...
 
-    def update_display_properties(self, display_properties: dict) -> None: ...
+    def update_display_properties(self, display_properties: typing.Mapping) -> None: ...
+
+    def create_insert_graphic_command(self, graphic: Graphics.Graphic) -> Undo.UndoableCommand: ...
+
+    def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> Undo.UndoableCommand: ...
+
+    def create_change_graphics_command(self) -> Undo.UndoableCommand: ...
+
+    def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
 
     def add_index_to_selection(self, index: int) -> None: ...
 
@@ -361,7 +370,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         remove_index_from_selection(index)
         set_selection(index)
         clear_selection()
-        add_and_select_region(region)
         nudge_selected_graphics(mapping, delta)
         update_graphics(widget_mapping, graphic_drag_items, graphic_drag_part, graphic_part_data, graphic_drag_start_pos, pos, modifiers)
         tool_mode (property)
@@ -427,6 +435,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__data_shape = None
         self.__graphics = list()
         self.__graphic_selection = None
+
+        # used for tracking undo
+        self.__undo_command = None
 
         # used for dragging graphic items
         self.__graphic_drag_items = []
@@ -636,6 +647,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         image_position = self.__get_mouse_mapping().map_point_widget_to_image((y, x))
         if self.delegate.image_mouse_pressed(image_position, modifiers):
             return True
+        self.__undo_command = None
         self.delegate.begin_mouse_tracking()
         # figure out clicked graphic
         self.__graphic_drag_items = []
@@ -723,6 +735,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "rectangle":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -744,6 +757,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "ellipse":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -765,6 +779,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "point":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -786,6 +801,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "line-profile":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -807,6 +823,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "spot":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -828,6 +845,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "wedge":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -850,6 +868,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "ring":
             widget_mapping = self.__get_mouse_mapping()
             pos = widget_mapping.map_point_widget_to_image_norm(Geometry.FloatPoint(y, x))
@@ -872,6 +891,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__graphic_drag_indexes = selection_indexes
                 self.__graphic_drag_items.append(graphic)
                 self.__graphic_part_data[list(selection_indexes)[0]] = graphic.begin_drag()
+                self.__undo_command = self.delegate.create_insert_graphic_command(graphic)
         elif self.delegate.tool_mode == "hand":
             self.__start_drag_pos = (y, x)
             self.__last_drag_pos = (y, x)
@@ -902,7 +922,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                         self.delegate.remove_index_from_selection(graphic_index)
                     else:
                         self.delegate.add_index_to_selection(graphic_index)
-            self.delegate.end_mouse_tracking(None)
+            self.delegate.end_mouse_tracking(self.__undo_command)
         self.__graphic_drag_items = []
         self.__graphic_drag_item = None
         self.__graphic_part_data = {}
@@ -959,6 +979,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__last_mouse = Geometry.IntPoint(x=x, y=y)
         self.__update_cursor_info()
         if self.__graphic_drag_items:
+            if not self.__undo_command:
+                self.__undo_command = self.delegate.create_change_graphics_command()
             force_drag = modifiers.only_option
             if force_drag and self.__graphic_drag_part == "all":
                 if Geometry.distance(self.__last_mouse, self.__graphic_drag_start_pos) <= 2:
@@ -970,6 +992,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                                           Geometry.FloatPoint(y=y, x=x), modifiers)
             self.__graphic_drag_changed = True
         elif self.__is_dragging:
+            if not self.__undo_command:
+                self.__undo_command = self.delegate.create_change_display_command()
             delta = (y - self.__last_drag_pos[0], x - self.__last_drag_pos[1])
             self.__update_image_canvas_position((-delta[0], -delta[1]))
             self.__last_drag_pos = (y, x)
@@ -979,7 +1003,9 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         if self.__mouse_in:
             dx = dx if is_horizontal else 0.0
             dy = dy if not is_horizontal else 0.0
+            command = self.delegate.create_change_display_command(command_id="image_position", is_mergeable=True)
             self.__update_image_canvas_position((-dy, -dx))
+            self.delegate.push_undo_command(command)
             return True
         return False
 
@@ -1190,36 +1216,46 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                 self.__bitmap_canvas_item.set_rgba_bitmap_data(data_rgba, trigger_update=False)
             self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
 
-    def set_fit_mode(self):
-        self.delegate.update_display_properties({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "fit"})
-
-    def set_fill_mode(self):
-        self.delegate.update_display_properties({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "fill"})
-
-    def set_one_to_one_mode(self):
-        self.delegate.update_display_properties({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "1:1"})
-
-    def set_two_to_one_mode(self):
-        self.delegate.update_display_properties({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
-
     @property
     def image_canvas_mode(self):
         return self.__image_canvas_mode
 
+    def __apply_display_properties_command(self, display_properties: typing.Mapping):
+        command = self.delegate.create_change_display_command()
+        self.delegate.update_display_properties(display_properties)
+        self.delegate.push_undo_command(command)
+
+    def __apply_move_command(self, delta):
+        command = self.delegate.create_change_display_command(command_id="image_nudge", is_mergeable=True)
+        self.__update_image_canvas_position(delta)
+        self.delegate.push_undo_command(command)
+
+    def set_fit_mode(self):
+        self.__apply_display_properties_command({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "fit"})
+
+    def set_fill_mode(self):
+        self.__apply_display_properties_command({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "fill"})
+
+    def set_one_to_one_mode(self):
+        self.__apply_display_properties_command({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "1:1"})
+
+    def set_two_to_one_mode(self):
+        self.__apply_display_properties_command({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
+
     def zoom_in(self):
-        self.delegate.update_display_properties({"image_zoom": self.__image_zoom * 1.25, "image_canvas_mode": "custom"})
+        self.__apply_display_properties_command({"image_zoom": self.__image_zoom * 1.25, "image_canvas_mode": "custom"})
 
     def zoom_out(self):
-        self.delegate.update_display_properties({"image_zoom": self.__image_zoom / 1.25, "image_canvas_mode": "custom"})
+        self.__apply_display_properties_command({"image_zoom": self.__image_zoom / 1.25, "image_canvas_mode": "custom"})
 
     def move_left(self, amount=10.0):
-        self.__update_image_canvas_position((0.0, amount))
+        self.__apply_move_command((0.0, amount))
 
     def move_right(self, amount=10.0):
-        self.__update_image_canvas_position((0.0, -amount))
+        self.__apply_move_command((0.0, -amount))
 
     def move_up(self, amount=10.0):
-        self.__update_image_canvas_position((amount, 0.0))
+        self.__apply_move_command((amount, 0.0))
 
     def move_down(self, amount=10.0):
-        self.__update_image_canvas_position((-amount, 0.0))
+        self.__apply_move_command((-amount, 0.0))

@@ -1618,7 +1618,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             data_item.displays[0].graphic_selection.set(0)
             document_model.append_data_item(data_item)
             self.assertEqual(1, len(data_item.displays[0].graphics))
-            command = DisplayPanel.ChangeDisplayCommand(data_item.displays[0])
+            command = DisplayPanel.ChangeGraphicsCommand(data_item.displays[0], [interval_graphic])
             data_item.displays[0].graphics[0].interval = 0.4, 0.6
             document_controller.push_undo_command(command)
             # check the undo status. use full object specifiers since objects may be replaced.
@@ -1633,7 +1633,7 @@ class TestDisplayPanelClass(unittest.TestCase):
             self.assertFalse(document_controller._undo_stack.can_undo)
             self.assertFalse(document_controller._undo_stack.can_redo)
             # make another change, make sure stack is cleared
-            command = DisplayPanel.ChangeDisplayCommand(data_item.displays[0])
+            command = DisplayPanel.ChangeGraphicsCommand(data_item.displays[0], [interval_graphic])
             data_item.displays[0].graphics[0].interval = 0.4, 0.6
             document_controller.push_undo_command(command)
             self.assertTrue(document_controller._undo_stack.can_undo)
@@ -1695,6 +1695,28 @@ class TestDisplayPanelClass(unittest.TestCase):
                 self.assertAlmostEqual(0.6, data_item.displays[0].graphics[0].interval[1], 1)
                 self.assertTrue(document_controller._undo_stack.can_undo)
                 self.assertFalse(document_controller._undo_stack.can_redo)
+
+    def test_display_undo_display_changes_command_merges_repeated_commands(self):
+        app = Application.Application(TestUI.UserInterface(), set_global=False)
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.random.randn(8))
+            document_model.append_data_item(data_item)
+            data_item.displays[0].y_min = 0
+            data_item.displays[0].y_max = 5
+            y_min = data_item.displays[0].y_min
+            y_max = data_item.displays[0].y_max
+            for i in range(3):
+                command = DisplayPanel.ChangeDisplayCommand(data_item.displays[0], command_id="y", is_mergeable=True)
+                data_item.displays[0].y_min += 1
+                data_item.displays[0].y_max += 1
+                document_controller.push_undo_command(command)
+                self.assertEqual(1, document_controller._undo_stack._undo_count)
+            document_controller.handle_undo()
+            self.assertEqual(0, document_controller._undo_stack._undo_count)
+            self.assertEqual(y_min, data_item.displays[0].y_min)
+            self.assertEqual(y_max, data_item.displays[0].y_max)
 
 
 if __name__ == '__main__':

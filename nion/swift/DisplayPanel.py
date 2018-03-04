@@ -726,11 +726,9 @@ class DisplayTracker:
 
 
 class InsertGraphicCommand(Undo.UndoableCommand):
-    title = None
 
-    def __init__(self, display, graphic):
-        super().__init__()
-        self.title = _("Insert Graphic")
+    def __init__(self, display: Display.Display, graphic: Graphics.Graphic):
+        super().__init__(_("Insert Graphic"))
         self.__properties = None
         self.__display = display
         self.__graphic = graphic
@@ -759,13 +757,11 @@ class InsertGraphicCommand(Undo.UndoableCommand):
 
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
-    title = None
 
-    def __init__(self, display):
-        super().__init__()
-        self.title = _("Change Display")
+    def __init__(self, display: Display.Display, *, command_id: str=None, is_mergeable: bool=False):
+        super().__init__(_("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__display = display
-        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max)
+        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max, self.__display.image_zoom, self.__display.image_position, self.__display.image_canvas_mode)
         self.initialize()
 
     def close(self):
@@ -781,20 +777,24 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
 
     def _undo(self):
         properties = self.__properties
-        self.__properties = (
-        self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max)
+        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max, self.__display.image_zoom, self.__display.image_position, self.__display.image_canvas_mode)
         self.__display.left_channel = properties[0]
         self.__display.right_channel = properties[1]
         self.__display.y_min = properties[2]
         self.__display.y_max = properties[3]
+        self.__display.image_zoom = properties[4]
+        self.__display.image_position = properties[5]
+        self.__display.image_canvas_mode = properties[6]
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display == command.__display
+
 
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
-    title = None
 
     def __init__(self, display, graphics):
-        super().__init__()
-        self.title = _("Change Graphics")
+        super().__init__(_("Change Graphics"))
         self.__display = display
         self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
@@ -821,11 +821,9 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
 
 
 class RemoveGraphicsCommand(Undo.UndoableCommand):
-    title = None
 
     def __init__(self, display, graphics):
-        super().__init__()
-        self.title = _("Remove Graphics")
+        super().__init__(_("Remove Graphics"))
         self.initialize()
 
     def close(self):
@@ -1571,18 +1569,22 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             self.__begin_drag(mime_data, thumbnail_data)
 
     def update_display_properties(self, display_properties):
-        command = ChangeDisplayCommand(self.__display)
         for key, value in iter(display_properties.items()):
             setattr(self.__display, key, value)
-        self.__document_controller.push_undo_command(command)
 
-    def create_change_display_command(self) -> ChangeDisplayCommand:
-        return ChangeDisplayCommand(self.__display)
+    def create_insert_graphic_command(self, graphic: Graphics.Graphic) -> InsertGraphicCommand:
+        return InsertGraphicCommand(self.__display, graphic)
+
+    def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> ChangeDisplayCommand:
+        return ChangeDisplayCommand(self.__display, command_id=command_id, is_mergeable=is_mergeable)
 
     def create_change_graphics_command(self) -> ChangeGraphicsCommand:
         all_graphics = self.__display.graphics
         graphics = [graphic for graphic_index, graphic in enumerate(all_graphics) if self.__display.graphic_selection.contains(graphic_index)]
         return ChangeGraphicsCommand(self.__display, graphics)
+
+    def push_undo_command(self, command: Undo.UndoableCommand) -> None:
+        self.__document_controller.push_undo_command(command)
 
     def create_rectangle(self, pos):
         bounds = tuple(pos), (0, 0)

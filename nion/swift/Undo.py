@@ -7,23 +7,28 @@ _ = gettext.gettext
 
 class UndoableCommand(abc.ABC):
 
-    def __init__(self):
+    def __init__(self, title: str, *, command_id: str=None, is_mergeable: bool=False):
         self.__old_modified_state = None
         self.__new_modified_state = None
+        self.__title = title
+        self.__command_id = command_id
+        self.__is_mergeable = is_mergeable
 
     def close(self):
         self.__old_modified_state = None
         self.__new_modified_state = None
 
     @property
-    @abc.abstractmethod
-    def title(self) -> str:
-        return str()
+    def title(self):
+        return self.__title
 
-    @title.setter
-    @abc.abstractmethod
-    def title(self, title: str) -> None:
-        pass
+    @property
+    def command_id(self):
+        return self.__command_id
+
+    @property
+    def is_mergeable(self):
+        return self.__is_mergeable
 
     @property
     def is_redo_valid(self) -> bool:
@@ -46,6 +51,17 @@ class UndoableCommand(abc.ABC):
     def redo(self):
         self._redo()
         self._set_modified_state(self.__new_modified_state)
+
+    def can_merge(self, command: "UndoableCommand") -> bool:
+        return False
+
+    def merge(self, command: "UndoableCommand") -> None:
+        assert self.command_id and self.command_id == command.command_id
+        self._merge(command)
+        self.__new_modified_state = self._get_modified_state()
+
+    def _merge(self, command: "UndoableCommand") -> None:
+        pass
 
     @abc.abstractmethod
     def _get_modified_state(self):
@@ -122,7 +138,11 @@ class UndoStack:
 
     def push(self, undo_command: UndoableCommand) -> None:
         assert undo_command
-        self.__undo_stack.append(undo_command)
         undo_command.commit()
+        last_undo_command = self.__undo_stack[-1] if self.__undo_stack else None
+        if last_undo_command and last_undo_command.is_mergeable and undo_command.is_mergeable and last_undo_command.command_id == undo_command.command_id:
+            last_undo_command.merge(undo_command)
+        else:
+            self.__undo_stack.append(undo_command)
         while len(self.__redo_stack) > 0:
             self.__redo_stack.pop().close()

@@ -53,9 +53,11 @@ class LinePlotCanvasItemDelegate:
 
     def update_display_properties(self, display_properties: dict) -> None: ...
 
-    def create_change_display_command(self) -> Undo.UndoableCommand: ...
+    def create_change_display_command(self, *, command_id: str=None, is_mergeable: bool=False) -> Undo.UndoableCommand: ...
 
     def create_change_graphics_command(self) -> Undo.UndoableCommand: ...
+
+    def push_undo_command(self, command: Undo.UndoableCommand) -> None: ...
 
     def add_index_to_selection(self, index: int) -> None: ...
 
@@ -575,10 +577,14 @@ class LinePlotCanvasItem(CanvasItem.LayerCanvasItem):
         if self.delegate.tool_mode == "pointer":
             pos = Geometry.IntPoint(x=x, y=y)
             if self.line_graph_horizontal_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.line_graph_horizontal_axis_group_canvas_item)):
+                command = self.delegate.create_change_display_command()
                 self.delegate.update_display_properties({"left_channel": None, "right_channel": None})
+                self.delegate.push_undo_command(command)
                 return True
             elif self.__line_graph_vertical_axis_group_canvas_item.canvas_bounds.contains_point(self.map_to_canvas_item(pos, self.__line_graph_vertical_axis_group_canvas_item)):
+                command = self.delegate.create_change_display_command()
                 self.delegate.update_display_properties({"y_min": None, "y_max": None})
+                self.delegate.push_undo_command(command)
                 return True
         return False
 
