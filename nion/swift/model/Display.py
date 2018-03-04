@@ -438,6 +438,10 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         # data scaling and color (raster)
         self.define_property("display_limits", validate=self.__validate_display_limits, changed=self.__property_changed)
         self.define_property("color_map_id", changed=self.__color_map_id_changed)
+        # image zoom and position
+        self.define_property("image_zoom", 1.0, changed=self.__property_changed)
+        self.define_property("image_position", (0.5, 0.5), changed=self.__property_changed)
+        self.define_property("image_canvas_mode", "fit", changed=self.__property_changed)
         # line plot axes and labels
         self.define_property("y_min", changed=self.__property_changed)
         self.define_property("y_max", changed=self.__property_changed)

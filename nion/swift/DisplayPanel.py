@@ -659,9 +659,16 @@ class DisplayTracker:
             display_values = display.get_calculated_display_values()
             display_rgba_changed(display_values)
 
+        def display_property_changed(property: str) -> None:
+            if property in ("y_min", "y_max", "left_channel", "right_channel", "image_zoom", "image_position", "image_canvas_mode"):
+                with self.__closing_lock:
+                    display_values = display.get_calculated_display_values()
+                    self.__display_canvas_item.update_display_values(display, display_values)
+
         self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
         self.__display_graphic_selection_changed_event_listener = display.display_graphic_selection_changed_event.listen(display_graphic_selection_changed)
         self.__display_changed_event_listener = display.display_changed_event.listen(display_changed)
+        self.__display_property_changed_listener = display.property_changed_event.listen(display_property_changed)
 
         # this may throw exceptions (during testing). make sure to close if that happens, ensuring that the
         # layer items (image/line plot) get shut down.
@@ -674,6 +681,8 @@ class DisplayTracker:
         with self.__closing_lock:  # ensures that display pipeline finishes
             self.__display_changed_event_listener.close()
             self.__display_changed_event_listener = None
+            self.__display_property_changed_listener.close()
+            self.__display_property_changed_listener = None
             self.__display_graphic_selection_changed_event_listener.close()
             self.__display_graphic_selection_changed_event_listener = None
             self.__next_calculated_display_values_listener.close()
@@ -791,9 +800,6 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         # used for the (optional) display canvas item
         self.__closing_lock = threading.RLock()
-        self.__display_changed_event_listener = None
-        self.__display_graphic_selection_changed_event_listener = None
-        self.__next_calculated_display_values_listener = None
 
         self.__related_icons_canvas_item = RelatedIconsCanvasItem(self.ui, document_model)
         self.__related_icons_canvas_item.on_drag = document_controller.drag

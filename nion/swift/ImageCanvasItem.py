@@ -3,6 +3,7 @@ import copy
 import logging
 import math
 import threading
+import typing
 
 # third party libraries
 import numpy
@@ -266,6 +267,8 @@ class ImageCanvasItemDelegate:
 
     def cursor_changed(self, pos): ...
 
+    def update_display_properties(self, display_properties: dict) -> None: ...
+
     def add_index_to_selection(self, index: int) -> None: ...
 
     def remove_index_from_selection(self, index: int) -> None: ...
@@ -313,6 +316,37 @@ class ImageCanvasItemDelegate:
     def tool_mode(self, value: str) -> None: ...
 
 
+def calculate_origin_and_size(canvas_size, data_shape, image_canvas_mode, image_zoom, image_position) -> typing.Tuple[typing.Any, typing.Any]:
+    """Calculate origin and size for canvas size, data shape, and image display parameters."""
+    if data_shape is None:
+        return None, None
+    if image_canvas_mode == "fill":
+        data_shape = data_shape
+        scale_h = float(data_shape[1]) / canvas_size[1]
+        scale_v = float(data_shape[0]) / canvas_size[0]
+        if scale_v < scale_h:
+            image_canvas_size = (canvas_size[0], canvas_size[0] * data_shape[1] / data_shape[0])
+        else:
+            image_canvas_size = (canvas_size[1] * data_shape[0] / data_shape[1], canvas_size[1])
+        image_canvas_origin = (canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
+    elif image_canvas_mode == "fit":
+        image_canvas_size = canvas_size
+        image_canvas_origin = (0, 0)
+    elif image_canvas_mode == "1:1":
+        image_canvas_size = data_shape
+        image_canvas_origin = (canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
+    elif image_canvas_mode == "2:1":
+        image_canvas_size = (data_shape[0] * 0.5, data_shape[1] * 0.5)
+        image_canvas_origin = (canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
+    else:
+        image_canvas_size = (canvas_size[0] * image_zoom, canvas_size[1] * image_zoom)
+        canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), data_shape)
+        image_canvas_origin_y = (canvas_size[0] * 0.5) - image_position[0] * canvas_rect[1][0] - canvas_rect[0][0]
+        image_canvas_origin_x = (canvas_size[1] * 0.5) - image_position[1] * canvas_rect[1][1] - canvas_rect[0][1]
+        image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
+    return image_canvas_origin, image_canvas_size
+
+
 class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     """A canvas item to paint an image.
 
@@ -355,8 +389,8 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.__closing_lock = threading.RLock()
         self.__closed = False
 
-        self.__last_image_zoom = 1.0
-        self.__last_image_norm_center = (0.5, 0.5)
+        self.__image_zoom = 1.0
+        self.__image_position = (0.5, 0.5)
         self.__image_canvas_mode = "fit"
 
         self.__last_display_values = None
@@ -378,7 +412,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
         self.scroll_area_canvas_item._constrain_position = False  # temporary until scroll bars are implemented
 
         def layout_updated(canvas_origin, canvas_size, *, immediate=False):
-            self.__scroll_area_canvas_item_layout_updated(canvas_size, immediate=immediate)
+            self.__update_overlay_canvas_item(canvas_size, immediate=immediate)
 
         self.scroll_area_canvas_item.on_layout_updated = layout_updated
         # info overlay (scale marker, etc.)
@@ -463,7 +497,6 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                     dimensional_calibration = Calibration.Calibration()
 
             data_shape = display.preview_2d_shape
-            dimension_calibration = dimensional_calibration
             metadata = data_and_metadata.metadata
 
             # this method may trigger a layout of its parent scroll area. however, the parent scroll
@@ -473,9 +506,17 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             with self.__closing_lock:
                 if self.__closed:
                     return
-                assert not self.__closed
+
+                if self.__image_zoom != display.image_zoom or self.__image_position != display.image_position or self.__image_canvas_mode != display.image_canvas_mode:
+                    if display.image_zoom is not None:
+                        self.__image_zoom = display.image_zoom
+                    if display.image_position is not None:
+                        self.__image_position = display.image_position
+                    if display.image_canvas_mode is not None:
+                        self.__image_canvas_mode = display.image_canvas_mode
+
                 # setting the bitmap on the bitmap_canvas_item is delayed until paint, so that it happens on a thread, since it may be time consuming
-                self.__info_overlay_canvas_item.set_data_info(data_shape, dimension_calibration, metadata)
+                self.__info_overlay_canvas_item.set_data_info(data_shape, dimensional_calibration, metadata)
                 # if the data changes, update the display.
                 if display_values is not self.__display_values or self.__graphics_changed:
                     self.__graphics_changed = False
@@ -509,13 +550,16 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
                             scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
                             if scroll_area_canvas_size is not None:
                                 # only update layout if the size/origin will change. it is slow.
-                                image_canvas_origin, image_canvas_size = self.__calculate_origin_and_size(scroll_area_canvas_size)
+                                image_canvas_origin, image_canvas_size = calculate_origin_and_size(scroll_area_canvas_size, self.__data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
                                 if image_canvas_origin != self.__composite_canvas_item.canvas_origin or image_canvas_size != self.__composite_canvas_item.canvas_size:
                                     self.__update_layout_handle = self.__event_loop.call_soon_threadsafe(update_layout)
                                 else:
                                     # trigger updates
                                     self.__bitmap_canvas_item.update()
                                     with self.__update_layout_handle_lock:
+                                        update_layout_handle = self.__update_layout_handle
+                                        if update_layout_handle:
+                                            update_layout_handle.cancel()
                                         self.__update_layout_handle = None
 
     def update_regions(self, display, graphic_selection):
@@ -532,7 +576,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
     def __update_image_canvas_zoom(self, new_image_zoom):
         if self.__data_shape is not None:
             self.__image_canvas_mode = "custom"
-            self.__last_image_zoom = new_image_zoom
+            self.__image_zoom = new_image_zoom
             self.__update_image_canvas_size()
 
     # update the image canvas position by the widget delta amount
@@ -541,7 +585,7 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             # create a widget mapping to get from image norm to widget coordinates and back
             widget_mapping = ImageCanvasItemMapping(self.__data_shape, (0, 0), self.__composite_canvas_item.canvas_size)
             # figure out what composite canvas point lies at the center of the scroll area.
-            last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__last_image_norm_center)
+            last_widget_center = widget_mapping.map_point_image_norm_to_widget(self.__image_position)
             # determine what new point will lie at the center of the scroll area by adding delta
             new_widget_center = (last_widget_center[0] + widget_delta[0], last_widget_center[1] + widget_delta[1])
             # map back to image norm coordinates
@@ -550,75 +594,27 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             new_image_norm_center_0 = max(min(new_image_norm_center[0], 1.0), 0.0)
             new_image_norm_center_1 = max(min(new_image_norm_center[1], 1.0), 0.0)
             # save the new image norm center
-            self.__last_image_norm_center = (new_image_norm_center_0, new_image_norm_center_1)
+            self.delegate.update_display_properties({"image_position": list(self.__image_position), "image_canvas_mode": "custom"})
+            self.__image_position = (new_image_norm_center_0, new_image_norm_center_1)
             # and update the image canvas accordingly
             self.__image_canvas_mode = "custom"
             self.__update_image_canvas_size()
 
-    def __calculate_origin_and_size(self, scroll_area_canvas_size):
-        dimensional_shape = self.__data_shape
-        if dimensional_shape is None:
-            return None, None
-        if self.__image_canvas_mode == "fill":
-            dimensional_shape = dimensional_shape
-            scale_h = float(dimensional_shape[1]) / scroll_area_canvas_size[1]
-            scale_v = float(dimensional_shape[0]) / scroll_area_canvas_size[0]
-            if scale_v < scale_h:
-                image_canvas_size = (scroll_area_canvas_size[0], scroll_area_canvas_size[0] * dimensional_shape[1] / dimensional_shape[0])
-            else:
-                image_canvas_size = (scroll_area_canvas_size[1] * dimensional_shape[0] / dimensional_shape[1], scroll_area_canvas_size[1])
-            image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
-        elif self.__image_canvas_mode == "fit":
-            image_canvas_size = scroll_area_canvas_size
-            image_canvas_origin = (0, 0)
-        elif self.__image_canvas_mode == "1:1":
-            image_canvas_size = dimensional_shape
-            image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
-        elif self.__image_canvas_mode == "2:1":
-            image_canvas_size = (dimensional_shape[0] * 0.5, dimensional_shape[1] * 0.5)
-            image_canvas_origin = (scroll_area_canvas_size[0] * 0.5 - image_canvas_size[0] * 0.5, scroll_area_canvas_size[1] * 0.5 - image_canvas_size[1] * 0.5)
-        else:
-            c = self.__last_image_norm_center
-            image_canvas_size = (scroll_area_canvas_size[0] * self.__last_image_zoom, scroll_area_canvas_size[1] * self.__last_image_zoom)
-            canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
-            # c[0] = ((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) - canvas_rect[0][0])/canvas_rect[1][0]
-            image_canvas_origin_y = (scroll_area_canvas_size[0] * 0.5) - c[0] * canvas_rect[1][0] - canvas_rect[0][0]
-            image_canvas_origin_x = (scroll_area_canvas_size[1] * 0.5) - c[1] * canvas_rect[1][1] - canvas_rect[0][1]
-            image_canvas_origin = (image_canvas_origin_y, image_canvas_origin_x)
-        return image_canvas_origin, image_canvas_size
-
     # update the image canvas origin and size
-    def __scroll_area_canvas_item_layout_updated(self, scroll_area_canvas_size, *, immediate=False):
-        image_canvas_origin, image_canvas_size = self.__calculate_origin_and_size(scroll_area_canvas_size)
+    def __update_overlay_canvas_item(self, scroll_area_canvas_size, *, immediate=False):
+        image_canvas_origin, image_canvas_size = calculate_origin_and_size(scroll_area_canvas_size, self.__data_shape, self.__image_canvas_mode, self.__image_zoom, self.__image_position)
         if image_canvas_origin is None or image_canvas_size is None:
-            self.__last_image_norm_center = (0.5, 0.5)
-            self.__last_image_zoom = 1.0
             self.__info_overlay_canvas_item.image_canvas_origin = None
             self.__info_overlay_canvas_item.image_canvas_size = None
-            return
-        dimensional_shape = self.__data_shape
-        self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, immediate=immediate)
-        # the image will be drawn centered within the canvas size
-        if dimensional_shape and len(dimensional_shape) >= 2 and dimensional_shape[0] > 0.0 and dimensional_shape[1] > 0.0:
-            #logging.debug("scroll_area_canvas_size %s", scroll_area_canvas_size)
-            #logging.debug("image_canvas_origin %s", image_canvas_origin)
-            #logging.debug("image_canvas_size %s", image_canvas_size)
-            #logging.debug("dimensional_shape %s", dimensional_shape)
-            #logging.debug("c %s %s", (scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0]) / dimensional_shape[0], (scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]) / dimensional_shape[1])
-            widget_mapping = ImageCanvasItemMapping(dimensional_shape, (0, 0), image_canvas_size)
-            #logging.debug("c2 %s", widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1])))
-            self.__last_image_norm_center = widget_mapping.map_point_widget_to_image_norm((scroll_area_canvas_size[0] * 0.5 - image_canvas_origin[0], scroll_area_canvas_size[1] * 0.5 - image_canvas_origin[1]))
-            canvas_rect = Geometry.fit_to_size(((0, 0), image_canvas_size), dimensional_shape)
-            scroll_rect = Geometry.fit_to_size(((0, 0), scroll_area_canvas_size), dimensional_shape)
-            self.__last_image_zoom = float(canvas_rect[1][0]) / scroll_rect[1][0]
-            #logging.debug("z %s (%s)", self.__last_image_zoom, float(canvas_rect[1][1]) / scroll_rect[1][1])
+        else:
+            self.__composite_canvas_item.update_layout(image_canvas_origin, image_canvas_size, immediate=immediate)
             self.__info_overlay_canvas_item.image_canvas_origin = image_canvas_origin
             self.__info_overlay_canvas_item.image_canvas_size = image_canvas_size
 
     def __update_image_canvas_size(self):
         scroll_area_canvas_size = self.scroll_area_canvas_item.canvas_size
         if scroll_area_canvas_size is not None:
-            self.__scroll_area_canvas_item_layout_updated(scroll_area_canvas_size)
+            self.__update_overlay_canvas_item(scroll_area_canvas_size)
             self.__composite_canvas_item.update()
 
     def mouse_clicked(self, x, y, modifiers):
@@ -1195,42 +1191,26 @@ class ImageCanvasItem(CanvasItem.LayerCanvasItem):
             self.__timestamp_canvas_item.timestamp = display_values.display_rgba_timestamp if self.__display_latency else None
 
     def set_fit_mode(self):
-        #logging.debug("---------> fit")
-        self.__image_canvas_mode = "fit"
-        self.__last_image_zoom = 1.0
-        self.__last_image_norm_center = (0.5, 0.5)
-        self.__update_image_canvas_size()
+        self.delegate.update_display_properties({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "fit"})
 
     def set_fill_mode(self):
-        #logging.debug("---------> fill")
-        self.__image_canvas_mode = "fill"
-        self.__last_image_zoom = 1.0
-        self.__last_image_norm_center = (0.5, 0.5)
-        self.__update_image_canvas_size()
+        self.delegate.update_display_properties({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "fill"})
 
     def set_one_to_one_mode(self):
-        #logging.debug("---------> 1:1")
-        self.__image_canvas_mode = "1:1"
-        self.__last_image_zoom = 1.0
-        self.__last_image_norm_center = (0.5, 0.5)
-        self.__update_image_canvas_size()
+        self.delegate.update_display_properties({"image_zoom": 1.0, "image_position": (0.5, 0.5), "image_canvas_mode": "1:1"})
 
     def set_two_to_one_mode(self):
-        #logging.debug("---------> 2:1")
-        self.__image_canvas_mode = "2:1"
-        self.__last_image_zoom = 0.5
-        self.__last_image_norm_center = (0.5, 0.5)
-        self.__update_image_canvas_size()
+        self.delegate.update_display_properties({"image_zoom": 0.5, "image_position": (0.5, 0.5), "image_canvas_mode": "2:1"})
 
     @property
     def image_canvas_mode(self):
         return self.__image_canvas_mode
 
     def zoom_in(self):
-        self.__update_image_canvas_zoom(self.__last_image_zoom * 1.25)
+        self.delegate.update_display_properties({"image_zoom": self.__image_zoom * 1.25, "image_canvas_mode": "custom"})
 
     def zoom_out(self):
-        self.__update_image_canvas_zoom(self.__last_image_zoom / 1.25)
+        self.delegate.update_display_properties({"image_zoom": self.__image_zoom / 1.25, "image_canvas_mode": "custom"})
 
     def move_left(self, amount=10.0):
         self.__update_image_canvas_position((0.0, amount))
