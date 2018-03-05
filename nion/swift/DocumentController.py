@@ -7,6 +7,8 @@ import logging
 import math
 import operator
 import os.path
+import pathlib
+import sys
 import threading
 import time
 import traceback
@@ -459,26 +461,40 @@ class DocumentController(Window.Window):
             def __init__(self, ui):
                 super(AboutDialog, self).__init__(ui, include_cancel=False)
                 row = self.ui.create_row_widget()
+                logo_column = self.ui.create_column_widget()
                 logo_button = self.ui.create_push_button_widget()
                 image = self.ui.load_rgba_data_from_file(Decorators.relative_file(__file__, "resources/logo3.png"))
                 logo_button.icon = image
+                logo_column.add_spacing(26)
+                logo_column.add(logo_button)
+                logo_column.add_stretch()
                 column = self.ui.create_column_widget()
-                row_one = self.ui.create_row_widget()
-                row_one.add_spacing(13)
-                row_one.add(self.ui.create_label_widget("Nion Swift {0} {1}".format(version_str, root_dir)))
-                row_one.add_spacing(13)
-                row_one.add_stretch()
-                row_two = self.ui.create_row_widget()
-                row_two.add_spacing(13)
-                row_two.add(self.ui.create_label_widget("Copyright 2012-2017 Nion Co. All Rights Reserved."))
-                row_two.add_spacing(13)
-                row_two.add_stretch()
+
+                def make_label_row(label: str):
+                    row_one = self.ui.create_row_widget()
+                    row_one.add_spacing(13)
+                    row_one.add(self.ui.create_label_widget(label))
+                    row_one.add_spacing(13)
+                    row_one.add_stretch()
+                    return row_one
+
                 column.add_spacing(26)
-                column.add(row_one)
-                column.add(row_two)
+                column.add(make_label_row("Nion Swift {0} {1}".format(version_str, root_dir)))
+                column.add(make_label_row("Copyright 2012-2018 Nion Co. All Rights Reserved."))
+                column.add_spacing(26)
+                column.add(make_label_row(sys.base_prefix))
+                conda_path = pathlib.Path(sys.base_prefix) / "conda-meta"
+                if conda_path.is_dir():
+                    needs_spacing = True
+                    for package in sorted(path.stem for path in conda_path.glob("*.json")):
+                        if any(s in package for s in ["nion", "python", "scipy", "numpy", "pytz", "h5py"]):
+                            if needs_spacing:
+                                column.add_spacing(26)
+                                needs_spacing = False
+                            column.add(make_label_row(package))
                 column.add_spacing(26)
                 column.add_stretch()
-                row.add(logo_button)
+                row.add(logo_column)
                 row.add(column)
                 self.content.add(row)
 
