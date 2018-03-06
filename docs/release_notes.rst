@@ -3,6 +3,28 @@
 Release Notes
 =============
 
+Version 0.12.0, March 6, 2018
+-----------------------------
+* (2018-03-05) Improve About Box to give additional Python and important package version info.
+* (2018-03-03) Make zoom/position of raster image displays persistent.
+* (2018-03-01) Update to new file format (v12). Composites, computations, connections, data structures.
+* (2018-02-27) Fix issue with DM export when exporting 32-bit integer data.
+* (2018-02-27) Fix calibration on histogram processing output.
+* (2018-02-25) Improve compatibility xdata with regular numpy functions.
+* (2018-02-22) Improve resilience of workspace during unexpected exit.
+* (2018-02-22) Improve compatibility of xdata functions with HDF5 backed data items.
+* (2018-02-22) Include eels-analysis package in standard distribution.
+* (2018-02-08) Add (internal) support for data structures.
+* (2018-01-07) Add (internal) support for composite line plot.
+* (2017-12-22) Add (internal) support for composite library items.
+* (2017-12-19) Add aberration simulation to Ronchigram simulator.
+* (2017-12-14) Performance improvements to display pipeline, raster and line plot.
+* (2017-12-09) Fix bugs with data panel, scroll bars.
+* (2017-11-27) Fix bugs with cancelling export dialog.
+* (2017-11-24) Add (internal) support for library computations.
+* (2017-10-27) Improve metadata recording during scans.
+* (2017-10-27) Add xdata squeeze function to remove empty dimensions.
+
 Version 0.11.1, October 23, 2017
 --------------------------------
 * (2017-10-20) Fixed nionlib import issue (wasn't starting host).
