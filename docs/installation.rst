@@ -53,7 +53,7 @@ Nion Swift for Windows requires you to install the Microsoft Visual C++ Redistri
     * Install Anaconda or Miniconda (see above)
     * `Visual C++ Redistributable for Visual Studio 2015 <https://www.microsoft.com/en-us/download/details.aspx?id=48145>`_
     * `Download Nion Swift 0.12.0 for Windows <http://nion.com/swift/files/NionSwift_Windows_np112py36_0.12.0.zip>`_
-    * md5 checksum 69080329efe0dc520a9f09f532bdff96
+    * md5 checksum e4e09b7f213f81a40e8f13488e64a1b8
 
 Run the `Swift.exe` program within the unzipped directory.
 
@@ -79,7 +79,7 @@ Nion Swift for macOS requires macOS 10.11 or later. We recommend using the lates
 
     * Install Anaconda or Miniconda (see above)
     * `Download Nion Swift 0.12.0 for macOS <http://nion.com/swift/files/NionSwift_MacOS_np112py36_0.12.0.zip>`_
-    * md5 checksum b6c3fbb66e96fa0fb8a4eb917ce24d29
+    * md5 checksum 291514cd29ab13c7f049599638c2c1a2
 
 Run the NionSwift program within the unzipped directory.
 
@@ -99,7 +99,7 @@ but please contact us if you need to run on Debian 8 as there may be workarounds
     * Install Anaconda or Miniconda (see above)
     * Install qt5-default (`sudo apt-get qt5-default`)
     * `Download Nion Swift 0.12.0 for Linux <http://nion.com/swift/files/NionSwift_Linux_np112py36_0.12.0.zip>`_
-    * md5 checksum 23f82e46a83b6cdc72d3aee0149ecb37
+    * md5 checksum 6ee351e3e83a273df9e73368dd571ead
 
 Run the NionSwift program within the unzipped directory from ``Terminal``.
 
