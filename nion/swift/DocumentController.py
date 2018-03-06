@@ -360,7 +360,7 @@ class DocumentController(Window.Window):
             if not selected_display_panel:
                 return
 
-            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self._display_type_menu, selected_display_panel))
+            self.__dynamic_live_actions.extend(DisplayPanel.DisplayPanelManager().build_menu(self._display_type_menu, self, selected_display_panel))
 
         self._display_type_menu = self.create_sub_menu()
         self._display_type_menu.on_about_to_show = about_to_show_display_type_menu
@@ -565,11 +565,18 @@ class DocumentController(Window.Window):
     def _undo_stack(self):
         return self.__undo_stack
 
+    @property
+    def last_undo_command(self) -> typing.Optional[Undo.UndoableCommand]:
+        return self.__undo_stack.last_command
+
     def push_undo_command(self, undo_command: Undo.UndoableCommand) -> None:
         if undo_command:
             self.__undo_stack.push(undo_command)
         else:
             self.__undo_stack.clear()
+
+    def pop_undo_command(self) -> typing.Optional[Undo.UndoableCommand]:
+        return self.__undo_stack.pop_command()
 
     @property
     def workspace_controller(self):

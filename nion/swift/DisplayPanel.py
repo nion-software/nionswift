@@ -839,15 +839,38 @@ class RemoveGraphicsCommand(Undo.UndoableCommand):
         pass
 
 
+class ReplaceDisplayPanelCommand(Undo.UndoableCommand):
+    def __init__(self, display_panel):
+        super().__init__("Replace Display Panel")
+        self.__display_panel = display_panel
+        self.__old_d = display_panel.save_contents()
+        self.__new_d = None
+        self.initialize()
+
+    def _get_modified_state(self):
+        return 0
+
+    def _set_modified_state(self, modified_state) -> None:
+     pass
+
+    def _undo(self) -> None:
+        self.__new_d = self.__display_panel.save_contents()
+        self.__display_panel.change_display_panel_content(self.__old_d)
+
+    def _redo(self) -> None:
+        self.__old_d = self.__display_panel.save_contents()
+        self.__display_panel.change_display_panel_content(self.__new_d)
+
+
 class DisplayPanel(CanvasItem.CanvasItemComposition):
     """A canvas item to display a library item. Allows library item to be changed."""
 
-    def __init__(self, document_controller, d):
+    def __init__(self, document_controller, d, new_uuid: uuid.UUID=None):
         super().__init__()
         self.__weak_document_controller = weakref.ref(document_controller)
         document_controller.register_display_panel(self)
         self.wants_mouse_events = True
-        self.uuid = uuid.UUID(d.get("uuid", str(uuid.uuid4())))
+        self.uuid = uuid.UUID(d.get("uuid", str(new_uuid if new_uuid else uuid.uuid4())))
         self.__identifier = d.get("identifier", "".join([random.choice(string.ascii_uppercase) for _ in range(2)]))
         self.ui = document_controller.ui
 
@@ -905,7 +928,8 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         def close():
             if len(workspace_controller.display_panels) > 1:
-                workspace_controller.remove_display_panel(self)
+                command = workspace_controller.remove_display_panel(self)
+                document_controller.push_undo_command(command)
 
         self.__header_canvas_item.on_select_pressed = self._select
         self.__header_canvas_item.on_drag_pressed = self.__handle_begin_drag
@@ -1160,6 +1184,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
             display_panel_id = d.get("display_panel_id")
             if display_panel_id:
                 self.__display_panel_id = display_panel_id
+            self.__identifier = d.get("identifier", self.__identifier)
             controller_type = d.get("controller_type")
             self.__set_display_panel_controller(DisplayPanelManager().make_display_panel_controller(controller_type, self, d))
             if not self.__display_panel_controller:
@@ -1175,6 +1200,7 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
                     self.__switch_to_grid_browser()
                 else:
                     self.__switch_to_no_browser()
+            self.__header_canvas_item.label = "#" + self.identifier
         except Exception as e:
             # catch and print any exceptions, but kill the exception so layout stays intact
             global _test_log_exceptions
@@ -1200,7 +1226,14 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
     def _drag_finished(self, document_controller, action):
         if action == "move" and document_controller.replaced_display_panel_content is not None:
             d = document_controller.replaced_display_panel_content
+            command = ReplaceDisplayPanelCommand(self)
             self.__change_display_panel_content(document_controller, d)
+            last_command = document_controller.last_undo_command
+            if isinstance(last_command, ReplaceDisplayPanelCommand):
+                command.commit()
+                document_controller.pop_undo_command()
+                command = Undo.AggregateUndoableCommand(last_command.title, [last_command, command])
+            document_controller.push_undo_command(command)
             document_controller.replaced_display_panel_content = None
 
     def image_clicked(self, image_position, modifiers):
@@ -1423,17 +1456,19 @@ class DisplayPanel(CanvasItem.CanvasItemComposition):
 
         def split_vertical():
             if workspace_controller:
-                return workspace_controller.insert_display_panel(self, "bottom")
+                command = workspace_controller.insert_display_panel(self, "bottom")
+                self.__document_controller.push_undo_command(command)
 
         def split_horizontal():
             if workspace_controller:
-                return workspace_controller.insert_display_panel(self, "right")
+                command = workspace_controller.insert_display_panel(self, "right")
+                self.__document_controller.push_undo_command(command)
 
         menu.add_separator()
         menu.add_menu_item(_("Split Into Top and Bottom"), split_vertical)
         menu.add_menu_item(_("Split Into Left and Right"), split_horizontal)
         menu.add_separator()
-        DisplayPanelManager().build_menu(menu, self)
+        DisplayPanelManager().build_menu(menu, self.__document_controller, self)
         menu.popup(gx, gy)
         return True
 
@@ -1728,7 +1763,15 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
                 return display_panel_controller
         return None
 
-    def build_menu(self, display_type_menu, selected_display_panel):
+    def switch_to_display_content(self, document_controller, display_panel: DisplayPanel, display_panel_type, data_item: DataItem.DataItem=None):
+        d = {"type": "image", "display-panel-type": display_panel_type}
+        if data_item and display_panel_type != "empty-display-panel":
+            d["data_item_uuid"] = str(data_item.uuid)
+        command = ReplaceDisplayPanelCommand(display_panel)
+        display_panel.change_display_panel_content(d)
+        document_controller.push_undo_command(command)
+
+    def build_menu(self, display_type_menu, document_controller, display_panel):
         """Build the dynamic menu for the selected display panel.
 
         The user accesses this menu by right-clicking on the display panel.
@@ -1741,11 +1784,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         dynamic_live_actions = list()
 
         def switch_to_display_content(display_panel_type):
-            d = {"type": "image", "display-panel-type": display_panel_type}
-            data_item = selected_display_panel.data_item
-            if data_item and display_panel_type != "empty-display-panel":
-                d["data_item_uuid"] = str(data_item.uuid)
-            selected_display_panel.change_display_panel_content(d)
+            self.switch_to_display_content(document_controller, display_panel, display_panel_type, display_panel.data_item)
 
         empty_action = display_type_menu.add_menu_item(_("None"), functools.partial(switch_to_display_content, "empty-display-panel"))
         display_type_menu.add_separator()
@@ -1755,7 +1794,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         grid_browser_action = display_type_menu.add_menu_item(_("Grid Browser"), functools.partial(switch_to_display_content, "browser-display-panel"))
         display_type_menu.add_separator()
 
-        display_panel_type = selected_display_panel.display_panel_type
+        display_panel_type = display_panel.display_panel_type
 
         empty_action.checked = display_panel_type == "empty"
         data_item_display_action.checked = display_panel_type == "data_item"
@@ -1768,7 +1807,7 @@ class DisplayPanelManager(metaclass=Utility.Singleton):
         dynamic_live_actions.append(grid_browser_action)
 
         for factory in self.__display_controller_factories.values():
-            dynamic_live_actions.extend(factory.build_menu(display_type_menu, selected_display_panel))
+            dynamic_live_actions.extend(factory.build_menu(display_type_menu, display_panel))
 
         return dynamic_live_actions
 

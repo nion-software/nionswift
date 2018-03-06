@@ -310,6 +310,7 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             display_panel = workspace_controller.display_panels[0]
+            display_panel.container.on_splits_will_change()
             display_panel.container.splits = [0.4, 0.6]
             display_panel.container.on_splits_changed()
             # copy the storage before the document closes
@@ -371,6 +372,240 @@ class TestWorkspaceClass(unittest.TestCase):
             root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
             root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
             self.assertEqual("grid", display_panel.save_contents()["browser_type"])
+
+    def test_workspace_insert_into_no_splitter_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            # save the original layout
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # insert a new display
+            command = workspace_controller.insert_display_panel(display_panel, "bottom")
+            document_controller.push_undo_command(command)
+            document_controller.selected_display_panel = display_panel
+            # record the new layout
+            new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # undo the insert
+            document_controller.handle_undo()
+            document_controller.selected_display_panel = display_panel
+            # compare against old layout
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # now redo
+            document_controller.handle_redo()
+            document_controller.selected_display_panel = display_panel
+            # compare against new layout
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+
+    def test_workspace_insert_into_splitter_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.insert_display_panel(display_panel, "bottom").close()
+            document_controller.selected_display_panel = display_panel
+            # save the original layout
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # insert a new display
+            command = workspace_controller.insert_display_panel(display_panel, "bottom")
+            document_controller.push_undo_command(command)
+            document_controller.selected_display_panel = display_panel
+            # record the new layout
+            new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # undo the insert
+            document_controller.handle_undo()
+            document_controller.selected_display_panel = display_panel
+            # compare against old layout
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # now redo
+            document_controller.handle_redo()
+            document_controller.selected_display_panel = display_panel
+            # compare against new layout
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+
+    def test_workspace_remove_from_splitter_with_two_items_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.insert_display_panel(display_panel, "bottom").close()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            document_controller.selected_display_panel = display_panel
+            # save the original layout
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # remove display
+            command = workspace_controller.remove_display_panel(display_panel)
+            document_controller.push_undo_command(command)
+            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # record the new layout
+            new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # undo the remove
+            document_controller.handle_undo()
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
+            # document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against old layout
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # now redo
+            document_controller.handle_redo()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against new layout
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+
+    def test_workspace_remove_from_splitter_with_three_items_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.insert_display_panel(display_panel, "bottom").close()
+            workspace_controller.insert_display_panel(display_panel, "bottom").close()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            document_controller.selected_display_panel = display_panel
+            # save the original layout
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # remove display
+            command = workspace_controller.remove_display_panel(display_panel)
+            document_controller.push_undo_command(command)
+            document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # record the new layout
+            new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # undo the remove
+            document_controller.handle_undo()
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
+            # document_controller.selected_display_panel = display_panel
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against old layout
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # now redo
+            document_controller.handle_redo()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against new layout
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+
+    def test_workspace_replace_display_panel_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            display_panel.set_display_panel_data_item(data_item)
+            # save the original layout
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # change the display
+            DisplayPanel.DisplayPanelManager().switch_to_display_content(document_controller, display_panel, "empty-display-panel")
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # record the new layout
+            new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            self.assertNotEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # undo the remove
+            document_controller.handle_undo()
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against old layout
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # now redo
+            document_controller.handle_redo()
+            # compare against new layout
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+
+    def test_workspace_swap_display_panel_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.insert_display_panel(display_panel, "bottom").close()
+            display_panel2 = workspace_controller.display_panels[1]
+            display_panel.set_display_panel_data_item(data_item)
+            # save the original layout
+            old_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            # change the display by dragging 2 into 1
+            command = workspace_controller._replace_displayed_data_item(display_panel, None, display_panel2.save_contents())
+            document_controller.push_undo_command(command)
+            display_panel2._drag_finished(document_controller, "move")
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # record the new layout
+            new_workspace_layout = copy.deepcopy(workspace_controller._workspace_layout)
+            self.assertNotEqual(old_workspace_layout, new_workspace_layout)
+            self.assertEqual(old_workspace_layout["children"][0]["data_item_uuid"], new_workspace_layout["children"][1]["data_item_uuid"])
+            self.assertIsNone(old_workspace_layout["children"][1].get("data_item_uuid"))
+            self.assertIsNone(new_workspace_layout["children"][0].get("data_item_uuid"))
+            # undo the remove
+            document_controller.handle_undo()
+            document_controller.selected_display_panel = workspace_controller.display_panels[1]  # display_panel will have changed now
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against old layout
+            self.assertEqual(old_workspace_layout, workspace_controller._workspace_layout)
+            # now redo
+            document_controller.handle_redo()
+            document_controller.selected_display_panel = workspace_controller.display_panels[0]  # display_panel will have changed now
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against new layout
+            self.assertEqual(new_workspace_layout, workspace_controller._workspace_layout)
+
+    def test_workspace_change_splitter_undo_and_redo_works_cleanly(self):
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(library_storage=library_storage)
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((4, 4)))
+            document_model.append_data_item(data_item)
+            root_canvas_item = document_controller.workspace_controller.image_row.children[0]._root_canvas_item()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            workspace_controller = document_controller.workspace_controller
+            display_panel = workspace_controller.display_panels[0]
+            workspace_controller.insert_display_panel(display_panel, "bottom").close()
+            splitter_canvas_item = display_panel.container
+            # save the original splits
+            old_splits = splitter_canvas_item.splits
+            # change the splits
+            workspace_controller._splits_will_change(splitter_canvas_item)
+            splitter_canvas_item.splits = [0.25, 0.75]
+            workspace_controller._splits_did_change(splitter_canvas_item)
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # record the new splits
+            new_splits = splitter_canvas_item.splits
+            self.assertNotEqual(old_splits, new_splits)
+            # undo the remove
+            document_controller.handle_undo()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against old layout
+            self.assertEqual(old_splits, splitter_canvas_item.splits)
+            # now redo
+            document_controller.handle_redo()
+            root_canvas_item.layout_immediate(Geometry.IntSize(width=640, height=480))
+            # compare against new layout
+            self.assertEqual(new_splits, splitter_canvas_item.splits)
 
     def test_workspace_records_and_reloads_image_panel_contents(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()

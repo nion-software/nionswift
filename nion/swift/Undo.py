@@ -1,5 +1,7 @@
 import abc
+import copy
 import gettext
+import typing
 
 
 _ = gettext.gettext
@@ -38,8 +40,8 @@ class UndoableCommand(abc.ABC):
     def is_undo_valid(self) -> bool:
         return self.__new_modified_state == self._get_modified_state()
 
-    def initialize(self):
-        self.__old_modified_state = self._get_modified_state()
+    def initialize(self, modified_state=None):
+        self.__old_modified_state = modified_state if modified_state else self._get_modified_state()
 
     def commit(self):
         self.__new_modified_state = self._get_modified_state()
@@ -79,6 +81,39 @@ class UndoableCommand(abc.ABC):
         self._undo()
 
 
+class AggregateUndoableCommand(UndoableCommand):
+
+    def __init__(self, title: str, children: typing.Sequence[UndoableCommand]=None):
+        super().__init__(title)
+        self.__commands = copy.copy(children)
+
+    def close(self):
+        while len(self.__commands) > 0:
+            self.__commands.pop().close()
+
+    @property
+    def is_redo_valid(self) -> bool:
+        return self.__commands[0].is_redo_valid if self.__commands else False
+
+    @property
+    def is_undo_valid(self) -> bool:
+        return self.__commands[-1].is_redo_valid if self.__commands else False
+
+    def _get_modified_state(self):
+        return self.__commands[-1]._get_modified_state()
+
+    def _set_modified_state(self, modified_state) -> None:
+        pass
+
+    def _undo(self) -> None:
+        for command in reversed(self.__commands):
+            command.undo()
+
+    def _redo(self) -> None:
+        for command in self.__commands:
+            command.redo()
+
+
 class UndoStack:
 
     def __init__(self):
@@ -93,6 +128,13 @@ class UndoStack:
     @property
     def can_undo(self) -> bool:
         return len(self.__undo_stack) > 0 and self.__undo_stack[-1].is_undo_valid
+
+    @property
+    def last_command(self) -> typing.Optional[UndoableCommand]:
+        return self.__undo_stack[-1] if self.__undo_stack else None
+
+    def pop_command(self) -> typing.Optional[UndoableCommand]:
+        return self.__undo_stack.pop() if self.__undo_stack else None
 
     def validate(self) -> None:
         if len(self.__undo_stack) > 0 and not self.__undo_stack[-1].is_undo_valid:

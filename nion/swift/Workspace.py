@@ -1,7 +1,10 @@
 # standard libraries
 import copy
+import functools
 import gettext
 import json
+import random
+import string
 import uuid
 import weakref
 
@@ -10,12 +13,20 @@ import weakref
 
 # local libraries
 from nion.swift import DisplayPanel
+from nion.swift import Undo
 from nion.swift.model import Utility
 from nion.swift.model import WorkspaceLayout
 from nion.ui import CanvasItem
 
 
 _ = gettext.gettext
+
+
+def create_image():
+    return {"type": "image", "identifier": "".join([random.choice(string.ascii_uppercase) for _ in range(2)]), "uuid": str(uuid.uuid4())}
+
+def create_splitter(orientation: str, splits, children):
+    return {"type": "splitter", "orientation": orientation, "splits": copy.copy(splits), "children": children}
 
 
 class Workspace:
@@ -161,9 +172,6 @@ class Workspace:
             traceback.print_stack()
             return None
 
-    def __create_display_panel(self, d):
-        return DisplayPanel.DisplayPanel(self.document_controller, d)
-
     def display_data_item_in_display_panel(self, data_item, display_panel_id):
         for display_panel in self.display_panels:
             if display_panel.display_panel_id == display_panel_id:
@@ -180,14 +188,15 @@ class Workspace:
             container = CanvasItem.CanvasItemComposition()
         elif type == "splitter":
             container = CanvasItem.SplitterCanvasItem(orientation=desc.get("orientation"))
-            container.on_splits_changed = self.__sync_layout
+            container.on_splits_will_change = functools.partial(self._splits_will_change, container)
+            container.on_splits_changed = functools.partial(self._splits_did_change, container)
             def splitter_post_children_adjust():
                 splits = desc.get("splits")
                 if splits is not None:
                     container.splits = splits
             post_children_adjust = splitter_post_children_adjust
         elif type == "image":
-            display_panel = self.__create_display_panel(desc)
+            display_panel = DisplayPanel.DisplayPanel(self.document_controller, desc)
             display_panel.on_contents_changed = self.__sync_layout
             display_panels.append(display_panel)
             if desc.get("selected", False):
@@ -212,15 +221,20 @@ class Workspace:
     def _deconstruct(self, canvas_item):
         if isinstance(canvas_item, CanvasItem.SplitterCanvasItem):
             children = [self._deconstruct(child_canvas_item) for child_canvas_item in canvas_item.canvas_items]
-            return { "type": "splitter", "orientation": canvas_item.orientation, "splits": copy.copy(canvas_item.splits), "children": children }
+            return create_splitter(canvas_item.orientation, canvas_item.splits, children)
         if isinstance(canvas_item, DisplayPanel.DisplayPanel):
             display_panel = canvas_item
-            desc = { "type": "image" }
+            desc = create_image()
             if display_panel._is_selected():
                 desc["selected"] = True
             desc.update(display_panel.save_contents())
             return desc
         return None
+
+    @property
+    def _workspace_layout(self):
+        return self._deconstruct(self.__canvas_item.canvas_items[0])
+        # return self.__workspace.layout
 
     def change_workspace(self, workspace):
         assert workspace is not None
@@ -256,7 +270,9 @@ class Workspace:
             traceback.print_exc()
             traceback.print_stack()
         if self.__workspace == None:  # handle error condition by creating known simple workspace and replacing bad one
-            workspace.layout = { "type": "image", "selected": True }
+            d = create_image()
+            d["selected"] = True
+            workspace.layout = d
             display_panels = list()  # to be populated by _construct
             canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
             # store the new workspace
@@ -298,7 +314,9 @@ class Workspace:
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.WorkspaceLayout()
         self.document_model.append_workspace(workspace)
-        workspace.layout = layout if layout is not None else { "type": "image", "selected": True }
+        d = create_image()
+        d["selected"] = True
+        workspace.layout = layout if layout is not None else d
         workspace.name = name if name is not None else _("Workspace")
         if workspace_id:
             workspace.workspace_id = workspace_id
@@ -472,32 +490,39 @@ class Workspace:
         if mime_data.has_format(DisplayPanel.DISPLAY_PANEL_MIME_TYPE):
             d = json.loads(mime_data.data_as_string(DisplayPanel.DISPLAY_PANEL_MIME_TYPE))
             if region == "right" or region == "left" or region == "top" or region == "bottom":
-                self.insert_display_panel(display_panel, region, None, d)
+                command = self.insert_display_panel(display_panel, region, None, d)
+                self.document_controller.push_undo_command(command)
             else:
-                self.__replace_displayed_data_item(display_panel, None, d)
+                command = self.__replace_displayed_data_item(display_panel, None, d)
+                self.document_controller.push_undo_command(command)
             return "move"
         if mime_data.has_format("text/library_item_uuid"):
             library_item_uuid = uuid.UUID(mime_data.data_as_string("text/library_item_uuid"))
             library_item = document_model.get_data_item_by_key(library_item_uuid)
             if library_item:
                 if region == "right" or region == "left" or region == "top" or region == "bottom":
-                    self.insert_display_panel(display_panel, region, library_item)
+                    command = self.insert_display_panel(display_panel, region, library_item)
+                    self.document_controller.push_undo_command(command)
                 else:
-                    self.__replace_displayed_data_item(display_panel, library_item)
+                    command = self.__replace_displayed_data_item(display_panel, library_item)
+                    self.document_controller.push_undo_command(command)
                 return "copy"
         if mime_data.has_format("text/data_item_uuid"):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = document_model.get_data_item_by_key(data_item_uuid)
             if data_item:
                 if region == "right" or region == "left" or region == "top" or region == "bottom":
-                    self.insert_display_panel(display_panel, region, data_item)
+                    command = self.insert_display_panel(display_panel, region, data_item)
+                    self.document_controller.push_undo_command(command)
                 else:
-                    self.__replace_displayed_data_item(display_panel, data_item)
+                    command = self.__replace_displayed_data_item(display_panel, data_item)
+                    self.document_controller.push_undo_command(command)
                 return "copy"
         if mime_data.has_format("text/uri-list"):
             def receive_files_complete(received_data_items):
                 def update_displayed_data_item():
-                    self.__replace_displayed_data_item(display_panel, received_data_items[0])
+                    command = self.__replace_displayed_data_item(display_panel, received_data_items[0])
+                    self.document_controller.push_undo_command(command)
                 if len(received_data_items) > 0:
                     self.document_controller.queue_task(update_displayed_data_item)
             index = len(document_model.data_items)
@@ -505,38 +530,117 @@ class Workspace:
             return "copy"
         return "ignore"
 
-    def __replace_displayed_data_item(self, display_panel, data_item, d=None):
+    def _replace_displayed_data_item(self, display_panel, data_item, d=None) -> Undo.UndoableCommand:
+        return self.__replace_displayed_data_item(display_panel, data_item, d)
+
+    def __replace_displayed_data_item(self, display_panel, data_item, d=None) -> Undo.UndoableCommand:
         """ Used in drag/drop support. """
         self.document_controller.replaced_display_panel_content = display_panel.save_contents()
+        command = DisplayPanel.ReplaceDisplayPanelCommand(display_panel)
         if data_item:
             display_panel.set_display_panel_data_item(data_item, detect_controller=True)
         elif d is not None:
             display_panel.change_display_panel_content(d)
         display_panel.request_focus()
         self.__sync_layout()
+        return command
 
-    def insert_display_panel(self, display_panel, region, data_item=None, d=None):
+    class SplitDisplayPanelCommand(Undo.UndoableCommand):
+        def __init__(self, workspace, workspace_x, modified_state, display_panel, region, data_item, d, old_splits, new_display_panel):
+            super().__init__("Split Display Panel")
+            self.__workspace = workspace
+            self.__workspace_x = workspace_x
+            self.__display_panel = display_panel
+            self.__region = region
+            self.__data_item = data_item
+            self.__d = d
+            self.__old_splits = old_splits
+            self.__new_display_panel = new_display_panel
+            self.__uuid = new_display_panel.uuid
+            self.initialize(modified_state)
+
+        def _get_modified_state(self):
+            return self.__workspace_x.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+         self.__workspace_x.modified_state = modified_state
+
+        @property
+        def _new_display_panel(self):
+            return self.__new_display_panel
+
+        @property
+        def _old_splits(self):
+            return self.__old_splits
+
+        def _undo(self) -> None:
+            command = self.__workspace.remove_display_panel(self.__new_display_panel, self.__old_splits)
+            self.__d = command._d
+            self.__data_item = None
+            command.close()
+
+        def _redo(self) -> None:
+            command = self.__workspace.insert_display_panel(self.__display_panel, self.__region, self.__data_item, self.__d, self.__uuid)
+            self.__new_display_panel = command.__new_display_panel
+            command.close()
+
+    class RemoveDisplayPanelCommand(Undo.UndoableCommand):
+        def __init__(self, workspace, workspace_x, modified_state, old_display_panel, region, d, old_uuid, old_splits):
+            super().__init__("Remove Display Panel")
+            self.__workspace = workspace
+            self.__workspace_x = workspace_x
+            self.__old_display_panel = old_display_panel
+            self.__region = region
+            self.__d = d
+            self.__old_uuid = old_uuid
+            self.__old_splits = old_splits
+            self.__new_splits = None
+            self.__new_display_panel = None
+            self.initialize(modified_state)
+
+        def _get_modified_state(self):
+            return self.__workspace_x.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+         self.__workspace_x.modified_state = modified_state
+
+        @property
+        def _d(self):
+            return self.__d
+
+        def _undo(self) -> None:
+            command = self.__workspace.insert_display_panel(self.__old_display_panel, self.__region, None, self.__d, self.__old_uuid, self.__old_splits)
+            self.__new_splits = command._old_splits
+            self.__new_display_panel = command._new_display_panel
+            command.close()
+
+        def _redo(self) -> None:
+            command = self.__workspace.remove_display_panel(self.__new_display_panel, self.__new_splits)
+            command.close()
+
+    def insert_display_panel(self, display_panel, region, data_item=None, d=None, new_uuid=None, new_splits=None) -> Undo.UndoableCommand:
         assert isinstance(display_panel, DisplayPanel.DisplayPanel)
-        orientation = "vertical" if region == "right" or region == "left" else "horizontal"
+        orientation = "vertical" if region in ("left", "right") else "horizontal"
+        new_display_panel = None
+        modified_state = self.__workspace.modified_state
         container = display_panel.container
-        if isinstance(container, CanvasItem.SplitterCanvasItem):
+        # record old splits for undo if modifying an existing splitter; otherwise removing the display panel is trivial
+        old_splits = list(container.splits) if isinstance(container, CanvasItem.SplitterCanvasItem) and container.orientation == orientation else None
+        # if not modifying an existing splitter or if modifying in the other orientation, wrap panel in new splitter
+        if not isinstance(container, CanvasItem.SplitterCanvasItem) or container.orientation != orientation:
             # check if trying to drag on non-axis edge of splitter
-            if container.orientation != orientation:
-                splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
-                splitter_canvas_item.on_splits_changed = self.__sync_layout
-                container.wrap_canvas_item(display_panel, splitter_canvas_item)
-                container = splitter_canvas_item
-        if not isinstance(container, CanvasItem.SplitterCanvasItem):  # special case where top level item is the image panel
+            # special case where top level item is the image panel
             splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation=orientation)
-            splitter_canvas_item.on_splits_changed = self.__sync_layout
+            splitter_canvas_item.on_splits_will_change = functools.partial(self._splits_will_change, splitter_canvas_item)
+            splitter_canvas_item.on_splits_changed = functools.partial(self._splits_did_change, splitter_canvas_item)
             container.wrap_canvas_item(display_panel, splitter_canvas_item)
             container = splitter_canvas_item
         index = container.canvas_items.index(display_panel)
         if isinstance(container, CanvasItem.SplitterCanvasItem):
             # modify the existing splitter
-            old_split = container.splits[index]
+            old_split = container.splits[index] if not new_splits else None
             new_index_adj = 1 if region == "right" or region == "bottom" else 0
-            new_display_panel = self.__create_display_panel(dict())
+            new_display_panel = DisplayPanel.DisplayPanel(self.document_controller, dict(), new_uuid)
             self.display_panels.insert(self.display_panels.index(display_panel) + new_index_adj, new_display_panel)
             if data_item:
                 new_display_panel.set_display_panel_data_item(data_item, detect_controller=True)
@@ -545,29 +649,91 @@ class Workspace:
             container.insert_canvas_item(index + new_index_adj, new_display_panel)
             self.document_controller.selected_display_panel = new_display_panel
             # adjust the splits
-            splits = list(container.splits)
-            splits[index] = old_split * 0.5
-            splits[index + 1] = old_split * 0.5
-            container.splits = splits
+            if new_splits:
+                container.splits = copy.copy(new_splits)
+            else:
+                splits = list(container.splits)
+                splits[index] = old_split * 0.5
+                splits[index + 1] = old_split * 0.5
+                container.splits = splits
             new_display_panel.request_focus()
         self.__sync_layout()
+        return Workspace.SplitDisplayPanelCommand(self, self.__workspace, modified_state, display_panel, region, data_item, d, old_splits, new_display_panel)
 
-    def remove_display_panel(self, display_panel):
+    def remove_display_panel(self, display_panel, splits=None) -> Undo.UndoableCommand:
+        # save the old display panel
+        d = display_panel.save_contents()
         # first make sure the display panel has no content
         display_panel.change_display_panel_content({"type": "image", "display-panel-type": "empty-display-panel"})
         # now remove it
+        modified_state = self.__workspace.modified_state
         container = display_panel.container
+        region = None
+        old_display_panel = None
+        old_splits = None
         if isinstance(container, CanvasItem.SplitterCanvasItem):
-            if len(container.canvas_items) > 0:
+            old_splits = container.splits
+            if display_panel in container.canvas_items:
+                if len(container.canvas_items) > 1:
+                    # configure the redo
+                    display_panel_index = container.canvas_items.index(display_panel)
+                    if display_panel_index > 0:
+                        old_display_panel = container.canvas_items[display_panel_index - 1]
+                        region = "right" if container.orientation == "vertical" else "bottom"
+                    else:
+                        old_display_panel = container.canvas_items[1]
+                        region = "left" if container.orientation == "vertical" else "top"
                 self.display_panels.remove(display_panel)
                 container.remove_canvas_item(display_panel)
                 if len(container.canvas_items) == 1:
                     container.unwrap_canvas_item(container.canvas_items[0])
+                else:
+                    if splits:
+                        container.splits = copy.copy(splits)
         self.__sync_layout()
+        return Workspace.RemoveDisplayPanelCommand(self, self.__workspace, modified_state, old_display_panel, region, d, display_panel.uuid, old_splits)
 
     def selected_display_panel_changed(self, selected_display_panel):
         for display_panel in self.display_panels:
             display_panel.set_selected(display_panel == selected_display_panel)
+
+    class ChangeSplitterCommand(Undo.UndoableCommand):
+        def __init__(self, splitter_canvas_item, workspace):
+            super().__init__("Change Splitter")
+            self.__splitter_canvas_item = splitter_canvas_item
+            self.__workspace = workspace
+            self.__old_splits = splitter_canvas_item.splits
+            self.__new_splits = None
+            self.initialize()
+
+        @property
+        def splits(self):
+            return self.__old_splits
+
+        def _get_modified_state(self):
+            return self.__workspace.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+            self.__workspace.modified_state = modified_state
+
+        def _undo(self) -> None:
+            self.__new_splits = self.__splitter_canvas_item.splits
+            self.__splitter_canvas_item.splits = self.__old_splits
+
+        def _redo(self) -> None:
+            self.__splitter_canvas_item.splits = self.__new_splits
+
+    def _splits_will_change(self, splitter_canvas_item):
+        self.__change_splitter_command = Workspace.ChangeSplitterCommand(splitter_canvas_item, self.__workspace)
+
+    def _splits_did_change(self, splitter_canvas_item):
+        self.__sync_layout()
+        if self.__change_splitter_command:
+            if splitter_canvas_item.splits != self.__change_splitter_command.splits:
+                self.document_controller.push_undo_command(self.__change_splitter_command)
+            else:
+                self.__change_splitter_command.close()
+            self.__change_splitter_command = None
 
     def __sync_layout(self):
         # ensure that the layout is written to persistent storage
