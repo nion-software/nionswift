@@ -579,18 +579,22 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 else:
                     is_resolved = False
             if is_resolved:
-                compute_class = _computation_types[self.processing_id]
-                try:
-                    api_computation = api._new_api_object(self)
-                    api_computation.api = api
-                    compute_obj = compute_class(api_computation)
-                    compute_obj.execute(**kwargs)
-                except Exception as e:
-                    # import sys, traceback
-                    # traceback.print_exc()
-                    # traceback.format_exception(*sys.exc_info())
+                compute_class = _computation_types.get(self.processing_id)
+                if compute_class:
+                    try:
+                        api_computation = api._new_api_object(self)
+                        api_computation.api = api
+                        compute_obj = compute_class(api_computation)
+                        compute_obj.execute(**kwargs)
+                    except Exception as e:
+                        # import sys, traceback
+                        # traceback.print_exc()
+                        # traceback.format_exception(*sys.exc_info())
+                        compute_obj = None
+                        error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+                else:
                     compute_obj = None
-                    error_text = str(e) or "Unable to evaluate script."  # a stack trace would be too much information right now
+                    error_text = "Missing computation (" + self.processing_id + ")."
             else:
                 error_text = "Missing parameters."
             self._evaluation_count_for_test += 1

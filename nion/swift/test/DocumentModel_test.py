@@ -1344,6 +1344,21 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(0, len(document_model.data_items))
             self.assertEqual(0, len(document_model.computations))
 
+    def test_new_computation_with_missing_processor_fails_gracefully(self):
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src1", document_model.get_object_specifier(data_item))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "nothing"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertTrue(computation.error_text.startswith("Missing computation"))
+
     # solve problem of where to create new elements (same library), generally shouldn't create data items for now?
     # way to configure display for new data items?
     # splitting complex and reconstructing complex does so efficiently (i.e. one recompute for each change at each step)

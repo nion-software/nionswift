@@ -1257,10 +1257,11 @@ class ComputationQueueItem:
                 api = PlugInManager.api_broker_fn("~1.0", None)
                 if not data_item:
                     compute_obj, error_text = computation.evaluate(api)
-                    if computation.error_text != error_text:
+                    if error_text and computation.error_text != error_text:
                         def update_error_text():
                             computation.error_text = error_text
                         pending_data_item_merge = (computation, update_error_text)
+                        return pending_data_item_merge
                     throttle_time = max(DocumentModel.computation_min_period - (time.perf_counter() - computation.last_evaluate_data_time), 0)
                     time.sleep(max(throttle_time, 0.0))
                     if self.valid and compute_obj:  # TODO: race condition for 'valid'
