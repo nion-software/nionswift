@@ -646,8 +646,9 @@ class PersistentDataItemContext(Persistence.PersistentObjectContext):
         self.__migrate_to_v10(reader_info_list)
         self.__migrate_to_v11(reader_info_list)
         self.__migrate_to_v12(reader_info_list, library_updates)
-        # TODO: rename specifier types (data_item -> data_source, library_item -> data_item, region -> graphic)
-        # TODO: switch from 'displays' to a single 'display' in data item
+        # TODO: file format. rename specifier types (data_item -> data_source, library_item -> data_item, region -> graphic)
+        # TODO: file format. switch from 'displays' to a single 'display' in data item
+        # TODO: file format. Rename workspaces to workspace_layouts.
 
     def __migrate_to_v12(self, reader_info_list, library_updates):
         for reader_info in reader_info_list:
@@ -1679,7 +1680,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.__computation_active_item = None  # type: ComputationQueueItem
         self.define_type("library")
         self.define_relationship("data_groups", DataGroup.data_group_factory)
-        self.define_relationship("workspaces", WorkspaceLayout.factory)  # TODO: file format. Rename workspaces to workspace_layouts.
+        self.define_relationship("workspaces", WorkspaceLayout.factory)
         self.define_relationship("computations", computation_factory, insert=self.__inserted_computation, remove=self.__removed_computation)
         self.define_relationship("data_structures", data_structure_factory, insert=self.__inserted_data_structure, remove=self.__removed_data_structure)
         self.define_relationship("connections", Connection.connection_factory, insert=self.__inserted_connection, remove=self.__removed_connection)

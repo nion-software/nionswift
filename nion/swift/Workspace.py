@@ -232,11 +232,19 @@ class Workspace:
         return None
 
     @property
+    def _workspace(self) -> WorkspaceLayout.WorkspaceLayout:
+        return self.__workspace
+
+    @property
     def _workspace_layout(self):
         return self._deconstruct(self.__canvas_item.canvas_items[0])
-        # return self.__workspace.layout
 
-    def change_workspace(self, workspace):
+    def change_workspace(self, workspace: WorkspaceLayout.WorkspaceLayout) -> None:
+        command = Workspace.ChangeWorkspaceCommand(self, workspace)
+        command.perform()
+        self.document_controller.push_undo_command(command)
+
+    def _change_workspace(self, workspace: WorkspaceLayout.WorkspaceLayout) -> None:
         assert workspace is not None
         # save the current workspace
         if self.__workspace:
@@ -256,6 +264,7 @@ class Workspace:
         # self.__canvas_item.focusable = True
         # now construct the workspace
         document_model = self.document_model
+        selected_display_panel = None  # avoids warning
         try:
             display_panels = list()  # to be populated by _construct
             canvas_item, selected_display_panel = self._construct(workspace.layout, display_panels, document_model.get_data_item_by_uuid)
@@ -293,8 +302,7 @@ class Workspace:
         workspace = next((workspace for workspace in self.document_model.workspaces if workspace.uuid == workspace_uuid), None)
         if workspace is None:
             workspace = self.new_workspace()
-        self.change_workspace(workspace)
-        #self.restore_content()
+        self._change_workspace(workspace)
 
     def change_to_previous_workspace(self):
         workspace_uuid = self.document_model.workspace_uuid
@@ -310,10 +318,10 @@ class Workspace:
         workspace_index = (workspace_index + 1) % len(self.document_model.workspaces)
         self.change_workspace(self.document_model.workspaces[workspace_index])
 
-    def new_workspace(self, name=None, layout=None, workspace_id=None):
+    def new_workspace(self, name=None, layout=None, workspace_id=None, index=None) -> WorkspaceLayout.WorkspaceLayout:
         """ Create a new workspace, insert into document_model, and return it. """
         workspace = WorkspaceLayout.WorkspaceLayout()
-        self.document_model.append_workspace(workspace)
+        self.document_model.insert_workspace(index if index is not None else len(self.document_model.workspaces), workspace)
         d = create_image()
         d["selected"] = True
         workspace.layout = layout if layout is not None else d
@@ -330,25 +338,131 @@ class Workspace:
         workspace = next((workspace for workspace in self.document_model.workspaces if workspace.workspace_id == workspace_id), None)
         if not workspace:
             workspace = self.new_workspace(name=name, layout=layout, workspace_id=workspace_id)
-        self.change_workspace(workspace)
+        self._change_workspace(workspace)
 
-    def create_workspace(self):
+    class CreateWorkspaceCommand(Undo.UndoableCommand):
+        def __init__(self, workspace_controller: "Workspace", name: str):
+            super().__init__("Create Workspace")
+            self.__workspace_controller = workspace_controller
+            self.__workspace_layout = workspace_controller._workspace
+            self.__new_name = name
+            self.__new_layout = None
+            self.__new_workspace_id = None
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__workspace_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+         self.__workspace_controller.document_model.modified_state = modified_state
+
+        def perform(self) -> None:
+            new_workspace = self.__workspace_controller.new_workspace(name=self.__new_name, layout=self.__new_layout, workspace_id=self.__new_workspace_id)
+            self.__workspace_controller._change_workspace(new_workspace)
+
+        def _undo(self) -> None:
+            self.__new_layout = self.__workspace_controller._workspace.layout
+            self.__new_workspace_id = self.__workspace_controller._workspace.workspace_id
+            self.__workspace_controller._change_workspace(self.__workspace_layout)
+
+        def _redo(self) -> None:
+            self.perform()
+
+    class RemoveWorkspaceCommand(Undo.UndoableCommand):
+        def __init__(self, workspace_controller: "Workspace"):
+            super().__init__("Remove Workspace")
+            self.__workspace_controller = workspace_controller
+            self.__old_name = workspace_controller._workspace.name
+            self.__old_layout = workspace_controller._workspace.layout
+            self.__old_workspace_id = workspace_controller._workspace.workspace_id
+            self.__old_workspace_index = workspace_controller.document_model.workspaces.index(workspace_controller._workspace)
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__workspace_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+         self.__workspace_controller.document_model.modified_state = modified_state
+
+        def perform(self) -> None:
+            old_workspace = self.__workspace_controller._workspace
+            self.__workspace_controller.change_to_previous_workspace()
+            self.__workspace_controller.document_model.remove_workspace(old_workspace)
+
+        def _undo(self) -> None:
+            new_workspace = self.__workspace_controller.new_workspace(name=self.__old_name, layout=self.__old_layout, workspace_id=self.__old_workspace_id, index=self.__old_workspace_index)
+            self.__workspace_controller._change_workspace(new_workspace)
+
+        def _redo(self) -> None:
+            self.perform()
+
+    class RenameWorkspaceCommand(Undo.UndoableCommand):
+        def __init__(self, workspace_controller: "Workspace", name: str):
+            super().__init__("Rename Workspace")
+            self.__workspace_controller = workspace_controller
+            self.__old_name = workspace_controller._workspace.name
+            self.__new_name = name
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__workspace_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+         self.__workspace_controller.document_model.modified_state = modified_state
+
+        def perform(self) -> None:
+            self.__workspace_controller._workspace.name = self.__new_name
+
+        def _undo(self) -> None:
+            self.__workspace_controller._workspace.name = self.__old_name
+
+        def _redo(self) -> None:
+            self.perform()
+
+    class ChangeWorkspaceCommand(Undo.UndoableCommand):
+        def __init__(self, workspace_controller: "Workspace", workspace: WorkspaceLayout.WorkspaceLayout):
+            super().__init__("Change Workspace")
+            self.__workspace_controller = workspace_controller
+            self.__old_workspace = workspace_controller._workspace
+            self.__new_workspace = workspace
+            self.initialize()
+
+        def _get_modified_state(self):
+            return self.__workspace_controller.document_model.modified_state
+
+        def _set_modified_state(self, modified_state) -> None:
+         self.__workspace_controller.document_model.modified_state = modified_state
+
+        def perform(self) -> None:
+            self.__workspace_controller._change_workspace(self.__new_workspace)
+
+        def _undo(self) -> None:
+            self.__workspace_controller._change_workspace(self.__old_workspace)
+
+        def _redo(self) -> None:
+            self.perform()
+
+    def create_workspace(self) -> None:
         """ Pose a dialog to name and create a workspace. """
 
         def create_clicked(text):
-            if len(text) > 0:
-                self.change_workspace(self.new_workspace(name=text))
+            if text:
+                command = Workspace.CreateWorkspaceCommand(self, text)
+                command.perform()
+                self.document_controller.push_undo_command(command)
 
         self.pose_get_string_message_box(caption=_("Enter a name for the workspace"), text=_("Workspace"),
                                          accepted_fn=create_clicked, accepted_text=_("Create"),
                                          message_box_id="create_workspace")
 
-    def rename_workspace(self):
+    def rename_workspace(self) -> None:
         """ Pose a dialog to rename the workspace. """
 
         def rename_clicked(text):
             if len(text) > 0:
-                self.__workspace.name = text
+                command = Workspace.RenameWorkspaceCommand(self, text)
+                command.perform()
+                self.document_controller.push_undo_command(command)
 
         self.pose_get_string_message_box(caption=_("Enter new name for workspace"), text=self.__workspace.name,
                                          accepted_fn=rename_clicked, accepted_text=_("Rename"),
@@ -359,9 +473,9 @@ class Workspace:
 
         def confirm_clicked():
             if len(self.document_model.workspaces) > 1:
-                workspace = self.__workspace
-                self.change_to_previous_workspace()
-                self.document_model.remove_workspace(workspace)
+                command = Workspace.RemoveWorkspaceCommand(self)
+                command.perform()
+                self.document_controller.push_undo_command(command)
 
         caption = _("Remove workspace named '{0}'?").format(self.__workspace.name)
         self.pose_confirmation_message_box(caption, confirm_clicked, accepted_text=_("Remove Workspace"),
