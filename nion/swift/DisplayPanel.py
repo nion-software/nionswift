@@ -792,11 +792,12 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
 
 class ChangeGraphicsCommand(Undo.UndoableCommand):
 
-    def __init__(self, display, graphics):
-        super().__init__(_("Change Graphics"))
+    def __init__(self, display, graphics, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Change Graphics"), command_id=command_id, is_mergeable=is_mergeable)
         self.__display = display
         self.__graphic_indexes = [display.graphics.index(graphic) for graphic in graphics]
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
+        self.__value_dict = kwargs
         self.initialize()
 
     def close(self):
@@ -804,6 +805,12 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         self.__display = None
         self.__graphic_indexes = None
         super().close()
+
+    def perform(self):
+        graphics = [self.__display.graphics[index] for index in self.__graphic_indexes]
+        for key, value in self.__value_dict.items():
+            for graphic in graphics:
+                setattr(graphic, key, value)
 
     def _get_modified_state(self):
         return self.__display.modified_state
@@ -817,6 +824,9 @@ class ChangeGraphicsCommand(Undo.UndoableCommand):
         self.__properties = [graphic.write_to_dict() for graphic in graphics]
         for graphic, properties in zip(graphics, properties):
             graphic.read_from_dict(properties)
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeGraphicsCommand) and self.command_id and self.command_id == command.command_id and self.__display == command.__display and self.__graphic_indexes == command.__graphic_indexes
 
 
 class RemoveGraphicsCommand(Undo.UndoableCommand):

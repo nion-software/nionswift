@@ -272,6 +272,71 @@ class ChangeDisplayPropertyBinding(Binding.PropertyBinding):
         self.source_setter = set_value
 
 
+class ChangeGraphicPropertyBinding(Binding.PropertyBinding):
+    def __init__(self, document_controller, display, graphic: Graphics.Graphic, property_name: str, converter=None, fallback=None):
+        super().__init__(graphic, property_name, converter=converter, fallback=fallback)
+        self.__property_name = property_name
+        self.__old_source_setter = self.source_setter
+
+        def set_value(value):
+            if value != getattr(graphic, property_name):
+                command = DisplayPanel.ChangeGraphicsCommand(display, [graphic], title=_("Change Display Type"), command_id="change_display_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        self.source_setter = set_value
+
+
+class DisplayPropertyCommandModel(Model.PropertyModel):
+
+    def __init__(self, document_controller, display, property_name, title, command_id):
+        super().__init__(getattr(display, property_name))
+
+        def property_changed_from_user(value):
+            if value != getattr(display, property_name):
+                command = DisplayPanel.ChangeDisplayCommand(display, title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        self.on_value_changed = property_changed_from_user
+
+        def property_changed_from_display(name):
+            if name == property_name:
+                self.value = getattr(display, property_name)
+
+        self.__changed_listener = display.property_changed_event.listen(property_changed_from_display)
+
+    def close(self):
+        self.__changed_listener.close()
+        self.__changed_listener = None
+        super().close()
+
+
+class GraphicPropertyCommandModel(Model.PropertyModel):
+
+    def __init__(self, document_controller, display, graphic, property_name, title, command_id):
+        super().__init__(getattr(graphic, property_name))
+
+        def property_changed_from_user(value):
+            if value != getattr(graphic, property_name):
+                command = DisplayPanel.ChangeGraphicsCommand(display, [graphic], title=title, command_id=command_id, is_mergeable=True, **{property_name: value})
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        self.on_value_changed = property_changed_from_user
+
+        def property_changed_from_graphic(name):
+            if name == property_name:
+                self.value = getattr(graphic, property_name)
+
+        self.__changed_listener = graphic.property_changed_event.listen(property_changed_from_graphic)
+
+    def close(self):
+        self.__changed_listener.close()
+        self.__changed_listener = None
+        super().close()
+
+
 class InfoInspectorSection(InspectorSection):
 
     """
@@ -591,7 +656,8 @@ class CalibrationToObservable(Observable.Observable):
         self.notify_property_changed("units")
 
 
-def make_calibration_style_chooser(ui, display):
+def make_calibration_style_chooser(document_controller, display):
+    ui = document_controller.ui
     calibration_styles = display.calibration_styles
 
     display_calibration_style_options = [(calibration_style.label, calibration_style.calibration_style_id) for calibration_style in calibration_styles]
@@ -608,7 +674,7 @@ def make_calibration_style_chooser(ui, display):
                 return calibration_styles[0].label
 
     display_calibration_style_chooser = ui.create_combo_box_widget(items=display_calibration_style_options, item_getter=operator.itemgetter(0))
-    display_calibration_style_chooser.bind_current_index(Binding.PropertyBinding(display, "dimensional_calibration_style", converter=CalibrationStyleIndexConverter(), fallback=0))
+    display_calibration_style_chooser.bind_current_index(ChangeDisplayPropertyBinding(document_controller, display, "dimensional_calibration_style", converter=CalibrationStyleIndexConverter(), fallback=0))
 
     return display_calibration_style_chooser
 
@@ -680,7 +746,7 @@ class CalibrationsInspectorSection(InspectorSection):
         # create the display calibrations check box row
         self.display_calibrations_row = self.ui.create_row_widget()
         self.display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
-        self.display_calibrations_row.add(make_calibration_style_chooser(self.ui, display))
+        self.display_calibrations_row.add(make_calibration_style_chooser(document_controller, display))
         self.display_calibrations_row.add_stretch()
         self.add_widget_to_content(self.display_calibrations_row)
         self.finish_widget_content()
@@ -853,20 +919,7 @@ class ImageDisplayInspectorSection(InspectorSection):
         self.display_limits_limit_low.placeholder_text = _("Auto")
         self.display_limits_limit_high.placeholder_text = _("Auto")
 
-        def display_limits_changed_from_user(display_limits):
-            if display_limits != display.display_limits:
-                command = DisplayPanel.ChangeDisplayCommand(display, display_limits=display_limits, title=_("Change Display Limits"), command_id="change_display_limits", is_mergeable=True)
-                command.perform()
-                document_controller.push_undo_command(command)
-
-        self.__display_limits_model = Model.PropertyModel(display.display_limits)
-        self.__display_limits_model.on_value_changed = display_limits_changed_from_user
-
-        def display_limits_changed_from_display(name):
-            if name == "display_limits":
-                self.__display_limits_model.value = display.display_limits
-
-        self.__display_limits_changed_listener = display.property_changed_event.listen(display_limits_changed_from_display)
+        self.__display_limits_model = DisplayPropertyCommandModel(document_controller, display, "display_limits", title=_("Change Display Limits"), command_id="change_display_limits")
 
         self.display_limits_limit_low.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 0, float_point_2_none_converter))
         self.display_limits_limit_high.bind_text(Binding.TuplePropertyBinding(self.__display_limits_model, "value", 1, float_point_2_none_converter))
@@ -892,8 +945,6 @@ class ImageDisplayInspectorSection(InspectorSection):
     def close(self):
         self.__display_limits_model.close()
         self.__display_limits_model = None
-        self.__display_limits_changed_listener.close()
-        self.__display_limits_changed_listener = None
         self.__display_type_changed_listener.close()
         self.__display_type_changed_listener = None
         self.__color_map_changed_listener.close()
@@ -1050,20 +1101,7 @@ class CollectionIndexInspectorSection(InspectorSection):
             index_slider_widget = self.ui.create_slider_widget()
             index_slider_widget.maximum = data_item.dimensional_shape[collection_index_base + index] - 1
 
-            def collection_index_changed_from_user(collection_index):
-                if collection_index != display.collection_index:
-                    command = DisplayPanel.ChangeDisplayCommand(display, collection_index=collection_index, title=_("Change Collection Index"), command_id="change_collection_index", is_mergeable=True)
-                    command.perform()
-                    document_controller.push_undo_command(command)
-
-            self.__collection_index_model = Model.PropertyModel(display.collection_index)
-            self.__collection_index_model.on_value_changed = collection_index_changed_from_user
-
-            def collection_index_changed_from_display(name):
-                if name == "collection_index":
-                    self.__collection_index_model.value = display.collection_index
-
-            self.__collection_index_changed_listener = display.property_changed_event.listen(collection_index_changed_from_display)
+            self.__collection_index_model = DisplayPropertyCommandModel(document_controller, display, "collection_index", title=_("Change Collection Index"), command_id="change_collection_index")
 
             index_slider_widget.bind_value(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index))
             index_line_edit_widget.bind_text(Binding.TuplePropertyBinding(self.__collection_index_model, "value", index, converter=Converter.IntegerToStringConverter()))
@@ -1084,8 +1122,6 @@ class CollectionIndexInspectorSection(InspectorSection):
     def close(self):
         self.__collection_index_model.close()
         self.__collection_index_model = None
-        self.__collection_index_changed_listener.close()
-        self.__collection_index_changed_listener = None
         super().close()
 
 
@@ -1338,7 +1374,8 @@ class CalibratedLengthBinding(Binding.Binding):
         return self.__size_converter.convert_calibrated_value_to_str(calibrated_value)
 
 
-def make_point_type_inspector(ui, graphic_widget, display_specifier, graphic):
+def make_point_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+    ui = document_controller.ui
     # create the ui
     graphic_position_row = ui.create_row_widget()
     graphic_position_row.add_spacing(20)
@@ -1360,20 +1397,25 @@ def make_point_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add(graphic_position_row)
     graphic_widget.add_spacing(4)
 
+    position_model = GraphicPropertyCommandModel(document_controller, display_specifier.display, graphic, "position", title=_("Change Position"), command_id="change_point_position")
+
     image_size = display_specifier.data_item.dimensional_shape
     if (len(image_size) > 1):
         # calculate values from rectangle type graphic
         # signal_index
-        position_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 1))
-        position_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "position", 0))
+        position_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(position_model, "value", 1))
+        position_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(position_model, "value", 0))
         graphic_position_x_line_edit.bind_text(position_x_binding)
         graphic_position_y_line_edit.bind_text(position_y_binding)
     else:
-        graphic_position_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "position", 1))
-        graphic_position_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "position", 0))
+        graphic_position_x_line_edit.bind_text(Binding.TuplePropertyBinding(position_model, "value", 1))
+        graphic_position_y_line_edit.bind_text(Binding.TuplePropertyBinding(position_model, "value", 0))
+
+    return [position_model]
 
 
-def make_line_type_inspector(ui, graphic_widget, display_specifier, graphic):
+def make_line_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+    ui = document_controller.ui
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1431,16 +1473,23 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add(graphic_param_row)
     graphic_widget.add_spacing(4)
 
-    image_size = display_specifier.data_item.dimensional_shape
+    data_item = display_specifier.data_item
+    display = display_specifier.display
+
+    start_model = GraphicPropertyCommandModel(document_controller, display, graphic, "start", title=_("Change Line Start"), command_id="change_line_start")
+
+    end_model = GraphicPropertyCommandModel(document_controller, display, graphic, "end", title=_("Change Line End"), command_id="change_line_end")
+
+    image_size = data_item.dimensional_shape
     if len(image_size) > 1:
         # configure the bindings
         # signal_index
-        start_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 1))
-        start_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "start", 0))
-        end_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 1))
-        end_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "end", 0))
-        length_binding = CalibratedLengthBinding(display_specifier.data_item, display_specifier.display, Binding.PropertyBinding(graphic, "start"), Binding.PropertyBinding(graphic, "end"))
-        angle_binding = Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter())
+        start_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(start_model, "value", 1))
+        start_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(start_model, "value", 0))
+        end_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(end_model, "value", 1))
+        end_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(end_model, "value", 0))
+        length_binding = CalibratedLengthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "start"), ChangeGraphicPropertyBinding(document_controller, display, graphic, "end"))
+        angle_binding = ChangeGraphicPropertyBinding(document_controller, display, graphic, "angle", RadianToDegreeStringConverter())
         graphic_start_x_line_edit.bind_text(start_x_binding)
         graphic_start_y_line_edit.bind_text(start_y_binding)
         graphic_end_x_line_edit.bind_text(end_x_binding)
@@ -1448,18 +1497,23 @@ def make_line_type_inspector(ui, graphic_widget, display_specifier, graphic):
         graphic_param_l_line_edit.bind_text(length_binding)
         graphic_param_a_line_edit.bind_text(angle_binding)
     else:
-        graphic_start_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "start", 1))
-        graphic_start_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "start", 0))
-        graphic_end_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "end", 1))
-        graphic_end_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "end", 0))
-        graphic_param_l_line_edit.bind_text(Binding.PropertyBinding(graphic, "length"))
-        graphic_param_a_line_edit.bind_text(Binding.PropertyBinding(graphic, "angle", RadianToDegreeStringConverter()))
+        graphic_start_x_line_edit.bind_text(Binding.TuplePropertyBinding(start_model, "value", 1))
+        graphic_start_y_line_edit.bind_text(Binding.TuplePropertyBinding(start_model, "value", 0))
+        graphic_end_x_line_edit.bind_text(Binding.TuplePropertyBinding(end_model, "value", 1))
+        graphic_end_y_line_edit.bind_text(Binding.TuplePropertyBinding(end_model, "value", 0))
+        graphic_param_l_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display, graphic, "length"))
+        graphic_param_a_line_edit.bind_text(ChangeGraphicPropertyBinding(document_controller, display, graphic, "angle", RadianToDegreeStringConverter()))
+
+    return [start_model, end_model]
 
 
-def make_line_profile_inspector(ui, graphic_widget, display_specifier, graphic):
-    make_line_type_inspector(ui, graphic_widget, display_specifier, graphic)
+def make_line_profile_inspector(document_controller, graphic_widget, display_specifier, graphic):
+    items_to_close = make_line_type_inspector(document_controller, graphic_widget, display_specifier, graphic)
+    ui = document_controller.ui
     # configure the bindings
-    width_binding = CalibratedWidthBinding(display_specifier.data_item, display_specifier.display, Binding.PropertyBinding(graphic, "width"))
+    data_item = display_specifier.data_item
+    display = display_specifier.display
+    width_binding = CalibratedWidthBinding(data_item, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "width"))
     # create the ui
     graphic_width_row = ui.create_row_widget()
     graphic_width_row.add_spacing(20)
@@ -1472,9 +1526,11 @@ def make_line_profile_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add_spacing(4)
     graphic_widget.add(graphic_width_row)
     graphic_widget.add_spacing(4)
+    return items_to_close
 
 
-def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, graphic):
+def make_rectangle_type_inspector(document_controller, graphic_widget, display_specifier, graphic, graphic_name: str):
+    ui = document_controller.ui
     # create the ui
     graphic_center_row = ui.create_row_widget()
     graphic_center_row.add_spacing(20)
@@ -1514,25 +1570,35 @@ def make_rectangle_type_inspector(ui, graphic_widget, display_specifier, graphic
     graphic_widget.add(graphic_size_row)
     graphic_widget.add_spacing(4)
 
+    data_item = display_specifier.data_item
+    display = display_specifier.display
+
+    center_model = GraphicPropertyCommandModel(document_controller, display, graphic, "center", title=_("Change {} Center").format(graphic_name), command_id="change_" + graphic_name + "_center")
+
+    size_model = GraphicPropertyCommandModel(document_controller, display, graphic, "size", title=_("Change {} Size").format(graphic_name), command_id="change_" + graphic_name + "_size")
+
     # calculate values from rectangle type graphic
-    image_size = display_specifier.data_item.dimensional_shape
+    image_size = data_item.dimensional_shape
     if len(image_size) > 1:
         # signal_index
-        center_x_binding = CalibratedValueBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 1))
-        center_y_binding = CalibratedValueBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "center", 0))
-        size_width_binding = CalibratedSizeBinding(display_specifier.data_item, 1, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 1))
-        size_height_binding = CalibratedSizeBinding(display_specifier.data_item, 0, display_specifier.display, Binding.TuplePropertyBinding(graphic, "size", 0))
+        center_x_binding = CalibratedValueBinding(data_item, 1, display, Binding.TuplePropertyBinding(center_model, "value", 1))
+        center_y_binding = CalibratedValueBinding(data_item, 0, display, Binding.TuplePropertyBinding(center_model, "value", 0))
+        size_width_binding = CalibratedSizeBinding(data_item, 1, display, Binding.TuplePropertyBinding(size_model, "value", 1))
+        size_height_binding = CalibratedSizeBinding(data_item, 0, display, Binding.TuplePropertyBinding(size_model, "value", 0))
         graphic_center_x_line_edit.bind_text(center_x_binding)
         graphic_center_y_line_edit.bind_text(center_y_binding)
         graphic_size_width_line_edit.bind_text(size_width_binding)
         graphic_size_height_line_edit.bind_text(size_height_binding)
     else:
-        graphic_center_x_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "center", 1))
-        graphic_center_y_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "center", 0))
-        graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 1))
-        graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "size", 0))
+        graphic_center_x_line_edit.bind_text(Binding.TuplePropertyBinding(center_model, "value", 1))
+        graphic_center_y_line_edit.bind_text(Binding.TuplePropertyBinding(center_model, "value", 0))
+        graphic_size_width_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 1))
+        graphic_size_height_line_edit.bind_text(Binding.TuplePropertyBinding(size_model, "value", 0))
 
-def make_wedge_type_inspector(ui, graphic_widget, display_specifier, graphic):
+    return [center_model, size_model]
+
+def make_wedge_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+    ui = document_controller.ui
     # create the ui
     graphic_center_start_angle_row = ui.create_row_widget()
     graphic_center_start_angle_row.add_spacing(20)
@@ -1551,10 +1617,15 @@ def make_wedge_type_inspector(ui, graphic_widget, display_specifier, graphic):
     graphic_widget.add(graphic_center_end_angle_row)
     graphic_widget.add_spacing(4)
 
-    graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 0, RadianToDegreeStringConverter()))
-    graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(graphic, "angle_interval", 1, RadianToDegreeStringConverter()))
+    angle_interval_model = GraphicPropertyCommandModel(document_controller, display_specifier.display, graphic, "angle_interval", title=_("Change Angle Interval"), command_id="change_angle_interval")
 
-def make_annular_ring_mode_chooser(ui, ring):
+    graphic_center_start_angle_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 0, RadianToDegreeStringConverter()))
+    graphic_center_angle_measure_line_edit.bind_text(Binding.TuplePropertyBinding(angle_interval_model, "value", 1, RadianToDegreeStringConverter()))
+
+    return [angle_interval_model]
+
+def make_annular_ring_mode_chooser(document_controller, display, ring):
+    ui = document_controller.ui
     annular_ring_mode_options = ((_("Band Pass"), "band-pass"), (_("Low Pass"), "low-pass"), (_("High Pass"), "high-pass"))
     annular_ring_mode_reverse_map = {"band-pass": 0, "low-pass": 1, "high-pass": 2}
 
@@ -1571,11 +1642,16 @@ def make_annular_ring_mode_chooser(ui, ring):
                 return "band-pass"
 
     display_calibration_style_chooser = ui.create_combo_box_widget(items=annular_ring_mode_options, item_getter=operator.itemgetter(0))
-    display_calibration_style_chooser.bind_current_index(Binding.PropertyBinding(ring, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
+    display_calibration_style_chooser.bind_current_index(ChangeGraphicPropertyBinding(document_controller, display, ring, "mode", converter=AnnularRingModeIndexConverter(), fallback=0))
 
     return display_calibration_style_chooser
 
-def make_ring_type_inspector(ui, graphic_widget, display_specifier, graphic):
+def make_ring_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+    ui = document_controller.ui
+
+    display = display_specifier.display
+    data_item = display_specifier.data_item
+
     # create the ui
     graphic_radius_1_row = ui.create_row_widget()
     graphic_radius_1_row.add_spacing(20)
@@ -1592,21 +1668,24 @@ def make_ring_type_inspector(ui, graphic_widget, display_specifier, graphic):
     ring_mode_row = ui.create_row_widget()
     ring_mode_row.add_spacing(20)
     ring_mode_row.add(ui.create_label_widget(_("Mode"), properties={"width": 60}))
-    ring_mode_row.add(make_annular_ring_mode_chooser(ui, graphic))
+    ring_mode_row.add(make_annular_ring_mode_chooser(ui, display, graphic))
     ring_mode_row.add_stretch()
 
     graphic_widget.add(graphic_radius_1_row)
     graphic_widget.add(graphic_radius_2_row)
     graphic_widget.add(ring_mode_row)
 
-    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(display_specifier.data_item, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_1")))
-    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(display_specifier.data_item, 0, display_specifier.display, Binding.PropertyBinding(graphic, "radius_2")))
+    graphic_radius_1_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "radius_1")))
+    graphic_radius_2_line_edit.bind_text(CalibratedSizeBinding(data_item, 0, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "radius_2")))
 
 
-def make_interval_type_inspector(ui, graphic_widget, display_specifier, graphic):
+def make_interval_type_inspector(document_controller, graphic_widget, display_specifier, graphic):
+    ui = document_controller.ui
     # configure the bindings
-    start_binding = CalibratedValueBinding(display_specifier.data_item, -1, display_specifier.display, Binding.PropertyBinding(graphic, "start"))
-    end_binding = CalibratedValueBinding(display_specifier.data_item, -1, display_specifier.display, Binding.PropertyBinding(graphic, "end"))
+    display = display_specifier.display
+    data_item = display_specifier.data_item
+    start_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "start"))
+    end_binding = CalibratedValueBinding(data_item, -1, display, ChangeGraphicPropertyBinding(document_controller, display, graphic, "end"))
     # create the ui
     graphic_start_row = ui.create_row_widget()
     graphic_start_row.add_spacing(20)
@@ -1639,10 +1718,12 @@ class GraphicsInspectorSection(InspectorSection):
 
     def __init__(self, document_controller, data_item, display, selected_only=False):
         super().__init__(document_controller.ui, "graphics", _("Graphics"))
+        self.__document_controller = document_controller
         ui = document_controller.ui
         self.__image_size = data_item.dimensional_shape
         self.__graphics = display.graphics
         self.__display_specifier = DataItem.DisplaySpecifier(data_item, display)
+        self.__items_to_close = list()
         # ui
         header_widget = self.__create_header_widget()
         header_for_empty_list_widget = self.__create_header_for_empty_list_widget()
@@ -1654,10 +1735,15 @@ class GraphicsInspectorSection(InspectorSection):
         # create the display calibrations check box row
         display_calibrations_row = self.ui.create_row_widget()
         display_calibrations_row.add(self.ui.create_label_widget(_("Display"), properties={"width": 60}))
-        display_calibrations_row.add(make_calibration_style_chooser(self.ui, display))
+        display_calibrations_row.add(make_calibration_style_chooser(document_controller, display))
         display_calibrations_row.add_stretch()
         self.add_widget_to_content(display_calibrations_row)
         self.finish_widget_content()
+
+    def close(self):
+        while self.__items_to_close:
+            self.__items_to_close.pop().close()
+        super().close()
 
     def __create_header_widget(self):
         return self.ui.create_row_widget()
@@ -1686,31 +1772,31 @@ class GraphicsInspectorSection(InspectorSection):
         # create the graphic specific widget
         if isinstance(graphic, Graphics.PointGraphic):
             graphic_type_label.text = _("Point")
-            make_point_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            self.__items_to_close.extend(make_point_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
         elif isinstance(graphic, Graphics.LineProfileGraphic):
             graphic_type_label.text = _("Line Profile")
-            make_line_profile_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            self.__items_to_close.extend(make_line_profile_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
         elif isinstance(graphic, Graphics.LineGraphic):
             graphic_type_label.text = _("Line")
-            make_line_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            self.__items_to_close.extend(make_line_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
         elif isinstance(graphic, Graphics.RectangleGraphic):
             graphic_type_label.text = _("Rectangle")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text))
         elif isinstance(graphic, Graphics.EllipseGraphic):
             graphic_type_label.text = _("Ellipse")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text))
         elif isinstance(graphic, Graphics.IntervalGraphic):
             graphic_type_label.text = _("Interval")
-            make_interval_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            make_interval_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic)
         elif isinstance(graphic, Graphics.SpotGraphic):
             graphic_type_label.text = _("Spot")
-            make_rectangle_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            self.__items_to_close.extend(make_rectangle_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic, graphic_type_label.text))
         elif isinstance(graphic, Graphics.WedgeGraphic):
             graphic_type_label.text = _("Wedge")
-            make_wedge_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            self.__items_to_close.extend(make_wedge_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic))
         elif isinstance(graphic, Graphics.RingGraphic):
             graphic_type_label.text = _("Annular Ring")
-            make_ring_type_inspector(self.ui, graphic_widget, self.__display_specifier, graphic)
+            make_ring_type_inspector(self.__document_controller, graphic_widget, self.__display_specifier, graphic)
         column = self.ui.create_column_widget()
         column.add_spacing(4)
         column.add(graphic_widget)
