@@ -4,6 +4,7 @@ import locale
 import logging
 import math
 import unittest
+import uuid
 
 # third-party imports
 import numpy
@@ -14,11 +15,9 @@ from nion.swift import Application
 from nion.swift import DocumentController
 from nion.swift import Facade
 from nion.swift import Inspector
-from nion.swift.model import Cache
 from nion.swift.model import DataItem
 from nion.swift.model import DocumentModel
 from nion.swift.model import Graphics
-from nion.swift.model import Utility
 from nion.ui import TestUI
 from nion.utils import Binding
 from nion.utils import Observable
@@ -815,6 +814,96 @@ class TestInspectrorClass(unittest.TestCase):
             line_edit_widget2 = inspector_section._variables_column_widget.children[0].content_widget.find_widget_by_id("value")
             line_edit_widget2.editing_finished("1.1")
             self.assertEqual(x.value, 1.1)
+
+    def test_computation_inspector_handles_computation_variable_checkbox_and_undo_redo_cycle(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            new_data_item = document_model.get_transpose_flip_new(data_item)
+            document_model.recompute_all()
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(new_data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            computation = document_model.get_data_item_computation(new_data_item)
+            self.assertFalse(computation._get_variable("do_transpose").value)
+            inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
+            cb_widget = inspector_section.find_widget_by_id("value")
+            cb_widget.on_checked_changed(True)
+            self.assertTrue(computation._get_variable("do_transpose").value)
+            document_controller.handle_undo()
+            self.assertFalse(computation._get_variable("do_transpose").value)
+            document_controller.handle_redo()
+            self.assertTrue(computation._get_variable("do_transpose").value)
+
+    def test_computation_inspector_handles_computation_variable_slider_and_undo_redo_cycle(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            new_data_item = document_model.get_gaussian_blur_new(data_item)
+            document_model.recompute_all()
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(new_data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            computation = document_model.get_data_item_computation(new_data_item)
+            old_sigma = computation._get_variable("sigma").value
+            inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
+            slider_widget = inspector_section.find_widget_by_id("value")
+            slider_widget.on_value_changed(0)
+            self.assertEqual(0, computation._get_variable("sigma").value)
+            document_controller.handle_undo()
+            self.assertEqual(old_sigma, computation._get_variable("sigma").value)
+            document_controller.handle_redo()
+            self.assertEqual(0, computation._get_variable("sigma").value)
+
+    def test_computation_inspector_handles_computation_variable_int_and_undo_redo_cycle(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            new_data_item = document_model.get_histogram_new(data_item)
+            document_model.recompute_all()
+            display_panel = document_controller.selected_display_panel
+            display_panel.set_display_panel_data_item(new_data_item)
+            inspector_panel = document_controller.find_dock_widget("inspector-panel").panel
+            document_controller.periodic()
+            computation = document_model.get_data_item_computation(new_data_item)
+            old_bins = computation._get_variable("bins").value
+            inspector_section = next(x for x in inspector_panel._get_inspector_sections() if isinstance(x, Inspector.ComputationInspectorSection))
+            field_widget = inspector_section.find_widget_by_id("value")
+            field_widget.on_editing_finished("100")
+            self.assertEqual(100, computation._get_variable("bins").value)
+            document_controller.handle_undo()
+            self.assertEqual(old_bins, computation._get_variable("bins").value)
+            document_controller.handle_redo()
+            self.assertEqual(100, computation._get_variable("bins").value)
+
+    def test_computation_inspector_handles_computation_variable_specifier_and_undo_redo_cycle(self):
+        document_model = DocumentModel.DocumentModel()
+        document_controller = DocumentController.DocumentController(self.app.ui, document_model, workspace_id="library")
+        with contextlib.closing(document_controller):
+            data_item = DataItem.DataItem(numpy.zeros((10, 10)))
+            document_model.append_data_item(data_item)
+            new_data_item = document_model.get_invert_new(data_item)
+            document_model.recompute_all()
+            computation = document_model.get_data_item_computation(new_data_item)
+            self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])
+            specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
+            command = Inspector.ChangeComputationVariableCommand(computation, computation._get_variable("src"), specifier=specifier)
+            command.perform()
+            document_controller.push_undo_command(command)
+            self.assertIsNone(computation._get_variable("src").bound_item)
+            self.assertTrue(document_controller._undo_stack.can_undo)
+            document_controller.handle_undo()
+            self.assertEqual(data_item, list(computation._get_variable("src").bound_item.base_objects)[0])
+            document_controller.handle_redo()
+            self.assertIsNone(computation._get_variable("src").bound_item)
 
     def test_change_property_command_multiple_undo(self):
         document_model = DocumentModel.DocumentModel()

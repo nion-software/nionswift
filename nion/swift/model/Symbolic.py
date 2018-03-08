@@ -116,6 +116,14 @@ class ComputationVariable(Observable.Observable, Persistence.PersistentObject):
     def write_to_dict(self) -> dict:
         return super().write_to_dict()
 
+    def save_properties(self):
+        return self.value, self.specifier, self.secondary_specifier
+
+    def restore_properties(self, properties):
+        self.value = properties[0]
+        self.specifier = properties[1]
+        self.secondary_specifier = properties[2]
+
     def __value_reader(self, persistent_property, properties):
         value_type = self.value_type
         raw_value = properties.get(persistent_property.key)

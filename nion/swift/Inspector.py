@@ -1821,19 +1821,72 @@ class GraphicsInspectorSection(InspectorSection):
 # float, duration (units)
 # image
 
-def make_checkbox(ui, variable):
+
+class ChangeComputationVariableCommand(Undo.UndoableCommand):
+
+    def __init__(self, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Change Computation Variable"), command_id=command_id, is_mergeable=is_mergeable)
+        self.__computation = computation
+        self.__variable = variable
+        self.__properties = self.__variable.save_properties()
+        self.__value_dict = kwargs
+        self.initialize()
+
+    def close(self):
+        self.__properties = None
+        self.__computation = None
+        self.__variable = None
+        super().close()
+
+    def perform(self):
+        for key, value in self.__value_dict.items():
+            setattr(self.__variable, key, value)
+
+    def _get_modified_state(self):
+        return self.__variable.modified_state
+
+    def _set_modified_state(self, modified_state):
+        self.__variable.modified_state = modified_state
+
+    def _undo(self):
+        properties = self.__properties
+        self.__properties = self.__variable.save_properties()
+        self.__variable.restore_properties(properties)
+
+    def can_merge(self, command: Undo.UndoableCommand) -> bool:
+        return isinstance(command, ChangeComputationVariableCommand) and self.command_id and self.command_id == command.command_id and self.__computation == command.__computation and self.__variable == command.__variable
+
+
+class ChangeComputationVariablePropertyBinding(Binding.PropertyBinding):
+    def __init__(self, document_controller, computation: Symbolic.Computation, variable: Symbolic.ComputationVariable, property_name: str, converter=None, fallback=None):
+        super().__init__(variable, property_name, converter=converter, fallback=fallback)
+        self.__property_name = property_name
+        self.__old_source_setter = self.source_setter
+
+        def set_value(value):
+            if value != getattr(variable, property_name):
+                command = ChangeComputationVariableCommand(computation, variable, title=_("Change Computation"), command_id="change_computation_" + property_name, is_mergeable=True, **{self.__property_name: value})
+                command.perform()
+                document_controller.push_undo_command(command)
+
+        self.source_setter = set_value
+
+
+def make_checkbox(document_controller, computation, variable):
+    ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
     check_box_widget = ui.create_check_box_widget(variable.display_label)
     check_box_widget.widget_id = "value"
-    check_box_widget.bind_checked(Binding.PropertyBinding(variable, "value"))
+    check_box_widget.bind_checked(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value"))
     row.add(check_box_widget)
     row.add_stretch()
     column.add(row)
     column.add_spacing(4)
     return column, []
 
-def make_slider_int(ui, variable, converter):
+def make_slider_int(document_controller, computation, variable, converter):
+    ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
     label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
@@ -1841,10 +1894,11 @@ def make_slider_int(ui, variable, converter):
     slider_widget = ui.create_slider_widget()
     slider_widget.minimum = int(variable.value_min)
     slider_widget.maximum = int(variable.value_max)
-    slider_widget.bind_value(Binding.PropertyBinding(variable, "value"))
+    slider_widget.bind_value(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value"))
+    slider_widget.widget_id = "slider_value"
     line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
     line_edit_widget.widget_id = "value"
-    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+    line_edit_widget.bind_text(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value", converter=converter))
     row.add(label_widget)
     row.add_spacing(8)
     row.add(slider_widget)
@@ -1855,7 +1909,8 @@ def make_slider_int(ui, variable, converter):
     column.add_spacing(4)
     return column, []
 
-def make_slider_float(ui, variable, converter):
+def make_slider_float(document_controller, computation, variable, converter):
+    ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
     label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
@@ -1865,9 +1920,9 @@ def make_slider_float(ui, variable, converter):
     slider_widget.widget_id = "value"
     slider_widget.minimum = 0
     slider_widget.maximum = 1000
-    slider_widget.bind_value(Binding.PropertyBinding(variable, "value", converter=f_converter))
+    slider_widget.bind_value(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value", converter=f_converter))
     line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
-    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+    line_edit_widget.bind_text(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value", converter=converter))
     row.add(label_widget)
     row.add_spacing(8)
     row.add(slider_widget)
@@ -1878,14 +1933,15 @@ def make_slider_float(ui, variable, converter):
     column.add_spacing(4)
     return column, []
 
-def make_field(ui, variable, converter):
+def make_field(document_controller, computation, variable, converter):
+    ui = document_controller.ui
     column = ui.create_column_widget()
     row = ui.create_row_widget()
     label_widget = ui.create_label_widget(variable.display_label, properties={"width": 80})
     label_widget.bind_text(Binding.PropertyBinding(variable, "display_label"))
     line_edit_widget = ui.create_line_edit_widget(properties={"width": 60})
     line_edit_widget.widget_id = "value"
-    line_edit_widget.bind_text(Binding.PropertyBinding(variable, "value", converter=converter))
+    line_edit_widget.bind_text(ChangeComputationVariablePropertyBinding(document_controller, computation, variable, "value", converter=converter))
     row.add(label_widget)
     row.add_spacing(8)
     row.add(line_edit_widget)
@@ -1894,7 +1950,9 @@ def make_field(ui, variable, converter):
     column.add_spacing(4)
     return column, []
 
-def make_image_chooser(ui, document_model, variable):
+def make_image_chooser(document_controller, computation, variable):
+    ui = document_controller.ui
+    document_model = document_controller.document_model
     column = ui.create_column_widget()
     row = ui.create_row_widget()
     label_column = ui.create_column_widget()
@@ -1913,13 +1971,17 @@ def make_image_chooser(ui, document_model, variable):
             data_item_uuid = uuid.UUID(mime_data.data_as_string("text/data_item_uuid"))
             data_item = document_model.get_data_item_by_key(data_item_uuid)
             variable_specifier = document_model.get_object_specifier(data_item)
-            variable.specifier = variable_specifier
+            command = ChangeComputationVariableCommand(computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+            command.perform()
+            document_controller.push_undo_command(command)
             return "copy"
         return None
 
     def data_item_delete():
         variable_specifier = {"type": "data_item", "version": 1, "uuid": str(uuid.uuid4())}
-        variable.specifier = variable_specifier
+        command = ChangeComputationVariableCommand(computation, variable, specifier=variable_specifier, title=_("Change Computation Input"))
+        command.perform()
+        document_controller.push_undo_command(command)
 
     data_item_thumbnail_source = DataItemThumbnailWidget.DataItemThumbnailSource(ui, data_item=data_item)
     data_item_chooser_widget = DataItemThumbnailWidget.ThumbnailWidget(ui, data_item_thumbnail_source, Geometry.IntSize(80, 80))
@@ -1957,14 +2019,14 @@ class VariableWidget(Widgets.CompositeWidgetBase):
     a single child which is the UI for the variable. The child is replaced if necessary.
     """
 
-    def __init__(self, ui, document_model, variable):
-        super().__init__(ui.create_column_widget())
+    def __init__(self, document_controller, computation, variable):
+        super().__init__(document_controller.ui.create_column_widget())
         self.closeables = list()
-        self.__make_widget_from_variable(ui, document_model, variable)
+        self.__make_widget_from_variable(document_controller, computation, variable)
 
         def rebuild_variable():
             self.content_widget.remove_all()
-            self.__make_widget_from_variable(ui, document_model, variable)
+            self.__make_widget_from_variable(document_controller, computation, variable)
 
         self.__variable_needs_rebuild_event_listener = variable.needs_rebuild_event.listen(rebuild_variable)
 
@@ -1975,29 +2037,30 @@ class VariableWidget(Widgets.CompositeWidgetBase):
         self.__variable_needs_rebuild_event_listener = None
         super().close()
 
-    def __make_widget_from_variable(self, ui, document_model, variable):
+    def __make_widget_from_variable(self, document_controller, computation, variable):
+        ui = document_controller.ui
         if variable.variable_type == "boolean":
-            widget, closeables = make_checkbox(ui, variable)
+            widget, closeables = make_checkbox(document_controller, computation, variable)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "integral" and (True or variable.control_type == "slider") and variable.has_range:
-            widget, closeables = make_slider_int(ui, variable, Converter.IntegerToStringConverter())
+            widget, closeables = make_slider_int(document_controller, computation, variable, Converter.IntegerToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "integral":
-            widget, closeables = make_field(ui, variable, Converter.IntegerToStringConverter())
+            widget, closeables = make_field(document_controller, computation, variable, Converter.IntegerToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "real" and (True or variable.control_type == "slider") and variable.has_range:
-            widget, closeables = make_slider_float(ui, variable, Converter.FloatToStringConverter())
+            widget, closeables = make_slider_float(document_controller, computation, variable, Converter.FloatToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "real":
-            widget, closeables = make_field(ui, variable, Converter.FloatToStringConverter())
+            widget, closeables = make_field(document_controller, computation, variable, Converter.FloatToStringConverter())
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
         elif variable.variable_type == "data_item":
-            widget, closeables = make_image_chooser(ui, document_model, variable)
+            widget, closeables = make_image_chooser(document_controller, computation, variable)
             self.content_widget.add(widget)
             self.closeables.extend(closeables)
 
@@ -2035,7 +2098,7 @@ class ComputationInspectorSection(InspectorSection):
             self.add_widget_to_content(stretch_column)
 
             def variable_inserted(index: int, variable: Symbolic.ComputationVariable) -> None:
-                widget_wrapper = VariableWidget(self.ui, document_model, variable)
+                widget_wrapper = VariableWidget(document_controller, computation, variable)
                 self._variables_column_widget.insert(widget_wrapper, index)
 
             def variable_removed(index: int, variable: Symbolic.ComputationVariable) -> None:
