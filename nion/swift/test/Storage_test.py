@@ -1117,6 +1117,21 @@ class TestStorageClass(unittest.TestCase):
             #logging.debug("rmtree %s", workspace_dir)
             shutil.rmtree(workspace_dir)
 
+    def test_properties_are_able_to_be_cleared_and_reloaded(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((8, 8)))
+            document_model.append_data_item(data_item)
+            display = DataItem.DisplaySpecifier.from_data_item(data_item).display
+            display.display_type = "image"
+            display.display_type = None
+        # make sure it reloads without changing modification
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system])
+        with contextlib.closing(document_model):
+            display = DataItem.DisplaySpecifier.from_data_item(document_model.data_items[0]).display
+            self.assertIsNone(display.display_type)
+
     def test_properties_with_no_data_reloads(self):
         current_working_directory = os.getcwd()
         workspace_dir = os.path.join(current_working_directory, "__Test")

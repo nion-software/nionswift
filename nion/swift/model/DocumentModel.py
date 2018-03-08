@@ -148,6 +148,12 @@ class FilePersistentStorage:
             storage_dict[name] = value
         self.__write_properties()
 
+    def clear_property(self, object, name):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict.pop(name, None)
+        self.__write_properties()
+
 
 class MemoryPersistentStorage:
     # this class is used to store the data for the library itself.
@@ -223,6 +229,11 @@ class MemoryPersistentStorage:
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
+
+    def clear_property(self, object, name):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict.pop(name, None)
 
 
 class DataItemStorage:
@@ -334,6 +345,12 @@ class DataItemStorage:
         storage_dict = self.__update_modified_and_get_storage_dict(object)
         with self.__properties_lock:
             storage_dict[name] = value
+        self.update_properties()
+
+    def clear_property(self, object, name):
+        storage_dict = self.__update_modified_and_get_storage_dict(object)
+        with self.__properties_lock:
+            storage_dict.pop(name, None)
         self.update_properties()
 
     def remove(self):
