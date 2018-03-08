@@ -758,16 +758,21 @@ class InsertGraphicCommand(Undo.UndoableCommand):
 
 class ChangeDisplayCommand(Undo.UndoableCommand):
 
-    def __init__(self, display: Display.Display, *, command_id: str=None, is_mergeable: bool=False):
-        super().__init__(_("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
+    def __init__(self, display: Display.Display, *, title: str=None, command_id: str=None, is_mergeable: bool=False, **kwargs):
+        super().__init__(title if title else _("Change Display"), command_id=command_id, is_mergeable=is_mergeable)
         self.__display = display
-        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max, self.__display.image_zoom, self.__display.image_position, self.__display.image_canvas_mode)
+        self.__properties = self.__display.save_properties()
+        self.__value_dict = kwargs
         self.initialize()
 
     def close(self):
         self.__properties = None
         self.__display = None
         super().close()
+
+    def perform(self):
+        for key, value in self.__value_dict.items():
+            setattr(self.__display, key, value)
 
     def _get_modified_state(self):
         return self.__display.modified_state
@@ -777,14 +782,8 @@ class ChangeDisplayCommand(Undo.UndoableCommand):
 
     def _undo(self):
         properties = self.__properties
-        self.__properties = (self.__display.left_channel, self.__display.right_channel, self.__display.y_min, self.__display.y_max, self.__display.image_zoom, self.__display.image_position, self.__display.image_canvas_mode)
-        self.__display.left_channel = properties[0]
-        self.__display.right_channel = properties[1]
-        self.__display.y_min = properties[2]
-        self.__display.y_max = properties[3]
-        self.__display.image_zoom = properties[4]
-        self.__display.image_position = properties[5]
-        self.__display.image_canvas_mode = properties[6]
+        self.__properties = self.__display.save_properties()
+        self.__display.restore_properties(properties)
 
     def can_merge(self, command: Undo.UndoableCommand) -> bool:
         return isinstance(command, ChangeDisplayCommand) and self.command_id and self.command_id == command.command_id and self.__display == command.__display

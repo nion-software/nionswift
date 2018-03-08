@@ -518,6 +518,48 @@ class Display(Observable.Observable, Persistence.PersistentObject):
                 calibration_style = self.default_calibrated_calibration_style if dimensional_calibration_style_property.value.startswith("calibration") else self.default_uncalibrated_calibration_style
                 dimensional_calibration_style_property.value = calibration_style.calibration_style_id
 
+    def save_properties(self) -> typing.Tuple:
+        return (
+            self.left_channel,
+            self.right_channel,
+            self.y_min,
+            self.y_max,
+            self.y_style,
+            self.image_zoom,
+            self.image_position,
+            self.image_canvas_mode,
+            self.complex_display_type,
+            self.display_calibrated_values,
+            self.dimensional_calibration_style,
+            self.display_limits,
+            self.color_map_id,
+            self.sequence_index,
+            self.collection_index,
+            self.slice_center,
+            self.slice_interval,
+            self.display_type
+        )
+
+    def restore_properties(self, properties: typing.Tuple) -> None:
+        self.left_channel = properties[0]
+        self.right_channel = properties[1]
+        self.y_min = properties[2]
+        self.y_max = properties[3]
+        self.y_style = properties[4]
+        self.image_zoom = properties[5]
+        self.image_position = properties[6]
+        self.image_canvas_mode = properties[7]
+        self.complex_display_type = properties[8]
+        self.display_calibrated_values = properties[9]
+        self.dimensional_calibration_style = properties[10]
+        self.display_limits = properties[11]
+        self.color_map_id = properties[12]
+        self.sequence_index = properties[13]
+        self.collection_index = properties[14]
+        self.slice_center = properties[15]
+        self.slice_interval = properties[16]
+        self.display_type = properties[17]
+
     @property
     def container(self):
         return self.__container_weak_ref()
