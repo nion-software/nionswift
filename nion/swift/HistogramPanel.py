@@ -1,5 +1,4 @@
 # standard libraries
-import asyncio
 import functools
 import gettext
 import operator
@@ -11,6 +10,7 @@ import numpy
 # local libraries
 from nion.data import Core
 from nion.data import Image
+from nion.swift import DisplayPanel
 from nion.swift import Panel
 from nion.swift.model import DataItem
 from nion.swift.model import Graphics
@@ -328,8 +328,10 @@ class HistogramWidgetData:
 
 class HistogramWidget(Widgets.CompositeWidgetBase):
 
-    def __init__(self, ui, display_stream, histogram_widget_data_model, color_map_data_model, cursor_changed_fn):
-        super().__init__(ui.create_column_widget(properties={"min-height": 84, "max-height": 84}))
+    def __init__(self, document_controller, display_stream, histogram_widget_data_model, color_map_data_model, cursor_changed_fn):
+        super().__init__(document_controller.ui.create_column_widget(properties={"min-height": 84, "max-height": 84}))
+
+        ui = document_controller.ui
 
         self.__display_stream = display_stream.add_ref()
 
@@ -355,13 +357,16 @@ class HistogramWidget(Widgets.CompositeWidgetBase):
             # the same units as the data values.
             display = self.__display_stream.value
             if display:
+                new_display_limits = None
                 if display_limits is not None and self.__display_range is not None:
                     data_min, data_max = self.__display_range
                     lower_display_limit = data_min + display_limits[0] * (data_max - data_min)
                     upper_display_limit = data_min + display_limits[1] * (data_max - data_min)
-                    display.display_limits = (lower_display_limit, upper_display_limit)
-                else:
-                    display.reset_display_limits()
+                    new_display_limits = (lower_display_limit, upper_display_limit)
+
+                command = DisplayPanel.ChangeDisplayCommand(display, display_limits=new_display_limits, title=_("Change Display Limits"))
+                command.perform()
+                document_controller.push_undo_command(command)
 
         def cursor_changed(canvas_x):
             if callable(cursor_changed_fn):
@@ -558,7 +563,7 @@ class HistogramPanel(Panel.Panel):
         self.__histogram_widget_data_model = Model.FuncStreamValueModel(histogram_widget_data_func_stream, document_controller.event_loop, value=HistogramWidgetData(), cmp=numpy.array_equal)
         self.__color_map_data_model = Model.StreamValueModel(color_map_data_stream, cmp=numpy.array_equal)
 
-        self._histogram_widget = HistogramWidget(self.ui, display_stream, self.__histogram_widget_data_model, self.__color_map_data_model, cursor_changed_fn)
+        self._histogram_widget = HistogramWidget(document_controller, display_stream, self.__histogram_widget_data_model, self.__color_map_data_model, cursor_changed_fn)
 
         def calculate_statistics(display_data_and_metadata_func, display_data_range, region, displayed_intensity_calibration):
             display_data_and_metadata = display_data_and_metadata_func()
