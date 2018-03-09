@@ -2574,7 +2574,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 computation.is_initial_computation_complete.wait(timeout)
             await event_loop.run_in_executor(None, sync_recompute)
 
-    def get_object_specifier(self, object, object_type: str=None) -> typing.Optional[typing.Mapping]:
+    def get_object_specifier(self, object, object_type: str=None) -> typing.Optional[typing.Dict]:
         return get_object_specifier(object, object_type)
 
     def get_graphic_by_uuid(self, object_uuid: uuid.UUID) -> typing.Optional[Graphics.Graphic]:

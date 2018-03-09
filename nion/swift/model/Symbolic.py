@@ -578,6 +578,11 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                     kwargs[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
                 else:
                     is_resolved = False
+            for result in self.results:
+                if result.specifier and not result.bound_item:
+                    is_resolved = False
+                if result.specifiers and not all(result.bound_item):
+                    is_resolved = False
             if is_resolved:
                 compute_class = _computation_types.get(self.processing_id)
                 if compute_class:
@@ -762,6 +767,12 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
                 # self.result_removed_event.fire(index, result)
                 self.computation_mutated_event.fire()
                 self.needs_update = True
+
+    def _get_reference(self, name: str):
+        for result in self.results:
+            if result.name == name:
+                return result
+        return None
 
     def get_referenced_object(self, name: str):
         for result in self.results:

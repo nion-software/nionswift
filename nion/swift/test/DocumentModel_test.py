@@ -1053,6 +1053,32 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.recompute_all()
             self.assertEqual(TestDocumentModelClass.add2_eval_count, 0)
 
+    class PassThru:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src_xdata):
+            self.__new_data = numpy.copy(src_xdata.data)
+
+        def commit(self):
+            self.computation.set_referenced_data("dst", self.__new_data)
+
+    def test_new_computation_with_missing_output_does_not_evaluate(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            # document_model.append_data_item(data_item3)  # purposely not added
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "pass_thru"
+            document_model.append_computation(computation)
+            document_model.recompute_all()
+            self.assertEqual(1, len(document_model.data_items))
+
     class GenerateZero:
         def __init__(self, computation, **kwargs):
             self.computation = computation
@@ -1203,16 +1229,6 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertEqual(len(document_model.get_source_items(data_item2)), 2)
             self.assertIn(graphic, document_model.get_source_items(data_item2))
             self.assertIn(data_item, document_model.get_source_items(data_item2))
-
-    class PassThru:
-        def __init__(self, computation, **kwargs):
-            self.computation = computation
-
-        def execute(self, src_xdata):
-            self.__new_data = numpy.copy(src_xdata.data)
-
-        def commit(self):
-            self.computation.set_referenced_data("dst", self.__new_data)
 
     def test_computation_can_depend_on_filter_xdata(self):
         Symbolic.register_computation_type("pass_thru", self.PassThru)
