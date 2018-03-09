@@ -559,30 +559,35 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
             pass
         return names
 
+    def __resolve_inputs(self, api) -> typing.Tuple[typing.Dict, bool]:
+        kwargs = dict()
+        is_resolved = True
+        for variable in self.variables:
+            bound_object = variable.bound_item
+            if bound_object is not None:
+                resolved_object = bound_object.value if bound_object else None
+                # in the ideal world, we could clone the object/data and computations would not be
+                # able to modify the input objects; reality, though, dictates that performance is
+                # more important than this protection. so use the resolved object directly.
+                api_object = api._new_api_object(resolved_object) if resolved_object else None
+                kwargs[
+                    variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
+            else:
+                is_resolved = False
+        for result in self.results:
+            if result.specifier and not result.bound_item:
+                is_resolved = False
+            if result.specifiers and not all(result.bound_item):
+                is_resolved = False
+        return kwargs, is_resolved
+
     def evaluate(self, api) -> typing.Tuple[typing.Callable, str]:
         compute_obj = None
         error_text = None
         needs_update = self.needs_update
         self.needs_update = False
         if needs_update:
-            is_resolved = True
-            kwargs = dict()
-            for variable in self.variables:
-                bound_object = variable.bound_item
-                if bound_object is not None:
-                    resolved_object = bound_object.value if bound_object else None
-                    # in the ideal world, we could clone the object/data and computations would not be
-                    # able to modify the input objects; reality, though, dictates that performance is
-                    # more important than this protection. so use the resolved object directly.
-                    api_object = api._new_api_object(resolved_object) if resolved_object else None
-                    kwargs[variable.name] = api_object if api_object else resolved_object  # use api only if resolved_object is an api style object
-                else:
-                    is_resolved = False
-            for result in self.results:
-                if result.specifier and not result.bound_item:
-                    is_resolved = False
-                if result.specifiers and not all(result.bound_item):
-                    is_resolved = False
+            kwargs, is_resolved = self.__resolve_inputs(api)
             if is_resolved:
                 compute_class = _computation_types.get(self.processing_id)
                 if compute_class:
@@ -658,7 +663,14 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
 
     @property
     def is_resolved(self):
-        return all(not v.specifier or v.bound_item for v in self.variables)
+        if not all(not v.specifier or v.bound_item for v in self.variables):
+            return False
+        for result in self.results:
+            if result.specifier and not result.bound_item:
+                return False
+            if result.specifiers and not all(result.bound_item):
+                return False
+        return True
 
     def __bind_variable(self, variable: ComputationVariable) -> None:
         # bind the variable. the variable has a reference to another object in the library.

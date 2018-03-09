@@ -1949,15 +1949,16 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         self.notify_insert_item("data_items", data_item, before_index)
         for data_item_reference in self.__data_item_references.values():
             data_item_reference.data_item_inserted(data_item)
-        # when a new data item is inserted, check for computations with unresolved variables
-        # rebind them, and recompute if they no longer have unresolved variables.
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
+        self.__transaction_manager._add_item(data_item)
+
+    def __rebind_computations(self):
         for computation in self.computations:
             if not computation.is_resolved:
                 computation.unbind()
                 computation.bind(self)
                 if computation.is_resolved:
                     computation.mark_update()
-        self.__transaction_manager._add_item(data_item)
 
     def remove_data_item(self, data_item):
         """Remove data item from document model.
@@ -2015,6 +2016,10 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
 
     def insert_model_item(self, container, name, before_index, item):
         container.insert_item(name, before_index, item)
+        if name == "graphics":
+            # inserting a graphic may cause computations to become bounds
+            # there may be a better place for this
+            self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def remove_model_item(self, container, name, item):
         self.__cascade_delete(item)
@@ -3188,6 +3193,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         def rebuild_transactions(): self.__transaction_manager._rebuild_transactions()
         self.__data_structure_listeners[data_structure] = data_structure.referenced_objects_changed_event.listen(rebuild_transactions)
         self.__transaction_manager._add_item(data_structure)
+        self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def __removed_data_structure(self, name, index, data_structure):
         self.__data_structure_listeners[data_structure].close()

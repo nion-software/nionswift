@@ -498,11 +498,7 @@ class TestDocumentModelClass(unittest.TestCase):
             self.__new_data = numpy.full(src.data.shape, data_structure.get_property("value"))
 
         def commit(self):
-            dst_data_item = self.computation.get_result("dst")
-            if not dst_data_item:
-                dst_data_item = self.computation.api.library.create_data_item()
-                self.computation.set_result("dst", dst_data_item)
-            dst_data_item.data = self.__new_data
+            self.computation.set_referenced_data("dst", self.__new_data)
 
     def test_new_computation_with_data_structure(self):
         Symbolic.register_computation_type("set_const_struct", self.SetConstDataStruct)
@@ -1078,6 +1074,91 @@ class TestDocumentModelClass(unittest.TestCase):
             document_model.append_computation(computation)
             document_model.recompute_all()
             self.assertEqual(1, len(document_model.data_items))
+
+    def test_new_computation_with_missing_input_which_subsequently_appears_does_evaluate(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            # document_model.append_data_item(data_item)  # purposely not added
+            document_model.append_data_item(data_item3)
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "pass_thru"
+            document_model.append_computation(computation)
+            self.assertFalse(computation.is_resolved)
+            document_model.append_data_item(data_item)  # computation should become valid
+            self.assertTrue(computation.is_resolved)
+
+    def test_new_computation_with_missing_output_which_subsequently_appears_does_evaluate(self):
+        Symbolic.register_computation_type("pass_thru", self.PassThru)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.ones((2, 2), numpy.int))
+            data_item3 = DataItem.DataItem()
+            document_model.append_data_item(data_item)
+            # document_model.append_data_item(data_item3)  # purposely not added
+            computation = document_model.create_computation()
+            computation.create_object("src_xdata", document_model.get_object_specifier(data_item, "xdata"))
+            computation.create_result("dst", document_model.get_object_specifier(data_item3, "data_item"))
+            computation.processing_id = "pass_thru"
+            document_model.append_computation(computation)
+            self.assertFalse(computation.is_resolved)
+            document_model.append_data_item(data_item3)  # computation should become valid
+            self.assertTrue(computation.is_resolved)
+
+    def test_new_computation_with_missing_data_struct_input_which_subsequently_appears_does_evaluate(self):
+        Symbolic.register_computation_type("set_const_struct", self.SetConstDataStruct)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            data_structure = document_model.create_data_structure()
+            data_structure.set_property_value("value", 3)
+            # document_model.append_data_structure(data_structure)  # purposely not added
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_object("data_structure", document_model.get_object_specifier(data_structure))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const_struct"
+            document_model.append_computation(computation)
+            self.assertFalse(computation.is_resolved)
+            document_model.append_data_structure(data_structure)  # computation should become valid
+            self.assertTrue(computation.is_resolved)
+
+    class SetConstGraphic:
+        def __init__(self, computation, **kwargs):
+            self.computation = computation
+
+        def execute(self, src, graphic):
+            self.__new_data = numpy.full(src.data.shape, graphic.position[0])
+
+        def commit(self):
+            self.computation.set_referenced_data("dst", self.__new_data)
+
+    def test_new_computation_with_missing_graphic_input_which_subsequently_appears_does_evaluate(self):
+        Symbolic.register_computation_type("set_const_graphic", self.SetConstGraphic)
+        document_model = DocumentModel.DocumentModel()
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((8, 8)))
+            data_item2 = DataItem.DataItem(numpy.zeros((3, 3), numpy.int))
+            document_model.append_data_item(data_item)
+            document_model.append_data_item(data_item2)
+            graphic = Graphics.PointGraphic()
+            # data_item.displays[0].add_graphic(graphic)  # purposely not added
+            computation = document_model.create_computation()
+            computation.create_object("src", document_model.get_object_specifier(data_item, "data_item"))
+            computation.create_object("graphic", document_model.get_object_specifier(graphic))
+            computation.create_result("dst", document_model.get_object_specifier(data_item2, "data_item"))
+            computation.processing_id = "set_const_graphic"
+            document_model.append_computation(computation)
+            self.assertFalse(computation.is_resolved)
+            data_item.displays[0].add_graphic(graphic)  # computation should become valid
+            self.assertTrue(computation.is_resolved)
 
     class GenerateZero:
         def __init__(self, computation, **kwargs):
