@@ -2095,6 +2095,20 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         items = items if items else list()
         dependencies = dependencies if dependencies else list()
         self.__build_cascade(master_item, items, dependencies)
+        cascaded = True
+        while cascaded:
+            cascaded = False
+            # adjust computation bookkeeping to remove deleted items, then delete unused computations
+            items_set = set(items)
+            for computation in copy.copy(self.computations):
+                output_deleted = master_item in computation._outputs
+                computation._inputs -= items_set
+                computation._outputs -= items_set
+                if computation not in items and computation != self.__current_computation:
+                    # computations are auto deleted if all inputs are deleted or any output is deleted
+                    if output_deleted or all(input in items for input in computation._inputs):
+                        self.__build_cascade(computation, items, dependencies)
+                        cascaded = True
         # print(list(reversed(items)))
         for source, target in reversed(dependencies):
             self.__remove_dependency(source, target)
@@ -2121,16 +2135,6 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
                 self.__remove_data_item(item)
             else:
                 container.remove_item(name, item)
-        # adjust computation bookkeeping to remove deleted items, then delete unused computations
-        items_set = set(items)
-        for computation in copy.copy(self.computations):
-            output_deleted = master_item in computation._outputs
-            computation._inputs -= items_set
-            computation._outputs -= items_set
-            if computation not in items and computation != self.__current_computation:
-                # computations are auto deleted if all inputs are deleted or any output is deleted
-                if output_deleted or all(input in items for input in computation._inputs):
-                    self.remove_computation(computation)
 
     def __remove_dependency(self, source_item, target_item):
         # print(f"remove dependency {source_item} {target_item}")
@@ -2138,9 +2142,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             target_items = self.__dependency_tree_source_to_target_map.setdefault(weakref.ref(source_item), list())
             if target_item in target_items:
                 target_items.remove(target_item)
+            if not target_items:
+                self.__dependency_tree_source_to_target_map.pop(weakref.ref(source_item), None)
             source_items = self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(target_item), list())
             if source_item in source_items:
                 source_items.remove(source_item)
+            if not source_items:
+                self.__dependency_tree_target_to_source_map.pop(weakref.ref(target_item), None)
         if isinstance(source_item, DataItem.DataItem) and isinstance(target_item, DataItem.DataItem):
             # propagate live states to dependents
             if source_item.is_live:
@@ -3288,7 +3296,7 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             # library objects. it also fires the computation_updated_event to allow the user interface
             # to update.
             input_items = self.__resolve_computation_inputs(new_computation) if new_computation else set()
-            old_input_items = set(self.__dependency_tree_target_to_source_map.setdefault(weakref.ref(data_item), list()))
+            old_input_items = set(self.__dependency_tree_target_to_source_map.get(weakref.ref(data_item), list()))
             self.__establish_computation_dependencies(old_input_items, input_items, {data_item}, {data_item})
             self.computation_updated_event.fire(data_item, new_computation)
 
