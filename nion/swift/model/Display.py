@@ -473,6 +473,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__current_display_values = None
         self.__is_master = True
 
+        self.display_values_changed_event = Event.Event()
         self.__calculated_display_values_available_event = Event.Event()
 
         self.__graphics_map = dict()  # type: typing.MutableMapping[uuid.UUID, Graphics.Graphic]
@@ -855,7 +856,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         self.__current_display_values = None
         self.__calculated_display_values_available_event.fire()
 
-    def get_calculated_display_values(self, immediate: bool = False) -> DisplayValues:
+    def get_calculated_display_values(self, immediate: bool=False) -> DisplayValues:
         """Return the display values.
 
         Return the current (possibly uncalculated) display values unless 'immediate' is specified.
@@ -863,14 +864,13 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         If 'immediate', return the existing (calculated) values if they exist. Using the 'immediate' values
         avoids calculation except in cases where the display values haven't already been calculated.
         """
-        secondary = immediate
-
-        if not secondary or not self.__is_master or not self.__last_display_values:
+        if not immediate or not self.__is_master or not self.__last_display_values:
             if not self.__current_display_values:
                 self.__current_display_values = DisplayValues(self.__data_and_metadata, self.sequence_index, self.collection_index, self.slice_center, self.slice_width, self.display_limits, self.complex_display_type, self.__color_map_data)
 
                 def finalize(display_values):
                     self.__last_display_values = display_values
+                    self.display_values_changed_event.fire()
 
                 self.__current_display_values.on_finalize = finalize
             return self.__current_display_values

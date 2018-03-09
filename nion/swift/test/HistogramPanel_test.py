@@ -20,9 +20,7 @@ class TestHistogramPanelClass(unittest.TestCase):
 
     def setUp(self):
         self.app = Application.Application(TestUI.UserInterface(), set_global=False)
-        cache_name = ":memory:"
-        storage_cache = Cache.DbStorageCache(cache_name)
-        self.document_model = DocumentModel.DocumentModel(storage_cache=storage_cache)
+        self.document_model = DocumentModel.DocumentModel()
         self.document_controller = DocumentController.DocumentController(self.app.ui, self.document_model, workspace_id="library")
         data = numpy.full((10, 10), 200, dtype=numpy.uint32)
         data[5, 5] = 650

@@ -300,6 +300,7 @@ class HistogramCanvasItem(CanvasItem.CanvasItemComposition):
         if 0 < display_limit_range < 1:
             if callable(self.on_set_display_limits):
                 self.on_set_display_limits(self.__adornments_canvas_item.display_limits)
+        self.__set_display_limits((0, 1))
         return True
 
     def mouse_position_changed(self, x, y, modifiers):
@@ -798,6 +799,7 @@ class DisplayTransientsStream(Stream.AbstractStream):
         # initialize
         self.__property_name = property_name
         self.__value = None
+        self.__display_values_changed_listener = None
         self.__next_calculated_display_values_listener = None
         self.__cmp = cmp if cmp else operator.eq
         # listen for display changes
@@ -818,18 +820,25 @@ class DisplayTransientsStream(Stream.AbstractStream):
         return self.__value
 
     def __display_changed(self, display):
-        def handle_next_calculated_display_values():
-            calculated_display_values = display.get_calculated_display_values(True)
-            new_value = getattr(calculated_display_values, self.__property_name)
+        def display_values_changed():
+            display_values = display.get_calculated_display_values(True)
+            new_value = getattr(display_values, self.__property_name)
             if not self.__cmp(new_value, self.__value):
                 self.__value = new_value
                 self.value_stream.fire(self.__value)
         if self.__next_calculated_display_values_listener:
             self.__next_calculated_display_values_listener.close()
             self.__next_calculated_display_values_listener = None
+        if self.__display_values_changed_listener:
+            self.__display_values_changed_listener.close()
+            self.__display_values_changed_listener = None
         if display:
-            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(handle_next_calculated_display_values)
-            handle_next_calculated_display_values()
+            # there are two listeners - the first when new display properties have triggered new display values.
+            # the second whenever actual new display values arrive. this ensures the display gets updated after
+            # the user changes it. could use some rethinking.
+            self.__next_calculated_display_values_listener = display.add_calculated_display_values_listener(display_values_changed)
+            self.__display_values_changed_listener = display.display_values_changed_event.listen(display_values_changed)
+            display_values_changed()
         else:
             self.__value = None
             self.value_stream.fire(None)
