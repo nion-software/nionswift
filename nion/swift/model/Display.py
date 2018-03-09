@@ -769,7 +769,7 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if self.__data_and_metadata and self.__data_and_metadata.dimensional_shape is not None:
             depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
-                slice_interval_start = int(self.slice_center + 1 - self.slice_width * 0.5)
+                slice_interval_start = round(self.slice_center - self.slice_width * 0.5)
                 slice_interval_end = slice_interval_start + self.slice_width
                 return (float(slice_interval_start) / depth, float(slice_interval_end) / depth)
             return 0, 0
@@ -780,8 +780,8 @@ class Display(Observable.Observable, Persistence.PersistentObject):
         if self.__data_and_metadata.dimensional_shape is not None:
             depth = self.__data_and_metadata.dimensional_shape[-1]  # signal_index
             if depth > 0:
-                slice_interval_center = int(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
-                slice_interval_width = int((slice_interval[1] - slice_interval[0]) * depth)
+                slice_interval_center = round(((slice_interval[0] + slice_interval[1]) * 0.5) * depth)
+                slice_interval_width = round((slice_interval[1] - slice_interval[0]) * depth)
                 self.slice_center = slice_interval_center
                 self.slice_width = slice_interval_width
 

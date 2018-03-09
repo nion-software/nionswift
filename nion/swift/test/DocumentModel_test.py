@@ -145,11 +145,13 @@ class TestDocumentModelClass(unittest.TestCase):
             self.assertFalse(numpy.array_equal(pick_data_item.data, d[4, 4, :]))
             self.assertTrue(numpy.array_equal(pick_data_item.data, d[0, 0, :]))
             self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
-            interval1 = 5 / d.shape[-1], 8 / d.shape[-1]
+            # set up interval to be on pixel boundaries; and only even width intervals will map exactly
+            interval1 = 5 / d.shape[-1], 9 / d.shape[-1]
             pick_data_item.displays[0].graphics[0].interval = interval1
             self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
             self.assertEqual(pick_data_item.displays[0].graphics[0].interval, interval1)
-            interval2 = 10 / d.shape[-1], 15 / d.shape[-1]
+            # set up interval to be on pixel boundaries; and only even width intervals will map exactly
+            interval2 = 10 / d.shape[-1], 16 / d.shape[-1]
             data_item.displays[0].slice_interval = interval2
             self.assertEqual(pick_data_item.displays[0].graphics[0].interval, data_item.displays[0].slice_interval)
             self.assertEqual(pick_data_item.displays[0].graphics[0].interval, interval2)
