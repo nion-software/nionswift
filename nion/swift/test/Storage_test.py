@@ -3277,6 +3277,27 @@ class TestStorageClass(unittest.TestCase):
         with contextlib.closing(document_model):
             self.assertEqual(document_model.data_items[0], document_model.data_structures[0].get_referenced_object("master"))
 
+    def test_data_structure_reloads_after_computation(self):
+        memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
+        library_storage = DocumentModel.MemoryPersistentStorage()
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            data_item = DataItem.DataItem(numpy.zeros((2, 2)))
+            document_model.append_data_item(data_item)
+            data_struct = document_model.create_data_structure()
+            data_struct.set_referenced_object("master", data_item)
+            document_model.append_data_structure(data_struct)
+            computation = document_model.create_computation(Symbolic.xdata_expression("-a.xdata"))
+            computation.create_object("a", document_model.get_object_specifier(data_item))
+            computed_data_item = DataItem.DataItem()
+            document_model.append_data_item(computed_data_item)
+            document_model.set_data_item_computation(computed_data_item, computation)
+        document_model = DocumentModel.DocumentModel(persistent_storage_systems=[memory_persistent_storage_system], library_storage=library_storage)
+        with contextlib.closing(document_model):
+            self.assertEqual(2, len(document_model.data_items))
+            self.assertEqual(1, len(document_model.data_structures))
+            self.assertEqual(1, len(document_model.computations))
+
     def test_library_item_sources_reconnect_after_reload(self):
         memory_persistent_storage_system = DocumentModel.MemoryStorageSystem()
         library_storage = DocumentModel.MemoryPersistentStorage()

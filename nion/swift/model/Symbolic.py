@@ -736,6 +736,8 @@ class Computation(Observable.Observable, Persistence.PersistentObject):
         # re-bind is not valid. be careful to set the computation after the data item is already in document.
         for variable in self.variables:
             assert variable.bound_item is None
+        for result in self.results:
+            assert result.bound_item is None
 
         # bind the variables
         for variable in self.variables:

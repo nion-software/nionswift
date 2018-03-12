@@ -1733,9 +1733,13 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
             data_items.extend(new_data_items)
             data_item_uuids.update({data_item.uuid for data_item in new_data_items})
         self.__library_storage.rewrite_properties(library_storage_properties)
-        self.read_from_dict(library_storage_properties)
-        self.__finish_read_partial(data_items)
-        self.__finish_read(utilized_deletions)
+        self.begin_reading()
+        try:
+            self.read_from_dict(library_storage_properties)
+            self.__finish_read_partial(data_items)
+            self.__finish_read(utilized_deletions)
+        finally:
+            self.finish_reading()
 
     def __finish_read_partial(self, data_items: typing.List[DataItem.DataItem]) -> None:
         for index, data_item in enumerate(data_items):
@@ -3193,7 +3197,8 @@ class DocumentModel(Observable.Observable, ReferenceCounting.ReferenceCounted, P
         def rebuild_transactions(): self.__transaction_manager._rebuild_transactions()
         self.__data_structure_listeners[data_structure] = data_structure.referenced_objects_changed_event.listen(rebuild_transactions)
         self.__transaction_manager._add_item(data_structure)
-        self.__rebind_computations()  # rebind any unresolved that may now be resolved
+        if not self._is_reading:
+            self.__rebind_computations()  # rebind any unresolved that may now be resolved
 
     def __removed_data_structure(self, name, index, data_structure):
         self.__data_structure_listeners[data_structure].close()
